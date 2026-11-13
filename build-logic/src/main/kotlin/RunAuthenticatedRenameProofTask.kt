@@ -99,7 +99,7 @@ private class AuthenticatedRenameRun(
             val fixture = decodeRenameFixture(raw.decodeToString(throwOnInvalidSequence = true))
             validateRenameFixture(fixture)
             val sdk = command("SDK resolution", listOf(
-                "bash", "-c", "source \"\$1\"; resolve_sdk_root", "--", File(root, "scripts/lib.sh").path,
+                HostBash.path, "-c", "source \"\$1\"; resolve_sdk_root", "--", File(root, "scripts/lib.sh").path,
             )).trim()
             adb = File(sdk, "platform-tools/adb").path
             requireProof(command("device state", listOf(adb, "-s", serial, "get-state"), ownsDescendants = false).trim() == "device", "Serial is not running")

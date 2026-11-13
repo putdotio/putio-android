@@ -19,22 +19,15 @@ concurrency:
 
 jobs:
   changes:
-    name: Detect code changes
+    name: Detect changes
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
-    # Pushes and dispatches verify everything. A pull request whose every path
-    # is docs skips verify; unlisted paths count as code. `verify` also checks
-    # Markdown; `markdown` covers pull requests that change Markdown, including
-    # the docs-only ones that skip verify. This job runs on every event, so it
-    # also checks Markdown links and scans each pushed range. A link or scan
-    # failure fails this job without skipping the jobs below, which use
-    # `!cancelled()`.
     outputs:
+      docs-only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.code != 'true' && steps.filter.outputs.markdown == 'true' }}
       code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' }}
-      markdown: ${{ github.event_name == 'pull_request' && steps.filter.outputs.markdown == 'true' }}
     steps:
       - name: Classify changed paths
         id: filter
@@ -46,9 +39,9 @@ jobs:
             code:
               - '**'
               - '!**/*.md'
-              - '!docs/**'
-              - '!.github/ISSUE_TEMPLATE/**'
-              - '!LICENSE'
+              - '!{.agents,.claude,docs,.github/ISSUE_TEMPLATE}/**'
+              - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
+              - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
             markdown:
               - '**/*.md'
 
@@ -64,93 +57,25 @@ jobs:
         if: ${{ !cancelled() }}
         uses: putdotio/.github/.github/actions/scan@e07dede03892f9b80fec82bf38afcd5f76b763b0 # v2.3.3
 
-  markdown:
-    name: Check Markdown
+  docs:
+    name: Docs
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.markdown == 'true' }}
+    if: ${{ !cancelled() && needs.changes.outputs.docs-only == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-
-    steps:
+    env:
+      TASKS: verifyDocs
+    steps: &lane
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
-        with:
-          validate-wrappers: true
-
-      - name: Check Markdown formatting
-        run: ./gradlew --stacktrace markdownCheck
-
-  # `verify` runs as two parallel jobs that together run exactly its tasks: the
-  # minified release builds here, everything else plus the debug assembles in
-  # `verify`.
-  release:
-    name: Build release
-    needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: putio-android
-          persist-credentials: false
-
-      - name: Set up Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
-        with:
-          validate-wrappers: true
-
-      # Release builds embed the public licensed fonts as Google Play bundles do. `verify`
-      # stays without them, like a fresh clone, and it is the job that uploads debug APKs.
-      - name: Fetch brand fonts
-        working-directory: putio-android
-        run: ./scripts/sync-brand-fonts.sh
-
-      - name: Assemble release builds
-        working-directory: putio-android
-        run: >-
-          ./gradlew --stacktrace :mobile:assembleProductionRelease :tv:assembleProductionRelease
-          :tv:assembleNightlyRelease
-
-  verify:
-    name: Verify Android app
-    needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 40
-
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: putio-android
-          persist-credentials: false
-
-      - name: Record source revisions
+      - name: Install evidence dependencies
+        if: env.FFMPEG == 'true'
         run: |
-          app_revision=$(git -C putio-android rev-parse HEAD)
-          app_parents=$(git -C putio-android log -1 --format=%P | tr ' ' '\n' | sed 's/^/App parent revision: /')
-          printf 'App revision: %s\n' "$app_revision" | tee -a "$GITHUB_STEP_SUMMARY"
-          printf '%s\n' "$app_parents" | tee -a "$GITHUB_STEP_SUMMARY"
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends ffmpeg
 
       - name: Set up Java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
@@ -166,42 +91,70 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version-file: putio-android/.node-version
+          node-version-file: .node-version
 
-      - name: Install evidence dependencies
+      - name: Fetch brand fonts
+        if: env.BRAND_FONTS == 'true'
+        run: ./gradlew syncBrandFonts
+
+      - name: Run Gradle
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends ffmpeg
-
-      - name: Verify and assemble all flavors
-        working-directory: putio-android
-        run: >-
-          ./gradlew --stacktrace verify -x :mobile:assembleProductionRelease -x :tv:assembleProductionRelease
-          -x :tv:assembleNightlyRelease
-          :mobile:assembleProductionDebug :tv:assembleProductionDebug
-          :mobile:assembleNightlyDebug :tv:assembleNightlyDebug
+          read -ra tasks <<<"$TASKS"
+          ./gradlew --stacktrace "${tasks[@]}"
 
       - name: Upload failed unit test reports
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: failed-unit-test-reports
-          if-no-files-found: warn
+          name: failed-unit-test-reports-${{ github.job }}
+          if-no-files-found: ignore
           path: |
-            putio-android/mobile/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/tv/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/core/*/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/domain/*/build/test-results/test*UnitTest/TEST-*.xml
-            putio-android/build-logic/build/test-results/test/TEST-*.xml
+            mobile/build/test-results/test*UnitTest/TEST-*.xml
+            tv/build/test-results/test*UnitTest/TEST-*.xml
+            core/*/build/test-results/test*UnitTest/TEST-*.xml
+            domain/*/build/test-results/test*UnitTest/TEST-*.xml
+            build-logic/build/test-results/test/TEST-*.xml
           retention-days: 3
 
       - name: Upload debug APKs
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && env.APKS != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: debug-apks
+          name: debug-apks-${{ github.job }}
           if-no-files-found: error
-          path: |
-            putio-android/mobile/build/outputs/apk/*/debug/*.apk
-            putio-android/tv/build/outputs/apk/*/debug/*.apk
+          path: ${{ env.APKS }}
           retention-days: 1
+
+  mobile:
+    name: Mobile
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASKS: verifyMobile :mobile:assembleProductionDebug :mobile:assembleNightlyDebug
+      APKS: mobile/build/outputs/apk/*/debug/*.apk
+    steps: *lane
+
+  tv:
+    name: TV, docs and scripts
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASKS: verifyTv verifyDocs verifyScripts :tv:assembleProductionDebug :tv:assembleNightlyDebug
+      FFMPEG: 'true'
+      APKS: tv/build/outputs/apk/*/debug/*.apk
+    steps: *lane
+
+  release:
+    name: Release and libraries
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      TASKS: verifyRelease verifyLibraries
+      BRAND_FONTS: 'true'
+    steps: *lane

@@ -29,6 +29,7 @@ class MobileConversionVlcTest {
                     PlaybackContent.Conversion(PlaybackConversionState.Converting(40.0)),
                     onRefresh = {},
                     onStart = {},
+                    onCancel = {},
                     onPlayInVlc = { opened++ },
                 )
             }
@@ -47,6 +48,7 @@ class MobileConversionVlcTest {
                     PlaybackContent.Conversion(PlaybackConversionState.Converting(40.0)),
                     onRefresh = {},
                     onStart = {},
+                    onCancel = {},
                 )
             }
         }

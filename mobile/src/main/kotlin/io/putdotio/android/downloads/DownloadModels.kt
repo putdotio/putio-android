@@ -110,6 +110,7 @@ internal data class DownloadEntry(
      */
     val pauseRequested: Boolean = false,
     val subtitles: List<DownloadSubtitle> = emptyList(),
+    val directPlayChosen: Boolean = false,
 ) {
     val isCompleted: Boolean get() = status is DownloadStatus.Completed
     val canRetry: Boolean get() = status is DownloadStatus.Failed || status is DownloadStatus.Missing

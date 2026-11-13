@@ -13,6 +13,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesCursor
@@ -143,12 +145,50 @@ class MobileTrashScreenTest {
     }
 
     @Test
-    fun emptyIntermediatePageOffersContinuationWithoutClaimingEmptyTrash() {
+    fun emptyIntermediatePageAsksForTheNextWithoutClaimingEmptyTrash() {
+        val events = mutableListOf<TrashEvent>()
         val state = TrashState(content = TrashContent.Loaded(emptyList(), FilesCursor("next"), 7, 1234))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
         compose.onNodeWithText("Your trash is empty").assertDoesNotExist()
-        compose.onNodeWithText("Load more").assertIsDisplayed()
         compose.onNodeWithText("Files you move to trash stay here for 14 days.").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events) }
+    }
+
+    @Test
+    fun trashLoadsTheNextPageWithinFiveRowsOfTheEnd() {
+        val events = mutableListOf<TrashEvent>()
+        val items = (1..40).map {
+            TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12)
+        }
+        val state = TrashState(content = TrashContent.Loaded(items, FilesCursor("next"), 80, 960))
+        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-20.txt"))
+        compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-36.txt"))
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events) }
+    }
+
+    @Test
+    fun aShortPageAsksForTheNextOnceAnInFlightDeleteSettles() {
+        val events = mutableListOf<TrashEvent>()
+        val submitting = TrashActionOutcome(TrashAction.DeleteItem(item), TrashActionSubmission.SUBMITTING)
+        var state by mutableStateOf(
+            TrashState(content = loaded.copy(nextCursor = FilesCursor("next")), actionOutcome = submitting),
+        )
+        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
+        compose.runOnIdle {
+            state = state.copy(actionOutcome = submitting.copy(submission = TrashActionSubmission.ACKNOWLEDGED))
+        }
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events) }
+    }
+
+    @Test
+    fun pullingTheListDownRefreshesTrash() {
+        val events = mutableListOf<TrashEvent>()
+        compose.setContent { PutioTheme { MobileTrashScreen(TrashState(content = loaded), events::add) } }
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performTouchInput { swipeDown() }
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events) }
     }
 
     @Test

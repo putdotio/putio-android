@@ -2,14 +2,11 @@ package io.putdotio.android.tv.history
 
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -23,7 +20,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -45,6 +41,7 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
+import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.tv.files.TvFilesAction
@@ -54,14 +51,13 @@ import io.putdotio.android.tv.files.TvItemEditLayer
 import io.putdotio.android.tv.files.TvItemEditTarget
 import io.putdotio.android.tv.files.TvItemThumbnails
 import io.putdotio.android.tv.files.run
-import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.TvEmptyState
-import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPickedRow
@@ -72,7 +68,6 @@ import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbar
 import io.putdotio.android.tv.TvUndoSnackbarHost
 import io.putdotio.android.tv.files.rememberBusy
-import io.putdotio.android.tv.files.tvLoadFailedMessage
 import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.rememberTvPaneHasFocus
@@ -96,7 +91,8 @@ private suspend fun placeStateFocus(
     tabFocus: FocusRequester?,
 ) {
     val empty = content == HistoryContent.Empty
-    if (!(empty || content is HistoryContent.Loading) || !paneHasFocus.value) return
+    val loading = content is HistoryContent.Loading || content == HistoryContent.Disabled
+    if (!(empty || loading) || !paneHasFocus.value) return
     withFrameNanos {}
     if (!paneHasFocus.value) return
     if (empty) {
@@ -118,15 +114,20 @@ internal fun TvHistoryScreen(
     clock: Clock = Clock.systemDefaultZone(),
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
     files: TvHistoryFiles = TvHistoryFiles.None,
-    onOpenAccount: () -> Unit = {},
     onAuthenticationRequired: suspend () -> Unit = {},
     itemActions: TvHistoryItemActions? = null,
+    open: HistoryOpen = HistoryOpen.History,
+    onRetryOpen: () -> Unit = {},
 ) = key(sessionKey) {
     LaunchedEffect(Unit) {
         files.forgetAll()
         onEvent(HistoryEvent.Refresh)
     }
-    val content = state.content
+    val content = when (open) {
+        HistoryOpen.History -> state.content
+        is HistoryOpen.Failed -> HistoryContent.Failed(open.failure)
+        HistoryOpen.Pending, HistoryOpen.FilesRoot -> HistoryContent.Disabled
+    }
     val paneHasFocus = rememberTvPaneHasFocus()
     val listFocus = remember { FocusRequester() }
     val stateFocus = remember { FocusRequester() }
@@ -138,7 +139,7 @@ internal fun TvHistoryScreen(
     )
     LaunchedEffect(content::class) { placeStateFocus(content, paneHasFocus, stateFocus, tabFocus) }
     val snackbar = remember { TvUndoSnackbar(FocusRequester()) }
-    val dialogOpen = state.clearing != HistoryClearing.Idle
+    val dialogOpen = open == HistoryOpen.History && state.clearing != HistoryClearing.Idle
     val dialogWasOpen = remember { mutableStateOf(false) }
     LaunchedEffect(dialogOpen) { refocusAfterDialog(dialogOpen, dialogWasOpen, paneHasFocus, entryTarget) }
     Column(
@@ -158,30 +159,11 @@ internal fun TvHistoryScreen(
             .fillMaxSize()
             .padding(top = HISTORY_TOP_GAP, bottom = STATE_BOTTOM_GAP)
         when (content) {
-            HistoryContent.Disabled ->
-                TvEmptyState(
-                    glyph = PutioEmptyGlyph.HistoryOff,
-                    headline = stringResource(R.string.tv_history_off_title),
-                    message = stringResource(
-                        R.string.tv_history_off_message,
-                        stringResource(R.string.tv_account_history_enabled),
-                        stringResource(R.string.tv_destination_account),
-                    ),
-                    action = TvEmptyStateAction(
-                        label = stringResource(R.string.tv_history_open_account),
-                        onClick = onOpenAccount,
-                        icon = R.drawable.ic_ph_user_circle,
-                    ),
-                    modifier = statePane,
-                    actionFocus = stateFocus,
-                    claimFocus = paneHasFocus.value,
-                )
             is HistoryContent.Failed ->
                 TvLoadFailedState(
                     failure = content.failure,
                     headline = stringResource(R.string.tv_history_error_title),
-                    message = content.failure.tvLoadFailedMessage(),
-                    onRetry = { onEvent(HistoryEvent.Retry) },
+                    onRetry = { if (open is HistoryOpen.Failed) onRetryOpen() else onEvent(HistoryEvent.Retry) },
                     modifier = statePane,
                     actionFocus = stateFocus,
                     claimFocus = paneHasFocus.value,
@@ -193,7 +175,7 @@ internal fun TvHistoryScreen(
                     message = stringResource(R.string.tv_history_empty_message),
                     modifier = statePane,
                 )
-            is HistoryContent.Loading -> TvHistoryLoading(stateFocus)
+            HistoryContent.Disabled, is HistoryContent.Loading -> TvHistoryLoading(stateFocus)
             is HistoryContent.Ready ->
                 TvHistoryListDetail(
                     content = content,
@@ -209,7 +191,7 @@ internal fun TvHistoryScreen(
                 )
         }
     }
-    TvHistoryClearDialog(state.clearing, onEvent)
+    if (open == HistoryOpen.History) TvHistoryClearDialog(state.clearing, onEvent)
 }
 
 @Composable
@@ -316,7 +298,7 @@ private fun TvHistoryListDetail(
                             thumbnails = itemActions?.thumbnails ?: TvItemThumbnails.None,
                             onPlay = { itemActions?.onPlay?.invoke(it) },
                         ),
-                        onGoToFolder = { onEvent(HistoryEvent.OpenFile(it)) },
+                        onGoToFolder = { onEvent(HistoryEvent.GoToFolder(it)) },
                         secondaryOf = { file -> itemActions?.actionsOf?.invoke(file).orEmpty() },
                         onSecondary = { file, action ->
                             val handlers = itemActions?.handlers
@@ -387,40 +369,20 @@ private fun TvHistoryNotice(notice: FilesFailure) {
 @Composable
 internal fun TvHistoryPaging(
     paging: HistoryPaging,
-    onNextPage: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
 ) {
-    val label = when (paging) {
-        is HistoryPaging.Available -> R.string.tv_history_load_more
-        is HistoryPaging.Loading -> R.string.tv_history_loading_more
-        is HistoryPaging.Failed -> R.string.tv_state_try_again
-        HistoryPaging.Complete -> null
-    } ?: return
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (paging is HistoryPaging.Failed) {
-            Text(stringResource(R.string.tv_history_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TvButton(
-            onClick = {
-                when (paging) {
-                    is HistoryPaging.Available -> onNextPage()
-                    is HistoryPaging.Failed -> onRetry()
-                    is HistoryPaging.Loading, HistoryPaging.Complete -> Unit
-                }
-            },
-            modifier = buttonModifier,
-        ) {
-            Text(stringResource(label))
-        }
-    }
+    if (paging == HistoryPaging.Complete) return
+    TvListPaging(
+        failed = paging is HistoryPaging.Failed,
+        loadingMore = stringResource(R.string.tv_history_loading_more),
+        error = stringResource(R.string.tv_history_paging_error),
+        retry = stringResource(R.string.tv_state_try_again),
+        onRetry = onRetry,
+        modifier = modifier,
+        buttonModifier = buttonModifier,
+    )
 }
 
 @Composable

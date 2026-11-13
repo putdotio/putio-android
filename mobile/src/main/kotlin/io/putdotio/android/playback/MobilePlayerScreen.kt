@@ -40,6 +40,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -56,7 +57,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -113,7 +113,9 @@ internal fun MobilePlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
+    onOriginalChosen: ((Long) -> Unit)? = null,
     autoplayNextVideo: Boolean = false,
+    rotateToLandscape: Boolean = true,
     onPlaybackEnded: () -> Unit = {},
     /** The file's end, whatever autoplay does next, and Cast handovers. */
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
@@ -127,6 +129,8 @@ internal fun MobilePlayerScreen(
     onStartConversion: () -> Unit = {},
     nextEpisode: PlaybackTarget? = null,
     onNextEpisode: () -> Unit = {},
+    upNext: PlaybackUpNextLookup = PlaybackUpNextLookup.Off,
+    onPlayUpNext: (PlaybackTarget) -> Unit = {},
     neighbours: PlaybackNeighbours = PlaybackNeighbours(),
     onPlay: (PlaybackTarget) -> Unit = {},
     /** Hands the original to VLC when this player can't play it; null where VLC isn't offered. */
@@ -134,13 +138,18 @@ internal fun MobilePlayerScreen(
     /** The Cast session; with [castMedia], the top bar offers Cast once a receiver is in reach. */
     cast: MobileCastController? = null,
     castMedia: MobileCastMediaLoader? = null,
+    onCastEnded: (() -> Unit)? = null,
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     val pictureInPicture = rememberPictureInPictureMode()
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
-        MobileVideoWindow(fileId = state.target.fileId.value, landscape = landscapeVideo)
+        MobileVideoWindow(
+            fileId = state.target.fileId.value,
+            landscape = landscapeVideo,
+            rotateToLandscape = rotateToLandscape,
+        )
         // A closed window stopped the video; the next visit finds it paused instead of playing on.
         PictureInPictureDismissalEffect { preferences.resumeAfterLifecyclePause = false }
     }
@@ -158,6 +167,7 @@ internal fun MobilePlayerScreen(
             keyboardNavigation = keyboardNavigation,
             onPlayerFailure = onPlayerFailure,
             onOriginalRejected = onOriginalRejected,
+            onOriginalChosen = onOriginalChosen,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
@@ -168,6 +178,8 @@ internal fun MobilePlayerScreen(
             pictureInPicture = pictureInPicture,
             nextEpisode = nextEpisode.takeIf { state.target.mediaType == PlaybackMediaType.VIDEO },
             onNextEpisode = onNextEpisode,
+            upNext = upNext.whenAutoplaying(autoplayNextVideo, state.target.mediaType),
+            onPlayUpNext = onPlayUpNext,
             neighbours = neighbours,
             onPlay = onPlay,
         )
@@ -184,7 +196,7 @@ internal fun MobilePlayerScreen(
         // The open device picker is modal: TalkBack reaches only it.
         Box(Modifier.fillMaxSize().hiddenFromAccessibility(castPicker.value)) {
             val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
-            val shown = state.shownContent(playerCast, onResume)
+            val shown = state.shownContent(playerCast, onResume, onCastEnded)
             when (val content = shown) {
                 is PlaybackContent.Loading ->
                     MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
@@ -216,6 +228,7 @@ internal fun MobilePlayerScreen(
                         content,
                         onRefreshConversion,
                         onStartConversion,
+                        onCancel = onBack,
                         onPlayInVlc = onOpenInVlc?.takeIf { LocalContext.current.hasVlc() },
                     )
 
@@ -233,7 +246,7 @@ internal fun MobilePlayerScreen(
 
                 is PlaybackContent.Failed ->
                     MobilePlaybackFailureState(
-                        title = stringResource(state.target.mediaType.errorTitle()),
+                        title = stringResource(content.failure.errorTitle(state.target.mediaType)),
                         failure = content.failure,
                         onRetry = onRetry,
                         video = isVideo,
@@ -253,10 +266,19 @@ internal fun MobilePlayerScreen(
  * What the screen shows: a receiver already playing the file takes the place of a resume prompt,
  * which is answered with the saved position so a session that ends hands back as from any ready
  * file, and of a local failure, which leaves that receiver in reach. A session that already ended
- * answers the prompt too: the file resumes where the receiver stopped.
+ * answers the prompt too: the file resumes where the receiver stopped. An original that played
+ * converted only for the receiver loads as the original again once the session is gone.
  */
 @Composable
-private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> Unit): PlaybackContent {
+private fun PlaybackState.shownContent(
+    playerCast: PlayerCast,
+    onResume: () -> Unit,
+    onCastEnded: (() -> Unit)?,
+): PlaybackContent {
+    if (onCastEnded != null && convertedForCast && !playerCast.session) {
+        LaunchedEffect(target.fileId) { onCastEnded() }
+        return ReopeningOriginal
+    }
     val prompt = content as? PlaybackContent.AwaitingResume
     val attached = playerCast.attaches(target.fileId.value) && content.attachable
     // Where a receiver stopped is the answer the prompt would ask for, so it is not asked.
@@ -265,6 +287,8 @@ private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> U
     }
     return if (attached) PlaybackContent.Session else content
 }
+
+private val ReopeningOriginal = PlaybackContent.Loading(PlaybackRequestId(0L))
 
 /** States a receiver that already plays the file stands in for: none needs the viewer first. */
 private val PlaybackContent.attachable: Boolean
@@ -290,6 +314,7 @@ private fun MobileReadyContent(
     keyboardNavigation: MutableState<Boolean>,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onOriginalChosen: ((Long) -> Unit)?,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
@@ -300,6 +325,8 @@ private fun MobileReadyContent(
     pictureInPicture: State<Boolean>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    upNext: PlaybackUpNextLookup,
+    onPlayUpNext: (PlaybackTarget) -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
 ) {
@@ -355,6 +382,7 @@ private fun MobileReadyContent(
             onPointerNavigation = { keyboardNavigation.value = false },
             onPlayerFailure = onPlayerFailure,
             onOriginalRejected = onOriginalRejected,
+            onOriginalChosen = onOriginalChosen,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
             analytics = analytics,
@@ -367,6 +395,8 @@ private fun MobileReadyContent(
             sidecarSubtitles = ready?.source?.playerSubtitles().sidecarTracks(),
             nextEpisode = nextEpisode,
             onNextEpisode = onNextEpisode,
+            upNext = upNext,
+            onPlayUpNext = onPlayUpNext,
             neighbours = neighbours,
             onPlay = onPlay,
             castButton = playerCast.button,
@@ -398,7 +428,7 @@ private fun PlaybackState.showsSeparateBack(shown: PlaybackContent): Boolean =
  * conversion, a failure. It sits where the player's own top bar does.
  */
 @Composable
-private fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+internal fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier
             .fillMaxWidth()
@@ -437,6 +467,7 @@ private fun MobileReadyPlayer(
     onPointerNavigation: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onOriginalChosen: ((Long) -> Unit)?,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
     analytics: PlaybackAnalyticsReporter,
@@ -449,6 +480,8 @@ private fun MobileReadyPlayer(
     sidecarSubtitles: List<PlaybackSubtitle>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    upNext: PlaybackUpNextLookup,
+    onPlayUpNext: (PlaybackTarget) -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
     castButton: @Composable (Modifier) -> Unit,
@@ -485,7 +518,6 @@ private fun MobileReadyPlayer(
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentOnOriginalRejected = rememberUpdatedState(onOriginalRejected)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
-    val currentOnPlaybackEnded = rememberUpdatedState(onPlaybackEnded)
     val currentOnReachedEnd = rememberUpdatedState<() -> Unit> { analytics.reachedEnd() }
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
@@ -507,6 +539,16 @@ private fun MobileReadyPlayer(
             resumeAfterLifecyclePause = resumeAfterLifecyclePause,
         )
     }
+    val upNextEnd = rememberMobileUpNextEnd(
+        fileId = fileId,
+        playbackState = playerState.playbackState,
+        lookup = upNext,
+        pictureInPicture = pictureInPicture.value,
+        autoplay = autoplayNextVideo,
+        onPlaybackEnded = onPlaybackEnded,
+        onPlay = onPlayUpNext,
+    )
+    val markEnded = rememberUpdatedState<() -> Unit> { upNextEnd.ended = true }
     val currentOnVideoAspectRatio by rememberUpdatedState(onVideoAspectRatio)
     LaunchedEffect(playerState.videoSize) {
         playerState.videoSize.displayAspectRatioOrNull()?.let(currentOnVideoAspectRatio)
@@ -572,7 +614,7 @@ private fun MobileReadyPlayer(
         currentPreferences = currentPreferences,
         currentSubtitleStartupPolicy = currentSubtitleStartupPolicy,
         currentAutoplayNextVideo = currentAutoplayNextVideo,
-        currentOnPlaybackEnded = currentOnPlaybackEnded,
+        currentOnPlaybackEnded = markEnded,
         currentOnReachedEnd = currentOnReachedEnd,
         currentOnPlayerFailure = currentOnPlayerFailure,
         currentOnOriginalRejected = currentOnOriginalRejected,
@@ -625,26 +667,36 @@ private fun MobileReadyPlayer(
         sidecarSubtitles = sidecarSubtitles,
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
+        upNextCard = upNextEnd.counting(upNext, pictureInPicture.value),
+        upNextRemainingMillis = { upNextEnd.remainingMillis },
+        onPlayUpNext = upNextEnd::play,
+        onCancelUpNext = { upNextEnd.cancelled = true },
         neighbours = neighbours,
         onPlay = onPlay,
         enterPictureInPicture = enterPictureInPicture,
         pictureInPictureSeeks = pictureInPictureSeeks,
         castButton = castButton,
-        onSwitchToConverted = source.switchToConverted(mediaType, offline, player, currentOnOriginalRejected),
+        stream = source.streamSwitch(mediaType, offline, player, currentOnOriginalRejected, onOriginalChosen),
     )
 }
 
-private fun PlaybackSource?.switchToConverted(
+private fun PlaybackSource?.streamSwitch(
     mediaType: PlaybackMediaType,
     offline: Boolean,
     player: Media3Player,
     onOriginalRejected: State<(PlaybackFallbackReason, Long) -> Boolean>,
-): (() -> Unit)? =
-    if (this?.kind == PlaybackSourceKind.ORIGINAL && mediaType == PlaybackMediaType.VIDEO && !offline) {
-        { onOriginalRejected.value(PlaybackFallbackReason.UserSwitched, player.currentPosition.coerceAtLeast(0L)) }
-    } else {
-        null
+    onOriginalChosen: ((Long) -> Unit)?,
+): PlaybackStreamSwitch? {
+    val position = { player.currentPosition.coerceAtLeast(0L) }
+    return when {
+        this?.kind == PlaybackSourceKind.ORIGINAL && mediaType == PlaybackMediaType.VIDEO && !offline ->
+            PlaybackStreamSwitch(PlaybackStream.Original) {
+                onOriginalRejected.value(PlaybackFallbackReason.UserSwitched, position())
+            }
+        onOriginalChosen != null -> PlaybackStreamSwitch(PlaybackStream.Converted) { onOriginalChosen(position()) }
+        else -> null
     }
+}
 
 /**
  * What the screen tracks about one player. It is remembered with that player, so a recreated
@@ -674,6 +726,7 @@ private class ReadyPlayerState(
     var videoSize by mutableStateOf(player.videoSize)
     var playbackState by mutableIntStateOf(player.playbackState)
     var keepScreenOn by mutableStateOf(keepScreenOn)
+    var stalled by mutableStateOf(false)
     var playerWantsToPlay by mutableStateOf(player.playWhenReady)
     var retainedPlayIntent by mutableStateOf(resumeAfterLifecyclePause)
     var failurePositionMillis by mutableStateOf<Long?>(null)
@@ -684,6 +737,10 @@ private class ReadyPlayerState(
 
     /** The video frame's full-screen bounds in the window, which picture-in-picture animates from. */
     var videoFrame by mutableStateOf<Rect?>(null)
+
+    fun refreshKeepScreenOn(isAudio: Boolean) {
+        keepScreenOn = !stalled && player.keepsVideoScreenOn(isAudio)
+    }
 }
 
 @UnstableApi
@@ -1107,7 +1164,7 @@ private fun PlayerListenerEffect(
                 override fun onPlaybackStateChanged(newPlaybackState: Int) {
                     playerState.playbackState = newPlaybackState
                     controlsVisible.value = controlsVisibleForPlaybackState(controlsVisible.value, newPlaybackState)
-                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.refreshKeepScreenOn(isAudio)
                     if (newPlaybackState == Media3Player.STATE_ENDED) {
                         if (!playerState.endedReported) {
                             playerState.endedReported = true
@@ -1134,7 +1191,7 @@ private fun PlayerListenerEffect(
                 }
 
                 override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) {
-                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.refreshKeepScreenOn(isAudio)
                 }
 
                 override fun onPlayWhenReadyChanged(
@@ -1142,7 +1199,7 @@ private fun PlayerListenerEffect(
                     reason: Int,
                 ) {
                     playerState.playerWantsToPlay = playWhenReady
-                    playerState.keepScreenOn = !isAudio && player.shouldKeepScreenOn()
+                    playerState.refreshKeepScreenOn(isAudio)
                     val update = playerRetentionUpdate(
                         event = PlayerRetentionEvent.PlayIntentChanged,
                         lifecycleState = lifecycleState(),
@@ -1205,14 +1262,20 @@ private fun MobileReadyPlayerContent(
     sidecarSubtitles: List<PlaybackSubtitle>,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
+    upNextCard: PlaybackUpNext?,
+    upNextRemainingMillis: () -> Long,
+    onPlayUpNext: (PlaybackTarget) -> Unit,
+    onCancelUpNext: () -> Unit,
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
     enterPictureInPicture: (() -> Unit)?,
     pictureInPictureSeeks: SeekRelay,
     castButton: @Composable (Modifier) -> Unit,
-    onSwitchToConverted: (() -> Unit)?,
+    stream: PlaybackStreamSwitch?,
 ) {
     val player = playerState.player
+    val stallWatch = rememberPlaybackStallWatch(player)
+    val stall by stallWatch.stall.collectAsState()
     fun seek(direction: SeekDirection) {
         val currentWindow = player.currentSeekWindow()
         pendingSeek.value =
@@ -1256,12 +1319,27 @@ private fun MobileReadyPlayerContent(
     val fold = tabletopFoldIn(contentInWindow, enabled = !pictureInPicture)
     var chromeFitsFold by remember(fold, contentInWindow.size) { mutableStateOf(true) }
     val videoFold = fold?.takeIf { chromeFitsFold }
+    val stalled = stall.coversPlayer(pictureInPicture)
+    MobileStallEffect(
+        stalled = stalled,
+        playerFocus = keyFocus,
+        onStalled = {
+            sheet = null
+            playerState.stalled = true
+            playerState.refreshKeepScreenOn(isAudio)
+        },
+        onRecovered = {
+            playerState.stalled = false
+            playerState.refreshKeepScreenOn(isAudio)
+        },
+    )
+    val shownFooterHeight = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp
 
     Box(
         Modifier
             .fillMaxSize()
             .onGloballyPositioned { contentInWindow = it.boundsInWindow() }
-            .onKeyEvent { event ->
+            .onPlayerKeyEvent(enabled = !stalled) { event ->
                 videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
                     player.runKeyCommand(command, ::seek, onBack)
                 }
@@ -1294,14 +1372,12 @@ private fun MobileReadyPlayerContent(
                 pictureInPicture = pictureInPicture,
                 subtitleTextScale = appearance.textSize.scale,
                 subtitlesBesideSheet = sheet != null,
-                subtitleClearance = videoFold.videoClearance(
-                    footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp,
-                ),
+                subtitleClearance = videoFold.videoClearance(shownFooterHeight),
                 subtitleDelayMillis = preferences.subtitleOffsetMillis,
                 fold = videoFold,
             )
         }
-        if (isAudio) {
+        if (isAudio.unless(stalled)) {
             MobileNowPlayingScreen(
                 player = player,
                 title = title,
@@ -1315,7 +1391,7 @@ private fun MobileReadyPlayerContent(
                 modifier = Modifier.zIndex(2f).observeControlNavigation(onPointerNavigation, onKeyboardNavigation),
             )
             MobileSeekFeedbackLayer(pendingSeek.value)
-        } else if (!pictureInPicture && sheet == null) {
+        } else if (stall.allowsChrome(pictureInPicture) && sheet == null) {
             // The window shows only the video and its subtitles; its own menu carries the controls.
             MobilePlayerChrome(
                 player = player,
@@ -1335,7 +1411,7 @@ private fun MobileReadyPlayerContent(
                         options = options,
                         sidecarSubtitles = sidecarSubtitles,
                         subtitleStartupPolicy = subtitleStartupPolicy,
-                        original = onSwitchToConverted != null,
+                        stream = stream?.current,
                         onSheet = { sheet = it },
                         modifier = optionModifier,
                     )
@@ -1346,6 +1422,18 @@ private fun MobileReadyPlayerContent(
                 onFoldFits = { chromeFitsFold = it },
             )
             MobileSeekFeedbackLayer(pendingSeek.value, videoFold)
+            MobileUpNextCard(
+                upNext = upNextCard,
+                remainingMillis = upNextRemainingMillis,
+                onPlayNow = onPlayUpNext,
+                onCancel = onCancelUpNext,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .zIndex(2.25f)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                    .padding(end = 24.dp, bottom = shownFooterHeight + 8.dp)
+                    .then(optionModifier),
+            )
         }
         if (!isAudio && !pictureInPicture) {
             MobileVideoSheets(
@@ -1358,11 +1446,23 @@ private fun MobileReadyPlayerContent(
                 appearance = appearance,
                 preferences = preferences,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,
-                onSwitchToConverted = onSwitchToConverted,
+                stream = stream,
                 modifier = Modifier.zIndex(2.5f),
                 panelModifier = optionModifier,
             )
         }
+        MobilePlaybackStallLayer(
+            stall = stall,
+            pictureInPicture = pictureInPicture,
+            title = title,
+            video = !isAudio,
+            controlsShown = controlsVisible.value,
+            sheetOpen = sheet != null,
+            fold = videoFold,
+            onRetry = stallWatch::retry,
+            onBack = onBack,
+            modifier = Modifier.zIndex(4f),
+        )
     }
 }
 

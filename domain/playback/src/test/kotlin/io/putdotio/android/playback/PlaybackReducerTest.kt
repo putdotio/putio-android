@@ -383,17 +383,18 @@ class PlaybackReducerTest {
     }
 
     @Test
-    fun aPositionSavedWithinTenSecondsOfTheEndStartsOverWithoutAPrompt() {
+    fun aPositionSavedPast95PercentStartsOverWithoutAPrompt() {
+        val finishedSource = playbackSource().copy(startFromSeconds = 570.0)
         for (mediaType in PlaybackMediaType.entries) {
-            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType, durationSeconds = 22.0))
+            val start = PlaybackReducer.start(Target.copy(mediaType = mediaType, durationSeconds = 600.0))
             val finished = PlaybackReducer.reduce(
                 start.state,
                 PlaybackEvent.ResolveSucceeded(
                     PlaybackRequestId(1L),
-                    PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+                    PlaybackResolution.Ready(finishedSource, useStartFrom = true),
                 ),
             )
-            assertEquals(PlaybackContent.Ready(playbackSource(), useStartFrom = true), finished.state.content)
+            assertEquals(PlaybackContent.Ready(finishedSource, useStartFrom = true), finished.state.content)
             assertEquals(0L, finished.state.resumePositionMillis)
         }
         // The resolution's duration serves a target that came without one.
@@ -401,16 +402,15 @@ class PlaybackReducerTest {
             PlaybackReducer.start(Target).state,
             PlaybackEvent.ResolveSucceeded(
                 PlaybackRequestId(1L),
-                PlaybackResolution.Ready(playbackSource(), useStartFrom = true, durationSeconds = 20.0),
+                PlaybackResolution.Ready(finishedSource, useStartFrom = true, durationSeconds = 600.0),
             ),
         )
         assertEquals(0L, looked.state.resumePositionMillis)
-        // Just over 10 s from the end still asks.
         val asks = PlaybackReducer.reduce(
-            PlaybackReducer.start(Target.copy(durationSeconds = 22.01)).state,
+            PlaybackReducer.start(Target.copy(durationSeconds = 600.0)).state,
             PlaybackEvent.ResolveSucceeded(
                 PlaybackRequestId(1L),
-                PlaybackResolution.Ready(playbackSource(), useStartFrom = true),
+                PlaybackResolution.Ready(playbackSource().copy(startFromSeconds = 569.0), useStartFrom = true),
             ),
         )
         assertTrue(asks.state.content is PlaybackContent.AwaitingResume)
@@ -524,6 +524,66 @@ class PlaybackReducerTest {
         )
         assertTrue(recovered.state.content is PlaybackContent.Ready)
         assertEquals(4_321L, recovered.state.resumePositionMillis)
+    }
+
+    @Test
+    fun anExpiredLinkResolvesOnceSilentlyAtItsPositionAndShowsTheSecondFailure() {
+        val expired = PlaybackFailure.MediaCredentialUnavailable(IllegalStateException("401"))
+        val refetch = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(expired, 4_321L))
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(2L)), refetch.state.content)
+        assertEquals(PlaybackEffect.Resolve(Target, PlaybackRequestId(2L)), refetch.effect)
+        assertEquals(4_321L, refetch.state.resumePositionMillis)
+
+        val source = playbackSource()
+        val resumed = PlaybackReducer.reduce(
+            refetch.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(2L),
+                PlaybackResolution.Ready(source, useStartFrom = true),
+            ),
+        )
+        assertEquals(PlaybackContent.Ready(source, useStartFrom = true), resumed.state.content)
+        assertEquals(4_321L, resumed.state.resumePositionMillis)
+
+        val failed = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(expired, 4_321L))
+        assertEquals(PlaybackContent.Failed(expired), failed.state.content)
+        assertNull(failed.effect)
+
+        val crept = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(expired, 4_361L))
+        assertEquals(PlaybackContent.Failed(expired), crept.state.content)
+
+        val later = PlaybackReducer.reduce(resumed.state, PlaybackEvent.PlayerFailed(expired, 600_000L))
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(3L)), later.state.content)
+        assertEquals(600_000L, later.state.resumePositionMillis)
+
+        val laterReady = PlaybackReducer.reduce(
+            later.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(3L),
+                PlaybackResolution.Ready(source, useStartFrom = true),
+            ),
+        )
+        val rewound = PlaybackReducer.reduce(laterReady.state, PlaybackEvent.PlayerFailed(expired, 1_000L))
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(4L)), rewound.state.content)
+
+        val retried = PlaybackReducer.reduce(failed.state, PlaybackEvent.Retry)
+        val retriedReady = PlaybackReducer.reduce(
+            retried.state,
+            PlaybackEvent.ResolveSucceeded(
+                PlaybackRequestId(3L),
+                PlaybackResolution.Ready(source, useStartFrom = true),
+            ),
+        )
+        val afterRetry = PlaybackReducer.reduce(retriedReady.state, PlaybackEvent.PlayerFailed(expired, 4_321L))
+        assertEquals(PlaybackContent.Loading(PlaybackRequestId(4L)), afterRetry.state.content)
+
+        val unknownPosition = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(expired, -1L))
+        assertEquals(0L, unknownPosition.state.resumePositionMillis)
+
+        val network = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
+        val notExpired = PlaybackReducer.reduce(readyState(), PlaybackEvent.PlayerFailed(network, 4_321L))
+        assertEquals(PlaybackContent.Failed(network), notExpired.state.content)
+        assertNull(notExpired.effect)
     }
 
     @Test

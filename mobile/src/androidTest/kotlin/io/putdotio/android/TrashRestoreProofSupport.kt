@@ -43,7 +43,7 @@ internal fun <T> trashRestoreApiCheck(stage: String, block: suspend () -> T): T 
 internal fun trashRestoreScreenshot(label: String) {
     val runId = InstrumentationRegistry.getArguments().getString("putio.trash.restore.runId")
     require(runId != null && UUID.fromString(runId).toString() == runId)
-    require(label in setOf("cancel-confirmation", "restore-started", "restore-result", "restored-files",
+    require(label in setOf("restore-started", "restore-result", "restored-files",
         "synthetic-recovery"))
     val instrumentation = InstrumentationRegistry.getInstrumentation()
     instrumentation.uiAutomation.waitForIdle(100, 3_000)

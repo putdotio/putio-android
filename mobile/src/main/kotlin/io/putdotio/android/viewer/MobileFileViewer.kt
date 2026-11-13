@@ -49,7 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobileRetryButton
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesItem
@@ -153,6 +155,8 @@ internal fun MobileFileViewerContent(
     val reads = remember { ViewerPageReads() }
     LoadNextPageNearLast(pager, files.size, paging, reads)
     val more = paging.more && !reads.stopped
+    val settledId = files.getOrNull(pager.settledPage)?.id
+    val zoom = remember(pager.settledPage, settledId) { MobileViewerZoom() }
     val frame = MaterialTheme.colorScheme.scrim
     Box(
         modifier = Modifier
@@ -164,6 +168,7 @@ internal fun MobileFileViewerContent(
             HorizontalPager(
                 state = pager,
                 key = { files.getOrNull(it)?.id?.value ?: it },
+                userScrollEnabled = !zoom.zoomed,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -172,9 +177,10 @@ internal fun MobileFileViewerContent(
                 val file = files.getOrNull(page) ?: return@HorizontalPager
                 val uri = actions.documentUri(file)
                 val openElsewhere = { actions.onOpenWithAnotherApp(file) }
+                val pageZoom = zoom.takeIf { page == pager.settledPage }
                 when (file.viewerKind) {
-                    FilesViewerKind.Image -> MobileImagePage(file, uri, openElsewhere)
-                    FilesViewerKind.Pdf -> MobilePdfPage(file, uri, openElsewhere)
+                    FilesViewerKind.Image -> MobileImagePage(file, uri, pageZoom, openElsewhere)
+                    FilesViewerKind.Pdf -> MobilePdfPage(file, uri, pageZoom, openElsewhere)
                     FilesViewerKind.Text -> MobileTextPage(uri, openElsewhere)
                     null -> MobileViewerFailure(openElsewhere)
                 }
@@ -350,6 +356,21 @@ internal fun MobileViewerFailure(onOpenWithAnotherApp: () -> Unit, modifier: Mod
         )
         TextButton(onClick = onOpenWithAnotherApp) {
             Text(stringResource(R.string.mobile_viewer_open_with))
+        }
+    }
+}
+
+@Composable
+internal fun MobileViewerLoadFailure(onRetry: () -> Unit, onOpenWithAnotherApp: () -> Unit) {
+    MobileEmptyState(
+        title = stringResource(R.string.mobile_state_error_title),
+        message = stringResource(R.string.mobile_state_error_message),
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            MobileRetryButton(onClick = onRetry)
+            TextButton(onClick = onOpenWithAnotherApp) {
+                Text(stringResource(R.string.mobile_viewer_open_with))
+            }
         }
     }
 }

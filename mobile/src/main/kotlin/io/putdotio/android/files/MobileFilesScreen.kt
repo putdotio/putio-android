@@ -30,6 +30,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -68,6 +69,7 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileInlineError
 import io.putdotio.android.RetryWhenOnline
+import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileKeyCommand
 import io.putdotio.android.MobileShortcutScope
@@ -91,6 +93,7 @@ import io.putdotio.android.MobileSnackbarHost
 
 internal const val MOBILE_FILES_LIST_TAG = "mobile-files-list"
 internal const val MOBILE_FILES_OPERATION_RETRY_TAG = "mobile-files-operation-retry"
+internal const val MOBILE_FILES_OUTCOME_RETRY_TAG = "mobile-files-outcome-retry"
 internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 internal const val MOBILE_FILES_SNACKBAR_TAG = "mobile-files-snackbar"
@@ -111,6 +114,7 @@ internal fun MobileFilesScreen(
     fileDragOut: MobileFileDragOut? = null,
     /** Started videos for the root's Continue watching row; other folders never show it. */
     continueWatching: List<ContinueWatchingEntry> = emptyList(),
+    pinned: List<FilesItem> = emptyList(),
     /** Opens the New folder dialog; null where this screen can't create one. */
     onNewFolder: (() -> Unit)? = null,
     /** How a tap opens a file beyond playing media; null leaves only media playable. */
@@ -128,7 +132,7 @@ internal fun MobileFilesScreen(
     val content = current.content
     LaunchedEffect(content) {
         if (content !is FilesContent.Loading) {
-            offline = (content as? FilesContent.Failed)?.failure is PutioFailure.NetworkUnavailable
+            offline = (content as? FilesContent.Failed)?.failure.isUnreachable
         }
     }
     when (content) {
@@ -145,7 +149,7 @@ internal fun MobileFilesScreen(
         }
 
         is FilesContent.Failed -> MobileFilesStateWithCopy(state, onEvent, itemActions.notices, modifier) {
-            if (content.failure is PutioFailure.NetworkUnavailable) {
+            if (content.failure.isUnreachable) {
                 MobileFilesOfflineWithActions(
                     onDevice = if (atRoot) downloads.onDeviceItems() else emptyList(),
                     onRetry = { onEvent(FilesBrowserEvent.Retry) },
@@ -174,6 +178,7 @@ internal fun MobileFilesScreen(
                 fileDragOut,
                 headers = MobileFilesHeaders(
                     continueWatching = if (atRoot) continueWatching else emptyList(),
+                    pinned = if (atRoot) pinned else emptyList(),
                     summary = if (atRoot) null else current.summary,
                 ),
                 onNewFolder = onNewFolder,
@@ -196,6 +201,8 @@ internal class MobileFilesOpening(
     val showsDetail: Boolean = false,
     val selectedFileId: FilesItemId? = null,
     val actionsRequests: Flow<MobileFilesActionsRequest> = emptyFlow(),
+    /** Opens a file once its folder has loaded and revealed it, as a tap on its row would. */
+    val onOpenWhenRevealed: (FilesItemId) -> Unit = {},
 )
 
 internal data class MobileFilesActionsRequest(val id: FilesItemId, val inViewer: Boolean = false)
@@ -235,7 +242,10 @@ private fun MobileFilesStateWithCopy(
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
         }
         // Item actions started from a listing can fail while the next folder loads.
-        MobileFilesNoticeHost(notices, Modifier.align(Alignment.BottomCenter))
+        val snackbarHostState = remember { SnackbarHostState() }
+        MobileFilesNotices(notices, snackbarHostState)
+        MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
+        MobileSnackbarHost(snackbarHostState, Modifier.align(Alignment.BottomCenter))
     }
 }
 
@@ -364,6 +374,8 @@ private fun MobileRefreshableFilesContent(
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
+    MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
+    MobileFilesNotices(itemActions.pinNotices, snackbarHostState)
     val hideStarted = rememberHideWithUndo(itemActions, snackbarHostState)
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -422,6 +434,9 @@ private fun MobileRefreshableFilesContent(
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
+                                pinnedActions = itemActions.pinnedActions { item ->
+                                    openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
+                                },
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
@@ -449,7 +464,7 @@ private fun MobileRefreshableFilesContent(
                     -> Unit
                 }
             }
-            MobileFilesFolderStatus(state, onEvent)
+            MobileFilesFolderStatus(state, confirmedTrashEnabled, onEvent)
         }
         MobileFilesSelectionToolbarSlot(
             state = state,
@@ -513,6 +528,7 @@ private fun <T> T?.afterFocusChange(itemId: T, focused: Boolean): T? =
 @Composable
 private fun MobileFilesFolderStatus(
     state: FilesBrowserState,
+    confirmedTrashEnabled: Boolean?,
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     val operation = state.current.operation
@@ -522,10 +538,49 @@ private fun MobileFilesFolderStatus(
             if (outcome.status == FilesDeleteStatus.TOO_LARGE_FOR_TRASH) {
                 MobileFilesTrashLimitStatus(outcome, state.current, onEvent)
             } else {
-                MobileFilesDeleteStatus(outcome)
+                MobileFilesDeleteRetryStatus(
+                    outcome, outcome.retry(state.current, confirmedDeleteMode(confirmedTrashEnabled)), onEvent,
+                )
             }
         }
-        state.current.moveOutcome?.let { MobileFilesMoveStatus(it) }
+        state.current.moveOutcome?.let { outcome ->
+            MobileFilesMoveStatus(outcome, outcome.retry(state)?.let { event -> { onEvent(event) } })
+        }
+    }
+}
+
+/**
+ * A permanent retry asks again, as every permanent delete does. A Trash retry is sent after the next
+ * composition, against the latest Trash setting: once Trash is off, put.io applies it as permanent.
+ */
+@Composable
+private fun MobileFilesDeleteRetryStatus(
+    outcome: FilesDeleteOutcome,
+    retry: FilesBrowserEvent.Delete?,
+    onEvent: (FilesBrowserEvent) -> Unit,
+) {
+    var confirming by rememberSaveable(outcome) { mutableStateOf(false) }
+    var trashTapped by remember { mutableStateOf(false) }
+    val currentRetry by rememberUpdatedState(retry)
+    if (trashTapped) {
+        SideEffect {
+            trashTapped = false
+            currentRetry?.takeIf { it.mode == FilesDeleteMode.TRASH }?.let(onEvent)
+        }
+    }
+    MobileFilesDeleteStatus(outcome, retry?.let { event ->
+        { if (event.mode == FilesDeleteMode.PERMANENT) confirming = true else trashTapped = true }
+    })
+    if (confirming && retry?.mode == FilesDeleteMode.PERMANENT) {
+        MobileFilesDeleteConfirmation(
+            enabled = true,
+            onDismiss = { confirming = false },
+            onConfirm = {
+                confirming = false
+                currentRetry?.takeIf { it.mode == FilesDeleteMode.PERMANENT }?.let(onEvent)
+            },
+            count = retry.itemIds.size,
+        )
     }
 }
 
@@ -571,6 +626,26 @@ private fun MobileFilesTrashedAnnouncement(
         } finally {
             currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
         }
+    }
+}
+
+@Composable
+private fun MobileFilesMissingFolderAnnouncement(
+    state: FilesBrowserState,
+    snackbarHostState: SnackbarHostState,
+    onEvent: (FilesBrowserEvent) -> Unit,
+) {
+    val missing = state.missingFolder.takeUnless { state.current.content is FilesContent.Loading }
+    val message = stringResource(R.string.mobile_files_folder_not_found)
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(missing) {
+        val notice = missing ?: return@LaunchedEffect
+        scope.launch {
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+        currentOnEvent(FilesBrowserEvent.MissingFolderAnnounced(notice))
     }
 }
 
@@ -632,10 +707,16 @@ internal fun MobileFilesNoticeHost(notices: Flow<MobileFilesNotice>, modifier: M
 @Composable
 private fun MobileFilesNotices(notices: Flow<MobileFilesNotice>, snackbarHostState: SnackbarHostState) {
     val context = LocalContext.current
+    val retryLabel = stringResource(R.string.mobile_action_retry)
     LaunchedEffect(notices) {
         notices.collect { notice ->
             snackbarHostState.currentSnackbarData?.dismiss()
-            snackbarHostState.showSnackbar(notice.text(context), duration = SnackbarDuration.Long)
+            val result = snackbarHostState.showSnackbar(
+                message = notice.text(context),
+                actionLabel = retryLabel.takeIf { notice.retry != null },
+                duration = SnackbarDuration.Long,
+            )
+            if (result == SnackbarResult.ActionPerformed) notice.retry?.invoke()
         }
     }
 }
@@ -727,7 +808,7 @@ private fun MobileFilesOperationStatus(operation: FilesFolderOperation) {
 private fun MobileFilesOperationFailure(operation: FilesFolderOperation, autoRetry: Boolean, onRetry: () -> Unit) {
     val failed = operation as? FilesFolderOperation.Failed ?: return
     val offlineReread = failed.phase == FilesFolderOperationPhase.RELOADING &&
-        failed.failure is PutioFailure.NetworkUnavailable
+        failed.failure.isUnreachable
     if (autoRetry && offlineReread) RetryWhenOnline(failed, onRetry)
     MobileInlineError(
         message = stringResource(failed.failureMessage()),
@@ -793,9 +874,26 @@ private fun FilesFolderOperation.Failed.retryLabel(): Int =
     }
 
 @Composable
-private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
-    val message = outcome.statusMessage()
-    if (message != null) {
+internal fun MobileFilesRetryStatus(
+    message: String,
+    reason: String?,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    MobileInlineError(
+        message = listOfNotNull(message, reason).joinToString(" "),
+        onRetry = onRetry,
+        modifier = modifier,
+        retryModifier = Modifier.testTag(MOBILE_FILES_OUTCOME_RETRY_TAG),
+    )
+}
+
+@Composable
+private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome, onRetry: (() -> Unit)?) {
+    val message = outcome.statusMessage(retryable = onRetry != null)
+    if (message != null && onRetry != null) {
+        MobileFilesRetryStatus(message, outcome.failure?.mobileMessage(), onRetry)
+    } else if (message != null) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -818,7 +916,7 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome) {
 
 /** The settled delete's line: the item by name, or several by count. */
 @Composable
-private fun FilesDeleteOutcome.statusMessage(): String? {
+private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
     val many = itemCount > 1
     return when (status) {
         FilesDeleteStatus.NO_LONGER_AVAILABLE -> if (many) {
@@ -826,7 +924,9 @@ private fun FilesDeleteOutcome.statusMessage(): String? {
         } else {
             stringResource(R.string.mobile_files_delete_unavailable, itemName)
         }
-        FilesDeleteStatus.STILL_PRESENT -> if (many) {
+        FilesDeleteStatus.STILL_PRESENT -> if (retryable) {
+            pluralStringResource(R.plurals.mobile_files_delete_still_present_retry_many, remainingCount, remainingCount)
+        } else if (many) {
             pluralStringResource(R.plurals.mobile_files_delete_still_present_many, remainingCount, remainingCount)
         } else {
             stringResource(R.string.mobile_files_delete_still_present, itemName)
@@ -851,6 +951,7 @@ private fun MobileFilesList(
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
     onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
+    pinnedActions: MobilePinnedActions,
     revealItemId: FilesItemId?,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
@@ -917,7 +1018,7 @@ private fun MobileFilesList(
         // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
-        mobileFilesHeaderItems(headers, onPlayEntry, onRemoveEntry, hidden = selection != null)
+        mobileFilesHeaderItems(headers, onPlayEntry, onRemoveEntry, pinnedActions, hidden = selection != null)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },
@@ -985,6 +1086,30 @@ private fun rowClick(
         }
         else -> null
     }
+
+private fun openPinned(
+    item: FilesItem,
+    folder: FilesFolderState,
+    fileOpening: MobileFilesOpening?,
+    onEvent: (FilesBrowserEvent) -> Unit,
+    onPlayMedia: (FilesItem) -> Unit,
+) {
+    val listedClick =
+        if (folder.content.items().any { it.id == item.id }) rowClick(item, fileOpening, onEvent, onPlayMedia) else null
+    val reveal = if (!item.isFolder && item.parentId == folder.folder.id) {
+        FilesBrowserEvent.RevealItem(folder.folder.id, item.id)
+    } else {
+        FilesBrowserEvent.OpenExternalItem(item, FilesOpenOrigin.HOME)
+    }
+    when {
+        listedClick != null -> listedClick()
+        item.isPlayable && fileOpening?.showsDetail != true -> onPlayMedia(item)
+        else -> {
+            if (!item.isFolder) fileOpening?.onOpenWhenRevealed?.invoke(item.id)
+            onEvent(reveal)
+        }
+    }
+}
 
 @Composable
 private fun rowClickLabel(item: FilesItem, fileOpening: MobileFilesOpening?): String? =
@@ -1188,7 +1313,9 @@ internal fun FilesFailure.mobileMessageResource(): Int =
         is PutioFailure.AccessDenied -> R.string.mobile_state_error_forbidden
         is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is PutioFailure.NetworkUnavailable,
+        is PutioFailure.Timeout,
+        -> R.string.mobile_state_error_message
         is PutioFailure.ApiRejected,
         is PutioFailure.InvalidResponse,
         is PutioFailure.Misconfigured,

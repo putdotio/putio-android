@@ -97,4 +97,3 @@ internal fun ByteArray.toDownloadRequestData(): DownloadRequestData {
 }
 
 private const val API_HOST = "api.put.io"
-private const val OAUTH_TOKEN_QUERY = "oauth_token"

@@ -313,8 +313,9 @@ colors:
 ## Typography
 
 GT America for UI; Berkeley Mono with tabular figures for sizes, times,
-speeds, counts, percentages and versions. Dates read as words and stay in GT
-America, as do filenames and words in a value slot. Nothing goes below 12sp.
+speeds, counts, percentages and versions. A unit sets in mono with its figures
+(`30.7 MB`, `1.4 MB/s`, `42%`). Dates read as words and stay in GT America, as
+do filenames and words in a value slot. Nothing goes below 12sp.
 
 The front matter's roles map onto Material's slots on the phone; the `tv-*`
 roles are the TV's scale. `mono` takes the size of the text it sits in.
@@ -322,9 +323,9 @@ roles are the TV's scale. `mono` takes the size of the text it sits in.
 ## Layout
 
 - **Phone:** Files, History, Transfers, Downloads and Account, as a bar or a
-  rail following the window. Wide windows make Files list-detail, Transfers
-  columns of cards at least 360dp wide, and Account rows no wider than 640dp.
-  Content keeps a 16dp gutter.
+  rail following the window. Wide windows make Files and Account list-detail
+  and Transfers columns of cards at least 360dp wide; Account rows stay no
+  wider than 640dp. Content keeps a 16dp gutter.
 - **TV:** Home, Files, Search, History and Account as pill tabs after the
   wordmark, inside the shared `tv.overscan` inset. Lists are list-detail: the
   focused item's detail sits beside the list.
@@ -405,9 +406,12 @@ tokens, type, glyphs, rows, switch, empty-state voice and copy.
   what had focus before.
 - **Side sheets** from the right hold every secondary surface; dialogs carry
   confirms, notices and text entry.
-- **Back** closes the topmost layer first: a sheet, then seek mode, then the
-  player controls, and only then the screen.
+- **Back** closes the topmost layer first: a sheet, then the player controls,
+  and only then the screen.
+- **Seeking:** rewind, fast-forward, and left or right on the seek bar or with
+  the controls hidden seek at once and keep the play state; holding one speeds
+  up.
 - **Now Playing:** audio's controls never hide, so Back leaves it once no
-  sheet or seek is open.
+  sheet is open.
 - **Phone-only:** Transfers, Downloads, Cast, selection, share and exclusive
   links.

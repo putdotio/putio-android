@@ -86,43 +86,49 @@ internal const val MOBILE_CAST_RETRY_TAG = "mobile-cast-retry"
 
 /**
  * Cast in a player's top bar, once a receiver is in reach; yellow while casting. Where Android needs
- * the local network allowed first, the tap asks for it and opens the picker once allowed, or opens
- * the app's settings once Android no longer prompts.
+ * the local network allowed first, the tap runs [onAskLocalNetwork] ([rememberLocalNetworkRequest]).
  */
 @Composable
 internal fun MobileCastButton(
     availability: CastAvailability,
     onClick: () -> Unit,
-    onLocalNetworkAnswer: () -> Unit,
+    onAskLocalNetwork: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!availability.showsButton) return
     val device = availability.connectedDevice
-    val context = LocalContext.current
-    val activity = LocalActivity.current
-    val localNetworkPrompt = remember(context, activity) {
-        LocalNetworkPrompt(context) { activity?.shouldShowRequestPermissionRationale(LOCAL_NETWORK_PERMISSION) == true }
-    }
-    val askLocalNetwork = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        localNetworkPrompt.answered(granted)
-        onLocalNetworkAnswer()
-        if (granted) onClick()
-    }
     MobileIconButton(
         device?.let { stringResource(R.string.mobile_cast_casting_to, it) } ?: stringResource(R.string.mobile_cast),
         R.drawable.ic_ph_screencast,
-        onClick = {
-            when {
-                availability != CastAvailability.NeedsLocalNetwork -> onClick()
-                localNetworkPrompt.exhausted -> context.startActivity(appSettingsIntent(context))
-                else -> askLocalNetwork.launch(LOCAL_NETWORK_PERMISSION)
-            }
-        },
+        onClick = { if (availability == CastAvailability.NeedsLocalNetwork) onAskLocalNetwork() else onClick() },
         modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
         colors = IconButtonDefaults.iconButtonColors(
             contentColor = if (device != null) PutioDesignTokens.yellowSolid else LocalContentColor.current,
         ),
     )
+}
+
+@Composable
+internal fun rememberLocalNetworkRequest(onAnswer: () -> Unit, onGranted: () -> Unit): () -> Unit {
+    val context = LocalContext.current
+    val activity = LocalActivity.current
+    val prompt = remember(context, activity) {
+        LocalNetworkPrompt(context) { activity?.shouldShowRequestPermissionRationale(LOCAL_NETWORK_PERMISSION) == true }
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        prompt.answered(granted)
+        onAnswer()
+        if (granted) onGranted()
+    }
+    return remember(context, prompt, launcher) {
+        {
+            if (prompt.exhausted) {
+                context.startActivity(appSettingsIntent(context))
+            } else {
+                launcher.launch(LOCAL_NETWORK_PERMISSION)
+            }
+        }
+    }
 }
 
 /**

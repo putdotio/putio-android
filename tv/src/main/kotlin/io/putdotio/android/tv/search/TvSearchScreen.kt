@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.search
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,19 +48,18 @@ import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvButton
-import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvAutoPaging
+import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvLoadFailedState
-import io.putdotio.android.tv.TvNoticeDialog
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.rememberTvPaneHasFocus
-import io.putdotio.android.tv.files.FILES_SHEET_SCRIM
 import io.putdotio.android.tv.files.TvFilesEdits
 import io.putdotio.android.tv.files.TvItemEditLayer
 import io.putdotio.android.tv.files.TvItemEditTarget
@@ -67,6 +67,9 @@ import io.putdotio.android.tv.TvTrashUndoOffer
 import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbar
 import io.putdotio.android.tv.TvUndoSnackbarHost
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHeldWhile
 import io.putdotio.android.tv.files.TvFilesAction
 import io.putdotio.android.tv.files.TvFilesActionHandlers
 import io.putdotio.android.tv.files.TvFilesActionsSheet
@@ -81,7 +84,6 @@ import io.putdotio.android.tv.files.TvViewerUrl
 import io.putdotio.android.tv.files.rememberBusy
 import io.putdotio.android.tv.files.secondary
 import io.putdotio.android.tv.files.run
-import io.putdotio.android.tv.files.tvMessageText
 
 internal class TvSearchActions(
     val onQueryChanged: (String) -> Unit,
@@ -121,12 +123,6 @@ internal class TvSearchDetail(
     val viewerUrl: TvViewerUrl? = null,
 )
 
-internal class TvSearchDialogNotice(
-    val title: String,
-    val message: String?,
-    val onDismiss: () -> Unit,
-)
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvSearchScreen(
@@ -138,7 +134,7 @@ internal fun TvSearchScreen(
     notice: FilesFailure? = null,
     sessionKey: Any? = null,
     pickedRow: TvPickedRow = remember(sessionKey) { TvPickedRow() },
-    dialogNotice: TvSearchDialogNotice? = null,
+    brief: TvBrief? = null,
 ) = key(sessionKey) {
     var restoreRowId by remember { mutableStateOf(pickedRow.id) }
     val undoSnackbar = remember { TvUndoSnackbar(FocusRequester()) }
@@ -165,12 +161,18 @@ internal fun TvSearchScreen(
     var settingsFrom by remember { mutableStateOf<FocusRequester?>(null) }
     val historyEnabled = state.recentSearchesEnabled
     val openSettings = historyEnabled?.let { { from: FocusRequester -> settingsFrom = from } }
-    val overlayOpen = rememberUpdatedState(settingsFrom != null || dialogNotice != null)
+    val overlayOpen = rememberUpdatedState(settingsFrom != null)
     owner.RefocusAfterLeave(blocked = overlayOpen)
+    var focusInPane by remember { mutableStateOf(false) }
+    var focusInField by remember { mutableStateOf(false) }
+    BackHandler(enabled = focusInPane && !focusInField) { owner.focusHome() }
     Box(
         modifier = modifier
             .fillMaxSize()
-            .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
+            .onFocusChanged {
+                if (it.hasFocus) paneHasFocus.value = true
+                focusInPane = it.hasFocus
+            }
             .focusProperties {
                 enter = { entryTarget.value }
                 exit = {
@@ -194,7 +196,8 @@ internal fun TvSearchScreen(
             focus = fieldFocus,
             modifier = Modifier
                 .padding(top = PANE_TOP)
-                .paneSection(owner, fieldFocus),
+                .paneSection(owner, fieldFocus)
+                .onFocusChanged { focusInField = it.hasFocus },
         )
         TvSearchFilters(
             selected = state.filter,
@@ -226,6 +229,8 @@ internal fun TvSearchScreen(
         )
     }
     TvTrashUndoOffered(results.itemActions.trashUndo, undoSnackbar.state)
+    TvSnackbarHeldWhile(undoSnackbar.state, settingsFrom)
+    TvBriefShown(brief, undoSnackbar.state)
     TvUndoSnackbarHost(undoSnackbar.state, undoSnackbar.undoFocus, entryTarget)
     }
     val from = settingsFrom
@@ -239,17 +244,6 @@ internal fun TvSearchScreen(
         )
     } else if (from != null) {
         LaunchedEffect(Unit) { settingsFrom = null }
-    }
-    if (dialogNotice != null) {
-        TvNoticeDialog(
-            title = dialogNotice.title,
-            message = dialogNotice.message,
-            onDismiss = dialogNotice.onDismiss,
-            okStyle = TvButtonStyle.Filled,
-            balanceMessage = true,
-            okHugsLabel = true,
-            dimAmount = FILES_SHEET_SCRIM.alpha,
-        )
     }
     LaunchedEffect(owner) { owner.restoreLastSection() }
 }
@@ -312,14 +306,17 @@ private fun ColumnScope.TvSearchContent(
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.NoResults,
                     headline = stringResource(R.string.tv_search_no_results_title),
-                    message = stringResource(R.string.tv_search_no_results_message, content.term.value),
+                    message = stringResource(R.string.tv_search_no_results_message, content.term.shown),
                     modifier = Modifier.padding(top = EMPTY_TOP, bottom = EMPTY_BOTTOM),
                     glyphModifier = Modifier.offset(y = -SHRUG_LIFT),
                 )
+                TvAutoPaging(page = content.paging as? SearchPaging.Available, onLoadMore = actions.onNextPage)
                 TvSearchPaging(
                     paging = content.paging,
-                    onNextPage = actions.onNextPage,
-                    onRetry = actions.onRetry,
+                    onRetry = {
+                        owner.focusHome()
+                        actions.onRetry()
+                    },
                     owner = owner,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
@@ -344,7 +341,6 @@ private fun ColumnScope.TvSearchContent(
             TvLoadFailedState(
                 failure = content.failure,
                 headline = stringResource(R.string.tv_search_error_title),
-                message = content.failure.tvMessageText(),
                 onRetry = {
                     fieldFocus.requestFocus()
                     actions.onRetry()
@@ -450,6 +446,7 @@ private fun TvSearchReady(
         },
     )
     TvFileViewerLayer(viewer, groups.ordered, detail.viewerUrl, siblings = false)
+    TvSnackbarHeldWhile(undoSnackbar.state, actionsFor, edit.open, viewer.open)
     if (edits != null) {
         TvItemEditLayer(
             target = edit,
@@ -546,48 +543,25 @@ private fun TvSearchNotice(
 @Composable
 internal fun TvSearchPaging(
     paging: SearchPaging,
-    onNextPage: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     owner: TvPaneFocusOwner? = null,
     buttonModifier: Modifier = Modifier,
 ) {
     val pagingFocus = remember { FocusRequester() }
-    val label = when (paging) {
-        is SearchPaging.Available -> R.string.tv_search_load_more
-        is SearchPaging.Loading -> R.string.tv_search_loading_more
-        is SearchPaging.Failed -> R.string.tv_files_retry
-        SearchPaging.Complete -> null
-    } ?: return
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (paging is SearchPaging.Failed) {
-            Text(
-                stringResource(R.string.tv_search_paging_error),
-                style = PutioTypeScale.tvMeta,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        TvButton(
-            onClick = {
-                when (paging) {
-                    is SearchPaging.Available -> onNextPage()
-                    is SearchPaging.Failed -> onRetry()
-                    is SearchPaging.Loading, SearchPaging.Complete -> Unit
-                }
-            },
-            modifier = buttonModifier
-                .then(if (owner != null) Modifier.paneSection(owner, pagingFocus) else Modifier)
-                .focusRequester(pagingFocus),
-        ) {
-            Text(stringResource(label))
-        }
-    }
+    if (paging == SearchPaging.Complete) return
+    TvListPaging(
+        failed = paging is SearchPaging.Failed,
+        loadingMore = stringResource(R.string.tv_search_loading_more),
+        error = stringResource(R.string.tv_search_paging_error),
+        retry = stringResource(R.string.tv_files_retry),
+        onRetry = onRetry,
+        modifier = modifier,
+        buttonModifier = buttonModifier
+            .then(if (owner != null) Modifier.paneSection(owner, pagingFocus) else Modifier)
+            .focusRequester(pagingFocus),
+        errorStyle = PutioTypeScale.tvMeta,
+    )
 }
 
 private val PANE_TOP = 4.dp

@@ -293,7 +293,6 @@ internal fun TvFilesMoveSheet(
                 is FilesContent.Failed -> TvLoadFailedState(
                     failure = content.failure,
                     headline = stringResource(R.string.tv_files_move_error_title),
-                    message = content.failure.tvLoadFailedMessage(),
                     onRetry = { onEvent(FilesMoveDestinationEvent.Retry) },
                     modifier = Modifier.weight(1f),
                     actionFocus = retryFocus,
@@ -539,7 +538,6 @@ internal fun TvItemEditLayer(
     target.confirmingDelete?.let { item ->
         if (trashEnabled == false) {
             TvFilesDeleteDialog(
-                item = item,
                 onConfirm = {
                     target.confirmingDelete = null
                     startDelete(item, FilesDeleteMode.PERMANENT)

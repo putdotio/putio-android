@@ -40,11 +40,10 @@ flowchart TD
   controllers, state and repositories. Playback also carries the shared
   subtitle overlay.
 - `mobile` and `tv`: navigation, screens, view models, the players, and the
-  controllers of areas only one app has, such as sign-in, Downloads and Home
-  pins. Each app builds the SDK client and hands it to the repositories.
-- `baselineprofile:tv`: the macrobenchmark journey that writes the TV app's
-  baseline profile, a cold start to Home signed in as devs-auto;
-  `scripts/generate-baseline-profile.sh` runs it.
+  controllers of areas only one app has, such as sign-in and Downloads. Each
+  app builds the SDK client and hands it to the repositories.
+- `baselineprofile:tv`: the macrobenchmark journeys that write the TV app's
+  baseline profile; `scripts/generate-baseline-profile.sh` runs them.
 
 The [Kotlin SDK](https://github.com/putdotio/putio-sdk-kotlin) is the only API
 boundary; a gap closes there, never with app-local HTTP.
@@ -95,13 +94,13 @@ stateDiagram-v2
 | --------- | ------------------------------------------------------ | -------------------------------------------- |
 | Sign-in   | OAuth in the browser                                   | Device code, also as a QR code               |
 | Session   | Secure storage, checked again when the network returns | The same, plus import from the legacy TV app |
-| Home      | Continue watching in Files                             | Continue watching and pinned items           |
+| Home      | Continue watching and pinned items in Files            | Continue watching and pinned items           |
 | Files     | Browse, search, item actions, multi-select             | Browse, search, item actions                 |
 | History   | Account events by day                                  | The same                                     |
 | Trash     | Restore and delete                                     | The same                                     |
 | Transfers | Add, watch and manage                                  | Not on TV                                    |
 | Downloads | Offline copies, which never touch the file on put.io   | Not on TV                                    |
-| Playback  | Video and background audio, Cast                       | Full-screen video, foreground Now Playing    |
+| Playback  | Video and background audio, Cast                       | Full-screen video, background audio          |
 | Account   | Settings, privacy controls, exclusive links            | Settings and privacy controls                |
 | Platform  | Widget, shortcuts, file picker, share targets          | Watch Next, system search, launcher banner   |
 

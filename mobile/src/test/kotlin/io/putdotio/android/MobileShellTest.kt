@@ -102,10 +102,12 @@ import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.AccountSettingsKey
 import io.putdotio.android.settings.AccountSettingsMutation
+import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigContent
@@ -116,6 +118,7 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.DefaultAccountSettingsPreferences
+import io.putdotio.android.settings.accountSettingsState
 import io.putdotio.android.settings.androidAppConfigState
 import io.putdotio.android.settings.readyAccountSettingsState
 import io.putdotio.android.settings.readyAndroidAppConfigState
@@ -251,12 +254,47 @@ class MobileShellTest {
 
         compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertExists()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+    }
 
-        // The rail narrows the content column below 600dp; device class still comes from the window.
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-land")
+    fun tabletReportsTabletInAppInfo() {
+        showAppInfo()
+
+        compose.onNodeWithText("Tablet").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w780dp-h360dp-land")
+    fun phoneInLandscapeReportsPhoneInAppInfo() {
+        showAppInfo()
+
+        compose.onNodeWithText("Phone").assertIsDisplayed()
+        compose.onAllNodesWithText("Tablet").assertCountEquals(0)
+    }
+
+    private fun showAppInfo() {
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
         compose.onNodeWithText("Account").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
-        compose.onNodeWithText("Tablet").assertIsDisplayed()
     }
 
     @Test
@@ -525,6 +563,146 @@ class MobileShellTest {
             assertNull(requests.pending.value)
             assertEquals(listOf(FilesItemId(7L)), opened)
         }
+    }
+
+    @Test
+    fun historyOffHidesItsTabAndSendsHistoryToFiles() {
+        val requests = MobileDeepLinkRequests.None
+        var settings by mutableStateOf(readyAccountSettingsState())
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    deepLinkRequests = requests,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settings,
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val historyTab = hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        val filesTab = hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        compose.onNode(historyTab).performClick()
+        compose.onAllNodes(hasText("History")).assertCountEquals(2)
+
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(historyEnabled = false))
+        }
+
+        compose.onAllNodes(hasText("History")).assertCountEquals(0)
+        compose.onNode(filesTab).assertIsSelected()
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.History) }
+        compose.waitForIdle()
+
+        compose.onAllNodes(hasText("History")).assertCountEquals(0)
+        compose.onNode(filesTab).assertIsSelected()
+    }
+
+    @Test
+    fun historyStaysWhileTheSettingIsUnknownEvenWhenTheCachedAccountSaysOff() {
+        val requests = MobileDeepLinkRequests.None
+        val loading = accountSettingsState(
+            content = AccountSettingsContent.Loading(AccountSettingsRequestId(1L)),
+            mutation = AccountSettingsMutation.Idle,
+            nextRequestValue = 2L,
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    deepLinkRequests = requests,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = loading,
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val historyTab = hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        compose.onNode(historyTab).assertExists()
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.History) }
+        compose.waitForIdle()
+
+        compose.onNode(historyTab).assertIsSelected()
+        compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("History")
+    }
+
+    @Test
+    fun aHistoryLinkWhileSettingsFailOffersTryAgainThenFollowsTheLoadedSetting() {
+        val requests = MobileDeepLinkRequests.None
+        val events = mutableListOf<AccountSettingsEvent>()
+        var settings by mutableStateOf(
+            accountSettingsState(
+                content = AccountSettingsContent.Failed(
+                    AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
+                ),
+                mutation = AccountSettingsMutation.Idle,
+                nextRequestValue = 2L,
+            ),
+        )
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    deepLinkRequests = requests,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settings,
+                    appConfigState = readyAndroidAppConfigState(),
+                    transfersState = transfersState(TransfersContent.Empty),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = { events += it },
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val historyTab = hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+        val filesTab = hasText("Files") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))
+
+        compose.runOnIdle { requests.receive(MobileDeepLink.History) }
+        compose.waitForIdle()
+
+        compose.onNode(historyTab).assertIsSelected()
+        compose.onNodeWithText("Couldn’t load history").assertIsDisplayed()
+        compose.onNodeWithText("Loading history").assertDoesNotExist()
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryLoad), events) }
+
+        compose.runOnIdle {
+            settings = accountSettingsState(
+                content = AccountSettingsContent.Loading(AccountSettingsRequestId(2L)),
+                mutation = AccountSettingsMutation.Idle,
+                nextRequestValue = 3L,
+            )
+        }
+        compose.onNode(historyTab).assertIsSelected()
+        compose.onNodeWithText("Loading history").assertIsDisplayed()
+
+        compose.runOnIdle {
+            settings = readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(historyEnabled = false))
+        }
+        compose.onNode(historyTab).assertDoesNotExist()
+        compose.onNode(filesTab).assertIsSelected()
     }
 
     @Test
@@ -1155,6 +1333,59 @@ class MobileShellFilesTest {
         }
 
         compose.runOnIdle { settingsState = readyAccountSettingsState(preferences = applied) }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
+        }
+    }
+
+    @Test
+    fun acceptedSortResetInvalidatesSortOrderAndAFailedOneDoesNot() {
+        val events = mutableListOf<FilesBrowserEvent>()
+        val reducer = AccountSettingsReducer
+        val loaded = AccountSettingsEvent.LoadSucceeded(AccountSettingsRequestId(1L), DefaultAccountSettingsPreferences)
+        var settingsState by mutableStateOf(reducer.reduce(reducer.start().state, loaded).state)
+        val offline = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = settingsState,
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { events += it; true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+        val reset = AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts)
+        fun saveId(state: AccountSettingsState) = (state.mutation as AccountSettingsMutation.Saving).requestId
+
+        compose.runOnIdle { settingsState = reducer.reduce(settingsState, reset).state }
+        compose.runOnIdle {
+            val failed = AccountSettingsEvent.SaveFailed(saveId(settingsState), offline)
+            settingsState = reducer.reduce(settingsState, failed).state
+        }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+
+        compose.runOnIdle { settingsState = reducer.reduce(settingsState, AccountSettingsEvent.RetryChange).state }
+        compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
+        compose.runOnIdle {
+            val id = saveId(settingsState)
+            settingsState = reducer.reduce(settingsState, AccountSettingsEvent.SaveSucceeded(id)).state
+        }
+        compose.runOnIdle {
+            assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
+        }
+        compose.runOnIdle {
+            val id = saveId(settingsState)
+            val refreshed = AccountSettingsEvent.RefreshSucceeded(id, loaded.preferences)
+            settingsState = reducer.reduce(settingsState, refreshed).state
+        }
         compose.runOnIdle {
             assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.InvalidateSortOrder), events)
         }

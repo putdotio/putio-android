@@ -23,16 +23,24 @@ public object PutioDiagnostics {
     private val allowed: Boolean get() = preferences.getBoolean(ALLOWED, true)
 
     @Synchronized
-    @SuppressLint("ApplySharedPref")
     public fun start(application: Application, configuration: SentryConfiguration?) {
         this.application = application
         this.configuration = configuration
-        preferences = application.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
-        if (preferences.getInt(CACHE_FORMAT, 0) < SESSIONLESS_CACHE) {
-            DiagnosticsFiles(application).cache.deleteRecursively()
-            preferences.edit().putInt(CACHE_FORMAT, SESSIONLESS_CACHE).commit()
+        val preferences = application.getSharedPreferences("io.put.diagnostics", Context.MODE_PRIVATE)
+        this.preferences = preferences
+        val stale = preferences.getInt(CACHE_FORMAT, 0) < SESSIONLESS_CACHE
+        if (stale) {
+            val files = DiagnosticsFiles(application)
+            SentryBoundary.submit { wipe(files, preferences) }
         }
-        apply(allowed, launch = true)
+        apply(allowed, launch = true, inline = !stale)
+    }
+
+    // commit, not apply: an apply() still pending when an activity stops makes the main thread wait.
+    @SuppressLint("ApplySharedPref")
+    private fun wipe(files: DiagnosticsFiles, preferences: SharedPreferences) {
+        files.cache.deleteRecursively()
+        preferences.edit().putInt(CACHE_FORMAT, SESSIONLESS_CACHE).commit()
     }
 
     public fun update(allowed: Boolean) {
@@ -64,14 +72,12 @@ public object PutioDiagnostics {
         preferences.edit().putBoolean(ALLOWED, allowed).apply()
     }
 
-    public fun capture(failure: TelemetryFailure) {
-        SentryBoundary.capture(failure)
-    }
+    public fun capture(failure: TelemetryFailure): String? = SentryBoundary.capture(failure)
 
-    private fun apply(allowed: Boolean, launch: Boolean) {
+    private fun apply(allowed: Boolean, launch: Boolean, inline: Boolean = launch) {
         val configuration = configuration
         if (configuration != null && allowed) {
-            SentryBoundary.start(application, configuration, launch)
+            SentryBoundary.start(application, configuration, launch, inline)
         } else {
             SentryBoundary.stop(DiagnosticsFiles(application))
         }

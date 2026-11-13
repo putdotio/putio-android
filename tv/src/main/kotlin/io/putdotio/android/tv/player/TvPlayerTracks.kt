@@ -7,12 +7,14 @@ import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import io.putdotio.android.playback.AudioSelection
 import io.putdotio.android.playback.PLAYBACK_SPEEDS
+import io.putdotio.android.playback.RememberedSubtitle
 import io.putdotio.android.playback.SUBTITLE_OFFSET_LIMIT_MILLIS
 import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.restoreSubtitleSelection
+import io.putdotio.android.playback.selectionFor
 import io.putdotio.android.playback.toAudioSelection
 import io.putdotio.android.playback.toBundle
 import io.putdotio.android.playback.toSubtitleSelection
@@ -26,13 +28,13 @@ internal fun tvPlayerChips(
     subtitlesHidden: Boolean,
     nextEpisode: Boolean,
     audioOnly: Boolean = false,
-    original: Boolean = false,
+    stream: Boolean = false,
 ): List<TvPlayerControl> =
     buildList {
         if (audioTracks > if (audioOnly) 1 else 0) add(TvPlayerControl.Audio)
         if (!subtitlesHidden && !audioOnly) add(TvPlayerControl.Subtitles)
         add(TvPlayerControl.Speed)
-        if (original && !audioOnly) add(TvPlayerControl.Stream)
+        if (stream && !audioOnly) add(TvPlayerControl.Stream)
         if (nextEpisode) add(TvPlayerControl.NextEpisode)
     }
 
@@ -63,9 +65,12 @@ internal val TvPlaybackOptionsSaver: Saver<TvPlaybackOptions, Bundle> = Saver(
     },
 )
 
+// Each parameter is a separate input: the tracks, two picks, the account policy and two language sources.
+@Suppress("LongParameterList")
 internal fun Player.keepChoices(
     current: Tracks,
     options: TvPlaybackOptions,
+    remembered: RememberedSubtitle?,
     startupPolicy: SubtitleStartupPolicy?,
     textDefaults: TrackSelectionParameters,
     captionLanguages: List<String>,
@@ -77,6 +82,7 @@ internal fun Player.keepChoices(
         textDefaults = textDefaults,
         captionLanguages = captionLanguages,
         inFileLanguage = inFileSubtitleLanguage(),
+        remembered = remembered,
     )
     val withAudio = withSubtitles.withRetainedAudioSelection(options.audio, current.playbackAudioTracks())
     if (withAudio != trackSelectionParameters) trackSelectionParameters = withAudio
@@ -85,22 +91,27 @@ internal fun Player.keepChoices(
 internal fun Player.followSubtitlePolicy(
     policy: SubtitleStartupPolicy?,
     picked: SubtitleSelection?,
+    remembered: RememberedSubtitle?,
     textDefaults: TrackSelectionParameters,
     captionLanguages: List<String>,
 ) {
     if (policy == null) return
     if (picked != null && policy.showSubtitles) return
     val current = trackSelectionParameters
-    val updated = if (policy.showSubtitles && policy.autoSelectSubtitles) {
-        current.withSubtitleSelection(
-            SubtitleSelection.Automatic,
-            currentTracks.playbackSubtitleTracks(),
-            textDefaults,
-            captionLanguages,
-            inFileSubtitleLanguage(),
-        )
-    } else {
-        restoreSubtitleSelection(current, null, policy)
+    val tracks = currentTracks.playbackSubtitleTracks()
+    val recalled = remembered?.takeIf { policy.showSubtitles }?.selectionFor(tracks)
+    val updated = when {
+        recalled != null ->
+            current.withSubtitleSelection(recalled, tracks, textDefaults, captionLanguages, inFileSubtitleLanguage())
+        policy.showSubtitles && policy.autoSelectSubtitles ->
+            current.withSubtitleSelection(
+                SubtitleSelection.Automatic,
+                tracks,
+                textDefaults,
+                captionLanguages,
+                inFileSubtitleLanguage(),
+            )
+        else -> restoreSubtitleSelection(current, null, policy)
     }
     if (updated != current) trackSelectionParameters = updated
 }

@@ -6,13 +6,15 @@ import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import io.sentry.android.gradle.extensions.SentryPluginExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.testing.Test
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.register
+import org.gradle.kotlin.dsl.withType
 
 /**
  * Shared setup for the `mobile` and `tv` application modules: SDK levels, the
  * `production` and `nightly` channels, release minification, release-like nightly debug builds,
- * upload signing, R8 mappings for Sentry, the lint and detekt gates, and the launcher manifest
+ * upload signing, Sentry debug files, the lint and detekt gates, and the launcher manifest
  * check. Each app declares its application id, surface-specific build config and dependencies.
  */
 class PutioAndroidApplicationPlugin : Plugin<Project> {
@@ -110,7 +112,10 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         }
 
         useOfflineRobolectric()
-        uploadMappingsToSentry()
+        tasks.withType<Test>().configureEach {
+            maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+        }
+        uploadDebugFilesToSentry()
 
         extensions.configure<DetektExtension> {
             config.setFrom(rootProject.file("detekt.yml"))
@@ -156,11 +161,12 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
 
     /**
      * Only with delivery's `SENTRY_AUTH_TOKEN`: each release build then gets an R8 mapping id Sentry
-     * events carry and uploads its mapping under it. Other builds never apply the plugin. Its
+     * events carry and uploads its mapping under it, plus its native libraries keyed by build id.
+     * Other builds never apply the plugin. Its
      * tracing, SDK installation, optimizations and telemetry stay off, since the SDK lives in
      * core/telemetry.
      */
-    private fun Project.uploadMappingsToSentry() {
+    private fun Project.uploadDebugFilesToSentry() {
         val token = providers.environmentVariable("SENTRY_AUTH_TOKEN")
         if (!token.isPresent) return
         pluginManager.apply("io.sentry.android.gradle")
@@ -169,6 +175,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             org.set("putio")
             projectName.set(providers.environmentVariable("SENTRY_PROJECT"))
             ignoredBuildTypes.set(setOf("debug"))
+            uploadNativeSymbols.set(true)
             includeDependenciesReport.set(false)
             includeSourceContext.set(false)
             telemetry.set(false)

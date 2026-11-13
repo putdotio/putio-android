@@ -5,8 +5,10 @@ import io.putdotio.android.parsePutioTimestamp
 
 internal fun TrashMachine.action(event: TrashEvent.ActionEvent): TrashMachine? = when (event) {
     is TrashEvent.SelectDelete -> selectDelete(event)
-    TrashEvent.SelectRestoreAll -> selectBulk(TrashAction.RestoreAll)
-    TrashEvent.SelectEmpty -> selectBulk(TrashAction.Empty)
+    TrashEvent.RestoreAll -> if (mayStartRestore && state.canActOnAll) submitAction(TrashAction.RestoreAll) else null
+    is TrashEvent.RestoreSelected -> restoreSelected(event)
+    is TrashEvent.SelectDeleteSelected -> selectDeleteSelected(event)
+    TrashEvent.SelectEmpty -> if (mayActOnAll) openActionConfirmation(TrashAction.Empty) else null
     TrashEvent.CancelAction -> cancelAction()
     is TrashEvent.ConfirmAction -> confirmAction(event)
     TrashEvent.CheckAction -> startActionCheck()
@@ -19,13 +21,12 @@ private fun TrashMachine.selectDelete(event: TrashEvent.SelectDelete): TrashMach
     return openActionConfirmation(TrashAction.DeleteItem(item))
 }
 
-private fun TrashMachine.selectBulk(action: TrashAction): TrashMachine? =
-    if (request != null || !state.canActOnAll) null else openActionConfirmation(action)
+private val TrashMachine.mayActOnAll: Boolean
+    get() = request == null && state.canActOnAll
 
-private fun TrashMachine.openActionConfirmation(action: TrashAction): TrashMachine = copy(
+internal fun TrashMachine.openActionConfirmation(action: TrashDestructiveAction): TrashMachine = copy(
     state = state.copy(
         actionConfirmation = action, actionConfirmationId = nextRequestId, actionOutcome = null,
-        confirmation = null, confirmationId = null,
     ),
     nextRequestId = nextRequestId + 1L,
 )
@@ -40,12 +41,18 @@ private fun TrashMachine.cancelAction(): TrashMachine? =
 private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMachine? {
     val action = state.actionConfirmation
         ?.takeIf { request == null && event.confirmationId == state.actionConfirmationId && isEligible(it) }
-    val content = state.content as? TrashContent.Loaded
-    if (action == null || content == null) return null
-    val selection = (action as? TrashAction.RestoreAll)?.let {
-        TrashBulkSelection(content.snapshotCursor, content.items.map(TrashItem::id))
+        ?: return null
+    return submitAction(action)
+}
+
+internal fun TrashMachine.submitAction(action: TrashAction): TrashMachine? {
+    val content = state.content as? TrashContent.Loaded ?: return null
+    val selection = when (action) {
+        TrashAction.RestoreAll -> TrashBulkSelection(content.snapshotCursor, content.items.map(TrashItem::id))
+        is TrashAction.RestoreSelected -> TrashBulkSelection(cursor = null, action.items.map(TrashItem::id))
+        else -> null
     }
-    val snapshot = selection?.let {
+    val snapshot = selection?.takeIf { action == TrashAction.RestoreAll }?.let {
         TrashRestoreSnapshot(
             itemIds = it.itemIds.toSet(),
             coversUnloadedItems = it.cursor != null,
@@ -63,9 +70,11 @@ private fun TrashMachine.confirmAction(event: TrashEvent.ConfirmAction): TrashMa
     )
 }
 
-private fun TrashMachine.isEligible(action: TrashAction): Boolean = when (action) {
+private fun TrashMachine.isEligible(action: TrashDestructiveAction): Boolean = when (action) {
     is TrashAction.DeleteItem -> loadedItem(action.item.id) == action.item && state.canDelete(action.item.id)
-    TrashAction.RestoreAll, TrashAction.Empty -> state.canActOnAll
+    is TrashAction.DeleteSelected -> action.items.all { loadedItem(it.id) == it } &&
+        state.canDeleteAll(action.items.map(TrashItem::id))
+    TrashAction.Empty -> state.canActOnAll
 }
 
 // Verification is a fresh initial read; it never resubmits the action.

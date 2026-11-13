@@ -165,6 +165,18 @@ class MobileMotionTest {
         mobileTransition(from, to, pop, reducedMotion = false)
 
     @Test
+    fun accountPagesBesideTheListCutAndEverythingElseKeepsItsMotion() {
+        assertEquals(MobileTransition.Cut, besidePanes("account", MOBILE_TRASH_ROUTE))
+        assertEquals(MobileTransition.Cut, besidePanes(MOBILE_TRASH_ROUTE, "account", pop = true))
+        assertEquals(MobileTransition.Cut, besidePanes(MOBILE_PUBLIC_LINKS_ROUTE, MOBILE_TRASH_ROUTE))
+        assertEquals(MobileTransition.FadeThrough, besidePanes(MOBILE_TRASH_ROUTE, "files"))
+        assertEquals(MobileTransition.Push, transition("account", MOBILE_TRASH_ROUTE))
+    }
+
+    private fun besidePanes(from: String, to: String, pop: Boolean = false) =
+        mobileTransition(from, to, pop, reducedMotion = false, accountPanes = true)
+
+    @Test
     fun reducedMotionTurnsEveryTransitionIntoAFade() {
         listOf("transfers", MOBILE_TRASH_ROUTE, MOBILE_PLAYBACK_ROUTE).forEach { to ->
             assertEquals(MobileTransition.Fade, mobileTransition("account", to, pop = false, reducedMotion = true))
@@ -195,9 +207,8 @@ class MobileTabSummaryTest {
         val summary = summaryOf(transfersSummaryParts(context, state), mono)!!
         // Queued transfers wait; only the downloading one counts as active.
         assertEquals("1 active · 1 failed · 1.4 MB/s", summary.text)
-        // Only the figures are mono: a mono point and space would open gaps in the sans line.
         val monoRuns = summary.spanStyles.filter { it.item == mono }.map { summary.text.substring(it.start, it.end) }
-        assertEquals(listOf("1", "1", "1", "4"), monoRuns)
+        assertEquals(listOf("1", "1", "1.4 MB/s"), monoRuns)
     }
 
     @Test

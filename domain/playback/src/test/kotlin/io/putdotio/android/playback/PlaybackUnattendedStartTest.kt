@@ -24,6 +24,12 @@ class PlaybackUnattendedStartTest {
         assertEquals(0L, ready(savedSeconds = 2_395.0, durationSeconds = 2_400.0).unattendedStartMillis(null))
     }
 
+    @Test
+    fun aFiftyMinuteVideoIsFinishedFrom47m30s() {
+        assertEquals(2_849_000L, ready(savedSeconds = 2_849.0).unattendedStartMillis(durationSeconds = 3_000.0))
+        assertEquals(0L, ready(savedSeconds = 2_850.0).unattendedStartMillis(durationSeconds = 3_000.0))
+    }
+
     private fun ready(
         savedSeconds: Double,
         useStartFrom: Boolean = true,

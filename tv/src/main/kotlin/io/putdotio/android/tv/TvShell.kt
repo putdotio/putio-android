@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -54,6 +55,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
@@ -82,18 +84,23 @@ internal fun TvShell(
     /** Files' own Back step, such as leaving a folder; null when Files has none. */
     onFilesBack: (() -> Unit)? = null,
     showHome: Boolean = true,
+    showHistory: Boolean = true,
     focusHomePane: Boolean = false,
+    offline: Boolean = false,
+    trailing: @Composable () -> Unit = {},
 ) {
     val start = if (showHome) TvDestination.Home else TvDestination.Files
     var destination by rememberSaveable { mutableStateOf(start) }
-    var tabBarHasFocus by remember { mutableStateOf(false) }
+    var tabsHaveFocus by remember { mutableStateOf(false) }
+    var trailingHasFocus by remember { mutableStateOf(false) }
+    val tabBarHasFocus = tabsHaveFocus || trailingHasFocus
     val paneReleased = remember { mutableStateOf(false) }
     var focusPaneOf by remember { mutableStateOf<TvDestination?>(destination) }
     val tabFocus = remember { TvDestination.entries.associateWith { FocusRequester() } }
     val paneFocus = remember { FocusRequester() }
     val paneStates = rememberSaveableStateHolder()
     val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
-    val tabs = TvDestination.entries.filter { showHome || it != TvDestination.Home }
+    val tabs = shownTabs(showHome, showHistory)
 
     // Registered before any pane composes, so each pane's own Back handlers take precedence.
     BackHandler(enabled = !tabBarHasFocus) {
@@ -105,15 +112,21 @@ internal fun TvShell(
     }
     LaunchedEffect(requestedDestination) {
         if (requestedDestination != null) {
-            val shown = requestedDestination.within(tabs, start)
+            val shown = requestedDestination.takeIf { it in tabs } ?: TvDestination.Files
             destination = shown
             focusPaneOf = shown
             paneReleased.value = false
             onDestinationRequestHandled()
         }
     }
-    LaunchedEffect(showHome) {
-        if (!showHome && destination == TvDestination.Home) destination = TvDestination.Files
+    TvHiddenTabEffect(
+        hidden = destination !in tabs,
+        tabsFocused = tabsHaveFocus,
+        paneFocused = !tabBarHasFocus,
+        filesTab = tabFocus.getValue(TvDestination.Files),
+    ) { focusPane ->
+        destination = TvDestination.Files
+        if (focusPane) focusPaneOf = TvDestination.Files
     }
     LaunchedEffect(destination) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(destination.analyticsScreen)) }
 
@@ -132,22 +145,23 @@ internal fun TvShell(
                 paneReleased.value = true
             },
             modifier = Modifier
-                .onFocusChanged { tabBarHasFocus = it.hasFocus }
+                .onFocusChanged { tabsHaveFocus = it.hasFocus }
                 .focusProperties { enter = { tabBarEntry(it, tabFocus.getValue(destination)) } },
             paneFocus = paneFocus,
+            trailing = { Box(Modifier.onFocusChanged { trailingHasFocus = it.hasFocus }) { trailing() } },
         )
-        val notice = account.inactiveNotice
-        if (notice != null) TvInactiveAccountNotice(notice, Modifier.padding(top = NOTICE_TOP_GAP))
+        TvShellNotices(account.inactiveNotice, offline)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(top = if (notice != null) NOTICE_PANE_GAP else TAB_BAR_GAP)
+                .padding(top = paneGap(noticeShown = account.inactiveNotice != null || offline))
                 .onFocusChanged { if (it.hasFocus) paneReleased.value = false },
         ) {
             CompositionLocalProvider(
                 LocalTvPaneReleased provides paneReleased,
                 LocalTvTabFocus provides tabFocus.getValue(destination),
+                LocalTvOffline provides offline,
             ) {
                 paneStates.SaveableStateProvider(destination.name) { panes.Pane(destination, paneFocus) }
             }
@@ -171,8 +185,34 @@ internal fun TvShell(
     }
 }
 
-private fun TvDestination.within(tabs: List<TvDestination>, start: TvDestination): TvDestination =
-    if (this in tabs) this else start
+@Composable
+private fun TvShellNotices(notice: InactiveAccountNotice?, offline: Boolean) {
+    if (notice != null) TvInactiveAccountNotice(notice, Modifier.padding(top = NOTICE_TOP_GAP))
+    if (offline) TvOfflineBanner(Modifier.padding(top = if (notice != null) NOTICE_STACK_GAP else NOTICE_TOP_GAP))
+}
+
+private fun paneGap(noticeShown: Boolean) = if (noticeShown) NOTICE_PANE_GAP else TAB_BAR_GAP
+
+private fun shownTabs(showHome: Boolean, showHistory: Boolean): List<TvDestination> =
+    TvDestination.entries.filter {
+        (showHome || it != TvDestination.Home) && (showHistory || it != TvDestination.History)
+    }
+
+@Composable
+private fun TvHiddenTabEffect(
+    hidden: Boolean,
+    tabsFocused: Boolean,
+    paneFocused: Boolean,
+    filesTab: FocusRequester,
+    showFiles: (focusPane: Boolean) -> Unit,
+) {
+    LaunchedEffect(hidden) {
+        if (hidden) {
+            showFiles(paneFocused)
+            if (tabsFocused) filesTab.requestFocus()
+        }
+    }
+}
 
 private fun TvDestination.entryFocus(
     focusHomePane: Boolean,
@@ -210,9 +250,10 @@ private fun TvTabBar(
     onSelect: (TvDestination) -> Unit,
     paneFocus: FocusRequester,
     modifier: Modifier = Modifier,
+    trailing: @Composable () -> Unit = {},
 ) {
     Row(
-        modifier = Modifier.height(TAB_BAR_HEIGHT),
+        modifier = Modifier.fillMaxWidth().height(TAB_BAR_HEIGHT),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -237,6 +278,8 @@ private fun TvTabBar(
                 )
             }
         }
+        Spacer(Modifier.weight(1f))
+        trailing()
     }
 }
 
@@ -353,6 +396,7 @@ private val TAB_BAR_HEIGHT = 40.dp
 private val TAB_BAR_GAP = 20.dp
 private val NOTICE_TOP_GAP = 24.dp
 private val NOTICE_PANE_GAP = 6.dp
+private val NOTICE_STACK_GAP = 8.dp
 private val TAB_HEIGHT = 28.dp
 private val TAB_PADDING = PaddingValues(horizontal = 12.dp)
 private val TAB_ICON = 14.dp

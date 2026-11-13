@@ -7,6 +7,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -26,7 +28,15 @@ import androidx.compose.ui.focus.focusRequester
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvDestination
+import io.putdotio.android.tv.TvLinkRoute
 import io.putdotio.android.tv.TvLinkScreen
+import io.putdotio.android.tv.auth.TvAuthState
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import androidx.test.core.app.ApplicationProvider
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowNetworkCapabilities
 import io.putdotio.android.tv.TvOfflineScreen
 import io.putdotio.android.tv.search.TV_SEARCH_FIELD_TAG
 import io.putdotio.android.tv.search.TvRecentSearchActions
@@ -105,6 +115,63 @@ class TvShellTest {
     }
 
     @Test
+    fun shownCodeSaysItIsWaitingAndNotesALostConnectionWithoutDroppingTheCode() {
+        var offline by mutableStateOf(false)
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.AwaitingLink("GIQTKN"),
+                sessionExpired = false,
+                onRequestNewCode = {},
+                offline = offline,
+            )
+        }
+
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
+
+        compose.runOnIdle { offline = true }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+        compose.onNodeWithText("Waiting for authentication…").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+        compose.onNodeWithText("Get a new code").assertIsFocused()
+
+        compose.runOnIdle { offline = false }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+    }
+
+    @Test
+    fun linkRouteNotesTheSystemNetworkDroppingAndReturning() {
+        val connectivity = ApplicationProvider.getApplicationContext<Context>()
+            .getSystemService(ConnectivityManager::class.java)
+        val network = requireNotNull(connectivity.activeNetwork)
+        val validated = ShadowNetworkCapabilities.newInstance().also {
+            shadowOf(it).addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }
+        shadowOf(connectivity).setNetworkCapabilities(network, validated)
+        compose.setTvContent {
+            TvLinkRoute(
+                linking = TvAuthState.Linking(TvLinkPhase.AwaitingLink("GIQTKN")),
+                onRequestNewCode = {},
+                onTryAgain = {},
+            )
+        }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+
+        compose.runOnIdle { shadowOf(connectivity).networkCallbacks.forEach { it.onLost(network) } }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Activation code GIQTKN").assertIsDisplayed()
+
+        compose.runOnIdle {
+            shadowOf(connectivity).networkCallbacks.forEach { it.onCapabilitiesChanged(network, validated) }
+        }
+        compose.onNodeWithText("Waiting for authentication…").assertIsDisplayed()
+        compose.onNodeWithText("No connection").assertDoesNotExist()
+    }
+
+    @Test
     fun expiredCodeStaysOnScreenUnderTheNoticeAndOffersANewOne() {
         var requests = 0
         compose.setTvContent {
@@ -122,11 +189,53 @@ class TvShellTest {
     }
 
     @Test
+    fun unreadableStoredSessionFocusesTryAgainAndOffersANewCodeBesideIt() {
+        var tries = 0
+        var requests = 0
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable),
+                sessionExpired = false,
+                onRequestNewCode = { requests += 1 },
+                onTryAgain = { tries += 1 },
+            )
+        }
+
+        compose.onNodeWithText("Secure storage is unavailable on this device, so the sign-in can’t be kept.")
+            .assertIsDisplayed()
+        compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, tries)
+        assertEquals(0, requests)
+
+        compose.onNodeWithText("Try again").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Get a new code").assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(1, tries)
+        assertEquals(1, requests)
+    }
+
+    @Test
+    fun storageThatCannotKeepAFreshSignInOffersOnlyANewCode() {
+        compose.setTvContent {
+            TvLinkScreen(
+                phase = TvLinkPhase.Stopped(TvLinkStop.StorageUnavailable),
+                sessionExpired = false,
+                onRequestNewCode = {},
+                onTryAgain = {},
+            )
+        }
+
+        compose.onNodeWithText("Secure storage is unavailable on this device, so the sign-in can’t be kept.")
+            .assertIsDisplayed()
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        compose.onNodeWithText("Get a new code").assertIsFocused()
+    }
+
+    @Test
     fun offlineStartSaysTheSignInIsSavedAndTriesNowOnRequest() {
         var tries = 0
         compose.setTvContent { TvOfflineScreen(onTryNow = { tries += 1 }) }
 
-        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io").assertIsDisplayed()
         compose.onNodeWithText("Your sign-in is saved. The app tries again on its own when the network is back.")
             .assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
@@ -148,8 +257,8 @@ class TvShellTest {
                 onSignOut = {},
             )
         }
-        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
-        compose.onNodeWithText("Your files are deleted in 14 days unless you renew.")
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+        compose.onNodeWithText("Your files are still here, but they are scheduled to be deleted in 14 days.")
             .assertIsDisplayed()
         compose.onAllNodesWithText("app.put.io", substring = true).assertCountEquals(0)
         compose.onNodeWithText("Keep a good thing going!").assertDoesNotExist()
@@ -163,13 +272,54 @@ class TvShellTest {
             pressKey(Key.DirectionDown)
         }
         compose.onNodeWithText("Sign out").assertIsFocused()
-        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
 
         compose.pressBack()
         compose.onTab("Account").assertIsFocused()
         compose.pressBack()
         compose.onTab("Home").assertIsFocused().assertIsSelected()
-        compose.onNodeWithText("Your account has been deactivated.").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
+    }
+
+    @Test
+    fun familyMemberIsToldThePlanExpiredWithoutADeletionCountdown() {
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(
+                    userId = 1,
+                    username = "user",
+                    email = "user@example.com",
+                    inactiveNotice = InactiveAccountNotice.FamilyPlanExpired,
+                ),
+                onSignOut = {},
+            )
+        }
+        compose.onNodeWithText("Your family plan is no longer active.").assertIsDisplayed()
+        compose.onNodeWithText("Your account has been deactivated", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("to be deleted in", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun noConnectionBannerShowsUnderTheTabBarOnEveryPaneWithoutTakingFocus() {
+        var offline by mutableStateOf(true)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                offline = offline,
+            )
+        }
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+
+        compose.openTab(TvDestination.Files)
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onTab("Files").assertIsFocused()
+        compose.onNodeWithText("No connection").assertIsDisplayed()
+
+        offline = false
+        compose.onNodeWithText("No connection").assertDoesNotExist()
     }
 
     @Test
@@ -239,6 +389,58 @@ class TvShellTest {
         compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
         compose.pressBack()
         compose.onTab("Files").assertIsFocused()
+    }
+
+    @Test
+    fun historyOffHidesItsTabAndLeavesAnOpenHistoryPaneForFiles() {
+        var showHistory by mutableStateOf(true)
+        var requested by mutableStateOf<TvDestination?>(null)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHistory = showHistory,
+                requestedDestination = requested,
+                onDestinationRequestHandled = { requested = null },
+            )
+        }
+        compose.openTab(TvDestination.History)
+
+        showHistory = false
+        compose.waitForIdle()
+
+        compose.onTab("History").assertDoesNotExist()
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onTab("Files").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onTab("Home").assertIsSelected()
+        requested = TvDestination.History
+        compose.waitForIdle()
+
+        compose.onTab("Files").assertIsSelected()
+        compose.onNodeWithText("Your files will show up here.").assertIsDisplayed()
+    }
+
+    @Test
+    fun historyOffWhileItsTabHasFocusMovesFocusToTheFilesTab() {
+        var showHistory by mutableStateOf(true)
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                showHistory = showHistory,
+            )
+        }
+        compose.onTab("Home").performKeyInput { repeat(3) { pressKey(Key.DirectionRight) } }
+        compose.onTab("History").assertIsFocused().assertIsSelected()
+
+        showHistory = false
+        compose.waitForIdle()
+
+        compose.onTab("History").assertDoesNotExist()
+        compose.onTab("Files").assertIsFocused().assertIsSelected()
     }
 
     @Test

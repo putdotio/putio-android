@@ -27,6 +27,7 @@ import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackResolution
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.tv.TvProofActivity
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
@@ -41,6 +42,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -52,9 +54,10 @@ import org.junit.runners.model.Statement
 
 /**
  * Opt-in, no API calls: the viewer switches a playing original to converted with the D-pad, the
- * converted fixture plays on from that position, and the device's switch list opens the file
- * converted next time. Local fixtures stand in for put.io; the list is the app's own DataStore,
- * emptied before and after.
+ * converted fixture plays on from that position, the device's switch list opens the file
+ * converted next time, and the Stream chip takes it back to the original and off the list.
+ * Local fixtures stand in for put.io; the list is the app's own DataStore, emptied before and
+ * after.
  *
  * Arguments: `putio.tv.switch.enabled=true`, `putio.tv.switch.runId` (UUID),
  * `putio.tv.switch.original` and `putio.tv.switch.converted` (H.264 MP4s), both under the app's
@@ -131,10 +134,6 @@ class TvSwitchToConvertedProofTest {
                 converted in switchedAt - DRIFT_MILLIS..switchedAt + DRIFT_MILLIS * 2,
             )
         }
-        assertTrue(
-            "A converted stream offers no switch",
-            compose.onAllNodesWithContentDescription(STREAM_CHIP).fetchSemanticsNodes().isEmpty(),
-        )
         assertTrue(runBlocking { switched.contains(Target.fileId.value) })
 
         val again = compose.runOnUiThread { PlaybackController(Target, LocalFixtures(), scope) }
@@ -150,11 +149,41 @@ class TvSwitchToConvertedProofTest {
         }
         screenshot("04-reopened-converted")
         compose.runOnIdle { assertEquals(listOf(false, true, false), asked) }
+
+        compose.waitUntil(30_000) { compose.runOnIdle { factory.playing(atLeastMillis = SWITCH_AT_MILLIS) } }
+        press(KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_DPAD_DOWN)
+        repeat(MAX_CHIP_STEPS) { if (!chipFocused(CONVERTED_CHIP)) press(KeyEvent.KEYCODE_DPAD_RIGHT) }
+        assertTrue("The Stream chip reads Converted", chipFocused(CONVERTED_CHIP))
+        screenshot("05-converted-chip")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(ORIGINAL).fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        screenshot("06-converted-sheet")
+        val backAt = compose.runOnIdle { factory.players.last().currentPosition }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+
+        compose.waitUntil(30_000) {
+            compose.runOnIdle {
+                again.readyKind() == PlaybackSourceKind.ORIGINAL && factory.players.size == 4 && factory.playing()
+            }
+        }
+        screenshot("07-original-again")
+        compose.runOnIdle {
+            val original = factory.players.last().currentPosition
+            assertTrue(
+                "The original plays on from $backAt ms, now at $original ms",
+                original in backAt - DRIFT_MILLIS..backAt + DRIFT_MILLIS * 2,
+            )
+        }
+        assertFalse(runBlocking { switched.contains(Target.fileId.value) })
+        compose.runOnIdle { assertEquals(listOf(false, true, false, false), asked) }
         again.close()
     }
 
-    private fun streamChipFocused(): Boolean =
-        compose.onAllNodesWithContentDescription(STREAM_CHIP).fetchSemanticsNodes()
+    private fun streamChipFocused(): Boolean = chipFocused(STREAM_CHIP)
+
+    private fun chipFocused(description: String): Boolean =
+        compose.onAllNodesWithContentDescription(description).fetchSemanticsNodes()
             .any { it.config.getOrNull(SemanticsProperties.Selected) == true }
 
     private fun press(vararg keys: Int) {
@@ -170,18 +199,23 @@ class TvSwitchToConvertedProofTest {
             convertedOnly: Boolean,
         ): PlaybackRepositoryResult<PlaybackResolution> {
             asked += convertedOnly
-            val source = if (convertedOnly || switched.contains(target.fileId.value)) {
+            val pinned = target.method != StreamingMethod.File && switched.contains(target.fileId.value)
+            val source = if (convertedOnly || pinned) {
                 localSource("putio.tv.switch.converted", PlaybackSourceKind.MP4)
             } else {
                 localSource("putio.tv.switch.original", PlaybackSourceKind.ORIGINAL)
             }
-            return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source))
+            return PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source, switchedToConverted = pinned))
         }
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
 
         override fun rememberSwitchedToConverted(target: PlaybackTarget) {
             switched.add(target.fileId.value)
+        }
+
+        override fun forgetSwitchedToConverted(target: PlaybackTarget) {
+            switched.remove(target.fileId.value)
         }
     }
 
@@ -228,7 +262,9 @@ class TvSwitchToConvertedProofTest {
         const val DRIFT_MILLIS = 3_000L
         const val MAX_CHIP_STEPS = 6
         const val STREAM_CHIP = "Stream: Original"
+        const val CONVERTED_CHIP = "Stream: Converted"
         const val CONVERTED = "Converted"
+        const val ORIGINAL = "The file as it is"
     }
 }
 

@@ -291,7 +291,7 @@ internal class ProofTrashRepository(
 
     override suspend fun resolveItem(itemId: FilesItemId) = error("No checks")
 
-    override suspend fun deleteItem(itemId: FilesItemId) = error("No deletes")
+    override suspend fun deleteItems(itemIds: List<FilesItemId>) = error("No deletes")
 
     override suspend fun restoreAll(selection: TrashBulkSelection) = error("No restores")
 

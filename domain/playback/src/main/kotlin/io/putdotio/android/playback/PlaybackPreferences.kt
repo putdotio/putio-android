@@ -18,6 +18,9 @@ public fun StreamingMethod.playbackPreference(): PlaybackPreference =
 public fun AndroidAppConfigState.confirmedAutoplayNextVideo(): Boolean =
     confirmedPreferences?.autoplayNextVideo == true
 
+public fun AndroidAppConfigState.confirmedRotateToLandscape(): Boolean =
+    confirmedPreferences?.rotateToLandscape ?: true
+
 public fun AndroidAppConfigState.confirmedStreamingMethod(): StreamingMethod =
     confirmedPreferences?.streamingMethod ?: StreamingMethod.Hls
 

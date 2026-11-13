@@ -210,6 +210,7 @@ private fun DownloadEntry.toJson(): JSONObject =
             durationSeconds?.let { json.put("duration", it) }
             if (pauseRequested) json.put("pauseRequested", true)
             if (subtitles.isNotEmpty()) json.put("subtitles", subtitles.toJson())
+            if (directPlayChosen) json.put("directPlayChosen", true)
         }
 
 private fun DownloadStatus.toJson(): JSONObject =
@@ -258,6 +259,7 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
             durationSeconds = optDouble("duration", Double.NaN).takeIf { it.isFinite() && it > 0.0 },
             pauseRequested = pauseRequested,
             subtitles = optJSONArray("subtitles").toDownloadSubtitles(),
+            directPlayChosen = optBoolean("directPlayChosen", false),
         )
     }
 }

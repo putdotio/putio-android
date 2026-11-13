@@ -207,6 +207,8 @@ class DirectPlayDownloadsTest {
             override suspend fun contains(fileId: Long): Boolean = fileId in switched
 
             override fun add(fileId: Long) = Unit
+
+            override fun remove(fileId: Long) = Unit
         },
         loadFile = { files.getValue(it) },
         listSubtitles = { id ->

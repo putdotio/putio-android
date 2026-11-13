@@ -41,6 +41,7 @@ import io.putdotio.android.settings.AccountSettingsRequestId
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigChange
 import io.putdotio.android.settings.AndroidAppConfigEvent
+import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigPreferences
 import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigRequestId
@@ -103,6 +104,20 @@ class TvAccountScreenTest {
     }
 
     @Test
+    fun trashOffHidesManageYourTrashAndTheLibraryTrashSize() {
+        var settings by mutableStateOf(AccountSettingsReducer.start().state)
+        show(settingsState = { settings })
+        compose.onNodeWithText("Manage your trash").assertIsDisplayed()
+        compose.onNodeWithText("Trash 0 B").assertIsDisplayed()
+
+        compose.runOnIdle { settings = ready(preferences.copy(trashEnabled = false)) }
+        compose.onAllNodesWithText("Manage your trash").assertCountEquals(0)
+        compose.onAllNodesWithText("Trash 0 B").assertCountEquals(0)
+        group("Library").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Move deleted files to Trash").assertIsFocused().assertIsOff()
+    }
+
+    @Test
     fun theQuotaStatesWhatIsFreeWhenTheAccountShowsOptimisticUsage() {
         var shown by mutableStateOf(account)
         show(settingsState = { ready(preferences) }, account = { shown })
@@ -140,8 +155,8 @@ class TvAccountScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionRight)
         }
-        compose.onNodeWithText("Resume where you left off").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNodeWithText("Resume where you left off").performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onNodeWithText("Resume where you left off").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionLeft) }
         group("Playback").performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionRight)
@@ -152,7 +167,6 @@ class TvAccountScreenTest {
             .performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
-                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false)),
                 AccountSettingsEvent.ChangeRequested(
                     AccountSettingsChange(AccountSettingsKey.AutoSelectSubtitles, true),
                 ),
@@ -162,36 +176,54 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun playbackMethodChoosesInASheetAndSavesOnlyOnSave() {
-        show(settingsState = { ready(preferences) }, appConfigState = { readyConfig(StreamingMethod.Hls) })
+    fun playbackMethodAppliesOnSelectAndAFailedSaveRevertsIt() {
+        var config by mutableStateOf(readyConfig(StreamingMethod.Hls))
+        show(settingsState = { ready(preferences) }, appConfigState = { config })
 
         openPlaybackRow("Playback method", downs = 2)
+        compose.onNode(inSheet("Standard")).assertIsSelected()
+        compose.onAllNodes(hasText("Save") and hasAnyAncestor(isDialog())).assertCountEquals(0)
+        compose.onAllNodes(hasText("Cancel") and hasAnyAncestor(isDialog())).assertCountEquals(0)
         compose.onNode(inSheet("Standard")).performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(inSheet("Direct play")).performKeyInput { pressCenter() }
         compose.onNodeWithText(
             "Plays the original file, up to 4K and surround, when this device can. Converted otherwise.",
         ).assertIsDisplayed()
-        assertEquals(emptyList<AndroidAppConfigEvent>(), appConfigEvents)
-        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("Direct play")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AndroidAppConfigEvent>(
                 AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File)),
             ),
             appConfigEvents,
         )
-        compose.onAllNodesWithText("Direct play").assertCountEquals(0)
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
         compose.onNodeWithText("Playback method").assertIsFocused()
+
+        compose.runOnIdle { config = AndroidAppConfigReducer.reduce(config, appConfigEvents.single()).state }
+        compose.onNodeWithText("Direct play").assertIsDisplayed()
+        compose.runOnIdle {
+            val saving = config.mutation as AndroidAppConfigMutation.Saving
+            config = AndroidAppConfigReducer.reduce(
+                config,
+                AndroidAppConfigEvent.SaveFailed(
+                    saving.requestId,
+                    PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")),
+                ),
+            ).state
+        }
+        compose.onNodeWithText("Couldn’t save this setting. Check your internet connection.").assertIsDisplayed()
+        compose.onAllNodesWithText("Direct play").assertCountEquals(0)
+        compose.onNodeWithText("Standard").assertIsDisplayed()
     }
 
     @Test
-    fun proxySheetListsRoutesWithTheirDescriptionsAndCancelChangesNothing() {
+    fun proxySheetOpensOnTheCurrentRouteAndAppliesOnSelect() {
         show(
             settingsState = { ready(preferences) },
             loadTunnelRoutes = {
                 AccountSettingsRepositoryResult.Success(
                     listOf(
-                        TunnelRouteOption(TunnelRouteName("cdn77"), "Fastest for most places. The default."),
                         TunnelRouteOption(TunnelRouteName.DEFAULT, "Amsterdam"),
+                        TunnelRouteOption(TunnelRouteName("cdn77"), "Fastest for most places. The default."),
                         TunnelRouteOption(TunnelRouteName("lon"), "London"),
                     ),
                 )
@@ -201,26 +233,21 @@ class TvAccountScreenTest {
         openPlaybackRow("Proxy", downs = 3)
         compose.onNodeWithText("Choose your proxy").assertIsDisplayed()
         compose.onNodeWithText("Straight from put.io's servers in Amsterdam.").assertIsDisplayed()
-        compose.onNode(inSheet("cdn77")).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNode(inSheet("lon")).performKeyInput { pressCenter() }
-        compose.onNode(inSheet("Save")).performKeyInput { pressKey(Key.DirectionLeft) }
-        compose.onNode(inSheet("Cancel")).performKeyInput { pressCenter() }
+        compose.onAllNodes(hasText("Save") and hasAnyAncestor(isDialog())).assertCountEquals(0)
+        compose.onNode(inSheet("cdn77")).assertIsSelected().performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
         assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
         compose.onNodeWithText("Proxy").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(inSheet("cdn77")).performKeyInput {
-            repeat(2) { pressKey(Key.DirectionDown) }
-            pressCenter()
-        }
-        compose.onNode(inSheet("Save")).performKeyInput { pressCenter() }
+        compose.onNode(inSheet("cdn77")).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(inSheet("lon")).performKeyInput { pressCenter() }
         assertEquals(
             listOf<AccountSettingsEvent>(
                 AccountSettingsEvent.ChangeRequested(AccountSettingsChange.Route(TunnelRouteName("lon"))),
             ),
             settingsEvents,
         )
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText("Proxy").assertIsFocused()
     }
 
     @Test
@@ -246,13 +273,45 @@ class TvAccountScreenTest {
     }
 
     @Test
-    fun turningTrashOffConfirmsInRed() {
+    fun resetAllSortSettingsFollowsDefaultSortAndConfirmsInRedWithCancelFocused() {
         show(settingsState = { ready(preferences) })
+        val reset = "Reset all sort settings"
+
+        group("Library").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Manage your trash").performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithText("Default sort order").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText(reset).assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Reset all sort settings?").assertIsDisplayed()
+        compose.onNodeWithText("Every folder goes back to the default sort order.").assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(reset).assertIsFocused()
+        assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
+
+        compose.onNodeWithText(reset).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Reset") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
+            pressCenter()
+        }
+        assertEquals(
+            listOf<AccountSettingsEvent>(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts)),
+            settingsEvents,
+        )
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(reset).assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithText("Keep account history").assertIsFocused()
+    }
+
+    @Test
+    fun turningTrashOffConfirmsInRedWithCancelFocused() {
+        var settings by mutableStateOf(ready(preferences))
+        show(settingsState = { settings })
 
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Move deleted files to Trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Turn off Trash?").assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Turn off") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
             pressCenter()
         }
@@ -262,7 +321,48 @@ class TvAccountScreenTest {
             ),
             settingsEvents,
         )
-        compose.onNodeWithText("Move deleted files to Trash").assertIsFocused()
+        compose.runOnIdle { settings = AccountSettingsReducer.reduce(settings, settingsEvents.single()).state }
+        compose.onAllNodesWithText("Manage your trash").assertCountEquals(0)
+        compose.onNodeWithText("Move deleted files to Trash").assertIsFocused().assertIsOff()
+    }
+
+    @Test
+    fun turningResumeOffConfirmsInRedWithCancelFocused() {
+        var settings by mutableStateOf(ready(preferences))
+        show(settingsState = { settings })
+        val resume = "Resume where you left off"
+
+        group("Library").performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText(resume).assertIsFocused().assertIsOn().performKeyInput { pressCenter() }
+        compose.onNodeWithText("Turn off resume?").assertIsDisplayed()
+        compose.onNodeWithText("This erases every saved playback position on your account, on all devices.")
+            .assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(resume).assertIsFocused().assertIsOn()
+        assertEquals(emptyList<AccountSettingsEvent>(), settingsEvents)
+
+        compose.onNodeWithText(resume).performKeyInput { pressCenter() }
+        compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNode(hasText("Turn off") and isFocused() and hasAnyAncestor(isDialog())).performKeyInput {
+            pressCenter()
+        }
+        assertEquals(
+            listOf<AccountSettingsEvent>(
+                AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, false)),
+            ),
+            settingsEvents,
+        )
+        compose.runOnIdle { settings = ready(preferences.copy(resumePlayback = false)) }
+        compose.onNodeWithText(resume).assertIsFocused().assertIsOff().performKeyInput { pressCenter() }
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.ResumePlayback, true)),
+            settingsEvents.last(),
+        )
     }
 
     @Test
@@ -330,6 +430,49 @@ class TvAccountScreenTest {
     }
 
     @Test
+    fun aboutEndsWithManageAccountWhichOpensTheWebAccountPageAsAQrCode() {
+        show(settingsState = { ready(preferences) })
+        val manage = hasText("Manage account at put.io") and hasText("QR code")
+
+        group("Library").performKeyInput {
+            repeat(4) { pressKey(Key.DirectionDown) }
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText("Version").assertIsFocused()
+        repeat(MAX_ABOUT_ROWS) {
+            if (compose.onAllNodes(manage and isFocused()).fetchSemanticsNodes().isEmpty()) {
+                compose.onNode(isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+            }
+        }
+        compose.onNode(manage and isFocused()).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(manage and isFocused()).performKeyInput { pressCenter() }
+        compose.onNodeWithContentDescription("QR code for Manage account at put.io").assertIsDisplayed()
+        compose.onNodeWithText("https://app.put.io/account").assertIsDisplayed()
+        compose.onNodeWithText("Scan with your phone’s camera to open it there.").assertIsDisplayed()
+        compose.onNode(inSheet("Done")).performKeyInput { pressCenter() }
+        compose.onNode(manage and isFocused()).assertExists()
+    }
+
+    @Test
+    fun fullStorageWarnsThatTransfersWaitAndSaysSoToAccessibility() {
+        val full = AccountStorage(
+            availableBytes = 0,
+            sizeBytes = 1_000_000_000_000,
+            usedBytes = 1_000_000_000_000,
+            showOptimisticUsage = true,
+        )
+        var shown by mutableStateOf(account)
+        show(settingsState = { ready(preferences) }, account = { shown })
+        val warning = "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
+        compose.onAllNodesWithText(warning).assertCountEquals(0)
+
+        compose.runOnIdle { shown = account.copy(storage = full) }
+        compose.onNodeWithText(warning).assertIsDisplayed()
+        compose.onNodeWithText("1.0 TB of 1.0 TB").assertIsDisplayed()
+        compose.onNodeWithContentDescription("devs-auto. 1.0 TB of 1.0 TB, 100% used. $warning").assertExists()
+    }
+
+    @Test
     fun signOutKeepsTheLastOpenedGroupBesideIt() {
         show(settingsState = { ready(preferences) })
 
@@ -360,10 +503,10 @@ class TvAccountScreenTest {
         var settings by mutableStateOf(failed)
         show(settingsState = { settings })
 
-        compose.onNodeWithText("Couldn’t save this setting. Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t save this setting. Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("Keep account history").assertIsOn()
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onNodeWithText("Manage your trash").performKeyInput { repeat(3) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithText("Manage your trash").performKeyInput { repeat(4) { pressKey(Key.DirectionDown) } }
         compose.onNodeWithText("Keep account history").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNode(hasText("Try again") and isFocused()).performKeyInput { pressCenter() }
         assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), settingsEvents)
@@ -371,6 +514,33 @@ class TvAccountScreenTest {
         compose.runOnIdle { settings = AccountSettingsReducer.reduce(failed, AccountSettingsEvent.RetryChange).state }
         compose.onAllNodesWithText("Try again").assertCountEquals(0)
         compose.onNodeWithText("Keep account history").assertIsFocused()
+    }
+
+    @Test
+    fun aFailedSortResetOffersRetryAndHandsFocusBackToTheResetRow() {
+        val failure =
+            AccountSettingsFailure.Putio(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
+        val requested = AccountSettingsReducer.reduce(
+            ready(preferences),
+            AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts),
+        ).state
+        val failed = AccountSettingsReducer.reduce(
+            requested,
+            AccountSettingsEvent.SaveFailed(AccountSettingsRequestId(2), failure),
+        ).state
+        var settings by mutableStateOf(failed)
+        show(settingsState = { settings })
+
+        compose.onNodeWithText("Couldn’t save this setting. Check your internet connection.").assertIsDisplayed()
+        group("Library").performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onNodeWithText("Manage your trash").performKeyInput { repeat(4) { pressKey(Key.DirectionDown) } }
+        compose.onNodeWithText("Keep account history").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("Try again") and isFocused()).performKeyInput { pressCenter() }
+        assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), settingsEvents)
+
+        compose.runOnIdle { settings = AccountSettingsReducer.reduce(failed, AccountSettingsEvent.RetryChange).state }
+        compose.onAllNodesWithText("Try again").assertCountEquals(0)
+        compose.onNodeWithText("Reset all sort settings").assertIsFocused()
     }
 
     @Test
@@ -383,7 +553,7 @@ class TvAccountScreenTest {
         ).state
         show(settingsState = { failed })
 
-        compose.onNodeWithText("Couldn’t load account settings. Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Couldn’t load account settings. Check your internet connection.").assertIsDisplayed()
         group("Library").performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNode(hasText("Try again") and isFocused()).performKeyInput { pressCenter() }
@@ -446,5 +616,9 @@ class TvAccountScreenTest {
                 loadTunnelRoutes = loadTunnelRoutes,
             )
         }
+    }
+
+    private companion object {
+        const val MAX_ABOUT_ROWS = 20
     }
 }

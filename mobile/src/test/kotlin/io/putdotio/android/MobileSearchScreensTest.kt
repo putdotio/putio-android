@@ -20,6 +20,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesCursor
@@ -253,6 +255,21 @@ class MobileSearchScreensTest {
     }
 
     @Test
+    fun pullingHistoryDownReloadsIt() {
+        val events = mutableListOf<HistoryEvent>()
+        val items = listOf(
+            HistoryItem(HistoryEventId(1L), "2026-08-30T10:00:00Z", HistoryEventKind.File(HistoryFileId(1L), "Sample")),
+        )
+        setHistoryScreen(
+            history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)),
+            actions = MobileSearchHistoryActions(onHistoryEvent = { if (it != HistoryEvent.Refresh) events += it }),
+        )
+
+        compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performTouchInput { swipeDown() }
+        compose.runOnIdle { assertEquals(listOf<HistoryEvent>(HistoryEvent.Reload), events) }
+    }
+
+    @Test
     fun historyGroupsEventsAndConfirmsClear() {
         val events = mutableListOf<HistoryEvent>()
         val history =
@@ -427,13 +444,6 @@ class MobileSearchScreensTest {
         compose.onAllNodesWithText("No title").assertCountEquals(2)
         compose.onNodeWithText("Shared with you · ", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Transfer completed · ", substring = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun disabledHistoryPointsAtTheAccountToggle() {
-        setHistoryScreen(history = historyState(HistoryContent.Disabled))
-
-        compose.onNodeWithText("Turn on “Keep account history” in Account to see activity here.").assertIsDisplayed()
     }
 
     private fun setHistoryScreen(

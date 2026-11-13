@@ -3,6 +3,8 @@ package io.putdotio.android.tv
 import android.content.Context
 import android.graphics.Bitmap
 import android.view.KeyEvent
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
@@ -24,6 +26,11 @@ import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.history.HistoryTransferId
+import io.putdotio.android.settings.AccountSettingsChange
+import io.putdotio.android.settings.AccountSettingsPreferences
+import io.putdotio.android.settings.AccountSettingsRepository
+import io.putdotio.android.settings.AccountSettingsRepositoryResult
+import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
@@ -32,6 +39,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -80,15 +88,19 @@ class TvHistoryProofTest {
     }
 
     @Test
-    fun historyOffOpensAccount() {
+    fun historyOffHidesTheTab() {
         mount(FakeHistory(events()), historyEnabled = false)
-        compose.openTvTab("History")
-        waitFor(hasText("Open Account") and isFocused())
-        screenshot("androidtv-st-s5-history-off")
+        compose.focusTvTab("Files")
+        val historyTab = hasText("History") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)
+        assertEquals(0, compose.onAllNodes(historyTab).fetchSemanticsNodes().size)
+        screenshot("tv-history-off-tabs")
+    }
 
-        press(KeyEvent.KEYCODE_DPAD_CENTER)
-        waitFor(hasText("Keep account history"))
-        screenshot("tv-history-off-opened-account")
+    @Test
+    fun historyStaysWhileTheSettingIsUnknownEvenWhenTheCachedAccountSaysOff() {
+        mount(FakeHistory(events()), historyEnabled = false, settingsRepository = UnansweredSettings)
+        compose.focusTvTab("History")
+        screenshot("tv-history-unknown-tabs")
     }
 
     @Test
@@ -102,8 +114,11 @@ class TvHistoryProofTest {
         waitFor(hasText("Clear history") and hasClickAction() and isFocused())
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         waitFor(hasText("Clear history?"))
+        waitFor(hasText("Cancel") and isFocused())
         screenshot("tv-history-clear-confirm")
 
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        waitFor(hasText("Clear history") and hasClickAction() and isFocused())
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         waitFor(hasText("No activity yet."))
         assertEquals(1, history.clears)
@@ -124,13 +139,21 @@ class TvHistoryProofTest {
         screenshot("tv-history-opened-in-files")
     }
 
-    private fun mount(history: HistoryRepository, historyEnabled: Boolean = true) {
-        val dependencies = tvProofDependencies(
+    private fun mount(
+        history: HistoryRepository,
+        historyEnabled: Boolean = true,
+        settingsRepository: AccountSettingsRepository? = null,
+    ) {
+        val proofDependencies = tvProofDependencies(
             listings = mapOf(FilesFolder.Root.id to FilesPage(listOf(serverIso()), null)),
             searchResults = emptyList(),
             recentSearchStore = { ProofRecentSearchStore() },
             historyEnabled = historyEnabled,
-        ).copy(historyRepository = history)
+        )
+        val dependencies = proofDependencies.copy(
+            historyRepository = history,
+            settingsRepository = settingsRepository ?: proofDependencies.settingsRepository,
+        )
         compose.mountTvProofSession(
             dependencies,
             account = TvAccount(
@@ -223,6 +246,16 @@ class TvHistoryProofTest {
             events = emptyList()
             return PutioResult.Success(Unit)
         }
+    }
+
+    private object UnansweredSettings : AccountSettingsRepository {
+        override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> = awaitCancellation()
+
+        override suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit> =
+            awaitCancellation()
+
+        override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
+            awaitCancellation()
     }
 
     private companion object {

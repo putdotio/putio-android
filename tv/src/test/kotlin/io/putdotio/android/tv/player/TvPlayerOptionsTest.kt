@@ -2,6 +2,7 @@ package io.putdotio.android.tv.player
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import android.content.Context
 import android.os.Looper
 import io.putdotio.android.design.PutioTvTheme
 import io.putdotio.android.tv.setTvContent
@@ -48,6 +49,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.text.Cue
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -56,8 +58,11 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SUBTITLE_CUES_TAG
+import io.putdotio.android.playback.SubtitleLanguageStore
+import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.playbackState
+import io.putdotio.android.playback.toSubtitleTrackIdentity
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -99,7 +104,7 @@ class TvPlayerOptionsTest {
     }
 
     @Test
-    fun downReachesTheChipsLeftAndRightWalkThemAndUpReturnsToScrubbing() {
+    fun downReachesTheChipsLeftAndRightWalkThemAndUpReturnsToTheSeekBar() {
         val player = TrackPlayer()
         show(player, readyState(resumePositionMillis = 60_000L))
         compose.onNodeWithContentDescription("Pause").assertIsSelected()
@@ -113,13 +118,15 @@ class TvPlayerOptionsTest {
         key(Key.DirectionRight)
         chip(SPEED).assertIsSelected()
         chip(AUDIO).assertIsNotSelected()
-        compose.runOnIdle { assertTrue("Walking the chips never scrubs", player.playWhenReady) }
+        compose.runOnIdle { assertTrue("Walking the chips keeps playing", player.playWhenReady) }
 
         key(Key.DirectionUp)
         chip(SPEED).assertIsNotSelected()
         key(Key.DirectionLeft)
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:45")
-        compose.runOnIdle { assertFalse("Left on the seek bar scrubs", player.playWhenReady) }
+        compose.runOnIdle {
+            assertTrue("Left on the seek bar skips back 10 s", player.currentPosition in 50_000L..51_000L)
+            assertTrue("and keeps playing", player.playWhenReady)
+        }
     }
 
     @Test
@@ -142,7 +149,7 @@ class TvPlayerOptionsTest {
     }
 
     @Test
-    fun rewindOnAChipPullsFocusBackToTheSeekBarAndScrubs() {
+    fun rewindOnAChipPullsFocusBackToTheSeekBarAndSkips() {
         val player = TrackPlayer()
         show(player, readyState(resumePositionMillis = 60_000L))
         key(Key.DirectionDown)
@@ -152,8 +159,10 @@ class TvPlayerOptionsTest {
         key(Key.MediaRewind)
         chip(AUDIO).assertIsNotSelected()
         compose.onNodeWithTag(TV_PLAYER_SEEK_BAR_TAG).assertIsSelected()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:45")
-        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.runOnIdle {
+            assertTrue("Rewind skips back 10 s", player.currentPosition in 50_000L..51_000L)
+            assertTrue(player.playWhenReady)
+        }
     }
 
     @Test
@@ -416,6 +425,62 @@ class TvPlayerOptionsTest {
     }
 
     @Test
+    fun aRememberedLanguageWinsWhenTheAccountSettingsLoadAfterTheTracks() {
+        val (selected, picks) = rememberedGermanWithLatePolicy(
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
+        )
+
+        assertEquals(1, selected)
+        assertFalse("English never shows before the remembered German", 0 in picks)
+    }
+
+    @Test
+    fun aRememberedLanguageOutranksALateDontAutoselectSubtitles() {
+        val (selected, _) = rememberedGermanWithLatePolicy(
+            SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
+        )
+
+        assertEquals(1, selected)
+    }
+
+    @Test
+    fun aLateHideSubtitlesOutranksARememberedLanguage() {
+        val (selected, picks) = rememberedGermanWithLatePolicy(
+            SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true),
+        )
+
+        assertNull(selected)
+        assertTrue("No subtitle ever shows: $picks", picks.all { it == null })
+    }
+
+    private fun rememberedGermanWithLatePolicy(late: SubtitleStartupPolicy): Pair<Int?, List<Int?>> {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        SubtitleLanguageStore(context).update(
+            SubtitleSelection.Track(textFormat("t-de", "de", null).toSubtitleTrackIdentity()),
+        )
+        val player = TrackPlayer()
+        var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
+        show(player, policyProvider = { policy })
+        compose.runOnIdle { assertNull(player.selectedTextIndex()) }
+        val picks = mutableListOf<Int?>()
+        compose.runOnUiThread {
+            player.addListener(
+                object : Player.Listener {
+                    override fun onTracksChanged(tracks: Tracks) {
+                        picks += tracks.groups.singleOrNull { it.type == C.TRACK_TYPE_TEXT }?.let { group ->
+                            (0 until group.length).singleOrNull(group::isTrackSelected)
+                        }
+                    }
+                },
+            )
+        }
+
+        policy = late
+        settle()
+        return compose.runOnIdle { player.selectedTextIndex() } to picks.toList()
+    }
+
+    @Test
     fun automaticSubtitlesFollowTheAccountsDefaultTrackOverTheDeviceLanguage() {
         val player = TrackPlayer()
         compose.runOnUiThread {
@@ -480,8 +545,6 @@ class TvPlayerOptionsTest {
                     state = state,
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = { _, _ -> TrackPlayer().also { players += it } },
                     subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true),
@@ -521,7 +584,8 @@ class TvPlayerOptionsTest {
             val next = players.last()
             assertEquals(4, players.size)
             assertEquals("Speed starts over with each file", 1f, next.playbackParameters.speed)
-            assertEquals(0, next.selectedTextIndex())
+            assertTrue(C.TRACK_TYPE_TEXT in next.trackSelectionParameters.disabledTrackTypes)
+            assertNull(next.selectedTextIndex())
         }
     }
 
@@ -550,8 +614,6 @@ class TvPlayerOptionsTest {
                 state = state,
                 onBack = onBack,
                 onRetry = {},
-                onResume = {},
-                onRestart = {},
                 onPlayerFailure = { _, _ -> },
                 playerFactory = { _, _ -> player },
                 subtitleStartupPolicy = policyProvider(),

@@ -6,7 +6,15 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitles
+import io.putdotio.sdk.files.PutioCredentialUrl
 import java.io.IOException
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -116,6 +124,61 @@ class PlaybackFailureTest {
         assertTrue(failure.putioFailure is PutioFailure.Unexpected)
         assertTrue(failure.retryable)
     }
+
+    @Test
+    fun aStream403ResolvesAFreshLinkAtItsPositionAndOnlyASecond403IsShown() = runBlocking {
+        val links = mutableListOf<String>()
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
+                val link = "https://api.put.io/v2/files/42/hls/media.m3u8?token=${links.size + 1}"
+                links += link
+                return PlaybackRepositoryResult.Success(
+                    PlaybackResolution.Ready(hlsSource(link), useStartFrom = true),
+                )
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
+        }
+        val controller = PlaybackController(PlaybackTarget(FilesItemId(42L), "episode.mkv"), repository, this)
+        try {
+            val first = controller.awaitReady()
+            val forbidden =
+                PlaybackException("forbidden", invalidResponse(403), PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS)
+
+            assertTrue(controller.dispatch(PlaybackEvent.PlayerFailed(forbidden.toPlaybackFailure(), 30_000L)))
+            val fresh = controller.awaitReady { it.source != first.source }
+            assertEquals(links[1], fresh.source.url.value)
+            assertEquals(30_000L, controller.state.value.resumePositionMillis)
+
+            assertTrue(controller.dispatch(PlaybackEvent.PlayerFailed(forbidden.toPlaybackFailure(), 30_000L)))
+            val shown = controller.state.value.content
+            val shownFailure = (shown as? PlaybackContent.Failed)?.failure
+            assertTrue("$shown", shownFailure is PlaybackFailure.MediaCredentialUnavailable)
+            assertEquals(2, links.size)
+        } finally {
+            controller.close()
+        }
+    }
+
+    private suspend fun PlaybackController.awaitReady(
+        predicate: (PlaybackContent.Ready) -> Boolean = { true },
+    ): PlaybackContent.Ready =
+        withTimeout(2_000L) {
+            state.first { (it.content as? PlaybackContent.Ready)?.let(predicate) == true }
+                .content as PlaybackContent.Ready
+        }
+
+    private fun hlsSource(link: String) =
+        PlaybackSource(
+            fileId = 42L,
+            kind = PlaybackSourceKind.HLS,
+            url = PutioCredentialUrl.of(link),
+            startFromSeconds = 0.0,
+            subtitles = PlaybackSubtitles.Embedded,
+        )
 
     private fun invalidResponse(status: Int) =
         HttpDataSource.InvalidResponseCodeException(

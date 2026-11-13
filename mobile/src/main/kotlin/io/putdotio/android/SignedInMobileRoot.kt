@@ -34,11 +34,13 @@ import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.AppConfigPinnedFiles
 import io.putdotio.android.files.ContinueWatching
 import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.files.MobileFilesActionSources
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileVlcIntentHandoff
 import io.putdotio.android.files.SdkFilesRepository
 import io.putdotio.android.files.SdkFilesSubtitleLanguages
@@ -92,6 +94,9 @@ import io.putdotio.android.share.MobileFileShareService
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
 import io.putdotio.android.sharing.PublicLinksController
 import io.putdotio.android.sharing.SdkPublicLinksRepository
+import io.putdotio.android.account.LoggedInAppsController
+import io.putdotio.android.account.MobileLoggedInAppsViewModel
+import io.putdotio.android.account.SdkLoggedInAppsRepository
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.transfers.MobileTransferDraft
@@ -134,6 +139,7 @@ internal fun SignedInMobileRoot(
     rootScope: CoroutineScope,
     downloadsViewModel: MobileDownloadsViewModel? = null,
     publicLinksViewModel: MobilePublicLinksViewModel? = null,
+    loggedInAppsViewModel: MobileLoggedInAppsViewModel? = null,
     playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
@@ -214,9 +220,19 @@ internal fun SignedInMobileRoot(
         remember(publicLinksViewModel, publicLinksRepository, account.userId, sessionId) {
             publicLinksViewModel?.controllerFor(account.userId, sessionId, publicLinksRepository)
         }
+    val loggedInAppsRepository = remember(runtime.putioClient) { SdkLoggedInAppsRepository(runtime.putioClient) }
+    val loggedInAppsController =
+        remember(loggedInAppsViewModel, loggedInAppsRepository, account.userId, sessionId) {
+            loggedInAppsViewModel?.controllerFor(account.userId, sessionId, loggedInAppsRepository)
+        }
     val continueWatching = remember(filesViewModel, downloadsContext, account.userId, sessionId) {
         filesViewModel.continueWatchingFor(account.userId, sessionId) {
             DeviceContinueWatchingStore(downloadsContext, account.userId)
+        }
+    }
+    val pinnedFiles = remember(filesViewModel, filesRepository, account.userId, sessionId) {
+        filesViewModel.pinnedFilesFor(account.userId, sessionId) { scope ->
+            MobilePinnedFiles(AppConfigPinnedFiles(runtime.putioClient, scope), filesRepository::resolveItem, scope)
         }
     }
     val filesActions =
@@ -270,6 +286,7 @@ internal fun SignedInMobileRoot(
         trashController = trashController,
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
+        loggedInAppsController = loggedInAppsController,
         authController = authController,
         rootScope = rootScope,
         playbackPlayerFactory = playbackPlayerFactory,
@@ -277,6 +294,7 @@ internal fun SignedInMobileRoot(
         deepLinkRequests = deepLinkRequests,
         transferDraft = transferDraft,
         continueWatching = continueWatching,
+        pinnedFiles = pinnedFiles,
         filesActions = filesActions,
     )
 }
@@ -295,6 +313,7 @@ private fun SignedInMobileSession(
     trashController: TrashController,
     downloadsController: DownloadsController?,
     publicLinksController: PublicLinksController?,
+    loggedInAppsController: LoggedInAppsController?,
     authController: MobileAuthController,
     rootScope: CoroutineScope,
     playbackPlayerFactory: MobilePlayerFactory,
@@ -302,6 +321,7 @@ private fun SignedInMobileSession(
     deepLinkRequests: MobileDeepLinkRequests,
     transferDraft: MobileTransferDraft,
     continueWatching: ContinueWatching?,
+    pinnedFiles: MobilePinnedFiles?,
     filesActions: MobileFilesActionsController?,
 ) {
     val account = signedIn.account
@@ -432,8 +452,10 @@ private fun SignedInMobileSession(
         },
         downloadsController = downloadsController,
         publicLinksController = publicLinksController,
+        loggedInAppsController = loggedInAppsController,
         folderCreator = filesRepository,
         continueWatching = continueWatching,
+        pinnedFiles = pinnedFiles,
         subtitleLanguages = remember(runtime.putioClient) { SdkFilesSubtitleLanguages(runtime.putioClient) },
         filesActions = filesActions,
         sessionId = sessionId,

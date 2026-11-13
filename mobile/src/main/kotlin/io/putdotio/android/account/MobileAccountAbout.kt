@@ -23,15 +23,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.R
+import io.putdotio.android.design.putioMono
+import io.putdotio.android.monoArguments
+import io.putdotio.android.monoValue
 import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackPreference
@@ -60,6 +66,21 @@ internal fun mobileAppDiagnostics(
         streamingMethod = streamingMethod,
     )
 
+@Composable
+internal fun rememberDisplayDeviceClass(): AppDiagnostics.DeviceClass {
+    val windowConfiguration = LocalConfiguration.current
+    val appContext = LocalContext.current.applicationContext
+    return remember(windowConfiguration) {
+        mobileDeviceClass(appContext.resources.configuration.smallestScreenWidthDp)
+    }
+}
+
+internal fun mobileDeviceClass(smallestScreenWidthDp: Int): AppDiagnostics.DeviceClass =
+    if (smallestScreenWidthDp >= TABLET_SMALLEST_WIDTH_DP) AppDiagnostics.DeviceClass.Tablet
+    else AppDiagnostics.DeviceClass.Phone
+
+private const val TABLET_SMALLEST_WIDTH_DP = 600
+
 // Media3 is the only player; the stream method is the one playback actually uses,
 // which falls back to HLS while config is loading and ignores unconfirmed saves.
 private fun playerLabel(playbackPreference: PlaybackPreference): String =
@@ -83,23 +104,27 @@ internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier
     // clipboard holds stale details and the confirmation must not claim otherwise.
     val supportText = remember(diagnostics) { diagnostics.supportText() }
     var copied by remember(supportText) { mutableStateOf(false) }
+    val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
     val rows = listOf(
         AppInfoRow(
             R.string.mobile_settings_about_version,
-            stringResource(
-                R.string.mobile_settings_about_version_value,
+            monoArguments(
+                stringResource(R.string.mobile_settings_about_version_value),
+                mono,
                 diagnostics.appVersion,
-                diagnostics.versionCode,
+                diagnostics.versionCode.toString(),
             ),
-            mono = true,
         ),
         AppInfoRow(
             R.string.mobile_settings_about_channel,
-            stringResource(channelLabel(diagnostics.releaseChannel), diagnostics.buildType),
+            AnnotatedString(stringResource(channelLabel(diagnostics.releaseChannel), diagnostics.buildType)),
         ),
-        AppInfoRow(R.string.mobile_settings_about_device, stringResource(deviceClassLabel(diagnostics.deviceClass))),
-        AppInfoRow(R.string.mobile_settings_about_android, diagnostics.runtimeVersion.toString(), mono = true),
-        AppInfoRow(R.string.mobile_settings_about_player, PLAYER_NAME),
+        AppInfoRow(
+            R.string.mobile_settings_about_device,
+            AnnotatedString(stringResource(deviceClassLabel(diagnostics.deviceClass))),
+        ),
+        AppInfoRow(R.string.mobile_settings_about_android, monoValue(diagnostics.runtimeVersion.toString(), mono)),
+        AppInfoRow(R.string.mobile_settings_about_player, AnnotatedString(PLAYER_NAME)),
     )
     Column(
         modifier = modifier
@@ -122,11 +147,7 @@ internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier
                     MobileSettingsLine(
                         title = stringResource(row.label),
                         icon = null,
-                        trailing = settingsValue(
-                            row.value,
-                            mono = row.mono,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        ),
+                        trailing = SettingsTrailing.Value(row.value, MaterialTheme.colorScheme.onSurface),
                         titleColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -178,7 +199,7 @@ internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier
     }
 }
 
-private data class AppInfoRow(@StringRes val label: Int, val value: String, val mono: Boolean = false)
+private data class AppInfoRow(@StringRes val label: Int, val value: AnnotatedString)
 
 private fun channelLabel(channel: AppDiagnostics.ReleaseChannel): Int =
     when (channel) {

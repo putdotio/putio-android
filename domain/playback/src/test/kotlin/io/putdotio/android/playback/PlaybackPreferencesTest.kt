@@ -72,6 +72,13 @@ class PlaybackPreferencesTest {
     }
 
     @Test
+    fun rotationStaysOnUntilTheConfigConfirmsOff() {
+        assertTrue(AndroidAppConfigReducer.start().state.confirmedRotateToLandscape())
+        assertTrue(readyState(AndroidAppConfigPreferences(rotateToLandscape = true)).confirmedRotateToLandscape())
+        assertFalse(readyState(AndroidAppConfigPreferences(rotateToLandscape = false)).confirmedRotateToLandscape())
+    }
+
+    @Test
     fun theMethodIsStandardUntilDirectPlayIsConfirmed() {
         val file = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.File)
         val hls = AndroidAppConfigPreferences(streamingMethod = StreamingMethod.Hls)

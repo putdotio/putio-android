@@ -16,7 +16,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 public const val PLAYBACK_REPORTING_LEASE_KEY: String = "io.putdotio.android.playback.reportingLease"
-private const val POSITION_REPORT_INTERVAL_MILLIS = 15_000L
+private const val POSITION_REPORT_INTERVAL_MILLIS = 10_000L
+private const val SEEK_SETTLE_MILLIS = 1_000L
 
 /** Tags [this] item with a [PlaybackPositionWriter] lease, so an observer reports its positions under it. */
 public fun MediaItem.withReportingLease(token: String): MediaItem {
@@ -36,6 +37,8 @@ public class PlaybackPositionObserver(
 ) : Closeable {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]))
     private var ticker: Job? = null
+    private var seekSave: Job? = null
+    private var startSeekLease: String? = null
     private var closed = false
     private val listener = object : Media3Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -67,8 +70,16 @@ public class PlaybackPositionObserver(
                 oldPosition.mediaItemIndex != newPosition.mediaItemIndex ||
                 reason == Media3Player.DISCONTINUITY_REASON_REMOVE ||
                 reason == Media3Player.DISCONTINUITY_REASON_AUTO_TRANSITION
-            // A seek within the same item waits for the next periodic or lifecycle snapshot.
-            if (itemChanged) submitPosition(oldLease, oldPosition.positionMs)
+            if (itemChanged) {
+                cancelSeekSave()
+                submitPosition(oldLease, oldPosition.positionMs)
+                if (newPosition.mediaItem.reportingLease() != oldLease) startSeekLease = null
+            } else if (reason == Media3Player.DISCONTINUITY_REASON_SEEK ||
+                reason == Media3Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT
+            ) {
+                trackStartSeek(oldLease, oldPosition, newPosition)
+                saveWhenSeekSettles()
+            }
         }
     }
 
@@ -81,6 +92,7 @@ public class PlaybackPositionObserver(
     public fun flush() {
         if (closed) return
         checkApplicationLooper()
+        cancelSeekSave()
         submitPosition(player.currentMediaItem.reportingLease(), player.currentPosition)
     }
 
@@ -108,14 +120,43 @@ public class PlaybackPositionObserver(
                 while (isActive) {
                     delay(POSITION_REPORT_INTERVAL_MILLIS)
                     checkApplicationLooper()
-                    if (player.isPlaying) flush()
+                    if (player.isPlaying && seekSave == null) flush()
                 }
             }
         }
     }
 
+    private fun saveWhenSeekSettles() {
+        cancelSeekSave()
+        seekSave = scope.launch {
+            delay(SEEK_SETTLE_MILLIS)
+            checkApplicationLooper()
+            seekSave = null
+            val lease = player.currentMediaItem.reportingLease()
+            if (lease != null && lease == startSeekLease) submitPosition(lease, 0L) else flush()
+        }
+    }
+
+    private fun trackStartSeek(lease: String?, from: Media3Player.PositionInfo, to: Media3Player.PositionInfo) {
+        when {
+            to.positionMs >= MIN_SAVED_POSITION_MILLIS -> startSeekLease = null
+            from.positionMs >= MIN_SAVED_POSITION_MILLIS -> startSeekLease = lease
+        }
+    }
+
+    private fun cancelSeekSave() {
+        seekSave?.cancel()
+        seekSave = null
+    }
+
     private fun submitPosition(lease: String?, positionMillis: Long) {
-        if (!lease.isNullOrBlank() && positionMillis > 0) submit(lease, positionMillis)
+        if (lease.isNullOrBlank()) return
+        if (positionMillis >= MIN_SAVED_POSITION_MILLIS) {
+            if (lease == startSeekLease) startSeekLease = null
+            submit(lease, positionMillis)
+        } else if (lease == startSeekLease) {
+            submit(lease, positionMillis)
+        }
     }
 
     private fun checkApplicationLooper() {

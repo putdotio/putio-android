@@ -1,8 +1,6 @@
 package io.putdotio.android
 
 import android.app.Application
-import android.content.ActivityNotFoundException
-import android.content.Context
 import android.content.Intent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +13,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.putdotio.android.account.MobileAccountSettingsViewModel
@@ -28,6 +25,7 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.OAuthBrowserLaunchResult
 import io.putdotio.android.auth.OAuthLaunchResult
+import io.putdotio.android.auth.openChromeStoreListing
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.mobileDownloadsViewModelFactory
@@ -36,6 +34,8 @@ import io.putdotio.android.files.mobileFilesViewModelFactory
 import io.putdotio.android.search.MobileSearchHistoryViewModel
 import io.putdotio.android.search.mobileSearchHistoryViewModelFactory
 import io.putdotio.android.sharing.MobilePublicLinksViewModel
+import io.putdotio.android.account.MobileLoggedInAppsViewModel
+import io.putdotio.android.account.mobileLoggedInAppsViewModelFactory
 import io.putdotio.android.sharing.mobilePublicLinksViewModelFactory
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersViewModel
@@ -117,6 +117,9 @@ private fun MobileAuthRoot(
     val publicLinksViewModel = viewModel<MobilePublicLinksViewModel>(
         factory = remember(authController) { mobilePublicLinksViewModelFactory(authController.state) },
     )
+    val loggedInAppsViewModel = viewModel<MobileLoggedInAppsViewModel>(
+        factory = remember(authController) { mobileLoggedInAppsViewModelFactory(authController.state) },
+    )
 
     LaunchedEffect(authController) {
         authController.restoreSession()
@@ -157,9 +160,16 @@ private fun MobileAuthRoot(
                     }
                 },
                 onGetChrome = {
-                    openChromeStoreListing(context)
-                    rootScope.launch { authController.dismissAuthTabBrowserMissing() }
+                    val opened = openChromeStoreListing(context)
+                    rootScope.launch {
+                        if (opened) {
+                            authController.dismissAuthTabBrowserMissing()
+                        } else {
+                            authController.failChromeStoreListing()
+                        }
+                    }
                 },
+                onRetrySecureStorage = { rootScope.launch { authController.retrySecureStorage() } },
             )
 
         MobileAuthState.AwaitingOAuthCallback ->
@@ -189,6 +199,7 @@ private fun MobileAuthRoot(
                 trashViewModel = trashViewModel,
                 downloadsViewModel = downloadsViewModel,
                 publicLinksViewModel = publicLinksViewModel,
+                loggedInAppsViewModel = loggedInAppsViewModel,
                 authController = authController,
                 rootScope = rootScope,
                 nowPlayingRequests = nowPlayingRequests,
@@ -203,25 +214,15 @@ internal fun MobileSignedOutScreen(
     canSignIn: Boolean,
     onSignIn: () -> Unit,
     onGetChrome: () -> Unit = {},
+    onRetrySecureStorage: () -> Unit = {},
 ) {
     MobileWelcomeScreen(
         content = mobileWelcomeContent(reason, canSignIn),
-        onAction = if (canSignIn && reason == MobileSignedOutReason.AuthTabBrowserMissing) onGetChrome else onSignIn,
+        onAction = when (reason.takeIf { canSignIn }) {
+            MobileSignedOutReason.AuthTabBrowserMissing -> onGetChrome
+            MobileSignedOutReason.SecureStorageUnavailable -> onRetrySecureStorage
+            else -> onSignIn
+        },
+        onSecondaryAction = onSignIn,
     )
 }
-
-private fun openChromeStoreListing(context: Context) {
-    listOf(
-        "market://details?id=$CHROME_PACKAGE",
-        "https://play.google.com/store/apps/details?id=$CHROME_PACKAGE",
-    ).firstOrNull { listing ->
-        try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, listing.toUri()))
-            true
-        } catch (_: ActivityNotFoundException) {
-            false
-        }
-    }
-}
-
-private const val CHROME_PACKAGE = "com.android.chrome"

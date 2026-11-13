@@ -212,13 +212,13 @@ class TvWatchNextTest {
     @Test
     fun `reconciling gives a card stored without art the wordmark`() = runTest(UnconfinedTestDispatcher()) {
         val program = TvWatchNextProgram(7L, "film-7.mp4", null, 120_000L, 600_000L)
-        store.rows += FakeWatchNextStore.Row(5L, TvWatchNextOwner(1L, 7L), program, 0L, missingArt = true)
+        store.rows += FakeWatchNextStore.Row(5L, TvWatchNextOwner(1L, 7L), program, 0L, outdated = true)
         val recorder = watchNext().recorder(1L, TvAuthSessionId(1L))
 
         recorder.reconcile { PutioResult.Success(file(7L, startFrom = 120.0).copy(screenshotUrl = null)) }
 
         assertEquals(listOf(7L), store.updates)
-        assertEquals(false, store.rows.single().missingArt)
+        assertEquals(false, store.rows.single().outdated)
     }
 
     @Test
@@ -287,7 +287,7 @@ private class FakeWatchNextStore : TvWatchNextStore {
         val program: TvWatchNextProgram,
         val engagedAtMillis: Long,
         val browsable: Boolean = true,
-        val missingArt: Boolean = false,
+        val outdated: Boolean = false,
     )
 
     val rows = mutableListOf<Row>()
@@ -295,7 +295,7 @@ private class FakeWatchNextStore : TvWatchNextStore {
     private var nextId = 100L
 
     override suspend fun programs() =
-        rows.map { TvStoredWatchNextProgram(it.rowId, it.owner, it.program, it.engagedAtMillis, it.missingArt) }
+        rows.map { TvStoredWatchNextProgram(it.rowId, it.owner, it.program, it.engagedAtMillis, it.outdated) }
 
     override suspend fun insert(owner: TvWatchNextOwner, program: TvWatchNextProgram, engagedAtMillis: Long) {
         rows += Row(nextId++, owner, program, engagedAtMillis)
@@ -313,7 +313,7 @@ private class FakeWatchNextStore : TvWatchNextStore {
             owner = owner,
             program = program,
             engagedAtMillis = engagedAtMillis,
-            missingArt = false,
+            outdated = false,
         )
     }
 

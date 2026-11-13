@@ -57,7 +57,7 @@ import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashRestoreCheck
-import io.putdotio.android.trash.confirm
+import io.putdotio.android.trash.restore
 import io.putdotio.android.trash.trashItem
 import io.putdotio.android.trash.page
 import io.putdotio.sdk.files.PutioFileType
@@ -107,7 +107,7 @@ class MobileFilesMoveNavigationTest {
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).performClick()
         compose.runOnIdle { preview.finishReadback() }
-        compose.onNodeWithText("Empty folder").assertIsDisplayed()
+        compose.onNodeWithText("No files whatsoever!").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_OPERATION_RETRY_TAG).assertDoesNotExist()
         compose.runOnIdle {
             assertEquals(FilesFolderOperation.Idle, preview.files.current.operation)
@@ -175,7 +175,7 @@ class MobileFilesMoveNavigationTest {
             compose.waitUntil(5_000L) {
                 compose.runOnIdle { controller.state.value.content is TrashContent.Loaded }
             }
-            compose.runOnIdle { controller.confirm(restoreItem.id) }
+            compose.runOnIdle { controller.restore(restoreItem.id) }
             compose.waitUntil(5_000L) {
                 compose.runOnIdle { controller.state.value.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
             }

@@ -21,6 +21,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -54,6 +55,7 @@ import io.putdotio.android.settings.AndroidAppConfigContent
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.settings.AndroidAppConfigMutation
+import io.putdotio.android.settings.AndroidAppConfigReducer
 import io.putdotio.android.settings.AndroidAppConfigRequestId
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.StreamingMethod
@@ -79,11 +81,11 @@ import io.putdotio.android.account.MOBILE_ABOUT_ROW_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_SIGN_OUT_TAG
-import io.putdotio.android.account.MOBILE_CHOICE_SAVE_TAG
 import io.putdotio.android.account.MOBILE_ACCOUNT_STORAGE_PROGRESS_TAG
 import io.putdotio.android.account.MOBILE_DEFAULT_SORT_ROW_TAG
 import io.putdotio.android.account.MOBILE_MANAGE_PUBLIC_LINKS_TAG
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROW_TAG
+import io.putdotio.android.account.MOBILE_RESET_SORTS_ROW_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_RETRY_TAG
 import io.putdotio.android.account.MOBILE_TUNNEL_ROUTE_ROW_TAG
 import io.putdotio.android.account.MOBILE_SIGN_OUT_DIALOG_TAG
@@ -96,6 +98,7 @@ import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 
@@ -147,8 +150,6 @@ class MobileAccountScreenTest {
             .assertRangeInfoEquals(ProgressBarRangeInfo(0.25f, 0f..1f))
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))
         compose.onNodeWithText("Show subtitles").performClick()
-        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Resume where you left off"))
-        compose.onNodeWithText("Resume where you left off").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ACCOUNT_SIGN_OUT_TAG))
         compose.onNodeWithTag(MOBILE_ACCOUNT_SIGN_OUT_TAG).performClick()
         compose.onNode(hasText("Sign out") and hasAnyAncestor(hasTestTag(MOBILE_SIGN_OUT_DIALOG_TAG))).performClick()
@@ -158,13 +159,60 @@ class MobileAccountScreenTest {
                 AccountSettingsEvent.ChangeRequested(
                     AccountSettingsChange(AccountSettingsKey.ShowSubtitles, enabled = false),
                 ),
+            ),
+            events,
+        )
+        assertEquals(false, signedOut)
+    }
+
+    @Test
+    fun turningResumeOffAsksFirstAndCancelKeepsItOn() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(events = events)
+        val resume = "Resume where you left off"
+        val message = "This erases every saved playback position on your account, on all devices."
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(resume))
+        compose.onNodeWithText(resume).assertIsOn().performClick()
+        compose.onNode(hasText("Turn off resume?") and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(hasText(message) and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        compose.onNodeWithText(resume).assertIsOn()
+        assertEquals(emptyList<AccountSettingsEvent>(), events)
+
+        compose.onNodeWithText(resume).performClick()
+        compose.onNode(hasText("Turn off") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf(
                 AccountSettingsEvent.ChangeRequested(
                     AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false),
                 ),
             ),
             events,
         )
-        assertEquals(false, signedOut)
+    }
+
+    @Test
+    fun turningResumeOnSavesAtOnce() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(
+            state = { readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(resumePlayback = false)) },
+            events = events,
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Resume where you left off"))
+        compose.onNodeWithText("Resume where you left off").assertIsOff().performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf(
+                AccountSettingsEvent.ChangeRequested(
+                    AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = true),
+                ),
+            ),
+            events,
+        )
     }
 
     @Test
@@ -458,6 +506,52 @@ class MobileAccountScreenTest {
         compose.onNodeWithText("Try again").performClick()
         compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
     }
+
+    @Test
+    fun resetAllSortSettingsSitsUnderDefaultSortAndAsksFirst() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(events = events)
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_RESET_SORTS_ROW_TAG))
+        val sort = compose.onNodeWithTag(MOBILE_DEFAULT_SORT_ROW_TAG).getUnclippedBoundsInRoot()
+        val reset = compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).getUnclippedBoundsInRoot()
+        val trash = compose.onNodeWithText("Move deleted files to trash").getUnclippedBoundsInRoot()
+        assertTrue("Reset sits under Default sort order: $sort, $reset", reset.top >= sort.bottom)
+        assertTrue("The trash switch follows Reset: $reset, $trash", trash.top >= reset.bottom)
+
+        compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).assertTextEquals("Reset all sort settings").performClick()
+        compose.onNode(hasText("Reset all sort settings?") and hasAnyAncestor(isDialog())).assertIsDisplayed()
+        compose.onNode(hasText("Every folder goes back to the default sort order.") and hasAnyAncestor(isDialog()))
+            .assertIsDisplayed()
+        compose.onNode(hasText("Cancel") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(emptyList<AccountSettingsEvent>(), events)
+
+        compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).performClick()
+        compose.onNode(hasText("Reset") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf<AccountSettingsEvent>(AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts)),
+            events,
+        )
+    }
+
+    @Test
+    fun aFailedSortResetRetriesOnItsRow() {
+        val events = mutableListOf<AccountSettingsEvent>()
+        compose.setAccountContent(
+            state = { readyAccountSettingsState(mutation = failedChange(AccountSettingsChange.ResetFolderSorts)) },
+            events = events,
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Try again"))
+        compose.onAllNodesWithText("Couldn’t save this setting").assertCountEquals(1)
+        val reset = compose.onNodeWithTag(MOBILE_RESET_SORTS_ROW_TAG).getUnclippedBoundsInRoot()
+        val retry = compose.onNodeWithText("Try again").getUnclippedBoundsInRoot()
+        assertTrue("Try again sits under the Reset row: $reset, $retry", retry.top >= reset.bottom)
+        compose.onNodeWithText("Try again").performClick()
+        compose.runOnIdle { assertEquals(listOf<AccountSettingsEvent>(AccountSettingsEvent.RetryChange), events) }
+    }
 }
 
 @RunWith(AndroidJUnit4::class)
@@ -468,7 +562,7 @@ class MobileAccountPlaybackSettingsTest {
     val compose = createComposeRule()
 
     @Test
-    fun playbackSettingsChooseMethodAndToggleAutoplay() {
+    fun playbackSettingsChooseMethodAndToggleAutoplayAndRotation() {
         val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
         compose.setAccountContent(
             options = AccountScreenOptions(onAppConfigEvent = appConfigEvents::add),
@@ -489,9 +583,11 @@ class MobileAccountPlaybackSettingsTest {
                 ),
             )
             .performClick()
-        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Autoplay next video"))
         compose.onNodeWithText("Autoplay next video").performClick()
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Rotate to landscape"))
+        compose.onNodeWithText("Rotate to landscape").assertIsOn().performClick()
 
         assertEquals(
             listOf(
@@ -501,9 +597,59 @@ class MobileAccountPlaybackSettingsTest {
                 AndroidAppConfigEvent.ChangeRequested(
                     AndroidAppConfigChange.AutoplayNextVideo(enabled = true),
                 ),
+                AndroidAppConfigEvent.ChangeRequested(
+                    AndroidAppConfigChange.RotateToLandscape(enabled = false),
+                ),
             ),
             appConfigEvents,
         )
+    }
+
+    @Test
+    fun playbackMethodAppliesOnTapAndAFailedSaveRevertsIt() {
+        val appConfigEvents = mutableListOf<AndroidAppConfigEvent>()
+        var appConfigState by mutableStateOf(readyAndroidAppConfigState())
+        compose.setAccountContent(
+            appConfigState = { appConfigState },
+            options = AccountScreenOptions(
+                onAppConfigEvent = { event ->
+                    appConfigEvents += event
+                    appConfigState = AndroidAppConfigReducer.reduce(appConfigState, event).state
+                },
+            ),
+        )
+
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Playback method"))
+        compose.onNodeWithText("Playback method").performClick()
+        compose.onAllNodesWithText("Save").assertCountEquals(0)
+        compose.onNode(hasText("Standard") and hasAnyAncestor(isDialog())).assertIsSelected().performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(emptyList<AndroidAppConfigEvent>(), appConfigEvents)
+
+        compose.onNodeWithText("Playback method").performClick()
+        compose.onNode(hasText("Direct play") and hasAnyAncestor(isDialog())).performClick()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+        assertEquals(
+            listOf(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File))),
+            appConfigEvents,
+        )
+        compose.onNodeWithText("Direct play").assertIsDisplayed()
+
+        compose.runOnIdle {
+            val saving = appConfigState.mutation as AndroidAppConfigMutation.Saving
+            appConfigState = AndroidAppConfigReducer.reduce(
+                appConfigState,
+                AndroidAppConfigEvent.SaveFailed(
+                    saving.requestId,
+                    PutioFailure.Unexpected(IllegalStateException("offline")),
+                ),
+            ).state
+        }
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Couldn’t save this setting"))
+        compose.onNodeWithText("Couldn’t save this setting").assertIsDisplayed()
+        compose.onAllNodesWithText("Direct play").assertCountEquals(0)
+        compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Playback method"))
+        compose.onNodeWithText("Standard").assertIsDisplayed()
     }
 
     @Test
@@ -604,7 +750,7 @@ class MobileAccountPlaybackSettingsTest {
     }
 
     @Test
-    fun tunnelRoutePickerLoadsOnOpenRetriesAndDispatchesTheChosenRoute() {
+    fun tunnelRoutePickerLoadsOnOpenRetriesAndAppliesTheTappedRoute() {
         val events = mutableListOf<AccountSettingsEvent>()
         var attempts = 0
         compose.setAccountContent(
@@ -635,7 +781,6 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithText("Straight from put.io, no proxy.", substring = true).assertIsDisplayed()
         compose.onAllNodesWithText("Amsterdam (Direct)", substring = true).assertCountEquals(0)
         compose.onNodeWithText("cdn77", substring = true).assertTextContains("CDN").performClick()
-        compose.onNodeWithTag(MOBILE_CHOICE_SAVE_TAG).performClick()
         compose.runOnIdle {
             assertEquals(2, attempts)
             assertEquals(
@@ -858,11 +1003,32 @@ class MobileAccountSignOutAndLibraryTest {
     }
 
     @Test
+    fun theTrashRowShowsUntilTheAccountTurnsTrashOff() {
+        var state by mutableStateOf(
+            accountSettingsState(
+                content = AccountSettingsContent.Loading(AccountSettingsRequestId(1L)),
+                mutation = AccountSettingsMutation.Idle,
+                nextRequestValue = 2L,
+            ),
+        )
+        compose.setAccountContent(state = { state })
+        compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = readyAccountSettingsState(DefaultAccountSettingsPreferences.copy(trashEnabled = false))
+        }
+        compose.onAllNodesWithTag(MOBILE_MANAGE_TRASH_TAG).assertCountEquals(0)
+
+        compose.runOnIdle { state = readyAccountSettingsState() }
+        compose.onNodeWithTag(MOBILE_MANAGE_TRASH_TAG).assertIsDisplayed()
+    }
+
+    @Test
     fun fullStorageSaysWhatWaitsAndWhatFreesSpace() {
         val full = AccountStorage(availableBytes = 0, sizeBytes = 4 * GIBIBYTE, usedBytes = 4 * GIBIBYTE)
         var account by mutableStateOf(Account)
         compose.setAccountContent(account = { account })
-        val fullLine = "Full. New transfers wait until you free up space. Empty trash or delete files to make room."
+        val fullLine = "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
         compose.onAllNodesWithText(fullLine, substring = true).assertCountEquals(0)
 
         compose.runOnIdle { account = Account.copy(storage = full) }

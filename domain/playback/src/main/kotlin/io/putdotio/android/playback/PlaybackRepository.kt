@@ -3,6 +3,7 @@ package io.putdotio.android.playback
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.apiReason
 import io.putdotio.android.toPutioFailure
+import io.putdotio.android.toTransportFailure
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.loadMediaAccount
 import io.putdotio.android.settings.StreamingMethod
@@ -17,6 +18,8 @@ import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
 import io.putdotio.sdk.files.FileDetailsQuery
 import io.putdotio.sdk.files.FileMp4ConversionStatus
+import io.putdotio.sdk.files.FileSubtitle
+import io.putdotio.sdk.files.FileSubtitlesResponse
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
@@ -28,6 +31,9 @@ import io.putdotio.sdk.files.PlaybackMediaCredential
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackRequest
 import io.putdotio.sdk.files.PlaybackSource
+import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -84,6 +90,7 @@ public val PlaybackFailure.retryable: Boolean
         is PlaybackFailure.MediaUnsupported -> false
         is PlaybackFailure.Putio -> when (failure) {
             is PutioFailure.NetworkUnavailable,
+            is PutioFailure.Timeout,
             is PutioFailure.RateLimited,
             is PutioFailure.ServerUnavailable,
             is PutioFailure.InvalidResponse,
@@ -121,12 +128,21 @@ public interface PlaybackRepository {
 
     public fun rememberSwitchedToConverted(target: PlaybackTarget): Unit = Unit
 
+    public fun forgetSwitchedToConverted(target: PlaybackTarget): Unit = Unit
+
     /**
      * The files of [target]'s media type on either side of it in its folder, in name order, and
      * the folder's name. The API has no queue, so audio's skip buttons and Up next read this.
      */
     public suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
         PlaybackRepositoryResult.Success(PlaybackNeighbours())
+
+    /**
+     * The subtitles put.io lists for [target], in the API's order. An HLS manifest names its
+     * tracks without their source; [keyedToManifest] matches this list to them.
+     */
+    public suspend fun listSubtitles(target: PlaybackTarget): PlaybackRepositoryResult<List<PlaybackSubtitle>> =
+        PlaybackRepositoryResult.Success(emptyList())
 
     /**
      * [source] as a Cast receiver plays it ([toCastMedia]), with the account's download token on
@@ -426,8 +442,8 @@ private fun PutioFile.toPlaybackTarget(mediaType: PlaybackMediaType): PlaybackTa
     )
 
 /**
- * [delegate] plus the SDK's MP4 conversion start. The player starts one when a video it opens
- * reads not available, and when the viewer converts again after a failure (see
+ * [delegate] plus the SDK's MP4 conversion start and subtitle listing. The player starts a conversion
+ * when a video it opens reads not available, and when the viewer converts again after a failure (see
  * [PlaybackContent.Conversion.starting]); the resolver itself never does (putio-sdk-kotlin
  * `docs/ARCHITECTURE.md`, conversion handling).
  */
@@ -436,6 +452,9 @@ public class ConvertingPlaybackRepository internal constructor(
     /** Starts the conversion; true when the server accepted it (any status but not available). */
     private val startMp4Conversion: suspend (Long) -> Boolean,
     private val switchedToConverted: SwitchedToConvertedFiles = SwitchedToConvertedFiles.None,
+    private val loadSubtitles: suspend (Long) -> FileSubtitlesResponse = {
+        FileSubtitlesResponse(status = "OK")
+    },
 ) : PlaybackRepository by delegate {
     public constructor(
         client: PutioClient,
@@ -454,17 +473,43 @@ public class ConvertingPlaybackRepository internal constructor(
             client.files.startMp4Conversion(fileId).status != FileMp4ConversionStatus.NOT_AVAILABLE
         },
         switchedToConverted = switchedToConverted,
+        loadSubtitles = { fileId -> withContext(Dispatchers.IO) { client.files.listSubtitles(fileId) } },
     )
+
+    @Suppress("TooGenericExceptionCaught")
+    override suspend fun listSubtitles(target: PlaybackTarget): PlaybackRepositoryResult<List<PlaybackSubtitle>> =
+        try {
+            val listed = loadSubtitles(target.fileId.value).subtitles
+            PlaybackRepositoryResult.Success(listed.mapNotNull(FileSubtitle::toPlaybackSubtitleOrNull))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: PutioException) {
+            PlaybackRepositoryResult.Failure(error.toPlaybackFailure())
+        } catch (unexpected: Exception) {
+            PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
+        }
 
     override fun rememberSwitchedToConverted(target: PlaybackTarget) {
         if (target.mediaType == PlaybackMediaType.VIDEO) switchedToConverted.add(target.fileId.value)
     }
 
+    override fun forgetSwitchedToConverted(target: PlaybackTarget) {
+        switchedToConverted.remove(target.fileId.value)
+    }
+
     override suspend fun resolve(
         target: PlaybackTarget,
         convertedOnly: Boolean,
-    ): PlaybackRepositoryResult<PlaybackResolution> =
-        delegate.resolve(target, convertedOnly || target.followsRememberedSwitch())
+    ): PlaybackRepositoryResult<PlaybackResolution> {
+        val switched = target.followsRememberedSwitch()
+        val resolved = delegate.resolve(target, convertedOnly || switched)
+        val ready = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready
+        return if (switched && ready != null && ready.source.kind != PlaybackSourceKind.ORIGINAL) {
+            PlaybackRepositoryResult.Success(ready.copy(switchedToConverted = true))
+        } else {
+            resolved
+        }
+    }
 
     private suspend fun PlaybackTarget.followsRememberedSwitch(): Boolean =
         mediaType == PlaybackMediaType.VIDEO && method != StreamingMethod.File &&
@@ -523,6 +568,8 @@ public sealed interface PlaybackResolution {
         val durationSeconds: Double? = null,
         /** Plays a download on this device, though [source] still names put.io's URL. */
         val offline: Boolean = false,
+        /** Plays converted because the viewer switched this video to converted on this device. */
+        val switchedToConverted: Boolean = false,
     ) : PlaybackResolution
 
     public data class Conversion(
@@ -583,7 +630,7 @@ private fun PutioException.leafFailure(context: PutioException): PutioFailure =
                 else -> PutioFailure.ApiRejected(httpStatusCode, errorType, context)
             }
 
-        is PutioTransportException -> PutioFailure.NetworkUnavailable(context)
+        is PutioTransportException -> toTransportFailure(context)
         is PutioSerializationException -> PutioFailure.InvalidResponse(context)
         is PutioConfigurationException -> PutioFailure.Misconfigured(context)
         is PutioOperationException -> PutioFailure.Unexpected(context)
@@ -597,3 +644,16 @@ private const val HTTP_TOO_MANY_REQUESTS = 429
 private val HTTP_SERVER_ERROR_RANGE = HTTP_SERVER_ERROR_START..HTTP_SERVER_ERROR_END
 private const val HTTP_SERVER_ERROR_START = 500
 private const val HTTP_SERVER_ERROR_END = 599
+
+private fun FileSubtitle.toPlaybackSubtitleOrNull(): PlaybackSubtitle? =
+    runCatching { PutioCredentialUrl.of(url) }.getOrNull()?.let { credentialUrl ->
+        PlaybackSubtitle(
+            format = format,
+            key = key,
+            language = language,
+            languageCode = languageCode,
+            name = name,
+            source = source,
+            url = credentialUrl,
+        )
+    }

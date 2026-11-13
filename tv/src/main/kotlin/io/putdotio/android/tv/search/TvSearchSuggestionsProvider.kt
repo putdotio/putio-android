@@ -10,23 +10,32 @@ import android.net.Uri
 import android.provider.BaseColumns
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.android.R
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.tv.TvLaunchRequest
+import io.putdotio.android.tv.TvLinkKey
 import io.putdotio.android.tv.auth.TvAuthController
 import io.putdotio.android.tv.auth.TvAuthRuntime
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.toUri
 import io.putdotio.android.tv.tvLauncherFallbackArt
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /**
  * put.io as an Android TV global search source. The system's search app queries this provider
- * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch], and a chosen row
- * opens `putio://files/<id>` in [io.putdotio.android.MainActivity]. Only callers holding
- * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names.
+ * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch]. A chosen file row
+ * opens `putio://files/<id>~<key>` in [io.putdotio.android.MainActivity], and the first row,
+ * "Search put.io for …", opens `putio://search/<key>?q=<term>`. Only callers holding
+ * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names or the
+ * [TvLinkKey] that lets a link open a file.
  */
 internal class TvSearchSuggestionsProvider internal constructor(
     private val globalSearch: (Context?) -> TvGlobalSearch?,
@@ -45,10 +54,19 @@ internal class TvSearchSuggestionsProvider internal constructor(
         val query = selectionArgs?.firstOrNull()
             ?: uri.lastPathSegment?.takeIf { it != SearchManager.SUGGEST_URI_PATH_QUERY }
         val limit = uri.getQueryParameter(SearchManager.SUGGEST_PARAMETER_LIMIT)?.toIntOrNull()
-        val search = globalSearch(context) ?: return tvSearchSuggestions(emptyList(), limit, fallbackArt = null)
+        val context = context
         // A binder thread: the system search waits on this answer, so it is bounded.
-        val items = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
-        return tvSearchSuggestions(items.orEmpty(), limit, context?.let(::tvLauncherFallbackArt))
+        val found = context?.let(globalSearch)?.let { search ->
+            runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
+        }
+        if (context == null || found == null) return MatrixCursor(SUGGESTION_COLUMNS)
+        return tvSearchSuggestions(
+            searchRow = TvSearchRow(found.term, context.getString(R.string.tv_global_search_in_app, found.term.value)),
+            items = found.items,
+            limit = limit,
+            fallbackArt = tvLauncherFallbackArt(context),
+            key = TvLinkKey.get(context),
+        )
     }
 
     override fun getType(uri: Uri): String = SearchManager.SUGGEST_MIME_TYPE
@@ -66,11 +84,13 @@ internal class TvSearchSuggestionsProvider internal constructor(
     ): Int = throw UnsupportedOperationException()
 }
 
+internal data class TvGlobalSearchResult(val term: SearchTerm, val items: List<FilesItem>)
+
 /**
  * A system search query: the first page of the account's file search, run in the signed-in
- * session. Nothing for a blank query, no session, a failed search or a session that ended
- * while it ran. Nobody watches this
- * process, so a 401 goes to [reject], which ends the session without requesting a code.
+ * session. Null for a blank query, no session, a 401 or a session that ended while it ran; no
+ * items for another failed or slow search. Nobody watches this process, so a 401 goes to [reject], which
+ * ends the session without requesting a code.
  */
 internal class TvGlobalSearch(
     /** The signed-in session, restored without a screen when the app has not; null for none. */
@@ -80,15 +100,22 @@ internal class TvGlobalSearch(
     /** Whether the session is still the signed-in one. */
     private val isCurrent: (TvAuthSessionId) -> Boolean,
 ) {
-    suspend fun files(query: String?): List<FilesItem> {
-        val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return emptyList()
-        val signedIn = session()
-        val result = signedIn?.let { search(term) }
-        if (signedIn != null && (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
-            reject(signedIn.sessionId)
-        }
-        val current = signedIn != null && isCurrent(signedIn.sessionId)
-        return (result as? PutioResult.Success)?.value?.items?.takeIf { current }.orEmpty()
+    suspend fun files(query: String?): TvGlobalSearchResult? {
+        val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return null
+        val started = TimeSource.Monotonic.markNow()
+        return session()?.let { signedIn -> files(term, signedIn, SEARCH_BUDGET - started.elapsedNow()) }
+    }
+
+    private suspend fun files(
+        term: SearchTerm,
+        signedIn: TvAuthState.SignedIn,
+        budget: Duration,
+    ): TvGlobalSearchResult? {
+        val result = withTimeoutOrNull(budget) { search(term) }
+        val rejected = (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired
+        if (rejected) reject(signedIn.sessionId)
+        return TvGlobalSearchResult(term, (result as? PutioResult.Success)?.value?.items.orEmpty())
+            .takeIf { !rejected && isCurrent(signedIn.sessionId) }
     }
 }
 
@@ -105,19 +132,44 @@ internal fun tvGlobalSearch(
         isCurrent = { (controller.state.value as? TvAuthState.SignedIn)?.sessionId == it },
     )
 
+internal data class TvSearchRow(val term: SearchTerm, val label: String)
+
 /**
- * The rows the system search shows: the file's name, its kind, put.io's still or else
- * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>`.
+ * The rows the system search shows. First [searchRow], whose intent data is the keyed
+ * `putio://search/<key>?q=<term>`. Then each file: its name, its kind, put.io's still or else
+ * [fallbackArt], and a duration for media; the intent data id completes `putio://files/<id>~<key>`.
  */
-internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackArt: String?): Cursor {
+internal fun tvSearchSuggestions(
+    searchRow: TvSearchRow?,
+    items: List<FilesItem>,
+    limit: Int?,
+    fallbackArt: String?,
+    key: TvLinkKey,
+): Cursor {
     val cursor = MatrixCursor(SUGGESTION_COLUMNS)
-    items.take(limit?.takeIf { it > 0 } ?: DEFAULT_LIMIT).forEach { item ->
+    val rows = limit?.takeIf { it > 0 } ?: DEFAULT_LIMIT
+    searchRow?.let {
+        cursor.addRow(
+            arrayOf<Any?>(
+                SEARCH_ROW_ID,
+                it.label,
+                null,
+                null,
+                TvLaunchRequest.Search(it.term).toUri(key).toString(),
+                fallbackArt,
+                null,
+                SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,
+            ),
+        )
+    }
+    items.take(rows - cursor.count).forEach { item ->
         cursor.addRow(
             arrayOf<Any?>(
                 item.id.value,
                 item.name,
                 item.type.suggestionKind(),
-                item.id.value.toString(),
+                key.fileLinkSegment(item.id),
+                null,
                 item.screenshotUrl ?: fallbackArt,
                 item.playback?.durationSeconds?.let { (it * MILLIS_PER_SECOND).toLong() },
                 SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,
@@ -139,11 +191,14 @@ private val SUGGESTION_COLUMNS = arrayOf(
     SearchManager.SUGGEST_COLUMN_TEXT_1,
     SearchManager.SUGGEST_COLUMN_CONTENT_TYPE,
     SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID,
+    SearchManager.SUGGEST_COLUMN_INTENT_DATA,
     SearchManager.SUGGEST_COLUMN_RESULT_CARD_IMAGE,
     SearchManager.SUGGEST_COLUMN_DURATION,
     SearchManager.SUGGEST_COLUMN_SHORTCUT_ID,
 )
 
 private const val DEFAULT_LIMIT = 20
+private const val SEARCH_ROW_ID = 0L
 private const val QUERY_TIMEOUT_MILLIS = 10_000L
+private val SEARCH_BUDGET = 8.seconds
 private const val MILLIS_PER_SECOND = 1_000.0

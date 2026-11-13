@@ -7,6 +7,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.ViewModelProvider
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.tv.TvLaunchRequests
+import io.putdotio.android.tv.TvLinkKey
 import io.putdotio.android.tv.consumeTvLaunchRequest
 import io.putdotio.android.tv.toTvLaunchRequest
 import io.putdotio.android.tv.toUri
@@ -45,7 +46,7 @@ class MainActivity : TvActivity() {
     }
 
     private fun receiveLaunchRequest(intent: Intent?, fresh: Boolean) {
-        val request = intent?.consumeTvLaunchRequest() ?: return
+        val request = intent?.consumeTvLaunchRequest { TvLinkKey.get(applicationContext) } ?: return
         // Recents replays the intent that started the task; it is not a new request.
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         if (fresh && !fromHistory) {

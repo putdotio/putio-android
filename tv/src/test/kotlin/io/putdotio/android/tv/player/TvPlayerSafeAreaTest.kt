@@ -61,8 +61,6 @@ class TvPlayerSafeAreaTest {
                 state = readyState(),
                 onBack = {},
                 onRetry = {},
-                onResume = {},
-                onRestart = {},
                 onPlayerFailure = { _, _ -> },
                 playerFactory = { _, _ -> TrackPlayer() },
             )

@@ -5,15 +5,19 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -45,6 +49,7 @@ import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
+import io.putdotio.android.MobilePullToRefresh
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
@@ -61,6 +66,7 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.parsePutioTimestamp
+import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.neutralTextButtonColors
 import java.time.LocalDate
 import java.time.ZoneId
@@ -76,10 +82,24 @@ internal fun MobileHistoryScreen(
     historyState: HistoryState,
     onHistoryEvent: (HistoryEvent) -> Unit,
     modifier: Modifier = Modifier,
+    open: HistoryOpen = HistoryOpen.History,
+    onRetryOpen: () -> Unit = {},
     today: LocalDate = rememberToday(),
 ) {
     LaunchedEffect(Unit) { onHistoryEvent(HistoryEvent.Refresh) }
-    MobileHistoryContent(historyState, onHistoryEvent, today, modifier.fillMaxSize())
+    when (open) {
+        HistoryOpen.History -> MobileHistoryContent(historyState, onHistoryEvent, today, modifier.fillMaxSize())
+        is HistoryOpen.Failed ->
+            MobileErrorState(
+                title = stringResource(R.string.mobile_history_error_title),
+                message = open.failure.mobileMessage(),
+                retryLabel = stringResource(R.string.mobile_action_retry),
+                onRetry = onRetryOpen,
+                modifier = modifier.fillMaxSize(),
+            )
+        HistoryOpen.Pending, HistoryOpen.FilesRoot ->
+            MobileLoadingState(stringResource(R.string.mobile_history_loading), modifier.fillMaxSize())
+    }
 }
 
 /** Today's date, moved on at midnight and on every resume, so Today and Yesterday stay true. */
@@ -107,25 +127,29 @@ private fun MobileHistoryContent(
     today: LocalDate,
     modifier: Modifier = Modifier,
 ) {
+    var pulled by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isRefreshing) { if (!state.isRefreshing) pulled = false }
+    val refreshing = pulled && state.isRefreshing
+    val reload = {
+        pulled = true
+        onEvent(HistoryEvent.Reload)
+    }
     when (val content = state.content) {
-        HistoryContent.Disabled ->
-            MobileEmptyState(
-                title = stringResource(R.string.mobile_history_disabled_title),
-                message = stringResource(
-                    R.string.mobile_history_disabled_message,
-                    stringResource(R.string.mobile_settings_history),
-                    stringResource(R.string.mobile_destination_account),
-                ),
-                modifier = modifier,
-            )
-        is HistoryContent.Loading ->
+        HistoryContent.Disabled, is HistoryContent.Loading ->
             MobileLoadingState(stringResource(R.string.mobile_history_loading), modifier)
         HistoryContent.Empty ->
-            MobileEmptyState(
-                title = stringResource(R.string.mobile_history_empty_title),
-                message = stringResource(R.string.mobile_history_empty_message),
-                modifier = modifier,
-            )
+            MobilePullToRefresh(refreshing, state.clearing == HistoryClearing.Idle, reload, modifier) {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                    val viewportHeight = maxHeight
+                    Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                        MobileEmptyState(
+                            title = stringResource(R.string.mobile_history_empty_title),
+                            message = stringResource(R.string.mobile_history_empty_message),
+                            modifier = Modifier.fillMaxWidth().height(viewportHeight),
+                        )
+                    }
+                }
+            }
         is HistoryContent.Failed ->
             MobileErrorState(
                 title = stringResource(R.string.mobile_history_error_title),
@@ -135,7 +159,9 @@ private fun MobileHistoryContent(
                 modifier = modifier,
             )
         is HistoryContent.Ready ->
-            MobileHistoryList(content, today, onEvent, modifier)
+            MobilePullToRefresh(refreshing, state.clearing == HistoryClearing.Idle, reload, modifier) {
+                MobileHistoryList(content, today, onEvent, Modifier.fillMaxSize())
+            }
     }
     MobileHistoryDialog(state.clearing, onEvent)
 }

@@ -43,14 +43,10 @@ public data class ContinueWatchingEntry(
         )
 }
 
-/**
- * A video is in progress above 0 % and below 95 % of its duration, and more than 10 s before the
- * end, the same bounds as TV's Watch Next row: the player starts a nearer position over.
- */
+/** A video is in progress above 0 % and below 95 % of its duration, the player's resume bounds. */
 internal fun isInProgress(positionSeconds: Double, durationSeconds: Double?): Boolean {
     val duration = durationSeconds?.takeIf { it.isFinite() && it > 0.0 } ?: return false
-    return positionSeconds.isFinite() && positionSeconds > 0.0 &&
-        positionSeconds < duration * COMPLETED_FRACTION && positionSeconds < duration - FINISHED_WITHIN_SECONDS
+    return positionSeconds.isFinite() && positionSeconds > 0.0 && !playbackFinishedAt(positionSeconds, duration)
 }
 
 /** Where one user's row persists between launches. */
@@ -66,6 +62,8 @@ public interface ContinueWatchingStore {
  * resolved its name and duration and put.io has accepted a position for it, newest first, at most
  * [MAX_ENTRIES]. Finished, unwatched and deleted videos leave. Main-thread only.
  */
+// One entry point per change the player, put.io or the viewer makes to the row.
+@Suppress("TooManyFunctions")
 public class ContinueWatching(
     private val store: ContinueWatchingStore,
     private val clock: () -> Long = System::currentTimeMillis,
@@ -91,6 +89,11 @@ public class ContinueWatching(
         if (current.any { it.fileId == fileId }) {
             update(current.map { if (it.fileId == fileId) it.copy(name = name, durationSeconds = duration) else it })
         }
+    }
+
+    public fun renamed(fileId: FilesItemId, name: String) {
+        media[fileId]?.let { media[fileId] = it.copy(name = name) }
+        update(mutableEntries.value.map { if (it.fileId == fileId) it.copy(name = name) else it })
     }
 
     /** put.io accepted [seconds] for [fileId], from playback or the offline sync. */
@@ -291,9 +294,6 @@ private fun JSONArray.toEntries(): List<ContinueWatchingEntry> =
             ContinueWatchingEntry(FilesItemId(id), name, position, duration, entry.optLong("watchedAt", 0L))
         }
     }
-
-private const val COMPLETED_FRACTION = 0.95
-private const val FINISHED_WITHIN_SECONDS = 10.0
 
 /** The items a settled delete's read-back found gone, a partial delete's included. */
 public fun FilesDeleteOutcome.confirmedGone(): List<FilesItemId> = when (status) {

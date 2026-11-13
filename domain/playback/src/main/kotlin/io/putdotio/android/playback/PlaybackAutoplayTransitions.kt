@@ -69,6 +69,9 @@ private fun PlaybackState.resolveNext(nextTarget: PlaybackTarget, startMillis: L
                 visitedFileIds = visitedFileIds + nextTarget.fileId,
                 conversionStatusRead = false,
                 convertedOnly = false,
+                linkRefetchedAtMillis = null,
+                castFallbackTarget = null,
+                switchedToConverted = false,
             ),
         effect = PlaybackEffect.Resolve(nextTarget, resolveRequestId),
     )

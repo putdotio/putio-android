@@ -20,27 +20,6 @@ import org.junit.Test
 
 class TrashSessionTest {
     @Test
-    fun staleConfirmCannotRestoreAnotherItemOrAReopenedConfirmation() = runBlocking {
-        for (nextItem in listOf(trashItem(), trashItem(8L))) {
-            val repository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
-            TrashController(repository, this).use { controller ->
-                controller.openLoaded()
-                controller.dispatch(TrashEvent.SelectRestore(trashItem().id))
-                val stale = TrashEvent.ConfirmRestore(checkNotNull(controller.state.value.confirmationId))
-                controller.dispatch(TrashEvent.CancelRestore)
-                controller.dispatch(TrashEvent.SelectRestore(nextItem.id))
-                assertFalse(controller.dispatch(stale))
-                assertTrue(repository.restoredIds.isEmpty())
-                val current = TrashEvent.ConfirmRestore(checkNotNull(controller.state.value.confirmationId))
-                assertTrue(controller.dispatch(current))
-                assertFalse(controller.dispatch(current))
-                controller.awaitState { it.restoreOutcome?.check == TrashRestoreCheck.UNAVAILABLE }
-                assertEquals(listOf(nextItem.id), repository.restoredIds)
-            }
-        }
-    }
-
-    @Test
     fun aCancelledInitialReadCannotReplaceAnAuthoritativeRefresh() = runBlocking {
         val started = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
@@ -87,7 +66,7 @@ class TrashSessionTest {
             val controller = TrashController(repository, CoroutineScope(coroutineContext + parentJob))
             try {
                 controller.openLoaded()
-                controller.confirm()
+                controller.restore()
                 withTimeout(5_000) { started.await() }
                 if (cancelParent) parentJob.cancel() else controller.close()
                 val previous = controller.state.value
@@ -122,13 +101,12 @@ class TrashSessionTest {
                 controller.dispatch(TrashEvent.Open)
                 if (stage != "initial") {
                     controller.awaitState { it.content is TrashContent.Loaded }
-                    if (stage == "page") controller.dispatch(TrashEvent.LoadNextPage) else controller.confirm()
+                    if (stage == "page") controller.dispatch(TrashEvent.LoadNextPage) else controller.restore()
                 }
                 val state = controller.awaitState { it.authenticationFailure != null }
                 assertNotNull(state.authenticationFailure)
                 assertFalse(state.canRestore(trashItem().id))
-                assertFalse(controller.dispatch(TrashEvent.SelectRestore(trashItem().id)))
-                assertFalse(controller.dispatch(TrashEvent.ConfirmRestore(-1L)))
+                assertFalse(controller.dispatch(TrashEvent.Restore(trashItem().id)))
                 assertFalse(controller.dispatch(TrashEvent.Retry))
             }
         }
@@ -141,12 +119,12 @@ class TrashSessionTest {
             val repository = FakeTrashRepository().apply { onRestore = { PutioResult.Failure(failure) } }
             TrashController(repository, this).use { controller ->
                 controller.openLoaded()
-                controller.confirm()
+                controller.restore()
                 val state = controller.awaitState { it.restoreOutcome?.submission == TrashRestoreSubmission.REJECTED }
                 assertEquals(failure, state.restoreOutcome?.submissionFailure)
                 assertNull(state.authenticationFailure)
                 assertTrue(repository.resolvedIds.isEmpty())
-                assertTrue(controller.dispatch(TrashEvent.SelectRestore(trashItem().id)))
+                assertTrue(controller.dispatch(TrashEvent.Restore(trashItem().id)))
             }
         }
     }

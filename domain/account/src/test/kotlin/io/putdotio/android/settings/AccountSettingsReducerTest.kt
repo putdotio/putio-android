@@ -5,6 +5,7 @@ import io.putdotio.android.files.FilesSort
 import io.putdotio.sdk.errors.PutioConfigurationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -43,6 +44,27 @@ class AccountSettingsReducerTest {
             AccountSettingsEvent.RefreshSucceeded(requestId, Preferences.copy(historyEnabled = false)),
         )
         assertFalse(checkNotNull(confirmed.state.confirmedHistoryEnabled()))
+    }
+
+    @Test
+    fun historyTabHidesOnlyOnTheLastReadOffWhileAHistoryWriteIsUnsettled() {
+        assertTrue(AccountSettingsReducer.start().state.historyTabShown())
+        val off = loadedState(Preferences.copy(historyEnabled = false))
+        assertFalse(off.historyTabShown())
+
+        val saving = off.reduce(toggle(AccountSettingsKey.History, true))
+        assertFalse(saving.state.historyTabShown())
+
+        val failed = saving.state.reduce(AccountSettingsEvent.SaveFailed(saving.saveRequestId(), Offline))
+        assertFalse(failed.state.historyTabShown())
+
+        val retried = failed.state.reduce(AccountSettingsEvent.RetryChange)
+        val requestId = retried.saveRequestId()
+        val refreshing = retried.state.reduce(AccountSettingsEvent.SaveSucceeded(requestId))
+        assertFalse(refreshing.state.historyTabShown())
+
+        val confirmed = refreshing.state.reduce(AccountSettingsEvent.RefreshSucceeded(requestId, Preferences))
+        assertTrue(confirmed.state.historyTabShown())
     }
 
     @Test
@@ -257,6 +279,39 @@ class AccountSettingsReducerTest {
         assertEquals(FilesSort.NAME_ASCENDING, rolledBack.preferences.defaultSort)
         assertTrue(checkNotNull(failed.state.confirmedTrashEnabled()))
         assertTrue(checkNotNull(failed.state.confirmedHistoryEnabled()))
+    }
+
+    @Test
+    fun anAcceptedSortResetChangesTheConfirmedSortOnceAndOnlyWhileSettled() {
+        val loaded = loadedState(Preferences.copy(defaultSort = FilesSort.NAME_ASCENDING))
+        val before = checkNotNull(loaded.confirmedDefaultSort())
+        val reset = AccountSettingsEvent.ChangeRequested(AccountSettingsChange.ResetFolderSorts)
+
+        val saving = loaded.reduce(reset)
+        assertTrue(saving.consumed)
+        assertEquals(AccountSettingsChange.ResetFolderSorts, (saving.effect as AccountSettingsEffect.Save).change)
+        assertEquals(loaded.content, saving.state.content)
+        assertNull(saving.state.confirmedDefaultSort())
+        assertTrue(checkNotNull(saving.state.confirmedTrashEnabled()))
+
+        val failed = saving.state.reduce(AccountSettingsEvent.SaveFailed(saving.saveRequestId(), Offline))
+        assertNull(failed.state.confirmedDefaultSort())
+        val retried = failed.state.reduce(AccountSettingsEvent.RetryChange)
+        assertEquals(AccountSettingsChange.ResetFolderSorts, (retried.effect as AccountSettingsEffect.Save).change)
+
+        val accepted = retried.state.reduce(AccountSettingsEvent.SaveSucceeded(retried.saveRequestId()))
+        val after = checkNotNull(accepted.state.confirmedDefaultSort())
+        assertEquals(FilesSort.NAME_ASCENDING, after.sort)
+        assertNotEquals(before, after)
+        val preferences = (loaded.content as AccountSettingsContent.Ready).preferences
+        val refresh = AccountSettingsEvent.RefreshSucceeded(retried.saveRequestId(), preferences)
+        val refreshed = accepted.state.reduce(refresh)
+        assertEquals(after, refreshed.state.confirmedDefaultSort())
+
+        val again = refreshed.state.reduce(reset)
+        assertTrue("A reset never matches the loaded settings, so it always saves", again.consumed)
+        val second = again.state.reduce(AccountSettingsEvent.SaveSucceeded(again.saveRequestId()))
+        assertNotEquals(after, second.state.confirmedDefaultSort())
     }
 
     private fun toggle(key: AccountSettingsKey, enabled: Boolean): AccountSettingsEvent =

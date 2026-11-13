@@ -1,6 +1,10 @@
 package io.putdotio.android.playback
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,24 +12,41 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.InputMode
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -95,26 +116,23 @@ internal fun MobilePlaybackFailureState(
 /**
  * Converting to MP4 over the player: a line that it keeps going, a bar with its percentage while it
  * runs, and the one action the state allows. Opening a video with no conversion requested starts
- * one; queued and running conversions poll. After a failure the viewer converts again, and checks
- * again where the status waits. With VLC on the phone, Play in VLC plays the original now, while
- * the conversion goes on for this player.
+ * one; queued and running conversions poll, and Cancel leaves them running on the server. After a
+ * failure the viewer converts again, and checks again where the status waits or a status read lost
+ * the network. With VLC on the phone, Play in VLC plays the original now, while the conversion goes
+ * on for this player.
  */
 @Composable
 internal fun MobileConversionState(
     conversion: PlaybackContent.Conversion,
     onRefresh: () -> Unit,
     onStart: () -> Unit,
+    onCancel: () -> Unit,
     onPlayInVlc: (() -> Unit)? = null,
 ) {
     PlaybackConversionPolling(conversion, onRefresh)
     val state = conversion.state
-    val running = conversion.starting || state == PlaybackConversionState.Queued ||
-        state is PlaybackConversionState.Converting
-    val action = when (conversion.action) {
-        PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
-        PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
-        null -> null
-    }
+    val polling = state == PlaybackConversionState.Queued || state is PlaybackConversionState.Converting
+    val running = !conversion.statusCheckFailed && (conversion.starting || polling)
     MobilePlayerStateBox {
         Column(
             Modifier.widthIn(max = CONVERSION_WIDTH).semantics(mergeDescendants = true) {
@@ -130,51 +148,203 @@ internal fun MobileConversionState(
                 modifier = Modifier.semantics { heading() },
             )
             Text(
-                if (running) stringResource(R.string.mobile_playback_conversion_message) else state.message(),
+                conversion.message(running),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            if (running) {
-                val percent = (state as? PlaybackConversionState.Converting)?.percent
-                Spacer(Modifier.height(2.dp))
-                if (percent == null) {
-                    LinearProgressIndicator(
-                        modifier = Modifier.width(CONVERSION_BAR_WIDTH),
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        strokeCap = StrokeCap.Round,
-                        gapSize = 0.dp,
-                    )
-                } else {
-                    LinearProgressIndicator(
-                        progress = { (percent / PERCENT).toFloat().coerceIn(0f, 1f) },
-                        modifier = Modifier.width(CONVERSION_BAR_WIDTH),
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                        strokeCap = StrokeCap.Round,
-                        gapSize = 0.dp,
-                        drawStopIndicator = {},
-                    )
-                    Text(
-                        "${percent.roundToInt()}%",
-                        style = MaterialTheme.typography.bodySmall.putioMono(),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (action != null || onPlayInVlc != null) Spacer(Modifier.height(14.dp))
-            if (action != null) {
-                MobilePlayerStateAction(
-                    label = stringResource(action.first),
-                    enabled = conversion.refreshRequestId == null,
-                    onClick = action.second,
-                )
-            }
-            if (onPlayInVlc != null) {
-                MobilePlayerStateAction(stringResource(R.string.mobile_playback_play_in_vlc), onClick = onPlayInVlc)
-            }
+            if (running) MobileConversionProgress(state)
+            MobileConversionActions(
+                conversion = conversion,
+                onRefresh = onRefresh,
+                onStart = onStart,
+                onCancel = onCancel.takeIf { running || conversion.statusCheckFailed },
+                onPlayInVlc = onPlayInVlc,
+            )
         }
     }
 }
+
+@Composable
+private fun MobileConversionActions(
+    conversion: PlaybackContent.Conversion,
+    onRefresh: () -> Unit,
+    onStart: () -> Unit,
+    onCancel: (() -> Unit)?,
+    onPlayInVlc: (() -> Unit)?,
+) {
+    val action = when (conversion.action) {
+        PlaybackConversionAction.RetryStatusCheck -> R.string.mobile_action_retry to onRefresh
+        PlaybackConversionAction.ConvertAgain -> R.string.mobile_playback_convert_again to onStart
+        PlaybackConversionAction.CheckAgain -> R.string.mobile_playback_check_again to onRefresh
+        null -> null
+    }
+    if (action != null || onPlayInVlc != null || onCancel != null) Spacer(Modifier.height(14.dp))
+    if (action != null) {
+        MobilePlayerStateAction(
+            label = stringResource(action.first),
+            enabled = conversion.refreshRequestId == null || conversion.statusCheckFailed,
+            onClick = action.second,
+        )
+    }
+    if (onPlayInVlc != null) {
+        MobilePlayerStateAction(stringResource(R.string.mobile_playback_play_in_vlc), onClick = onPlayInVlc)
+    }
+    if (onCancel != null) {
+        MobilePlayerStateAction(stringResource(R.string.mobile_action_cancel), onClick = onCancel)
+    }
+}
+
+@Composable
+private fun MobileConversionProgress(state: PlaybackConversionState) {
+    val percent = (state as? PlaybackConversionState.Converting)?.percent
+    Spacer(Modifier.height(2.dp))
+    if (percent == null) {
+        LinearProgressIndicator(
+            modifier = Modifier.width(CONVERSION_BAR_WIDTH),
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            strokeCap = StrokeCap.Round,
+            gapSize = 0.dp,
+        )
+        if (state == PlaybackConversionState.Queued) {
+            Text(
+                stringResource(R.string.mobile_playback_conversion_queued),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    } else {
+        LinearProgressIndicator(
+            progress = { (percent / PERCENT).toFloat().coerceIn(0f, 1f) },
+            modifier = Modifier.width(CONVERSION_BAR_WIDTH),
+            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+            strokeCap = StrokeCap.Round,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+        Text(
+            "${percent.roundToInt()}%",
+            style = MaterialTheme.typography.bodySmall.putioMono(),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PlaybackContent.Conversion.message(running: Boolean): String =
+    when {
+        statusCheckFailed -> stringResource(R.string.mobile_playback_conversion_status_failed)
+        running -> stringResource(R.string.mobile_playback_conversion_message)
+        else -> state.message()
+    }
+
+@Composable
+internal fun MobilePlaybackStallLayer(
+    stall: PlaybackStall,
+    pictureInPicture: Boolean,
+    title: String,
+    video: Boolean,
+    controlsShown: Boolean,
+    sheetOpen: Boolean,
+    fold: TabletopFold?,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (pictureInPicture) return
+    when (stall) {
+        PlaybackStall.Stalled -> MobilePlaybackStalledState(title, video, onRetry, onBack, modifier)
+        PlaybackStall.Buffering -> if (video) {
+            MobileBufferingNotice(ringShown = controlsShown && !sheetOpen, modifier = modifier.videoArea(fold))
+        }
+        PlaybackStall.None, PlaybackStall.Waiting -> Unit
+    }
+}
+
+@Composable
+internal fun MobileStallEffect(
+    stalled: Boolean,
+    playerFocus: FocusRequester,
+    onStalled: () -> Unit,
+    onRecovered: () -> Unit,
+) {
+    var wasStalled by remember { mutableStateOf(false) }
+    LaunchedEffect(stalled) {
+        if (stalled) onStalled() else onRecovered()
+        if (wasStalled && !stalled) playerFocus.requestFocus()
+        wasStalled = stalled
+    }
+}
+
+internal fun Boolean.unless(other: Boolean): Boolean = this && !other
+
+internal fun PlaybackStall.coversPlayer(pictureInPicture: Boolean): Boolean =
+    this == PlaybackStall.Stalled && !pictureInPicture
+
+internal fun PlaybackStall.allowsChrome(pictureInPicture: Boolean): Boolean =
+    this != PlaybackStall.Stalled && !pictureInPicture
+
+internal fun Modifier.onPlayerKeyEvent(enabled: Boolean, onEvent: (KeyEvent) -> Boolean): Modifier =
+    onKeyEvent { event -> enabled && onEvent(event) }
+
+@Composable
+private fun MobileBufferingNotice(ringShown: Boolean, modifier: Modifier) {
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (!ringShown) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(MOBILE_TRANSPORT_RING).clearAndSetSemantics {},
+                strokeWidth = 2.dp,
+            )
+        }
+        Text(
+            stringResource(R.string.mobile_playback_buffering),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier
+                .offset(y = BUFFERING_LABEL_OFFSET)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+        )
+    }
+}
+
+@Composable
+private fun MobilePlaybackStalledState(
+    title: String,
+    video: Boolean,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier,
+) {
+    val retryFocus = remember { FocusRequester() }
+    val keyboard = LocalInputModeManager.current.inputMode == InputMode.Keyboard
+    LaunchedEffect(keyboard) { if (keyboard) retryFocus.requestFocus() }
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .pointerInput(Unit) { awaitEachGesture { awaitFirstDown().consume() } }
+            .focusProperties { onExit = { cancelFocusChange() } }
+            .focusGroup(),
+    ) {
+        MobilePlayerStateBox {
+            PutioEmptyState(
+                glyph = PutioEmptyGlyph.CantPlay,
+                headline = stringResource(R.string.mobile_playback_stalled),
+                message = stringResource(R.string.mobile_state_error_message),
+                action = {
+                    MobilePlayerStateAction(
+                        stringResource(R.string.mobile_action_retry),
+                        onClick = onRetry,
+                        modifier = Modifier.focusRequester(retryFocus),
+                    )
+                },
+            )
+        }
+        if (video) MobilePlayerFrameBar(title = title, onBack = onBack, modifier = Modifier.align(Alignment.TopStart))
+    }
+}
+
+private val BUFFERING_LABEL_OFFSET = MOBILE_TRANSPORT_RING / 2 + 24.dp
 
 /** Centred on the player, clear of its top bar, scrolling when the window is short. */
 @Composable
@@ -191,9 +361,15 @@ private fun MobilePlayerStateBox(content: @Composable () -> Unit) {
 
 /** The state's one tonal action. */
 @Composable
-private fun MobilePlayerStateAction(label: String, onClick: () -> Unit, enabled: Boolean = true) {
+private fun MobilePlayerStateAction(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
     FilledTonalButton(
         onClick = onClick,
+        modifier = modifier,
         enabled = enabled,
         colors = ButtonDefaults.filledTonalButtonColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -227,7 +403,9 @@ private fun PlaybackFailure.messageResource(): Int =
             is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
             is PutioFailure.AccessDenied -> R.string.mobile_playback_error_forbidden
             is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
-            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+            is PutioFailure.NetworkUnavailable,
+            is PutioFailure.Timeout,
+            -> R.string.mobile_state_error_message
             is PutioFailure.ApiRejected,
             is PutioFailure.InvalidResponse,
             is PutioFailure.Misconfigured,
@@ -246,9 +424,9 @@ internal fun PlaybackMediaType.loadingMessage(): Int =
     }
 
 @StringRes
-internal fun PlaybackMediaType.errorTitle(): Int =
-    if (this == PlaybackMediaType.AUDIO) {
-        R.string.mobile_playback_error_title_audio
-    } else {
-        R.string.mobile_playback_error_title
+internal fun PlaybackFailure.errorTitle(mediaType: PlaybackMediaType): Int =
+    when {
+        putioFailure is PutioFailure.NetworkUnavailable -> R.string.mobile_playback_error_connection_lost
+        mediaType == PlaybackMediaType.AUDIO -> R.string.mobile_playback_error_title_audio
+        else -> R.string.mobile_playback_error_title
     }

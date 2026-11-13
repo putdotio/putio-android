@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -47,9 +50,26 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.auth.TvLinkFailure
 import io.putdotio.android.tv.auth.TvLinkPhase
 import io.putdotio.android.tv.auth.TvLinkStop
+
+@Composable
+internal fun TvLinkRoute(
+    linking: TvAuthState.Linking,
+    onRequestNewCode: () -> Unit,
+    onTryAgain: () -> Unit,
+) {
+    val online by rememberTvConnectivity().online.collectAsStateWithLifecycle()
+    TvLinkScreen(
+        phase = linking.phase,
+        sessionExpired = linking.sessionExpired,
+        onRequestNewCode = onRequestNewCode,
+        onTryAgain = onTryAgain,
+        offline = !online,
+    )
+}
 
 @Composable
 internal fun TvLinkScreen(
@@ -57,6 +77,8 @@ internal fun TvLinkScreen(
     sessionExpired: Boolean,
     onRequestNewCode: () -> Unit,
     modifier: Modifier = Modifier,
+    onTryAgain: () -> Unit = {},
+    offline: Boolean = false,
 ) {
     Box(
         modifier = modifier
@@ -88,7 +110,9 @@ internal fun TvLinkScreen(
         }
         LinkColumns(
             phase = phase,
+            offline = offline,
             onRequestNewCode = onRequestNewCode,
+            onTryAgain = onTryAgain,
             modifier = Modifier.padding(
                 start = TV_SIDE_MARGIN,
                 end = TV_SIDE_MARGIN,
@@ -102,7 +126,9 @@ internal fun TvLinkScreen(
 @Composable
 private fun LinkColumns(
     phase: TvLinkPhase,
+    offline: Boolean,
     onRequestNewCode: () -> Unit,
+    onTryAgain: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val code = phase.shownCode()
@@ -131,18 +157,39 @@ private fun LinkColumns(
         ) {
             ColumnTitle(stringResource(R.string.tv_link_browser_title))
             BrowserInstruction()
-            phase.statusText()?.let { status ->
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.bodySmall.copy(lineHeight = STATUS_LINE).withFullLineBox(),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
+            LinkStatus(phase = phase, offline = offline)
             CodeTiles(code = code, dimmed = dimmed)
-            NewCodeButton(enabled = phase !is TvLinkPhase.Validating, onClick = onRequestNewCode)
+            if ((phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.SessionUnreadable) {
+                Row(horizontalArrangement = Arrangement.spacedBy(ACTION_GAP)) {
+                    TryAgainButton(onClick = onTryAgain)
+                    NewCodeButton(enabled = true, onClick = onRequestNewCode, claimsFocus = false)
+                }
+            } else {
+                NewCodeButton(enabled = phase !is TvLinkPhase.Validating, onClick = onRequestNewCode)
+            }
         }
+    }
+}
+
+@Composable
+private fun LinkStatus(phase: TvLinkPhase, offline: Boolean) {
+    if (phase is TvLinkPhase.AwaitingLink && offline) {
+        TvOfflineBanner(Modifier.width(IntrinsicSize.Max))
+        return
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(STATUS_SPINNER_GAP),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val waiting = phase is TvLinkPhase.AwaitingLink
+        if (waiting) TvSpinner(Modifier.size(STATUS_SPINNER))
+        Text(
+            text = phase.statusText(),
+            style = MaterialTheme.typography.bodySmall.copy(lineHeight = STATUS_LINE).withFullLineBox(),
+            color = if (waiting) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+        )
     }
 }
 
@@ -238,10 +285,27 @@ private fun CodeTiles(
 }
 
 @Composable
-private fun NewCodeButton(enabled: Boolean, onClick: () -> Unit) {
+private fun TryAgainButton(onClick: () -> Unit) {
     val focus = remember { FocusRequester() }
-    LaunchedEffect(enabled) {
-        if (!enabled) return@LaunchedEffect
+    LaunchedEffect(Unit) {
+        withFrameNanos {}
+        focus.requestFocus()
+    }
+    TvButton(
+        onClick = onClick,
+        style = TvButtonStyle.Filled,
+        size = TvButtonSize.Compact,
+        modifier = Modifier.focusRequester(focus),
+    ) {
+        Text(stringResource(R.string.tv_state_try_again), style = PutioTypeScale.tvLabel)
+    }
+}
+
+@Composable
+private fun NewCodeButton(enabled: Boolean, onClick: () -> Unit, claimsFocus: Boolean = true) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(enabled, claimsFocus) {
+        if (!enabled || !claimsFocus) return@LaunchedEffect
         withFrameNanos {}
         focus.requestFocus()
     }
@@ -291,10 +355,10 @@ private fun TvLinkPhase.shownCode(): String? =
     }
 
 @Composable
-private fun TvLinkPhase.statusText(): String? =
+private fun TvLinkPhase.statusText(): String =
     when (this) {
         TvLinkPhase.RequestingCode -> stringResource(R.string.tv_link_requesting)
-        is TvLinkPhase.AwaitingLink -> null
+        is TvLinkPhase.AwaitingLink -> stringResource(R.string.tv_link_waiting)
         is TvLinkPhase.Validating -> stringResource(R.string.tv_link_validating)
         is TvLinkPhase.Stopped -> stringResource(reason.message())
     }
@@ -302,7 +366,7 @@ private fun TvLinkPhase.statusText(): String? =
 private fun TvLinkStop.message(): Int =
     when (this) {
         TvLinkStop.CodeExpired -> R.string.tv_link_expired
-        TvLinkStop.StorageUnavailable -> R.string.tv_link_failed_storage
+        TvLinkStop.StorageUnavailable, TvLinkStop.SessionUnreadable -> R.string.tv_link_failed_storage
         is TvLinkStop.Failed ->
             when (failure) {
                 TvLinkFailure.NETWORK -> R.string.tv_link_failed_network
@@ -319,12 +383,15 @@ private val COLUMNS_TOP = 235.dp
 private val COLUMNS_TOP_EXPIRED = 245.dp
 private val COLUMNS_BOTTOM = 27.dp
 private val COLUMN_GAP = 12.dp
+private val ACTION_GAP = 12.dp
 private val DIVIDER_GAP = 40.dp
 private val DIVIDER_WIDTH = 1.dp
 private val QR_SIZE: Dp = 170.dp
 private val QR_PADDING = 12.dp
 private val COLUMN_TITLE_LINE = 22.sp
 private val STATUS_LINE = 17.sp
+private val STATUS_SPINNER = 14.dp
+private val STATUS_SPINNER_GAP = 8.dp
 private val OR_LINE = 18.sp
 private val OR_PADDING = 6.dp
 private val SESSION_EXPIRED_TOP = 202.dp

@@ -5,8 +5,10 @@ import android.graphics.Bitmap
 import android.view.KeyEvent
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.AccountStorage
@@ -118,6 +120,36 @@ class TvAccountProofTest {
     }
 
     @Test
+    fun resumeOffConfirm() {
+        mount()
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(RESUME) }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(CANCEL) }
+        screenshot("androidtv-resume-off-confirm")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(RESUME) }
+        compose.onNodeWithText(RESUME).assertIsOn()
+        screenshot("androidtv-resume-off-cancelled")
+    }
+
+    @Test
+    fun resetSortsConfirm() {
+        mount()
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(MANAGE_TRASH) }
+        repeat(RESET_SORTS_ROW) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused(RESET_SORTS) }
+        screenshot("androidtv-reset-sorts-row")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(CANCEL) }
+        screenshot("androidtv-reset-sorts-confirm")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { isFocused(RESET_SORTS) }
+    }
+
+    @Test
     fun signOutConfirm() {
         mount()
         press(KeyEvent.KEYCODE_DPAD_DOWN)
@@ -132,6 +164,27 @@ class TvAccountProofTest {
     }
 
     @Test
+    fun manageAccountQr() {
+        mount()
+        repeat(4) { press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(VERSION) }
+        repeat(MAX_ABOUT_ROWS) { if (!isFocused(MANAGE_ACCOUNT)) press(KeyEvent.KEYCODE_DPAD_DOWN) }
+        compose.waitUntil(5_000) { isFocused(MANAGE_ACCOUNT) }
+        screenshot("androidtv-manage-account")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(ACCOUNT_URL).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("androidtv-manage-account-qr")
+    }
+
+    @Test
+    fun fullStorage() {
+        mount(usedBytes = TOTAL_BYTES)
+        compose.waitUntil(5_000) { compose.onAllNodesWithText(STORAGE_FULL).fetchSemanticsNodes().isNotEmpty() }
+        screenshot("androidtv-storage-full")
+    }
+
+    @Test
     fun trashList() {
         mount()
         openTrash()
@@ -143,11 +196,12 @@ class TvAccountProofTest {
         mount()
         openTrash()
         press(KeyEvent.KEYCODE_DPAD_UP)
-        compose.waitUntil(5_000) { isFocused(RESTORE_ALL) }
-        press(KeyEvent.KEYCODE_DPAD_RIGHT)
+        compose.waitUntil(5_000) { isFocused(REFRESH) }
+        press(KeyEvent.KEYCODE_DPAD_UP)
         compose.waitUntil(5_000) { isFocused(EMPTY_TRASH) }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { compose.onAllNodesWithText(EMPTY_TRASH_TITLE).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(5_000) { isFocused("Cancel") }
         screenshot("androidtv-st-t2-empty-trash")
     }
 
@@ -172,7 +226,7 @@ class TvAccountProofTest {
         compose.waitUntil(5_000) { isFocused(TRASHED_VIDEO) }
     }
 
-    private fun mount(trashFailingLoads: Set<Int> = emptySet()) {
+    private fun mount(trashFailingLoads: Set<Int> = emptySet(), usedBytes: Long = USED_BYTES) {
         val dependencies = tvProofDependencies(
             listings = mapOf(
                 FilesFolder.Root.id to FilesPage(
@@ -198,20 +252,25 @@ class TvAccountProofTest {
             ),
             tunnelRoutes = ROUTES,
         )
-        compose.mountTvProofSession(dependencies, account = proofAccount(), tab = "Account", tunnelRoutes = ROUTES)
+        compose.mountTvProofSession(
+            dependencies,
+            account = proofAccount(usedBytes),
+            tab = "Account",
+            tunnelRoutes = ROUTES,
+        )
         compose.waitUntil(5_000) { isFocused(LIBRARY) }
         compose.waitUntil(5_000) { compose.onAllNodesWithText(MANAGE_TRASH).fetchSemanticsNodes().isNotEmpty() }
     }
 
-    private fun proofAccount() = TvAccount(
+    private fun proofAccount(usedBytes: Long) = TvAccount(
         userId = 1,
         username = "devs-auto",
         email = "devs+auto@put.io",
         historyEnabled = true,
         storage = AccountStorage(
-            availableBytes = TOTAL_BYTES - USED_BYTES,
+            availableBytes = TOTAL_BYTES - usedBytes,
             sizeBytes = TOTAL_BYTES,
-            usedBytes = USED_BYTES,
+            usedBytes = usedBytes,
             showOptimisticUsage = false,
         ),
     )
@@ -249,22 +308,29 @@ class TvAccountProofTest {
         const val LIBRARY = "Library"
         const val MANAGE_TRASH = "Manage your trash"
         const val RESUME = "Resume where you left off"
+        const val CANCEL = "Cancel"
+        const val RESET_SORTS = "Reset all sort settings"
+        const val RESET_SORTS_ROW = 3
         const val DIAGNOSTICS = "Diagnostics"
         const val VERSION = "Version"
         const val FFMPEG = "FFmpeg 7.1.5"
         const val FFMPEG_SOURCE =
             "https://repo1.maven.org/maven2/io/put/media3-ffmpeg-decoder/1.11.1+1/" +
                 "media3-ffmpeg-decoder-1.11.1+1-ffmpeg-source.tar.xz"
-        const val MAX_ABOUT_ROWS = 10
+        const val MAX_ABOUT_ROWS = 20
         const val PROXY = "Proxy"
         const val CDN77 = "cdn77"
         const val SIGN_OUT = "Sign out"
+        const val MANAGE_ACCOUNT = "Manage account at put.io"
+        const val ACCOUNT_URL = "https://app.put.io/account"
+        const val STORAGE_FULL =
+            "Full. New transfers wait until you free up space. Empty Trash or delete files to make room."
         const val SIGN_OUT_TITLE = "Sign out of put.io?"
         const val USED_BYTES = 2_000_000_000_000L
         const val TOTAL_BYTES = 11_000_000_000_000L
         const val TRASH_BYTES = 3_700_000L
         const val TRASHED_VIDEO = "Night.of.the.Living.Dead.1968.mkv"
-        const val RESTORE_ALL = "Restore all"
+        const val REFRESH = "Refresh"
         const val EMPTY_TRASH = "Empty trash"
         const val EMPTY_TRASH_TITLE = "Empty trash?"
         const val TRY_AGAIN = "Try again"

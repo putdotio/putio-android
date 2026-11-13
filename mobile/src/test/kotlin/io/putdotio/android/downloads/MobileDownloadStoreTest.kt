@@ -50,7 +50,7 @@ class MobileDownloadStoreTest {
     }
 
     @Test
-    fun queueTimeDeleteMarkSubtitleSettingAndPositionSurviveAReload() = runBlocking {
+    fun queueTimeDeleteMarkSubtitleSettingPositionAndPickSurviveAReload() = runBlocking {
         val store = MobileDownloadStore(preferences, "user-3", Dispatchers.Unconfined)
         val missing = entry(1L, DownloadStatus.Missing).copy(
             queuedAt = 77L,
@@ -58,6 +58,7 @@ class MobileDownloadStoreTest {
             subtitlesHidden = true,
             startFromSeconds = 42.5,
             durationSeconds = 1_800.0,
+            directPlayChosen = true,
         )
         val paused = entry(2L, DownloadStatus.Paused(DownloadPauseReason.STORAGE, 9L))
         store.upsert(missing)

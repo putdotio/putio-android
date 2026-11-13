@@ -55,6 +55,8 @@ import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.playback.PLAYBACK_SPEEDS
 import io.putdotio.android.playback.PlaybackAudioTrack
+import io.putdotio.android.playback.PlaybackStream
+import io.putdotio.android.playback.PlaybackStreamSwitch
 import io.putdotio.android.playback.PlaybackSubtitleTrack
 import io.putdotio.android.playback.QUICK_PLAYBACK_SPEEDS
 import io.putdotio.android.playback.SUBTITLE_OFFSET_LIMIT_MILLIS
@@ -69,6 +71,7 @@ import io.putdotio.android.playback.audioTrackDetails
 import io.putdotio.android.playback.audioTrackLabels
 import io.putdotio.android.playback.formatPlaybackSpeed
 import io.putdotio.android.playback.formatSubtitleOffset
+import io.putdotio.android.playback.keyedToManifest
 import io.putdotio.android.playback.origin
 import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.playbackSubtitleTracks
@@ -83,6 +86,7 @@ import io.putdotio.android.tv.TvSheetOption
 import io.putdotio.android.tv.TvSheetRows
 import io.putdotio.android.tv.TvSideSheet
 import io.putdotio.android.playback.sidecarTracks
+import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitles
 
 internal class TvTrackChoices(
@@ -106,8 +110,8 @@ internal class TvTrackChoices(
                 ?: subtitles.firstOrNull { it.selected }
         }
 
-    fun chips(nextEpisode: Boolean, audioOnly: Boolean, original: Boolean): List<TvPlayerControl> =
-        tvPlayerChips(audio.size, subtitlesHidden, nextEpisode, audioOnly, original)
+    fun chips(nextEpisode: Boolean, audioOnly: Boolean, stream: Boolean): List<TvPlayerControl> =
+        tvPlayerChips(audio.size, subtitlesHidden, nextEpisode, audioOnly, stream)
 }
 
 private fun TrackSelectionParameters.picked(group: androidx.media3.common.TrackGroup, index: Int): Boolean =
@@ -116,20 +120,33 @@ private fun TrackSelectionParameters.picked(group: androidx.media3.common.TrackG
 @Composable
 internal fun tvPlayerChipLabels(
     choices: TvTrackChoices,
-    subtitles: PlaybackSubtitles,
+    subtitles: TvSubtitleSources,
     speed: Float,
+    stream: PlaybackStream?,
 ): TvPlayerChipLabels {
     val audioNames = audioTrackLabels(choices.audio)
     val audio = choices.currentAudio?.let { audioNames[choices.audio.indexOf(it)] }
         ?: stringResource(R.string.tv_player_audio)
-    val subtitleNames = subtitleTrackLabels(choices.subtitles, subtitles.sidecarTracks(), subtitles.originsKnown())
+    val subtitleNames = subtitleTrackLabels(choices.subtitles, subtitles.sidecar, subtitles.originsKnown)
     val subtitle = choices.currentSubtitle?.let { subtitleNames[choices.subtitles.indexOf(it)] }
         ?: stringResource(R.string.tv_player_subtitles_off)
     val speedLabel = stringResource(R.string.tv_player_speed_value, formatPlaybackSpeed(speed))
-    return TvPlayerChipLabels(audio, subtitle, speedLabel)
+    return TvPlayerChipLabels(audio, subtitle, speedLabel, stream?.let { stringResource(it.label) }.orEmpty())
 }
 
-private fun PlaybackSubtitles.originsKnown(): Boolean = this !is PlaybackSubtitles.Embedded
+internal class TvSubtitleSources(val sidecar: List<PlaybackSubtitle>, val originsKnown: Boolean)
+
+internal fun tvSubtitleSources(
+    subtitles: PlaybackSubtitles,
+    listed: List<PlaybackSubtitle>?,
+    tracks: List<PlaybackSubtitleTrack>,
+): TvSubtitleSources {
+    if (subtitles !is PlaybackSubtitles.Embedded) {
+        return TvSubtitleSources(subtitles.sidecarTracks(), originsKnown = true)
+    }
+    val keyed = listed.orEmpty().keyedToManifest(tracks)
+    return TvSubtitleSources(keyed, originsKnown = keyed.isNotEmpty())
+}
 
 internal class TvPlayerSheetActions(
     val onAudio: (PlaybackAudioTrack) -> Unit,
@@ -146,13 +163,13 @@ internal fun TvPlayerSheets(
     backFromSizeAndTiming: Boolean,
     returnFocus: FocusRequester,
     choices: TvTrackChoices,
-    subtitles: PlaybackSubtitles,
+    subtitles: TvSubtitleSources,
     speed: Float,
     textSize: SubtitleTextSize,
     offsetMillis: Long,
     actions: TvPlayerSheetActions,
     onDismiss: () -> Unit,
-    onSwitchToConverted: () -> Unit,
+    stream: PlaybackStreamSwitch?,
     timingPreview: @Composable BoxScope.() -> Unit,
 ) {
     if (sheet == null) return
@@ -179,7 +196,10 @@ internal fun TvPlayerSheets(
                 TvPlayerSheet.Speed -> TvSpeedSheet(speed, focus, actions.onSpeed)
                 TvPlayerSheet.SizeAndTiming ->
                     TvSizeAndTimingSheet(textSize, offsetMillis, focus, actions.onTextSize, actions.onOffset)
-                TvPlayerSheet.Stream -> TvStreamSheet(focus, onDismiss, onSwitchToConverted)
+                TvPlayerSheet.Stream -> TvStreamSheet(stream?.current, focus) { chosen ->
+                    onDismiss()
+                    if (chosen != stream?.current) stream?.switch?.invoke()
+                }
             }
         }
     }
@@ -217,28 +237,29 @@ private val TvPlayerSheet.title: Int
     }
 
 @Composable
-private fun ColumnScope.TvStreamSheet(focus: FocusRequester, onOriginal: () -> Unit, onConverted: () -> Unit) {
+private fun ColumnScope.TvStreamSheet(
+    current: PlaybackStream?,
+    focus: FocusRequester,
+    onChoose: (PlaybackStream) -> Unit,
+) {
     TvSheetRows {
-        TvSheetOption(
-            label = stringResource(PlaybackR.string.playback_stream_original),
-            detail = AnnotatedString(stringResource(PlaybackR.string.playback_stream_original_detail)),
-            selected = true,
-            onClick = onOriginal,
-            modifier = Modifier.focusRequester(focus),
-        )
-        TvSheetOption(
-            label = stringResource(PlaybackR.string.playback_stream_converted),
-            detail = AnnotatedString(stringResource(PlaybackR.string.playback_stream_converted_detail)),
-            selected = false,
-            onClick = onConverted,
-        )
+        val focused = current ?: PlaybackStream.Original
+        PlaybackStream.entries.forEach { stream ->
+            TvSheetOption(
+                label = stringResource(stream.label),
+                detail = AnnotatedString(stringResource(stream.detail)),
+                selected = stream == current,
+                onClick = { onChoose(stream) },
+                modifier = if (stream == focused) Modifier.focusRequester(focus) else Modifier,
+            )
+        }
     }
 }
 
 @Composable
 private fun ColumnScope.TvSubtitlesSheet(
     choices: TvTrackChoices,
-    subtitles: PlaybackSubtitles,
+    subtitles: TvSubtitleSources,
     textSize: SubtitleTextSize,
     offsetMillis: Long,
     focus: FocusRequester,
@@ -247,8 +268,8 @@ private fun ColumnScope.TvSubtitlesSheet(
 ) {
     val current = choices.currentSubtitle
     val focusRow = Modifier.focusRequester(focus)
-    val sidecar = subtitles.sidecarTracks()
-    val originsKnown = subtitles.originsKnown()
+    val sidecar = subtitles.sidecar
+    val originsKnown = subtitles.originsKnown
     val labels = subtitleTrackLabels(choices.subtitles, sidecar, inFile = originsKnown)
     val rows = choices.subtitles.mapIndexed { index, track -> Triple(index, track, track.putioSubtitle(sidecar)) }
     val inFile = rows.filter { it.third.origin() == SubtitleOrigin.File }
@@ -261,45 +282,56 @@ private fun ColumnScope.TvSubtitlesSheet(
     } else {
         listOf(null to rows)
     }
+    val noCaptions = rows.isEmpty()
+    val focusTracks = !focusSizeAndTiming || noCaptions
     TvSheetRows {
         TvSheetOption(
             label = stringResource(R.string.tv_player_subtitles_off),
             detail = null,
             selected = current == null,
             onClick = { actions.onSubtitles(SubtitleSelection.Off) },
-            modifier = if (current == null && !focusSizeAndTiming) focusRow else Modifier,
+            modifier = if (current == null && focusTracks) focusRow else Modifier,
         )
-        groups
-            .filter { it.second.isNotEmpty() }
-            .forEach { (heading, group) ->
-                heading?.let { TvSheetLabel(stringResource(it)) }
-                group.forEach { (index, track, subtitle) ->
-                    TvSheetOption(
-                        label = labels[index],
-                        detail = subtitleTrackDetails(track, subtitle, originsKnown)?.let(::AnnotatedString),
-                        selected = track == current,
-                        onClick = { actions.onSubtitles(SubtitleSelection.Track(track.identity)) },
-                        modifier = if (track == current && !focusSizeAndTiming) focusRow else Modifier,
-                    )
+        if (noCaptions) {
+            Text(
+                stringResource(R.string.tv_player_no_captions),
+                style = PutioTypeScale.tvMeta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        } else {
+            groups
+                .filter { it.second.isNotEmpty() }
+                .forEach { (heading, group) ->
+                    heading?.let { TvSheetLabel(stringResource(it)) }
+                    group.forEach { (index, track, subtitle) ->
+                        TvSheetOption(
+                            label = labels[index],
+                            detail = subtitleTrackDetails(track, subtitle, originsKnown)?.let(::AnnotatedString),
+                            selected = track == current,
+                            onClick = { actions.onSubtitles(SubtitleSelection.Track(track.identity)) },
+                            modifier = if (track == current && focusTracks) focusRow else Modifier,
+                        )
+                    }
                 }
-            }
-        val size = stringResource(textSize.label)
-        TvSheetOption(
-            label = stringResource(PlaybackR.string.playback_size_and_timing),
-            detail = buildAnnotatedString {
-                append(size)
-                append(TRACK_DETAIL_SEPARATOR)
-                withStyle(SpanStyle(fontFamily = PutioTypeScale.tvMono.fontFamily)) {
-                    append(formatSubtitleOffset(offsetMillis))
-                }
-            },
-            selected = false,
-            leadingIcon = R.drawable.ic_ph_text_aa,
-            trailingIcon = R.drawable.ic_ph_caret_right,
-            role = Role.Button,
-            onClick = actions.onSizeAndTiming,
-            modifier = Modifier.padding(top = 4.dp).then(if (focusSizeAndTiming) focusRow else Modifier),
-        )
+            val size = stringResource(textSize.label)
+            TvSheetOption(
+                label = stringResource(PlaybackR.string.playback_size_and_timing),
+                detail = buildAnnotatedString {
+                    append(size)
+                    append(TRACK_DETAIL_SEPARATOR)
+                    withStyle(SpanStyle(fontFamily = PutioTypeScale.tvMono.fontFamily)) {
+                        append(formatSubtitleOffset(offsetMillis))
+                    }
+                },
+                selected = false,
+                leadingIcon = R.drawable.ic_ph_text_aa,
+                trailingIcon = R.drawable.ic_ph_caret_right,
+                role = Role.Button,
+                onClick = actions.onSizeAndTiming,
+                modifier = Modifier.padding(top = 4.dp).then(if (focusTracks) Modifier else focusRow),
+            )
+        }
     }
 }
 

@@ -85,7 +85,12 @@ import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvFocus
-import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvPaneSnackbarHost
+import io.putdotio.android.tv.TvQrCode
+import io.putdotio.android.tv.TvSnackbarHeldWhile
+import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.shown
 import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.bringIntoComposition
@@ -125,6 +130,29 @@ internal fun TvHomeScreen(
     pinFailure: PutioFailure? = null,
     onDismissPinFailure: () -> Unit = {},
 ) {
+    val snackbar = remember { TvSnackbarState() }
+    val pinBrief = pinFailure?.takeIf { it.shown() }?.let {
+        TvBrief(stringResource(R.string.tv_files_pin_error, it.tvMessageText()), onDismissPinFailure)
+    }
+    TvBriefShown(pinBrief, snackbar)
+    Box(modifier = Modifier.fillMaxSize()) {
+        TvHomeContent(continueWatching, pinned, actions, paneFocus, onShown, snackbar, modifier, returnTo, onReturned)
+        TvPaneSnackbarHost(snackbar)
+    }
+}
+
+@Composable
+private fun TvHomeContent(
+    continueWatching: List<ContinueWatchingEntry>,
+    pinned: TvPinnedRow,
+    actions: TvHomeActions,
+    paneFocus: FocusRequester,
+    onShown: () -> Unit,
+    snackbar: TvSnackbarState,
+    modifier: Modifier = Modifier,
+    returnTo: FilesItemId? = null,
+    onReturned: () -> Unit = {},
+) {
     LaunchedEffect(Unit) { onShown() }
     val pinnedCards = (pinned as? TvPinnedRow.Ready)?.cards
     val continueRow = rememberLazyListState()
@@ -149,6 +177,7 @@ internal fun TvHomeScreen(
     val retry = rememberTvPinnedRetry(pinned, paneFocus)
     val pinSheet = remember { TvHomeCardSheet() }
     val continueSheet = remember { TvHomeCardSheet() }
+    TvSnackbarHeldWhile(snackbar, pinSheet.item, continueSheet.item)
     TvHomeSheets(
         pinSheet = pinSheet,
         continueSheet = continueSheet,
@@ -158,7 +187,6 @@ internal fun TvHomeScreen(
         paneFocus = paneFocus,
         paneFocused = retry::paneFocused,
     )
-    TvHomePinNotice(pinFailure, onDismissPinFailure, paneFocus)
     if (continueWatching.isEmpty() && pinnedCards?.isEmpty() == true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NothingYet,
@@ -171,6 +199,7 @@ internal fun TvHomeScreen(
             ),
             actionFocus = paneFocus,
             claimFocus = false,
+            supporting = { TvHomeAddFilesQr() },
             modifier = modifier,
         )
         return
@@ -270,24 +299,6 @@ private fun TvHomeSheets(
         },
         paneFocus = paneFocus,
         paneFocused = paneFocused,
-    )
-}
-
-@Composable
-private fun TvHomePinNotice(failure: PutioFailure?, onDismiss: () -> Unit, paneFocus: FocusRequester) {
-    val showing = failure.shown()
-    val wasShowing = remember { mutableStateOf(false) }
-    LaunchedEffect(showing) {
-        val closed = wasShowing.value && !showing
-        wasShowing.value = showing
-        if (!closed) return@LaunchedEffect
-        withFrameNanos {}
-        paneFocus.returnFocusFromSheet()
-    }
-    if (failure == null || !showing) return
-    TvNoticeDialog(
-        title = stringResource(R.string.tv_files_pin_error, failure.tvMessageText()),
-        onDismiss = onDismiss,
     )
 }
 
@@ -671,6 +682,23 @@ private fun TvHomeProgress(progress: Float?, focused: Boolean) {
     }
 }
 
+@Composable
+private fun TvHomeAddFilesQr() {
+    val light = MaterialTheme.colorScheme.inverseSurface
+    TvQrCode(
+        text = ADD_FILES_URL,
+        description = stringResource(R.string.tv_home_first_run_qr_description),
+        dark = MaterialTheme.colorScheme.background,
+        light = light,
+        quietZone = ADD_FILES_QR_QUIET_ZONE,
+        modifier = Modifier
+            .padding(top = ADD_FILES_QR_GAP)
+            .size(ADD_FILES_QR_SIZE)
+            .clip(RoundedCornerShape(PutioRadius.medium))
+            .background(light),
+    )
+}
+
 private val FocusedTrack = Color(FOCUSED_TRACK)
 private const val FOCUSED_TRACK = 0x24000000
 private val HOME_TOP = 4.dp
@@ -690,6 +718,10 @@ private val PROGRESS_HEIGHT = 3.dp
 private val INLINE_STATE_GAP = 8.dp
 private val INLINE_MESSAGE_NUDGE = 1.5.dp
 private val INLINE_ACTION_GAP = 10.dp
+private const val ADD_FILES_URL = "https://app.put.io"
+private val ADD_FILES_QR_GAP = 8.dp
+private val ADD_FILES_QR_SIZE = 120.dp
+private val ADD_FILES_QR_QUIET_ZONE = 8.dp
 private val SECTION_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val CARD_NAME = PutioTypeScale.tvMeta.withFullLineBox()
 private val CARD_META = PutioTypeScale.tvMeta.copy(lineHeight = 18.sp).withFullLineBox()

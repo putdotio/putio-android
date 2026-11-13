@@ -36,11 +36,14 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,7 +73,7 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRetryButton
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.R
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoValue
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioEmptyState
@@ -83,6 +86,8 @@ import io.putdotio.sdk.files.PutioFileType
 import java.time.Instant
 
 internal const val MOBILE_FILES_CONTINUE_WATCHING_TAG = "mobile-files-continue-watching"
+internal const val MOBILE_FILES_PINNED_TAG = "mobile-files-pinned"
+internal const val MOBILE_FILES_PINNED_TOGGLE_TAG = "mobile-files-pinned-toggle"
 internal const val MOBILE_FILES_SUMMARY_TAG = "mobile-files-summary"
 internal const val MOBILE_FILES_SKELETON_TAG = "mobile-files-skeleton"
 internal const val MOBILE_FILES_OFFLINE_TAG = "mobile-files-offline"
@@ -91,16 +96,29 @@ internal const val MOBILE_FILES_NEW_FOLDER_TAG = "mobile-files-new-folder"
 /** What sits above a listing's rows: the root's Continue watching row, or a folder's count line. */
 internal data class MobileFilesHeaders(
     val continueWatching: List<ContinueWatchingEntry> = emptyList(),
+    val pinned: List<FilesItem> = emptyList(),
     val summary: FilesFolderSummary? = null,
 ) {
+    private val sections: Boolean
+        get() = continueWatching.isNotEmpty() || pinned.isNotEmpty()
+
     /** List items above the first row; the viewport counts rows only. */
     val itemCount: Int
         get() = when {
-            continueWatching.isNotEmpty() -> CONTINUE_WATCHING_ITEMS
+            sections -> 1 + (if (continueWatching.isNotEmpty()) CONTINUE_WATCHING_ITEMS else 0) +
+                (if (pinned.isNotEmpty()) 1 else 0)
             summary != null -> 1
             else -> 0
         }
 }
+
+internal class MobilePinnedActions(
+    val onOpen: (FilesItem) -> Unit,
+    val onUnpin: ((FilesItem) -> Unit)? = null,
+)
+
+internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): MobilePinnedActions =
+    MobilePinnedActions(onOpen = onOpen, onUnpin = onSetPinned?.let { set -> { item -> set(item, false) } })
 
 /**
  * The items above the first row. [hidden] in selection draws them empty but keeps them in the list,
@@ -110,22 +128,91 @@ internal fun LazyListScope.mobileFilesHeaderItems(
     headers: MobileFilesHeaders,
     onPlay: (ContinueWatchingEntry) -> Unit,
     onRemove: ((ContinueWatchingEntry) -> Unit)? = null,
+    pinnedActions: MobilePinnedActions = MobilePinnedActions(onOpen = {}),
     hidden: Boolean = false,
 ) {
     fun header(key: String, type: String, content: @Composable () -> Unit) =
         item(key = key, contentType = type) { if (!hidden) content() }
-    if (headers.continueWatching.isNotEmpty()) {
+    val watching = headers.continueWatching.isNotEmpty()
+    if (watching) {
         header("continue-watching-label", "label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_continue_watching))
         }
         header("continue-watching", "continue-watching") {
             MobileContinueWatchingRow(headers.continueWatching, onPlay, onRemove)
         }
+    }
+    if (headers.pinned.isNotEmpty()) {
+        header("pinned", "pinned") {
+            MobilePinnedSection(headers.pinned, pinnedActions, top = if (watching) 12.dp else 20.dp)
+        }
+    }
+    if (watching || headers.pinned.isNotEmpty()) {
         header("all-files-label", "label") {
             MobileFilesSectionLabel(stringResource(R.string.mobile_files_all_files), top = 12.dp)
         }
     } else {
         headers.summary?.let { summary -> header("folder-summary", "summary") { MobileFolderSummaryLine(summary) } }
+    }
+}
+
+@Composable
+private fun MobilePinnedSection(items: List<FilesItem>, actions: MobilePinnedActions, top: Dp) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val capped = items.size > PINNED_VISIBLE_ITEMS
+    Column(modifier = Modifier.fillMaxWidth().testTag(MOBILE_FILES_PINNED_TAG)) {
+        MobileFilesSectionLabel(
+            text = stringResource(R.string.mobile_files_pinned),
+            top = top,
+            trailing = if (capped) {
+                {
+                    TextButton(
+                        onClick = { expanded = !expanded },
+                        modifier = Modifier.testTag(MOBILE_FILES_PINNED_TOGGLE_TAG),
+                    ) {
+                        val label = if (expanded) {
+                            R.string.mobile_files_pinned_show_less
+                        } else {
+                            R.string.mobile_files_pinned_show_all
+                        }
+                        Text(stringResource(label))
+                    }
+                }
+            } else {
+                null
+            },
+        )
+        val shown = if (expanded || !capped) items else items.take(PINNED_VISIBLE_ITEMS)
+        shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, actions) } }
+    }
+}
+
+@Composable
+private fun MobilePinnedRow(item: FilesItem, actions: MobilePinnedActions) {
+    var menu by remember(item.id) { mutableStateOf(false) }
+    Box {
+        MobileFilesRow(
+            item = item,
+            onClick = { actions.onOpen(item) },
+            onClickLabel = stringResource(
+                if (item.isPlayable) R.string.mobile_files_play_media else R.string.mobile_files_open_folder,
+                item.name,
+            ),
+            onActions = actions.onUnpin?.let { { menu = true } },
+            playbackBounds = false,
+        )
+        actions.onUnpin?.let { unpin ->
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.mobile_files_unpin)) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_ph_push_pin_slash), contentDescription = null) },
+                    onClick = {
+                        menu = false
+                        unpin(item)
+                    },
+                )
+            }
+        }
     }
 }
 
@@ -153,7 +240,7 @@ private fun MobileFilesSectionLabel(
     }
 }
 
-/** "6 items" with the count in mono, and the folder's total size with mono figures at the end. */
+/** "6 items" with the count in mono, and the folder's total size in mono at the end. */
 @Composable
 private fun MobileFolderSummaryLine(summary: FilesFolderSummary) {
     val style = MaterialTheme.typography.titleSmall
@@ -178,7 +265,7 @@ private fun MobileFolderSummaryLine(summary: FilesFolderSummary) {
     ) {
         Text(label, style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
         size?.let {
-            Text(monoFigures(it, mono.toSpanStyle()), style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(monoValue(it, mono.toSpanStyle()), style = style, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -488,7 +575,7 @@ internal fun MobileNewFolderButton(onClick: () -> Unit) {
             modifier = Modifier.size(ButtonDefaults.IconSize),
         )
         Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-        Text(stringResource(R.string.mobile_files_new_folder))
+        Text(stringResource(R.string.mobile_files_empty_create_folder))
     }
 }
 
@@ -507,7 +594,8 @@ internal fun DownloadsState.onDeviceItems(): List<FilesItem> =
         )
     }
 
-private const val CONTINUE_WATCHING_ITEMS = 3
+private const val CONTINUE_WATCHING_ITEMS = 2
+private const val PINNED_VISIBLE_ITEMS = 4
 private val CONTINUE_WATCHING_CARD_WIDTH = 172.dp
 private val SKELETON_ROW_HEIGHT = 72.dp
 private val EMPTY_BOTTOM_PADDING = 80.dp

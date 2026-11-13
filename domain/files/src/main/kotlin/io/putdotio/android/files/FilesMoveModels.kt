@@ -25,3 +25,9 @@ public data class FilesMoveOutcome(
     val itemCount: Int get() = intent.itemIds.size
     val remainingCount: Int get() = remainingIds.size
 }
+
+public fun FilesMoveOutcome.retry(state: FilesBrowserState): FilesBrowserEvent.Move? {
+    if (status != FilesMoveStatus.STILL_PRESENT || !state.canStartMove) return null
+    return failedListedIds(intent.itemIds, remainingIds, state.current)
+        ?.let { FilesBrowserEvent.Move(state.current.folder.id, it, intent.destinationId) }
+}

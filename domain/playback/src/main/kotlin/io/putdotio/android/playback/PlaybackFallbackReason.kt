@@ -43,11 +43,12 @@ public fun directPlayVerdict(tracks: Tracks): PlaybackFallbackReason? {
 }
 
 internal fun PlaybackState.originalRejected(event: PlaybackEvent.OriginalRejected): PlaybackTransition {
-    if (!(content as? PlaybackContent.Ready).streamsOriginalVideo(target)) {
+    val cast = event.reason == PlaybackFallbackReason.CastReceiver
+    if (!(content as? PlaybackContent.Ready).streamsOriginalVideo(target, cast)) {
         return PlaybackTransition(this, consumed = false)
     }
     val requestId = PlaybackRequestId(nextRequestValue)
-    val convertedTarget = target.convertedFor(event.reason)
+    val convertedTarget = if (cast) target.copy(method = StreamingMethod.Hls) else target
     return PlaybackTransition(
         state = copy(
             target = convertedTarget,
@@ -55,16 +56,44 @@ internal fun PlaybackState.originalRejected(event: PlaybackEvent.OriginalRejecte
             nextRequestValue = nextRequestValue + 1,
             resumePositionMillis = event.positionMillis.coerceAtLeast(0L),
             convertedOnly = true,
+            linkRefetchedAtMillis = null,
+            castFallbackTarget = target.takeIf { cast },
+            switchedToConverted = event.reason == PlaybackFallbackReason.UserSwitched,
         ),
         effect = PlaybackEffect.Resolve(convertedTarget, requestId, convertedOnly = true),
     )
 }
 
-private fun PlaybackTarget.convertedFor(reason: PlaybackFallbackReason): PlaybackTarget =
-    if (reason == PlaybackFallbackReason.CastReceiver) copy(method = StreamingMethod.Hls) else this
+internal fun PlaybackState.castEnded(): PlaybackTransition {
+    val original = castFallbackTarget
+    return when {
+        original == null -> PlaybackTransition(this, consumed = false)
+        content.leftPlayback -> PlaybackTransition(copy(castFallbackTarget = null))
+        else -> reopen(target.copy(method = original.method))
+    }
+}
 
-private fun PlaybackContent.Ready?.streamsOriginalVideo(target: PlaybackTarget): Boolean =
-    this != null && !offline && source.kind == PlaybackSourceKind.ORIGINAL &&
+private fun PlaybackState.reopen(restored: PlaybackTarget): PlaybackTransition {
+    val requestId = PlaybackRequestId(nextRequestValue)
+    return PlaybackTransition(
+        state = copy(
+            target = restored,
+            content = PlaybackContent.Loading(requestId),
+            nextRequestValue = nextRequestValue + 1,
+            convertedOnly = false,
+            linkRefetchedAtMillis = null,
+            castFallbackTarget = null,
+            switchedToConverted = false,
+        ),
+        effect = PlaybackEffect.Resolve(restored, requestId),
+    )
+}
+
+private val PlaybackContent.leftPlayback: Boolean
+    get() = this == PlaybackContent.Ended || this is PlaybackContent.FindingNext || this is PlaybackContent.NextFailed
+
+private fun PlaybackContent.Ready?.streamsOriginalVideo(target: PlaybackTarget, cast: Boolean): Boolean =
+    this != null && (!offline || cast) && source.kind == PlaybackSourceKind.ORIGINAL &&
         target.mediaType == PlaybackMediaType.VIDEO
 
 /** Why an original that failed before its first frame falls back; null for a failure converted would share. */

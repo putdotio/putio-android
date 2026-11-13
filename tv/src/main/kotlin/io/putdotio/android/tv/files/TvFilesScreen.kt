@@ -76,8 +76,10 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesSort
+import io.putdotio.android.tv.SECTION_LABEL_GAP
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.TvPlayStart
@@ -91,6 +93,8 @@ import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvListSkeleton
+import io.putdotio.android.tv.TvAutoPaging
+import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TV_LIST_WIDTH
@@ -101,6 +105,9 @@ import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvTrashUndoOffered
 import io.putdotio.android.tv.TvUndoSnackbarHost
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHeldWhile
 import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.TvTrashUndoOffer
@@ -131,10 +138,10 @@ internal fun TvFilesScreen(
     pinnedIds: List<FilesItemId>? = null,
     onSetPinned: (FilesItem, Boolean) -> Unit = { _, _ -> },
     trashUndo: TvTrashUndoOffer? = null,
-    /** An explanation from outside the browser (a failed watched write, no VLC); OK dismisses it. */
+    /** An explanation from outside the browser (a link that did not open, a failed undo); OK dismisses it. */
     notice: String? = null,
-    noticeMessage: String? = null,
     onDismissNotice: () -> Unit = {},
+    brief: TvBrief? = null,
     /**
      * Which row last held focus in each folder; owned by the session so it survives the pane
      * being disposed for another destination. A LazyColumn is remounted on every folder
@@ -349,12 +356,14 @@ internal fun TvFilesScreen(
         }
         TvFilesTrashSnackbar(current, snackbar, onEvent, trashUndo, undoFocus, refocus = entryTarget)
         TvFilesMoveAnnouncement(current, snackbar, edits)
+        TvSnackbarHeldWhile(snackbar, notice, renamingItem, movingItem, actionsItem, viewer.open, unsupported)
+        TvBriefShown(brief, snackbar)
+        TvFilesMissingFolderAnnouncement(state, snackbar, onEvent)
     }
 
     TvFileViewerLayer(viewer, (content as? FilesContent.Ready)?.items.orEmpty(), viewerUrl, siblings = true)
     TvFilesOverlays(
         notice = notice,
-        noticeMessage = noticeMessage,
         onDismissNotice = onDismissNotice,
         renamingItem = renamingItem,
         movingItem = movingItem,
@@ -376,7 +385,6 @@ internal fun TvFilesScreen(
 @Composable
 private fun TvFilesOverlays(
     notice: String?,
-    noticeMessage: String?,
     onDismissNotice: () -> Unit,
     renamingItem: FilesItem?,
     movingItem: FilesItem?,
@@ -397,7 +405,6 @@ private fun TvFilesOverlays(
     if (notice != null) {
         TvNoticeDialog(
             title = notice,
-            message = noticeMessage,
             onDismiss = onDismissNotice,
             okStyle = TvButtonStyle.Filled,
             balanceMessage = true,
@@ -530,7 +537,7 @@ private fun FilesContent.paneEntryTarget(
     when (this) {
         is FilesContent.Loading -> skeleton
         is FilesContent.Failed -> retry
-        is FilesContent.Empty -> if (paging is FilesPaging.Complete) emptyState else pagingControl
+        is FilesContent.Empty -> if (paging is FilesPaging.Failed) pagingControl else emptyState
         is FilesContent.Ready -> listEntry.value
     }
 
@@ -670,14 +677,14 @@ private fun TvFilesStatePane(
             is FilesContent.Failed -> TvLoadFailedState(
                 failure = content.failure,
                 headline = stringResource(R.string.tv_files_error_title),
-                message = content.failure.tvLoadFailedMessage(),
                 onRetry = { onEvent(FilesBrowserEvent.Retry) },
                 modifier = stateModifier,
                 actionFocus = retryFocus,
                 claimFocus = paneHasFocus.value,
             )
             is FilesContent.Empty -> Column(modifier = stateModifier) {
-                val complete = content.paging is FilesPaging.Complete
+                val failed = content.paging is FilesPaging.Failed
+                val enabled = current.operation.canStartOperation
                 TvEmptyState(
                     glyph = PutioEmptyGlyph.EmptyFolder,
                     headline = stringResource(R.string.tv_files_empty_title),
@@ -685,7 +692,7 @@ private fun TvFilesStatePane(
                     modifier = Modifier
                         .weight(1f)
                         .then(
-                            if (complete) {
+                            if (!failed) {
                                 Modifier
                                     .focusRequester(emptyFocus)
                                     .semantics(mergeDescendants = true) {}
@@ -695,12 +702,16 @@ private fun TvFilesStatePane(
                             },
                         ),
                 )
-                LaunchedEffect(complete) {
-                    if (paneHasFocus.value) (if (complete) emptyFocus else pagingFocus).requestFocus()
+                LaunchedEffect(failed) {
+                    if (paneHasFocus.value) (if (failed) pagingFocus else emptyFocus).requestFocus()
                 }
+                TvAutoPaging(
+                    page = (content.paging as? FilesPaging.Available)?.takeIf { enabled },
+                    onLoadMore = { onEvent(FilesBrowserEvent.LoadNextPage) },
+                )
                 TvFilesPaging(
                     paging = content.paging,
-                    enabled = current.operation.canStartOperation,
+                    enabled = enabled,
                     onEvent = onEvent,
                     buttonModifier = Modifier.focusRequester(pagingFocus),
                 )
@@ -844,6 +855,38 @@ internal fun TvFilesNotice(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun TvFilesSectionPills(
+    sortLabel: String,
+    sortFocus: FocusRequester,
+    sorting: Boolean,
+    idle: Boolean,
+    onSort: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .focusProperties { enter = { sortFocus } }
+            .focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(SECTION_LABEL_GAP),
+    ) {
+        TvSectionPill(
+            icon = R.drawable.ic_ph_sort_ascending,
+            label = sortLabel,
+            onClick = { if (idle) onSort() },
+            modifier = Modifier.focusRequester(sortFocus),
+            showFocus = !sorting,
+        )
+        TvSectionPill(
+            icon = R.drawable.ic_ph_arrows_clockwise,
+            label = stringResource(R.string.tv_refresh),
+            onClick = { if (idle) onRefresh() },
+            showFocus = !sorting,
+        )
+    }
+}
+
 @Composable
 private fun TvFilesSectionLine(
     state: FilesBrowserState,
@@ -865,12 +908,13 @@ private fun TvFilesSectionLine(
         modifier = Modifier.onFocusChanged { onFocusChanged(it.hasFocus) },
         pill = if (showSort) {
             {
-                TvSectionPill(
-                    icon = R.drawable.ic_ph_sort_ascending,
-                    label = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
-                    onClick = { if (idle) sorting = true },
-                    modifier = Modifier.focusRequester(sortFocus),
-                    showFocus = !sorting,
+                TvFilesSectionPills(
+                    sortLabel = stringResource(sortInEffect?.tvLabel() ?: R.string.tv_files_sort_title),
+                    sortFocus = sortFocus,
+                    sorting = sorting,
+                    idle = idle,
+                    onSort = { sorting = true },
+                    onRefresh = { onEvent(FilesBrowserEvent.Refresh) },
                 )
             }
         } else {
@@ -924,10 +968,14 @@ private fun TvFilesOperationStatus(
     if (current.operation.reloadsListing()) {
         TvFilesNotice(text = stringResource(R.string.tv_state_loading))
     }
+    val offline = LocalTvOffline.current
     val failed = (current.operation as? FilesFolderOperation.Failed)
         ?.takeUnless { it.intent is FilesFolderOperationIntent.Delete || it.intent is FilesFolderOperationIntent.Move }
         ?.takeUnless {
             it.intent is FilesFolderOperationIntent.Rename && it.phase == FilesFolderOperationPhase.RENAMING
+        }
+        ?.takeUnless {
+            offline && it.intent == FilesFolderOperationIntent.Refresh && it.failure is PutioFailure.NetworkUnavailable
         }
     if (failed != null) {
         TvFilesNotice(
@@ -961,37 +1009,16 @@ internal fun TvFilesPaging(
     modifier: Modifier = Modifier,
     buttonModifier: Modifier = Modifier,
 ) {
-    // One button across every paging phase, so the node that holds focus survives the
-    // transition from Load more to loading to a retry.
-    val label = when (paging) {
-        is FilesPaging.Available -> R.string.tv_files_load_more
-        is FilesPaging.Loading -> R.string.tv_files_loading_more
-        is FilesPaging.Failed -> R.string.tv_files_retry
-        FilesPaging.Complete -> null
-    } ?: return
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (paging is FilesPaging.Failed) {
-            Text(stringResource(R.string.tv_files_paging_error), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TvButton(
-            onClick = {
-                when (paging) {
-                    is FilesPaging.Available -> if (enabled) onEvent(FilesBrowserEvent.LoadNextPage)
-                    is FilesPaging.Failed -> if (enabled) onEvent(FilesBrowserEvent.Retry)
-                    is FilesPaging.Loading, FilesPaging.Complete -> Unit
-                }
-            },
-            modifier = buttonModifier,
-        ) {
-            Text(stringResource(label))
-        }
-    }
+    if (paging == FilesPaging.Complete) return
+    TvListPaging(
+        failed = paging is FilesPaging.Failed,
+        loadingMore = stringResource(R.string.tv_files_loading_more),
+        error = stringResource(R.string.tv_files_paging_error),
+        retry = stringResource(R.string.tv_files_retry),
+        onRetry = { if (enabled) onEvent(FilesBrowserEvent.Retry) },
+        modifier = modifier,
+        buttonModifier = buttonModifier,
+    )
 }
 
 @Composable
@@ -1043,6 +1070,22 @@ private fun TvFilesTrashedAnnouncement(
         currentOnEvent(FilesBrowserEvent.DeleteOutcomeAnnounced(outcome))
     }
     TvTrashUndoOffered(trashUndo, snackbar)
+}
+
+@Composable
+private fun TvFilesMissingFolderAnnouncement(
+    state: FilesBrowserState,
+    snackbar: TvSnackbarState,
+    onEvent: (FilesBrowserEvent) -> Boolean,
+) {
+    val missing = state.missingFolder
+    val text = stringResource(R.string.tv_error_not_found_title)
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    LaunchedEffect(missing) {
+        val notice = missing ?: return@LaunchedEffect
+        snackbar.show(TvSnackbarMessage(text = text))
+        currentOnEvent(FilesBrowserEvent.MissingFolderAnnounced(notice))
+    }
 }
 
 @Composable

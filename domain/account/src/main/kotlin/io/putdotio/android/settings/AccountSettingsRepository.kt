@@ -60,11 +60,13 @@ public class SdkAccountSettingsRepository(
     private val getSettings: suspend () -> AccountSettings,
     private val saveSettings: suspend (AccountSettingsPatch) -> Unit,
     private val listRoutes: suspend () -> List<TunnelRoute> = { error("Tunnel routes are unavailable") },
+    private val resetFolderSorts: suspend () -> Unit = { error("Folder sort reset is unavailable") },
 ) : AccountSettingsRepository {
     public constructor(client: PutioClient) : this(
         getSettings = client.account::getSettings,
         saveSettings = { patch -> client.account.saveSettings(patch) },
         listRoutes = client.routes::list,
+        resetFolderSorts = { client.files.resetFileSpecificSortSettings() },
     )
 
     override suspend fun load(): AccountSettingsRepositoryResult<AccountSettingsPreferences> =
@@ -74,7 +76,13 @@ public class SdkAccountSettingsRepository(
         change: AccountSettingsChange,
     ): AccountSettingsRepositoryResult<Unit> =
         request(routeChange = change is AccountSettingsChange.Route) {
-            saveSettings(change.toPatch())
+            when (change) {
+                AccountSettingsChange.ResetFolderSorts -> resetFolderSorts()
+                is AccountSettingsChange.Route ->
+                    saveSettings(AccountSettingsPatch(tunnelRouteName = change.name.value))
+                is AccountSettingsChange.Sort -> saveSettings(AccountSettingsPatch(sortBy = change.sort.apiValue))
+                is AccountSettingsChange.Toggle -> saveSettings(change.toPatch())
+            }
         }
 
     override suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>> =
@@ -147,22 +155,19 @@ private fun AccountSettings.toPreferences(): AccountSettingsPreferences =
         nextEpisode = nextEpisode,
     )
 
-private fun AccountSettingsChange.toPatch(): AccountSettingsPatch =
-    when (this) {
-        is AccountSettingsChange.Route -> AccountSettingsPatch(tunnelRouteName = name.value)
-        is AccountSettingsChange.Sort -> AccountSettingsPatch(sortBy = sort.apiValue)
-        is AccountSettingsChange.Toggle -> when (key) {
-            AccountSettingsKey.History -> AccountSettingsPatch(historyEnabled = enabled)
-            AccountSettingsKey.Trash -> AccountSettingsPatch(trashEnabled = enabled)
-            AccountSettingsKey.ShowSubtitles -> AccountSettingsPatch(hideSubtitles = !enabled)
-            AccountSettingsKey.AutoSelectSubtitles -> AccountSettingsPatch(dontAutoselectSubtitles = !enabled)
-            AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
-            AccountSettingsKey.Diagnostics -> AccountSettingsPatch(diagnosticsEnabled = enabled)
-            AccountSettingsKey.ProductAnalytics -> AccountSettingsPatch(productAnalyticsEnabled = enabled)
-            AccountSettingsKey.TunnelRoute,
-            AccountSettingsKey.DefaultSort,
-            -> error("$key is not a toggle")
-        }
+private fun AccountSettingsChange.Toggle.toPatch(): AccountSettingsPatch =
+    when (key) {
+        AccountSettingsKey.History -> AccountSettingsPatch(historyEnabled = enabled)
+        AccountSettingsKey.Trash -> AccountSettingsPatch(trashEnabled = enabled)
+        AccountSettingsKey.ShowSubtitles -> AccountSettingsPatch(hideSubtitles = !enabled)
+        AccountSettingsKey.AutoSelectSubtitles -> AccountSettingsPatch(dontAutoselectSubtitles = !enabled)
+        AccountSettingsKey.ResumePlayback -> AccountSettingsPatch(useStartFrom = enabled)
+        AccountSettingsKey.Diagnostics -> AccountSettingsPatch(diagnosticsEnabled = enabled)
+        AccountSettingsKey.ProductAnalytics -> AccountSettingsPatch(productAnalyticsEnabled = enabled)
+        AccountSettingsKey.TunnelRoute,
+        AccountSettingsKey.DefaultSort,
+        AccountSettingsKey.FolderSorts,
+        -> error("$key is not a toggle")
     }
 
 private fun PutioException.toAccountSettingsFailure(routeChange: Boolean): AccountSettingsFailure =

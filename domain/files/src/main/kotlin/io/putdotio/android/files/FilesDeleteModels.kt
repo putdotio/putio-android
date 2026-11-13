@@ -39,3 +39,22 @@ public data class FilesDeleteOutcome(
 /** put.io refuses a Trash move of a folder over its item limit with this error type, before changing anything. */
 internal val PutioFailure?.isTrashChildrenLimit: Boolean
     get() = this is PutioFailure.ApiRejected && errorType == "FileDeleteChildrenLimitError"
+
+public fun FilesDeleteOutcome.retry(folder: FilesFolderState, mode: FilesDeleteMode?): FilesBrowserEvent.Delete? {
+    if (mode != intent.mode || (status != FilesDeleteStatus.STILL_PRESENT && status != FilesDeleteStatus.SKIPPED)) {
+        return null
+    }
+    return failedListedIds(intent.itemIds, remainingIds, folder)
+        ?.let { FilesBrowserEvent.Delete(folder.folder.id, it, mode) }
+}
+
+internal fun failedListedIds(
+    itemIds: List<FilesItemId>,
+    remainingIds: Set<FilesItemId>,
+    folder: FilesFolderState,
+): List<FilesItemId>? {
+    val retryable = itemIds.size >= 2 && remainingIds.isNotEmpty() &&
+        folder.operation == FilesFolderOperation.Idle &&
+        folder.content.items().mapTo(mutableSetOf()) { it.id }.containsAll(remainingIds)
+    return if (retryable) itemIds.filter { it in remainingIds } else null
+}

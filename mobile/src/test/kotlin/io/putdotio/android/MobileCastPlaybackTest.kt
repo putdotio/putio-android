@@ -321,6 +321,86 @@ class MobileCastPlaybackTest {
         original.close()
     }
 
+    @Test
+    fun aDirectPlayOriginalCastAsStandardPlaysAsTheOriginalAgainOnceCastingStops() {
+        val picked = Mp4.copy(method = StreamingMethod.File)
+        val original = PlaybackController(picked, OriginalWithoutConvertedCopy(), scope)
+        val players = mutableListOf<RecordingPlayer>()
+        setCastScreen(original, MobilePlayerFactory { _, _ -> RecordingPlayer().also(players::add) }) { source, key ->
+            OriginalWithoutConvertedCopy().castMediaFor(picked, source, key)
+        }
+        compose.waitUntil(5_000L) { gateway.loads.isNotEmpty() }
+
+        compose.runOnIdle { gateway.availability.value = CastAvailability.Available }
+
+        awaitState(original) { players.isNotEmpty() }
+        compose.runOnIdle {
+            val ready = original.state.value.content as PlaybackContent.Ready
+            assertEquals(PlaybackSourceKind.ORIGINAL, ready.source.kind)
+            assertEquals(picked, original.state.value.target)
+            assertEquals(listOf(Mp4.fileId.value), gateway.loads)
+        }
+        original.close()
+    }
+
+    @Test
+    fun aDownloadedOriginalThatNeedsConversionConvertsThenCastsTheConvertedStream() {
+        val repository = DownloadedOriginalNeedingConversion()
+        val original = PlaybackController(Mkv, repository, scope)
+        setCastScreen(original) { source, key -> repository.castMediaFor(Mkv, source, key) }
+        awaitState(original) { (original.state.value.content as? PlaybackContent.Conversion)?.state == Queued }
+        compose.runOnIdle {
+            assertEquals(listOf(true), repository.conversions)
+            assertTrue(gateway.loads.isEmpty())
+        }
+
+        repository.converted = true
+        compose.runOnIdle { assertTrue(original.dispatch(PlaybackEvent.RefreshConversion)) }
+
+        awaitState(original) { gateway.loads.isNotEmpty() }
+        compose.runOnIdle {
+            assertEquals(listOf(Mkv.fileId.value), gateway.loads)
+            assertEquals("application/x-mpegurl", gateway.sent.single().contentType.lowercase())
+            assertEquals(listOf(true), repository.conversions)
+        }
+        compose.onAllNodesWithTag(MOBILE_CAST_RETRY_TAG).assertCountEquals(0)
+        original.close()
+    }
+
+    private fun awaitState(playback: PlaybackController, condition: () -> Boolean) {
+        try {
+            compose.waitUntil(5_000L) { idleMain(); condition() }
+        } catch (timeout: androidx.compose.ui.test.ComposeTimeoutException) {
+            throw AssertionError("Stuck at ${playback.state.value}", timeout)
+        }
+    }
+
+    private fun setCastScreen(
+        playback: PlaybackController,
+        playerFactory: MobilePlayerFactory = NoLocalPlayer,
+        castMedia: suspend (PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>,
+    ) {
+        compose.setContent {
+            val state by playback.state.collectAsState()
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state,
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    onOriginalRejected = { reason, positionMillis ->
+                        playback.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis))
+                    },
+                    playerFactory = playerFactory,
+                    onSourceRequired = { playback.dispatch(PlaybackEvent.SourceRequired(it)) },
+                    cast = cast,
+                    castMedia = castMedia,
+                    onCastEnded = { playback.dispatch(PlaybackEvent.CastEnded) },
+                )
+            }
+        }
+    }
+
     private fun ReceiverGateway.report(fileId: Long, state: CastRemoteState) {
         compose.runOnIdle {
             status.value = CastRemoteStatus(
@@ -461,6 +541,45 @@ class MobileCastPlaybackTest {
             source(target.fileId.value).copy(kind = kind)
     }
 
+    private class DownloadedOriginalNeedingConversion : PlaybackRepository {
+        val conversions = mutableListOf<Boolean>()
+        var converted = false
+
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> =
+            PlaybackRepositoryResult.Success(
+                when {
+                    !convertedOnly -> PlaybackResolution.Ready(
+                        source(target.fileId.value).copy(kind = PlaybackSourceKind.ORIGINAL),
+                        offline = true,
+                    )
+                    converted -> PlaybackResolution.Ready(
+                        source(target.fileId.value).copy(kind = PlaybackSourceKind.HLS),
+                    )
+                    else -> PlaybackResolution.Conversion(PlaybackConversionState.NotAvailable)
+                },
+            )
+
+        override suspend fun startConversion(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> {
+            conversions += convertedOnly
+            return PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(Queued))
+        }
+
+        override suspend fun castMedia(
+            target: PlaybackTarget,
+            source: PlaybackSource,
+            activeSubtitleKey: String?,
+        ): PlaybackRepositoryResult<PlaybackCastMedia> =
+            PlaybackRepositoryResult.Success(requireNotNull(source.toCastMedia(target, TOKEN, activeSubtitleKey)))
+
+        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
+    }
+
     private class EpisodesAccount : CastAccount {
         override var autoplay = true
 
@@ -480,6 +599,8 @@ class MobileCastPlaybackTest {
         val Episode2 = PlaybackTarget(FilesItemId(2L), "Show S01E02.mp4")
         val Mkv = PlaybackTarget(FilesItemId(3L), "Show S01E03.mkv")
         val Mp4 = PlaybackTarget(FilesItemId(4L), "Show S01E04.mp4")
+        val Queued = PlaybackConversionState.Queued
+        val NoLocalPlayer = MobilePlayerFactory { _, _ -> error("Casting plays nothing on the phone") }
 
         fun episode(fileId: Long) = listOf(Episode1, Episode2).single { it.fileId.value == fileId }
 

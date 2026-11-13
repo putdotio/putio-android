@@ -49,6 +49,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
@@ -88,6 +90,7 @@ import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.putioFailure
+import io.putdotio.android.settings.trashOff
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.telemetryNotices
@@ -120,15 +123,20 @@ internal enum class TvAccountSheet {
     PrivacyPolicy,
     ServicesWeUse,
     OpenSourceNotice,
+    ManageAccount,
     TrashOff,
+    ResumeOff,
+    ResetSorts,
     SignOut,
 }
 
 private object RowKey {
     const val SIGN_OUT = "sign-out"
+    const val MANAGE_ACCOUNT = "manage-account"
     const val MANAGE_TRASH = "manage-trash"
     const val TRASH = "trash"
     const val DEFAULT_SORT = "default-sort"
+    const val RESET_SORTS = "reset-sorts"
     const val HISTORY = "history"
     const val SHOW_HOME = "show-home"
     const val RESUME = "resume"
@@ -282,6 +290,7 @@ private fun TvAccountBody(
     val sheetOpen = rememberUpdatedState(sheet != null)
     val entry = { focus.resolve(lastFocus.value, group.value.focusKey) }
     val rightPane = remember { FocusRequester() }
+    val shownTrashSize = trashSizeBytes.takeUnless { settingsState.trashOff }
     val open = { next: TvAccountSheet, from: String ->
         lastFocus.value = from
         notice = OPEN_SOURCE_NOTICES.indices.firstOrNull { RowKey.notice(it) == from } ?: notice
@@ -323,7 +332,7 @@ private fun TvAccountBody(
     ) {
         TvAccountGroups(
             account = account,
-            trashSizeBytes = trashSizeBytes,
+            trashSizeBytes = shownTrashSize,
             group = group,
             opened = opened,
             context = context,
@@ -343,7 +352,7 @@ private fun TvAccountBody(
                 onAppConfigEvent = onAppConfigEvent,
                 open = open,
             ),
-            library = TvLibraryRows(trashSizeBytes, onManageTrash, showHome),
+            library = TvLibraryRows(shownTrashSize, onManageTrash.takeUnless { settingsState.trashOff }, showHome),
             playbackPreference = appConfigState.playbackPreference(),
         )
     }
@@ -405,7 +414,7 @@ private fun TvAccountGroups(
         Spacer(Modifier.height(8.dp))
         TvAccountGroupRow(
             title = stringResource(R.string.tv_account_sign_out),
-            icon = R.drawable.ic_ph_sign_out,
+            icon = null,
             selected = false,
             onClick = onSignOut,
             danger = true,
@@ -484,7 +493,7 @@ private fun TvAccountSheets(
             TvTunnelRouteSheet(
                 selected = settings.tunnelRoute,
                 loadRoutes = loadTunnelRoutes,
-                onSave = { change(AccountSettingsChange.Route(it)) },
+                onSelect = { change(AccountSettingsChange.Route(it)) },
                 onDismiss = onClose,
                 returnFocus = returnFocus(RowKey.PROXY),
             )
@@ -492,7 +501,7 @@ private fun TvAccountSheets(
         TvAccountSheet.PlaybackMethod -> if (config != null) {
             TvPlaybackMethodSheet(
                 selected = config.streamingMethod,
-                onSave = {
+                onSelect = {
                     onClose()
                     onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(it)))
                 },
@@ -529,11 +538,35 @@ private fun TvAccountSheets(
                 returnFocus = returnFocus(RowKey.notice(notice)),
             )
         }
+        TvAccountSheet.ManageAccount -> TvQrSheet(
+            title = stringResource(R.string.tv_account_manage_account),
+            url = MANAGE_ACCOUNT_URL,
+            onDismiss = onClose,
+            returnFocus = returnFocus(RowKey.MANAGE_ACCOUNT),
+        )
         TvAccountSheet.TrashOff -> TvConfirmDialog(
             title = stringResource(R.string.tv_account_trash_disable_title),
             message = stringResource(R.string.tv_account_trash_disable_message),
-            confirmLabel = stringResource(R.string.tv_account_trash_disable_confirm),
+            confirmLabel = stringResource(R.string.tv_account_turn_off),
             onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
+            onDismiss = onClose,
+            destructive = true,
+            titleStyle = TvAccountType.dialogTitle,
+        )
+        TvAccountSheet.ResumeOff -> TvConfirmDialog(
+            title = stringResource(R.string.tv_account_resume_disable_title),
+            message = stringResource(R.string.tv_account_resume_disable_message),
+            confirmLabel = stringResource(R.string.tv_account_turn_off),
+            onConfirm = { change(AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false)) },
+            onDismiss = onClose,
+            destructive = true,
+            titleStyle = TvAccountType.dialogTitle,
+        )
+        TvAccountSheet.ResetSorts -> TvConfirmDialog(
+            title = stringResource(R.string.tv_account_reset_sorts_title),
+            message = stringResource(R.string.tv_account_reset_sorts_message),
+            confirmLabel = stringResource(R.string.tv_account_reset),
+            onConfirm = { change(AccountSettingsChange.ResetFolderSorts) },
             onDismiss = onClose,
             destructive = true,
             titleStyle = TvAccountType.dialogTitle,
@@ -548,7 +581,6 @@ private fun TvAccountSheets(
             },
             onDismiss = onClose,
             destructive = true,
-            focusCancel = true,
             titleStyle = TvAccountType.dialogTitle,
         )
         null -> Unit
@@ -625,6 +657,15 @@ private class TvAccountRowsScope(
                     }
                 }
                 add { segment ->
+                    TvSettingRow(
+                        title = stringResource(R.string.tv_account_reset_sorts),
+                        icon = R.drawable.ic_ph_arrow_counter_clockwise,
+                        segment = segment,
+                        onClick = { if (settingsControls) open(TvAccountSheet.ResetSorts, RowKey.RESET_SORTS) },
+                        modifier = Modifier.accountFocus(this@TvAccountRowsScope.context, RowKey.RESET_SORTS),
+                    )
+                }
+                add { segment ->
                     TvSwitchSettingRow(
                         title = stringResource(R.string.tv_account_history_enabled),
                         icon = R.drawable.ic_ph_clock_counter_clockwise,
@@ -663,7 +704,13 @@ private class TvAccountRowsScope(
                         icon = R.drawable.ic_ph_play_circle,
                         checked = preferences.resumePlayback,
                         segment = segment,
-                        onToggle = { toggle(AccountSettingsKey.ResumePlayback, it) },
+                        onToggle = { enabled ->
+                            when {
+                                !settingsControls -> Unit
+                                enabled -> toggle(AccountSettingsKey.ResumePlayback, true)
+                                else -> open(TvAccountSheet.ResumeOff, RowKey.RESUME)
+                            }
+                        },
                         modifier = Modifier.accountFocus(context, RowKey.RESUME),
                     )
                 }
@@ -853,6 +900,16 @@ private class TvAccountRowsScope(
             TvSupportQr(diagnostics.supportText(), segmentOf(facts.size, facts.size + 1))
         }
         OpenSourceNotices()
+        Spacer(Modifier.height(16.dp))
+        TvSegments {
+            TvSettingRow(
+                title = stringResource(R.string.tv_account_manage_account),
+                icon = R.drawable.ic_ph_user_circle,
+                segment = TvSegment.Only,
+                onClick = { open(TvAccountSheet.ManageAccount, RowKey.MANAGE_ACCOUNT) },
+                modifier = Modifier.accountFocus(context, RowKey.MANAGE_ACCOUNT),
+            ) { focused -> TvSettingValue(AnnotatedString(stringResource(R.string.tv_account_qr_value)), focused) }
+        }
     }
 
     @Composable
@@ -944,7 +1001,9 @@ private class TvAccountRowsScope(
         val rowKey = when (failed.change) {
             is AndroidAppConfigChange.PlaybackMethod -> RowKey.PLAYBACK_METHOD
             is AndroidAppConfigChange.AutoplayNextVideo -> RowKey.AUTOPLAY
-            AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> return
+            is AndroidAppConfigChange.RotateToLandscape,
+            AndroidAppConfigChange.ProductAnalyticsPromptAnswered,
+            -> return
         }
         val message = when (failed.operation) {
             AndroidAppConfigMutation.Operation.Save -> R.string.tv_account_save_error
@@ -1018,21 +1077,17 @@ private fun TvStorageCard(account: TvAccount) {
     val context = LocalContext.current
     val storage = account.storage
     val size = Formatter.formatShortFileSize(context, storage.sizeBytes.coerceAtLeast(0L))
-    val label = if (storage.showOptimisticUsage) {
-        tvMonoArguments(
-            R.string.tv_account_storage_free,
-            Formatter.formatShortFileSize(context, storage.availableBytes.coerceAtLeast(0L)),
-            size,
-        )
-    } else {
-        tvMonoArguments(
-            R.string.tv_account_storage_used,
-            Formatter.formatShortFileSize(context, storage.usedBytes.coerceAtLeast(0L)),
-            size,
-        )
+    val full = storage.isFull
+    val (template, shown) = when {
+        full -> AccountR.string.account_storage_full_value to storage.usedBytes
+        storage.showOptimisticUsage -> R.string.tv_account_storage_free to storage.availableBytes
+        else -> R.string.tv_account_storage_used to storage.usedBytes
     }
+    val label = tvMonoArguments(template, Formatter.formatShortFileSize(context, shown.coerceAtLeast(0L)), size)
     val usedPercent = (storage.usedFraction * PERCENT).toInt()
-    val description = stringResource(R.string.tv_account_storage_description, label.text, usedPercent)
+    val warning = stringResource(AccountR.string.account_storage_full)
+    val usage = stringResource(R.string.tv_account_storage_description, label.text, usedPercent)
+    val description = if (full) "$usage. $warning" else usage
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1068,9 +1123,30 @@ private fun TvStorageCard(account: TvAccount) {
                 Modifier
                     .fillMaxWidth(storage.usedFraction)
                     .height(4.dp)
-                    .background(PutioDesignTokens.yellowSolid),
+                    .background(if (full) MaterialTheme.colorScheme.error else PutioDesignTokens.yellowSolid),
             )
         }
+        if (full) TvStorageWarning(warning)
+    }
+}
+
+@Composable
+private fun TvStorageWarning(text: String) {
+    Row(
+        modifier = Modifier.padding(top = STORAGE_WARNING_TOP),
+        horizontalArrangement = Arrangement.spacedBy(STORAGE_WARNING_GAP),
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_ph_warning_circle_fill),
+            contentDescription = null,
+            tint = PutioDesignTokens.redTextSecondary,
+            modifier = Modifier.padding(top = STORAGE_WARNING_GLYPH_TOP).size(STORAGE_WARNING_GLYPH),
+        )
+        Text(
+            text,
+            style = TvAccountType.footnote,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -1146,6 +1222,7 @@ private val OPEN_SOURCE_NOTICES = listOf(appSourceNotice(BuildConfig.VERSION_NAM
 private val LIBRARY_KEYS = mapOf(
     AccountSettingsKey.Trash to RowKey.TRASH,
     AccountSettingsKey.DefaultSort to RowKey.DEFAULT_SORT,
+    AccountSettingsKey.FolderSorts to RowKey.RESET_SORTS,
     AccountSettingsKey.History to RowKey.HISTORY,
 )
 private val PLAYBACK_KEYS = mapOf(
@@ -1167,8 +1244,13 @@ private val LEFT_WIDTH = 372.dp
 private val RIGHT_START = 432.dp
 private val AVATAR_SIZE = 40.dp
 private val STORAGE_BAR_TOP = 11.dp
+private val STORAGE_WARNING_TOP = 10.dp
+private val STORAGE_WARNING_GAP = 8.dp
+private val STORAGE_WARNING_GLYPH = 14.dp
+private val STORAGE_WARNING_GLYPH_TOP = 0.5.dp
 private val SUPPORT_QR_SIZE = 72.dp
 private val SUPPORT_QR_RADIUS = 8.dp
 private val SUPPORT_QR_PADDING = 4.dp
 private val SUPPORT_QR_QUIET_ZONE = 6.dp
 private const val PERCENT = 100
+private const val MANAGE_ACCOUNT_URL = "https://app.put.io/account"

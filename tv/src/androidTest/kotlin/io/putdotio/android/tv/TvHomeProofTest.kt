@@ -226,7 +226,7 @@ class TvHomeProofTest {
 
     private companion object {
         const val STEP_MILLIS = 400L
-        const val SHOW_HOME_ROW = 4
+        const val SHOW_HOME_ROW = 5
         val ROOT = FilesFolder.Root.id
 
         fun entry(id: Long, name: String, position: Double, duration: Double, watchedAt: Long) =

@@ -13,8 +13,10 @@ import io.putdotio.android.auth.AuthControllerTestValues.VALID_CALLBACK
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -70,6 +72,52 @@ class MobileAuthStorageRecoveryTest {
         assertEquals(OAuthCallbackHandlingResult.ACCEPTED, fixture.controller.handleOAuthCallback(VALID_CALLBACK))
         assertEquals(SIGNED_IN, fixture.controller.state.value)
         assertEquals(TOKEN, fixture.store.read()?.reveal())
+    }
+
+    @Test
+    fun `try again reads a session the store could not read and keeps it`() = runBlocking {
+        val fixture = Fixture()
+        fixture.storeToken()
+        val record = fixture.storage.record
+        fixture.storage.decryptFailure = ProviderException("keystore busy")
+        fixture.controller.restoreSession()
+
+        assertFalse(fixture.controller.retrySecureStorage())
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            fixture.controller.state.value,
+        )
+
+        fixture.storage.decryptFailure = null
+        assertTrue(fixture.controller.retrySecureStorage())
+
+        assertEquals(SIGNED_IN, fixture.controller.state.value)
+        assertEquals(record, fixture.storage.record)
+        assertEquals(0, fixture.storage.destroyKeyCalls)
+    }
+
+    @Test
+    fun `try again after a failed sign out clear never restores the token`() = runBlocking {
+        val clearFailure = AuthTokenStorageException("clear")
+        val fixture = AuthControllerFixture(
+            storedToken = TOKEN,
+            validationResults = listOf(SessionValidationResult.Valid(ACCOUNT), SessionValidationResult.Valid(ACCOUNT)),
+        )
+        fixture.controller.restoreSession()
+        fixture.tokenStore.beforeClear = { throw clearFailure }
+        fixture.controller.logout()
+        assertEquals(
+            MobileAuthState.SignedOut(MobileSignedOutReason.SecureStorageUnavailable),
+            fixture.controller.state.value,
+        )
+        assertEquals(TOKEN, fixture.tokenStore.token?.reveal())
+
+        fixture.tokenStore.beforeClear = null
+        assertTrue(fixture.controller.retrySecureStorage())
+
+        assertEquals(MobileAuthState.SignedOut(), fixture.controller.state.value)
+        assertNull(fixture.tokenStore.token)
+        assertNull(fixture.gateway.configuredToken)
     }
 
     @Test

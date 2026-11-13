@@ -132,7 +132,7 @@ if [[ -n "${SDK_KOTLIN_PATH}" && ! -d "${SDK_KOTLIN_PATH}" ]]; then
 fi
 
 log "fetching licensed brand fonts"
-"${REPO_ROOT}/scripts/sync-brand-fonts.sh" || die "brand font sync failed; builds fall back to the system face until it succeeds"
+"${REPO_ROOT}/gradlew" -p "${REPO_ROOT}" syncBrandFonts || die "brand font sync failed; builds fall back to the system face until it succeeds"
 
 provision_avds "${AVD_PROFILES[@]}" || exit 1
 

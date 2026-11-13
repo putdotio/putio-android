@@ -1,5 +1,6 @@
 package io.putdotio.android.account
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -68,7 +69,7 @@ private val ACCOUNT_DIALOG_MAX_WIDTH = 608.dp
 @Composable
 internal fun MobilePlaybackMethodDialog(
     selected: StreamingMethod,
-    onSave: (StreamingMethod) -> Unit,
+    onSelect: (StreamingMethod) -> Unit,
     onDismiss: () -> Unit,
 ) {
     MobileChoiceDialog(
@@ -85,7 +86,7 @@ internal fun MobilePlaybackMethodDialog(
             )
         },
         selected = selected,
-        onSave = onSave,
+        onSelect = onSelect,
         onDismiss = onDismiss,
     )
 }
@@ -96,7 +97,7 @@ internal fun MobilePlaybackMethodDialog(
 internal fun MobileTunnelRouteDialog(
     selected: TunnelRouteName,
     loadRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    onSave: (TunnelRouteName) -> Unit,
+    onSelect: (TunnelRouteName) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
@@ -121,7 +122,7 @@ internal fun MobileTunnelRouteDialog(
             }
         },
         selected = selected,
-        onSave = onSave,
+        onSelect = onSelect,
         onDismiss = onDismiss,
         placeholder = {
             when (val loaded = result) {
@@ -152,23 +153,33 @@ internal fun MobileTunnelRouteDialog(
     )
 }
 
-/** Turning Trash off makes every later delete permanent, so it confirms in red. */
+/** A setting change that can't be undone, such as turning off Trash or Resume, confirms in red. */
 @Composable
-internal fun MobileTrashOffDialog(onDismiss: () -> Unit, onConfirm: () -> Unit) {
+internal fun MobileConfirmDialog(
+    @StringRes title: Int,
+    @StringRes message: Int,
+    @StringRes confirm: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    confirmTag: String? = null,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.accountDialogWidth(),
         properties = AccountDialogProperties,
-        title = { Text(stringResource(R.string.mobile_settings_trash_confirm_title)) },
+        title = { Text(stringResource(title)) },
         text = {
             Text(
-                stringResource(R.string.mobile_settings_trash_confirm_message),
+                stringResource(message),
                 Modifier.verticalScroll(rememberScrollState()),
             )
         },
         confirmButton = {
-            PutioDestructiveButton(onClick = onConfirm) {
-                Text(stringResource(R.string.mobile_settings_trash_confirm_action))
+            PutioDestructiveButton(
+                onClick = onConfirm,
+                modifier = confirmTag?.let { Modifier.testTag(it) } ?: Modifier,
+            ) {
+                Text(stringResource(confirm))
             }
         },
         dismissButton = {

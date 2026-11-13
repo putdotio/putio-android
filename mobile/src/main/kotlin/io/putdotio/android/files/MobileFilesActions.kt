@@ -64,7 +64,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileDialogDismissButton
-import io.putdotio.android.monoFigures
+import io.putdotio.android.monoArguments
+import io.putdotio.android.monoValue
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.FileTypeIcon
@@ -94,6 +95,7 @@ internal const val MOBILE_FILES_SHARE_ACTION_TAG = "mobile-files-share-action"
 internal const val MOBILE_FILES_VLC_ACTION_TAG = "mobile-files-vlc-action"
 internal const val MOBILE_FILES_SELECT_ACTION_TAG = "mobile-files-select-action"
 internal const val MOBILE_FILES_WATCHED_ACTION_TAG = "mobile-files-watched-action"
+internal const val MOBILE_FILES_PIN_ACTION_TAG = "mobile-files-pin-action"
 internal const val MOBILE_FILES_RENAME_ACTION_TAG = "mobile-files-rename-action"
 internal const val MOBILE_FILES_COPY_ACTION_TAG = "mobile-files-copy-action"
 internal const val MOBILE_FILES_MOVE_ACTION_TAG = "mobile-files-move-action"
@@ -122,6 +124,9 @@ internal data class MobileFilesItemActions(
     val onLinkCopied: (() -> Unit)? = null,
     val playWith: MobileOtherMethod? = null,
     val downloadWith: MobileOtherMethod? = null,
+    val pinnedIds: List<FilesItemId>? = null,
+    val onSetPinned: ((FilesItem, Boolean) -> Unit)? = null,
+    val pinNotices: Flow<MobileFilesNotice> = emptyFlow(),
 ) {
     /** The resume setting [onSetWatched] needs is also what makes playback start from a saved position. */
     val resumes: Boolean get() = onSetWatched != null
@@ -130,6 +135,9 @@ internal data class MobileFilesItemActions(
 
     fun withContinueWatching(row: ContinueWatching?): MobileFilesItemActions =
         copy(onRemoveFromContinueWatching = row?.let { { entry -> it.removed(entry.fileId) } })
+
+    fun withPins(pins: MobilePinnedFiles?, ids: List<FilesItemId>?): MobileFilesItemActions =
+        if (pins == null) this else copy(pinnedIds = ids, onSetPinned = pins::setPinned, pinNotices = pins.notices)
 
     fun inViewer(inViewer: Boolean): MobileFilesItemActions =
         if (inViewer) copy(onOpen = null, onSelect = null) else this
@@ -479,7 +487,7 @@ internal fun MobileFilesSheetMeta(size: String?, detail: String?, detailMaxLines
     val style = MaterialTheme.typography.bodySmall
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     Row(horizontalArrangement = Arrangement.spacedBy(META_GAP), verticalAlignment = Alignment.CenterVertically) {
-        size?.let { Text(monoFigures(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
+        size?.let { Text(monoValue(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
         if (size != null && detail != null) {
             Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})
         }
@@ -662,6 +670,7 @@ private fun MobileFilesActionRows(
             MOBILE_FILES_COPY_ACTION_TAG, enabled = canStartCopy, onClick = then(onCopyItem))
     }
     itemActions.onSetWatched?.takeIf { owner }?.let { MobileFilesWatchedRow(item, it, onDismiss) }
+    if (listed) MobileFilesPinRow(item, itemActions, onDismiss)
     MobileFilesOwnerRows(item, operation, onRename.takeIf { listingActions }, onDismiss, onMoveItem, onPublicLinkItem)
 }
 
@@ -701,6 +710,20 @@ private fun MobileFilesWatchedRow(
         MOBILE_FILES_WATCHED_ACTION_TAG,
     ) {
         setWatched(listOf(item), !finished)
+        onDismiss()
+    }
+}
+
+@Composable
+private fun MobileFilesPinRow(item: FilesItem, itemActions: MobileFilesItemActions, onDismiss: () -> Unit) {
+    val setPinned = itemActions.onSetPinned ?: return
+    val pinned = itemActions.pinnedIds?.let { item.id in it } ?: return
+    MobileFilesActionRow(
+        if (pinned) R.drawable.ic_ph_push_pin_slash else R.drawable.ic_ph_push_pin,
+        if (pinned) R.string.mobile_files_unpin else R.string.mobile_files_pin,
+        MOBILE_FILES_PIN_ACTION_TAG,
+    ) {
+        setPinned(item, !pinned)
         onDismiss()
     }
 }
@@ -881,19 +904,18 @@ internal fun FilesItem.resumeAt(resumes: Boolean): Double? =
     playback?.takeIf { resumes && it.resumesPlayback() }?.startFromSeconds
 
 @Composable
-internal fun resumeLabel(seconds: Double, style: TextStyle): AnnotatedString = monoFigures(
-    stringResource(R.string.mobile_files_detail_resume, DateUtils.formatElapsedTime(seconds.toLong())),
+internal fun resumeLabel(seconds: Double, style: TextStyle): AnnotatedString = monoArguments(
+    stringResource(R.string.mobile_files_detail_resume),
     style.putioMono().toSpanStyle(),
+    DateUtils.formatElapsedTime(seconds.toLong()),
 )
 
 /**
- * Whether opening the file offers to resume: a saved position more than [FINISHED_WITHIN_SECONDS]
- * before the end, the player's own rule; with no known length, any saved position.
+ * Whether opening the file offers to resume: a saved position short of the player's finished
+ * threshold; with no known length, any saved position.
  */
-private fun FilesPlaybackProgress.resumesPlayback(): Boolean {
-    val duration = durationSeconds
-    return startFromSeconds > 0.0 && (duration == null || startFromSeconds < duration - FINISHED_WITHIN_SECONDS)
-}
+private fun FilesPlaybackProgress.resumesPlayback(): Boolean =
+    startFromSeconds > 0.0 && !playbackFinishedAt(startFromSeconds, durationSeconds)
 
 internal fun confirmedDeleteMode(trashEnabled: Boolean?): FilesDeleteMode? =
     when (trashEnabled) {
@@ -902,7 +924,6 @@ internal fun confirmedDeleteMode(trashEnabled: Boolean?): FilesDeleteMode? =
         null -> null
     }
 
-private const val FINISHED_WITHIN_SECONDS = 10.0
 private val HEADER_LEADING_SIZE = 40.dp
 private val HEADER_ICON_SIZE = 26.dp
 private val META_GAP = 6.dp

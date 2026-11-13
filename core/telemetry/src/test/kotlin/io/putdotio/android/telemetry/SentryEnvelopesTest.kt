@@ -17,6 +17,7 @@ import java.util.zip.GZIPInputStream
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -94,6 +95,21 @@ class SentryEnvelopesTest {
         }
         assertTrue(received.any { "audio_unsupported" in it && "\"level\":\"warning\"" in it })
         assertTrue(received.any { "terminal_code" in it && "\"level\":\"error\"" in it })
+    }
+
+    @Test
+    fun aCaptureReturnsTheIdItsEventLeavesWith() {
+        SentryBoundary.stop(files).get()
+        assertNull(PutioDiagnostics.capture(TelemetryFailure("putio_failure", listOf("off"), emptyMap())))
+
+        launch()
+        SentryBoundary.confirm()
+        val id = checkNotNull(PutioDiagnostics.capture(TelemetryFailure("putio_failure", listOf("on"), emptyMap())))
+
+        val deadline = System.currentTimeMillis() + FLUSH_MILLIS
+        val sent = "\"event_id\":\"$id\""
+        while (received.none { sent in it } && System.currentTimeMillis() < deadline) Thread.sleep(POLL_MILLIS)
+        assertTrue(received.any { sent in it })
     }
 
     private fun launch() {

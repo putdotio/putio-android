@@ -25,10 +25,14 @@ public interface SwitchedToConvertedFiles {
 
     public fun add(fileId: Long)
 
+    public fun remove(fileId: Long)
+
     public object None : SwitchedToConvertedFiles {
         override suspend fun contains(fileId: Long): Boolean = false
 
         override fun add(fileId: Long): Unit = Unit
+
+        override fun remove(fileId: Long): Unit = Unit
     }
 }
 
@@ -44,6 +48,10 @@ public class DataStoreSwitchedToConvertedFiles internal constructor(
 
     override fun add(fileId: Long) {
         write { it[FILE_IDS] = it.fileIds().withSwitched(fileId, limit).joinToString(SEPARATOR) }
+    }
+
+    override fun remove(fileId: Long) {
+        write { it[FILE_IDS] = (it.fileIds() - fileId).joinToString(SEPARATOR) }
     }
 
     public fun clear() {

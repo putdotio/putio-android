@@ -37,17 +37,21 @@ public data class HistoryState internal constructor(
     internal val consumedBefore: Set<HistoryEventId> = emptySet(),
     internal val nextRequestValue: Long = 1L,
     internal val refreshing: HistoryRequestId? = null,
-)
+) {
+    public val isRefreshing: Boolean get() = refreshing != null
+}
 
 public sealed interface HistoryEvent {
     public data class SetEnabled(val enabled: Boolean) : HistoryEvent
     public data object LoadNextPage : HistoryEvent
     public data object Retry : HistoryEvent
     public data object Refresh : HistoryEvent
+    public data object Reload : HistoryEvent
     public data object RequestClear : HistoryEvent
     public data object DismissClear : HistoryEvent
     public data object ConfirmClear : HistoryEvent
     public data class OpenFile(val fileId: HistoryFileId) : HistoryEvent
+    public data class GoToFolder(val fileId: HistoryFileId) : HistoryEvent
     public data class LoadSucceeded(val requestId: HistoryRequestId, val page: HistoryPage) : HistoryEvent
     public data class LoadFailed(val requestId: HistoryRequestId, val failure: PutioFailure) : HistoryEvent
     public data class ClearSucceeded(val requestId: HistoryRequestId) : HistoryEvent
@@ -57,7 +61,15 @@ public sealed interface HistoryEvent {
 public sealed interface HistoryEffect {
     public data class Load(val before: HistoryEventId?, val requestId: HistoryRequestId) : HistoryEffect
     public data class Clear(val requestId: HistoryRequestId) : HistoryEffect
-    public data class NavigateToFile(val fileId: HistoryFileId) : HistoryEffect
+    public data class NavigateToFile(
+        val fileId: HistoryFileId,
+        val target: HistoryOpenTarget = HistoryOpenTarget.File,
+    ) : HistoryEffect
+}
+
+public enum class HistoryOpenTarget {
+    File,
+    Folder,
 }
 
 public data class HistoryTransition(
@@ -81,11 +93,13 @@ public object HistoryReducer {
             is HistoryEvent.SetEnabled -> state.setEnabled(event.enabled)
             HistoryEvent.LoadNextPage -> state.loadNextPage()
             HistoryEvent.Retry -> state.retry()
-            HistoryEvent.Refresh -> state.refresh()
+            HistoryEvent.Refresh, HistoryEvent.Reload -> state.refresh()
             HistoryEvent.RequestClear -> state.requestClear()
             HistoryEvent.DismissClear -> state.dismissClear()
             HistoryEvent.ConfirmClear -> state.confirmClear()
             is HistoryEvent.OpenFile -> HistoryTransition(state, HistoryEffect.NavigateToFile(event.fileId))
+            is HistoryEvent.GoToFolder ->
+                HistoryTransition(state, HistoryEffect.NavigateToFile(event.fileId, HistoryOpenTarget.Folder))
             is HistoryEvent.LoadSucceeded -> state.loadSucceeded(event)
             is HistoryEvent.LoadFailed -> state.loadFailed(event)
             is HistoryEvent.ClearSucceeded -> state.clearSucceeded(event)

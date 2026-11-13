@@ -1,5 +1,7 @@
 package io.putdotio.android.tv.player
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -7,6 +9,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -16,7 +20,11 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackFindNeighbours
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
+import io.putdotio.android.playback.PlaybackRepositoryResult
+import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.originalFallbackTelemetry
@@ -24,11 +32,19 @@ import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.rememberNextEpisode
+import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
-import io.putdotio.android.tv.TvNoticeDialog
+import io.putdotio.android.tv.TvFailureReports
+import io.putdotio.android.tv.TvBrief
+import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvSnackbarHost
+import io.putdotio.android.tv.TvSnackbarState
+import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.files.hasVlc
+import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -36,19 +52,25 @@ import kotlinx.coroutines.launch
  * Playback replaces the signed-in shell rather than covering it, so no shell control can
  * take D-pad focus behind the video. The shell's saved state (destination, drawer) is kept
  * while it is away; on return the Files pane puts focus back on the row that was playing.
+ * In the [background], the shell shows again while the player stays composed behind it,
+ * drawing nothing and taking neither focus nor Back.
  */
 @Composable
 internal fun TvPlaybackLayer(
     playing: Boolean,
     player: @Composable () -> Unit,
+    background: Boolean = false,
     shell: @Composable () -> Unit,
 ) {
     val saveableState = rememberSaveableStateHolder()
-    if (playing) {
-        LaunchedEffect(Unit) { ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Player)) }
-        player()
-    } else {
-        saveableState.SaveableStateProvider(SHELL_STATE_KEY, shell)
+    Box(Modifier.fillMaxSize()) {
+        if (!playing || background) saveableState.SaveableStateProvider(SHELL_STATE_KEY, shell)
+        if (playing) {
+            LaunchedEffect(background) {
+                if (!background) ProductAnalytics.capture(AnalyticsEvent.ScreenViewed(AnalyticsEvent.Screen.Player))
+            }
+            player()
+        }
     }
 }
 
@@ -68,16 +90,24 @@ internal fun TvPlaybackRoute(
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
     autoplayNextVideo: Boolean = false,
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
-    findUpNext: TvFindNeighbours? = null,
+    findUpNext: PlaybackFindNeighbours? = null,
     openInVlc: (suspend (PlaybackTarget) -> Int?)? = null,
+    background: Boolean = false,
+    onBackground: (() -> Unit)? = null,
+    onForeground: () -> Unit = {},
+    miniPlayer: TvMiniPlayerState? = null,
+    findSubtitles: TvFindSubtitles? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
+    val manifestSubtitles = rememberManifestSubtitles(state, findSubtitles, onSessionRejected)
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
     val upNext = rememberUpNext(state, findUpNext.takeIf { autoplayNextVideo }, onSessionRejected)
     val neighbours = rememberFolderNeighbours(state, findUpNext, onSessionRejected)
     val vlcScope = rememberCoroutineScope()
     var vlcNotice by remember { mutableStateOf<Int?>(null) }
     var vlcHandoff by remember { mutableStateOf<Job?>(null) }
+    val snackbar = remember { TvSnackbarState() }
+    TvBriefShown(vlcNotice?.let { TvBrief(stringResource(it)) { vlcNotice = null } }, snackbar)
     val failure = when (val content = state.content) {
         is PlaybackContent.Failed -> content.failure
         is PlaybackContent.NextFailed -> content.failure
@@ -95,41 +125,83 @@ internal fun TvPlaybackRoute(
             }
         }
     }
-    TvPlayerScreen(
-        state = state,
-        onBack = onExit,
-        onRetry = { controller.dispatch(PlaybackEvent.Retry) },
-        onResume = { controller.dispatch(PlaybackEvent.Resume) },
-        onRestart = { controller.dispatch(PlaybackEvent.Restart) },
-        onPlayerFailure = { failure, positionMillis ->
-            val telemetry = controller.state.value.playerFailureTelemetry(failure)
-            if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis))) {
-                PutioDiagnostics.capture(telemetry)
+    Box(modifier = Modifier.fillMaxSize()) {
+        TvPlayerScreen(
+            state = state,
+            onBack = onExit,
+            onRetry = { controller.dispatch(PlaybackEvent.Retry) },
+            onPlayerFailure = { failure, positionMillis ->
+                val telemetry = controller.state.value.playerFailureTelemetry(failure)
+                if (controller.showsPlayerFailure(failure, positionMillis)) {
+                    val id = PutioDiagnostics.capture(telemetry)
+                    failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
+                }
+            },
+            onOriginalRejected = { reason, positionMillis ->
+                val telemetry = controller.state.value.originalFallbackTelemetry(reason)
+                controller.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis)).also { consumed ->
+                    if (consumed) telemetry?.let(PutioDiagnostics::capture)
+                }
+            },
+            onOriginalChosen = { controller.dispatch(PlaybackEvent.OriginalChosen(it)) },
+            onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
+            onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
+            playerFactory = playerFactory,
+            reporter = reporter,
+            subtitleStartupPolicy = subtitleStartupPolicy,
+            autoplayNextVideo = autoplayNextVideo,
+            onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
+            nextEpisode = nextEpisode,
+            onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
+            onUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
+            analytics = controller.analyticsReporter,
+            upNext = upNext,
+            onOpenInVlc = handOffToVlc,
+            onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
+            neighbours = neighbours,
+            background = background,
+            onBackground = onBackground,
+            onForeground = onForeground,
+            miniPlayer = miniPlayer,
+            manifestSubtitles = manifestSubtitles,
+            notices = snackbar,
+        )
+        if (!background) {
+            Box(modifier = Modifier.fillMaxSize().tvPlayerEdges()) {
+                TvSnackbarHost(snackbar, Modifier.align(Alignment.BottomStart), raised = true)
             }
-        },
-        onOriginalRejected = { reason, positionMillis ->
-            val telemetry = controller.state.value.originalFallbackTelemetry(reason)
-            controller.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis)).also { consumed ->
-                if (consumed) telemetry?.let(PutioDiagnostics::capture)
+        }
+    }
+}
+
+internal typealias TvFindSubtitles = suspend (PlaybackTarget) -> PlaybackRepositoryResult<List<PlaybackSubtitle>>
+
+@Composable
+private fun rememberManifestSubtitles(
+    state: PlaybackState,
+    findSubtitles: TvFindSubtitles?,
+    onAuthenticationRequired: suspend () -> Unit,
+): List<PlaybackSubtitle>? {
+    val content = state.content as? PlaybackContent.Ready
+    val manifest = content != null &&
+        content.source.kind == PlaybackSourceKind.HLS &&
+        state.target.mediaType == PlaybackMediaType.VIDEO &&
+        !content.subtitlesHidden
+    var listed by remember(state.target.fileId) { mutableStateOf<List<PlaybackSubtitle>?>(null) }
+    LaunchedEffect(state.target.fileId, manifest, findSubtitles) {
+        val find = findSubtitles?.takeIf { manifest && listed == null } ?: return@LaunchedEffect
+        listed = when (val found = find(state.target)) {
+            is PlaybackRepositoryResult.Success -> found.value
+            is PlaybackRepositoryResult.Failure -> {
+                if (found.failure.putioFailure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
+                null
             }
-        },
-        onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
-        onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
-        playerFactory = playerFactory,
-        reporter = reporter,
-        subtitleStartupPolicy = subtitleStartupPolicy,
-        autoplayNextVideo = autoplayNextVideo,
-        onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
-        nextEpisode = nextEpisode,
-        onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
-        onUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
-        analytics = controller.analyticsReporter,
-        upNext = upNext,
-        onOpenInVlc = handOffToVlc,
-        onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
-        neighbours = neighbours,
-    )
-    vlcNotice?.let { notice -> TvNoticeDialog(title = stringResource(notice), onDismiss = { vlcNotice = null }) }
+        }
+    }
+    return listed.takeIf { manifest }
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"
+
+private fun PlaybackController.showsPlayerFailure(failure: PlaybackFailure, positionMillis: Long): Boolean =
+    dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) && state.value.content is PlaybackContent.Failed

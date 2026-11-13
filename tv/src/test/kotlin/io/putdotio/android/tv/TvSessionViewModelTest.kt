@@ -48,6 +48,7 @@ import io.putdotio.android.settings.AndroidAppConfigRepository
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
@@ -97,6 +98,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+// Every test drives one TvSession through the same fakes, which a split would duplicate.
+@Suppress("LargeClass")
 @OptIn(ExperimentalCoroutinesApi::class)
 class TvSessionViewModelTest {
     private val auth = MutableStateFlow<TvAuthState>(signedIn(1))
@@ -184,14 +187,24 @@ class TvSessionViewModelTest {
     }
 
     @Test
-    fun `a history row resolves its file for Files to open`() = runTest {
-        val viewModel = TvSessionViewModel(auth)
-        val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+    fun `Select on a history video resumes it and Go to folder opens its folder instead`() = runTest {
+        playbackRepository.savedSeconds = 45.0
+        val listed = media(55, "resolved-55", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(45.0, 600.0))
+        listedItems[listed.id] = listed
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         assertTrue(session.history.dispatch(HistoryEvent.OpenFile(HistoryFileId(55))))
 
-        assertEquals("resolved-55", session.historyOpens.first().name)
+        assertEquals(TvExternalOpen.PLAYING, session.historyOpens.first())
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
         assertNull(session.historyOpenFailure.value)
+
+        session.stopPlayback()
+        assertTrue(session.history.dispatch(HistoryEvent.GoToFolder(HistoryFileId(55))))
+
+        assertEquals(TvExternalOpen.IN_FILES, session.historyOpens.first())
+        assertEquals(55L, session.filesFocusMemory[0L])
+        assertNull(session.playback.value)
     }
 
     @Test
@@ -365,6 +378,30 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `audio sent behind the shell keeps playing until it stops or another file plays`() {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        session.play(media(10, "song.mp3", PutioFileType.AUDIO))
+        val audio = checkNotNull(session.playback.value)
+
+        session.backgroundPlayback()
+        assertEquals(audio, session.playback.value)
+        assertTrue(session.playbackInBackground.value)
+
+        session.foregroundPlayback()
+        assertFalse(session.playbackInBackground.value)
+
+        session.backgroundPlayback()
+        session.play(media(9, "clip.mp4", PutioFileType.VIDEO))
+        assertFalse(session.playbackInBackground.value)
+        assertTrue(session.playback.value?.state?.value?.target?.mediaType == PlaybackMediaType.VIDEO)
+
+        session.backgroundPlayback()
+        session.stopPlayback()
+        assertNull(session.playback.value)
+        assertFalse(session.playbackInBackground.value)
+    }
+
+    @Test
     fun `leaving a video autoplay moved on to focuses that video's Files row`() {
         playbackRepository.next[FilesItemId(9)] = PlaybackTarget(FilesItemId(10), "Harbor film 2.mp4")
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
@@ -524,34 +561,33 @@ class TvSessionViewModelTest {
         session.links.open(FilesItemId(55), continueWatching = true)
 
         assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
-        val continued = checkNotNull(session.playback.value).state.value
-        assertTrue(continued.content is PlaybackContent.Ready)
-        assertEquals(45_000L, continued.resumePositionMillis)
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
 
         session.links.open(FilesItemId(55), continueWatching = false)
 
         assertEquals(TvExternalOpen.PLAYING, session.links.opens.first())
-        val searched = checkNotNull(session.playback.value).state.value
-        assertTrue(searched.content is PlaybackContent.Ready)
-        assertEquals(45_000L, searched.resumePositionMillis)
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
     }
 
     @Test
-    fun `a row resumes without asking, and the detail's Start over restarts`() = runTest {
+    fun `a row and Up next resume without asking, and only the detail's Start over restarts`() = runTest {
         playbackRepository.savedSeconds = 45.0
-        val video = media(55, "Blue.Lights.mkv", PutioFileType.VIDEO)
+        playbackRepository.next[FilesItemId(55)] =
+            PlaybackTarget(FilesItemId(56), "Blue.Lights.S01E02.mkv", durationSeconds = 600.0)
+        val video = media(55, "Blue.Lights.S01E01.mkv", PutioFileType.VIDEO)
             .copy(playback = FilesPlaybackProgress(45.0, 600.0))
         val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
 
         session.play(video)
-        val resumed = checkNotNull(session.playback.value).state.value
-        assertTrue(resumed.content is PlaybackContent.Ready)
-        assertEquals(45_000L, resumed.resumePositionMillis)
+        checkNotNull(session.playback.value).assertReadyAt(55, 45_000L)
 
         session.play(video, TvPlayStart.StartOver)
-        val restarted = checkNotNull(session.playback.value).state.value
-        assertTrue(restarted.content is PlaybackContent.Ready)
-        assertEquals(0L, restarted.resumePositionMillis)
+        val playback = checkNotNull(session.playback.value)
+        playback.assertReadyAt(55, 0L)
+        assertTrue(playback.dispatch(PlaybackEvent.PlayerEnded))
+        playback.assertReadyAt(56, 45_000L)
+        assertTrue(playback.dispatch(PlaybackEvent.NextChosen(video.target())))
+        playback.assertReadyAt(55, 45_000L)
     }
 
     @Test
@@ -567,6 +603,25 @@ class TvSessionViewModelTest {
         assertEquals(600.0, started.target.durationSeconds)
         assertTrue(started.content is PlaybackContent.Ready)
         assertEquals(0L, started.resumePositionMillis)
+    }
+
+    @Test
+    fun `a cancelled link opens nothing once its file resolves`() = runTest {
+        val resolving = CompletableDeferred<PutioResult<FilesItem>>()
+        val deps = dependencies.copy(
+            filesItemResolver = object : FilesItemResolver {
+                override suspend fun resolveItem(itemId: FilesItemId) = resolving.await()
+            },
+        )
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), deps))
+
+        session.links.open(FilesItemId(55), continueWatching = false)
+        session.links.cancel()
+        resolving.complete(PutioResult.Success(media(55, "Sintel.mkv", PutioFileType.VIDEO)))
+        advanceUntilIdle()
+
+        assertNull(session.playback.value)
+        assertNull(session.links.failure.value)
     }
 
     @Test
@@ -787,6 +842,78 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `moving a search result to Trash in Files takes it out of Search and Undo puts it back`() = runTest {
+        val clip = media(30, "clip.mp4", PutioFileType.VIDEO)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies.trashingOnly(clip)),
+        )
+        session.search.updateQuery("clip")
+        advanceUntilIdle()
+        assertEquals(listOf(clip.id), session.searchResultIds())
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, clip.id, FilesDeleteMode.TRASH))
+        advanceUntilIdle()
+        assertEquals(emptyList<FilesItemId>(), session.searchResultIds())
+
+        val outcome = checkNotNull(session.files.state.value.current.deleteOutcome)
+        session.trashUndo.undo(outcome)
+        advanceUntilIdle()
+        assertEquals(listOf(clip.id), session.searchResultIds())
+    }
+
+    @Test
+    fun `trashing a folder in Files takes its results out of Search and Undo puts them back in place`() = runTest {
+        val folder = media(30, "season", PutioFileType.FOLDER)
+        val inside = media(31, "season e01.mp4", PutioFileType.VIDEO).copy(parentId = folder.id)
+        val other = media(32, "season notes.txt", PutioFileType.TEXT)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.trashingOnly(folder, found = listOf(other, folder, inside)),
+            ),
+        )
+        session.search.updateQuery("season")
+        advanceUntilIdle()
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, folder.id, FilesDeleteMode.TRASH))
+        advanceUntilIdle()
+        assertEquals(listOf(other.id), session.searchResultIds())
+
+        session.trashUndo.undo(checkNotNull(session.files.state.value.current.deleteOutcome))
+        advanceUntilIdle()
+        assertEquals(listOf(other.id, folder.id, inside.id), session.searchResultIds())
+    }
+
+    @Test
+    fun `renaming a video in Files renames its Continue watching card on Home`() = runTest {
+        val clip = media(30, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies.findingOnly(clip)),
+        )
+        session.play(clip)
+        session.stopPlayback()
+        session.positionSaved(30L, 120.0)
+
+        session.files.dispatch(FilesBrowserEvent.Rename(FilesFolder.Root.id, clip.id, "new.mp4"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("new.mp4"), session.continueWatching.entries.value.map { it.name })
+    }
+
+    @Test
+    fun `marking a file watched drops the copy History's details panel holds`() = runTest {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val video = streamItem.copy(playback = FilesPlaybackProgress(0.0, 120.0))
+        session.historyFiles.load(HistoryFileId(video.id.value))
+        assertNotNull(session.historyFiles.known(HistoryFileId(video.id.value)))
+
+        session.setWatched(video, watched = true)
+
+        assertNull(session.historyFiles.known(HistoryFileId(video.id.value)))
+    }
+
+    @Test
     fun `moving a video to Trash from Files takes its Watch Next card away`() = runTest {
         val recorder = FakeWatchNextRecorder()
         rootPages = listOf(FilesPage(listOf(media(30, "clip.mp4", PutioFileType.VIDEO)), nextCursor = null))
@@ -877,147 +1004,147 @@ class TvSessionViewModelTest {
         assertEquals(listOf("resolved-55"), recorder.reconciled)
         assertEquals(rejected, session.fileActionFailure.value)
     }
+}
 
-    private class FakeWatchNextRecorder(
-        private val verdict: PutioFailure.AuthenticationRequired? = null,
-    ) : TvWatchNextRecorder {
-        var userId: Long? = null
-        val saved = mutableListOf<Pair<TvWatchNextMedia, Double>>()
-        val gone = mutableListOf<Long>()
-        val reconciled = mutableListOf<String>()
+private class FakeWatchNextRecorder(
+    private val verdict: PutioFailure.AuthenticationRequired? = null,
+) : TvWatchNextRecorder {
+    var userId: Long? = null
+    val saved = mutableListOf<Pair<TvWatchNextMedia, Double>>()
+    val gone = mutableListOf<Long>()
+    val reconciled = mutableListOf<String>()
 
-        override fun positionSaved(media: TvWatchNextMedia, positionSeconds: Double) {
-            saved += media to positionSeconds
-        }
-
-        override fun fileGone(fileId: Long) {
-            gone += fileId
-        }
-
-        override suspend fun reconcile(
-            resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
-        ): PutioFailure.AuthenticationRequired? {
-            (resolve(FilesItemId(55)) as? PutioResult.Success)?.let { reconciled += it.value.name }
-            return verdict
-        }
+    override fun positionSaved(media: TvWatchNextMedia, positionSeconds: Double) {
+        saved += media to positionSeconds
     }
 
-    private object StubTrashRepository : TrashRepository {
-        override suspend fun load() = PutioResult.Success(TrashPage(emptyList(), nextCursor = null))
-        override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
-        override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit)
-        override suspend fun resolveItem(itemId: FilesItemId) = error("No check expected")
-        override suspend fun deleteItem(itemId: FilesItemId) = PutioResult.Success(Unit)
-        override suspend fun restoreAll(selection: TrashBulkSelection) = PutioResult.Success(Unit)
-        override suspend fun empty() = PutioResult.Success(Unit)
+    override fun fileGone(fileId: Long) {
+        gone += fileId
     }
 
-    private class FakeWatchedRepository : FilesWatchedRepository {
-        val calls = mutableListOf<Pair<FilesItemId, Double?>>()
-        var failure: PutioFailure? = null
+    override suspend fun reconcile(
+        resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+    ): PutioFailure.AuthenticationRequired? {
+        (resolve(FilesItemId(55)) as? PutioResult.Success)?.let { reconciled += it.value.name }
+        return verdict
+    }
+}
 
-        override suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit> {
-            calls += itemId to seconds
-            return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
-        }
+private object StubTrashRepository : TrashRepository {
+    override suspend fun load() = PutioResult.Success(TrashPage(emptyList(), nextCursor = null))
+    override suspend fun loadNextPage(cursor: FilesCursor) = error("No continuation expected")
+    override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit)
+    override suspend fun resolveItem(itemId: FilesItemId) = error("No check expected")
+    override suspend fun deleteItems(itemIds: List<FilesItemId>) = PutioResult.Success(Unit)
+    override suspend fun restoreAll(selection: TrashBulkSelection) = PutioResult.Success(Unit)
+    override suspend fun empty() = PutioResult.Success(Unit)
+}
 
-        override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> {
-            calls += itemId to null
-            return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
-        }
+private class FakeWatchedRepository : FilesWatchedRepository {
+    val calls = mutableListOf<Pair<FilesItemId, Double?>>()
+    var failure: PutioFailure? = null
+
+    override suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit> {
+        calls += itemId to seconds
+        return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
     }
 
-    private object StubAccountSettingsRepository : AccountSettingsRepository {
-        override suspend fun load() = AccountSettingsRepositoryResult.Success(
-            AccountSettingsPreferences(
-                historyEnabled = true,
-                trashEnabled = true,
-                showSubtitles = true,
-                autoSelectSubtitles = true,
+    override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> {
+        calls += itemId to null
+        return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
+    }
+}
+
+private object StubAccountSettingsRepository : AccountSettingsRepository {
+    override suspend fun load() = AccountSettingsRepositoryResult.Success(
+        AccountSettingsPreferences(
+            historyEnabled = true,
+            trashEnabled = true,
+            showSubtitles = true,
+            autoSelectSubtitles = true,
+        ),
+    )
+
+    override suspend fun save(change: AccountSettingsChange) = AccountSettingsRepositoryResult.Success(Unit)
+
+    override suspend fun loadTunnelRoutes() = error("No route list expected")
+}
+
+private class FakePlaybackRepository : PlaybackRepository {
+    val resolved = mutableListOf<PlaybackTarget>()
+    var preference: () -> PlaybackPreference = { error("No preference wired") }
+    val preferencesSeen = mutableListOf<PlaybackPreference>()
+
+    /** The account's saved position for every file, with resume playback on when positive. */
+    var savedSeconds = 0.0
+
+    /** Durations the file's own listing carries, filled in for a video target without one. */
+    val listedDurations = mutableMapOf<FilesItemId, Double>()
+
+    override suspend fun resolve(
+        target: PlaybackTarget,
+        convertedOnly: Boolean,
+    ): PlaybackRepositoryResult<PlaybackResolution> {
+        resolved += target
+        preferencesSeen += preference()
+        val duration = listedDurations[target.fileId]
+            ?.takeIf { target.durationSeconds == null && target.mediaType == PlaybackMediaType.VIDEO }
+        return PlaybackRepositoryResult.Success(
+            PlaybackResolution.Ready(
+                source(target.fileId.value),
+                useStartFrom = savedSeconds > 0.0,
+                durationSeconds = duration,
             ),
         )
-
-        override suspend fun save(change: AccountSettingsChange) = AccountSettingsRepositoryResult.Success(Unit)
-
-        override suspend fun loadTunnelRoutes() = error("No route list expected")
     }
 
-    private class FakePlaybackRepository : PlaybackRepository {
-        val resolved = mutableListOf<PlaybackTarget>()
-        var preference: () -> PlaybackPreference = { error("No preference wired") }
-        val preferencesSeen = mutableListOf<PlaybackPreference>()
+    /** The video after each one in its folder; anything else is the folder's last. */
+    val next = mutableMapOf<FilesItemId, PlaybackTarget>()
 
-        /** The account's saved position for every file, with resume playback on when positive. */
-        var savedSeconds = 0.0
+    override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
+        next[target.fileId]?.let(PlaybackNextResult::Found) ?: PlaybackNextResult.Ended
 
-        /** Durations the file's own listing carries, filled in for a video target without one. */
-        val listedDurations = mutableMapOf<FilesItemId, Double>()
-
-        override suspend fun resolve(
-            target: PlaybackTarget,
-            convertedOnly: Boolean,
-        ): PlaybackRepositoryResult<PlaybackResolution> {
-            resolved += target
-            preferencesSeen += preference()
-            val duration = listedDurations[target.fileId]
-                ?.takeIf { target.durationSeconds == null && target.mediaType == PlaybackMediaType.VIDEO }
-            return PlaybackRepositoryResult.Success(
-                PlaybackResolution.Ready(
-                    source(target.fileId.value),
-                    useStartFrom = savedSeconds > 0.0,
-                    durationSeconds = duration,
-                ),
-            )
-        }
-
-        /** The video after each one in its folder; anything else is the folder's last. */
-        val next = mutableMapOf<FilesItemId, PlaybackTarget>()
-
-        override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
-            next[target.fileId]?.let(PlaybackNextResult::Found) ?: PlaybackNextResult.Ended
-
-        private fun source(fileId: Long) = PlaybackSource(
-            fileId = fileId,
-            kind = PlaybackSourceKind.HLS,
-            url = PutioCredentialUrl::class.java
-                .getDeclaredConstructor(String::class.java)
-                .newInstance("https://api.put.io/v2/files/$fileId/hls/media.m3u8?token=t"),
-            startFromSeconds = savedSeconds,
-            subtitles = PlaybackSubtitles.None,
-        )
-    }
-
-    private class FakeRecentSearchStore : RecentSearchStoreOwner {
-        override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
-        override val enabled = MutableStateFlow<Boolean?>(true)
-        override val failure = MutableStateFlow<PutioFailure?>(null)
-        var closed = false
-
-        override fun record(term: SearchTerm) {
-            terms.value = listOf(term) + terms.value.filterNot { it == term }
-        }
-
-        override fun remove(term: SearchTerm) {
-            terms.value = terms.value.filterNot { it == term }
-        }
-
-        override fun clear() {
-            terms.value = emptyList()
-        }
-
-        override fun setEnabled(enabled: Boolean) {
-            this.enabled.value = enabled
-        }
-
-        override fun retry() = Unit
-
-        override fun close() {
-            closed = true
-        }
-    }
-
-    private val streamItem = media(9, "clip.mp4", PutioFileType.VIDEO)
+    private fun source(fileId: Long) = PlaybackSource(
+        fileId = fileId,
+        kind = PlaybackSourceKind.HLS,
+        url = PutioCredentialUrl::class.java
+            .getDeclaredConstructor(String::class.java)
+            .newInstance("https://api.put.io/v2/files/$fileId/hls/media.m3u8?token=t"),
+        startFromSeconds = savedSeconds,
+        subtitles = PlaybackSubtitles.None,
+    )
 }
+
+private class FakeRecentSearchStore : RecentSearchStoreOwner {
+    override val terms = MutableStateFlow<List<SearchTerm>>(emptyList())
+    override val enabled = MutableStateFlow<Boolean?>(true)
+    override val failure = MutableStateFlow<PutioFailure?>(null)
+    var closed = false
+
+    override fun record(term: SearchTerm) {
+        terms.value = listOf(term) + terms.value.filterNot { it == term }
+    }
+
+    override fun remove(term: SearchTerm) {
+        terms.value = terms.value.filterNot { it == term }
+    }
+
+    override fun clear() {
+        terms.value = emptyList()
+    }
+
+    override fun setEnabled(enabled: Boolean) {
+        this.enabled.value = enabled
+    }
+
+    override fun retry() = Unit
+
+    override fun close() {
+        closed = true
+    }
+}
+
+private val streamItem = media(9, "clip.mp4", PutioFileType.VIDEO)
 
 private val MOVED_TO = FilesItemId(77)
 
@@ -1038,6 +1165,49 @@ private fun TvSessionDependencies.findingOnly(item: FilesItem) = copy(
             PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
     },
 )
+
+private fun TvSessionDependencies.trashingOnly(
+    item: FilesItem,
+    found: List<FilesItem> = listOf(item),
+): TvSessionDependencies {
+    var trashed = false
+    return copy(
+        filesRepository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId) =
+                PutioResult.Success(FilesPage(listOf(item).takeUnless { trashed }.orEmpty(), nextCursor = null))
+
+            override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                PutioResult.Success(FileDeleteResult(status = "OK")).also { trashed = true }
+
+            override suspend fun resolveItem(itemId: FilesItemId) =
+                if (trashed) PutioResult.Failure(notFound()) else PutioResult.Success(item)
+        },
+        searchRepository = object : SearchRepository by searchRepository {
+            override suspend fun search(term: SearchTerm, filter: SearchFilter) =
+                PutioResult.Success(SearchPage(found, nextCursor = null, total = found.size))
+        },
+        trashRepository = object : TrashRepository by StubTrashRepository {
+            override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit).also { trashed = false }
+
+            override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(item)
+        },
+    )
+}
+
+private fun TvSession.searchResultIds() = when (val content = search.state.value.content) {
+    is SearchContent.Ready -> content.items.map { it.id }
+    is SearchContent.Empty -> emptyList()
+    else -> error("Search is not settled: $content")
+}
+
+private fun PlaybackController.assertReadyAt(fileId: Long, positionMillis: Long) {
+    val playing = state.value
+    assertEquals(FilesItemId(fileId), playing.target.fileId)
+    assertTrue(playing.content is PlaybackContent.Ready)
+    assertEquals(positionMillis, playing.resumePositionMillis)
+}
+
+private fun FilesItem.target() = PlaybackTarget(id, name, durationSeconds = playback?.durationSeconds)
 
 private fun media(id: Long, name: String, type: PutioFileType) = FilesItem(
     id = FilesItemId(id),

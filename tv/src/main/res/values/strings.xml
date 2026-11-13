@@ -20,6 +20,7 @@
     <string name="tv_link_browser_instruction">Go to %1$s and enter</string>
     <string name="tv_link_url">put.io/link</string>
     <string name="tv_link_requesting">Getting a code</string>
+    <string name="tv_link_waiting">Waiting for authentication…</string>
     <string name="tv_link_validating">Signing you in</string>
     <string name="tv_link_expired">This code expired.</string>
     <string name="tv_link_failed_network">Can’t connect to put.io right now. Check the network, then get a new code.</string>
@@ -32,7 +33,7 @@
     <string name="tv_link_open_error">Couldn’t open that file. %1$s</string>
 
     <string name="tv_session_checking">Checking your session</string>
-    <string name="tv_session_unavailable_title">Can’t connect to put.io right now.</string>
+    <string name="tv_session_unavailable_title">Can’t connect to put.io</string>
     <string name="tv_session_unavailable_message">Your sign-in is saved. The app tries again on its own when the network is back.</string>
     <string name="tv_session_retry">Try now</string>
     <string name="tv_session_signing_out">Signing out</string>
@@ -55,7 +56,8 @@
     <string name="tv_home_pinned_empty_message">Pin a folder or file from its actions to keep it here.</string>
     <string name="tv_home_pinned_error_title">Couldn’t load your pins.</string>
     <string name="tv_home_first_run_title">Nothing here yet.</string>
-    <string name="tv_home_first_run_message">Videos you start come back here. Press Menu on a folder or file to pin it.</string>
+    <string name="tv_home_first_run_message">Add files at put.io</string>
+    <string name="tv_home_first_run_qr_description">QR code that opens put.io</string>
     <string name="tv_home_browse_files">Browse your files</string>
     <plurals name="tv_home_folder_count">
         <item quantity="one">%1$s folder</item>
@@ -105,14 +107,12 @@
     <string name="tv_files_sort_type_descending">Type, Z to A</string>
     <string name="tv_files_sort_watch_ascending">Unwatched first</string>
     <string name="tv_files_sort_watch_descending">Watched first</string>
-    <string name="tv_files_empty_title">Empty folder.</string>
+    <string name="tv_files_empty_title">No files whatsoever!</string>
     <string name="tv_files_empty_message">Files you add to this folder on put.io show up here.</string>
-    <string name="tv_files_load_more">Load more</string>
     <string name="tv_files_loading_more">Loading more files</string>
     <string name="tv_files_paging_error">Couldn’t load more files.</string>
     <string name="tv_files_retry">Try again</string>
     <string name="tv_files_error_title">Couldn\'t load your files.</string>
-    <string name="tv_files_error_message">put.io didn\'t answer. Check the TV\'s connection and try again.</string>
     <string name="tv_files_open_folder">Open %1$s</string>
     <string name="tv_files_play_media">Play %1$s</string>
     <string name="tv_files_watched">Watched</string>
@@ -134,6 +134,7 @@
     <string name="tv_viewer_position">%1$d of %2$d</string>
     <string name="tv_viewer_page">Page %1$d of %2$d</string>
     <string name="tv_viewer_text_truncated">Showing the first %1$s.</string>
+    <string name="tv_refresh">Refresh</string>
     <string name="tv_files_refresh_error">Couldn’t refresh files.</string>
     <string name="tv_files_sort_error">Couldn’t change sorting.</string>
     <string name="tv_files_reload_error">Couldn’t reload files.</string>
@@ -173,14 +174,16 @@
     <string name="tv_history_go_to_folder">Go to folder</string>
     <string name="tv_history_detail_file">File</string>
     <string name="tv_history_file_gone">No longer in your files</string>
-    <string name="tv_files_delete_title">Delete permanently?</string>
-    <string name="tv_files_delete_message">Trash is off for this account, so %1$s can\'t be restored.</string>
+    <plurals name="tv_files_delete_title">
+        <item quantity="one">Delete %1$d item permanently?</item>
+        <item quantity="other">Delete %1$d items permanently?</item>
+    </plurals>
+    <string name="tv_files_delete_message">Trash is off for this account, so this can’t be undone.</string>
     <string name="tv_files_delete_confirm">Delete</string>
     <string name="tv_files_trashed">Moved to Trash</string>
     <string name="tv_files_undo">Undo</string>
     <string name="tv_files_undo_failed">Couldn’t restore %1$s from Trash. %2$s</string>
     <string name="tv_files_vlc_missing">VLC isn’t installed</string>
-    <string name="tv_files_vlc_missing_message">Install VLC from your TV’s app store, then try Open in VLC again.</string>
     <string name="tv_files_stream_unavailable">Couldn’t prepare the stream. Sign in again.</string>
     <string name="tv_files_stream_error">Couldn’t prepare the stream. %1$s</string>
     <string name="tv_files_watched_error">Couldn’t update the watched state. %1$s</string>
@@ -198,21 +201,34 @@
     <string name="tv_files_trash_limit_message">%1$s contains too many files. Delete it permanently?</string>
     <string name="tv_files_delete_skipped">The request was incomplete. %1$s was not confirmed removed.</string>
     <string name="tv_state_loading">Loading</string>
-    <string name="tv_account_inactive_title">Your account has been deactivated.</string>
-    <plurals name="tv_account_inactive_files_deletion">
-        <item quantity="one">Your files are deleted in %d day unless you renew.</item>
-        <item quantity="other">Your files are deleted in %d days unless you renew.</item>
-    </plurals>
-    <string name="tv_state_offline_title">Can’t connect to put.io right now.</string>
+    <string name="tv_state_offline_title">Can’t connect to put.io</string>
     <string name="tv_state_try_now">Try now</string>
+    <string name="tv_offline_banner">No connection</string>
     <string name="tv_state_try_again">Try again</string>
     <string name="tv_error_navigation_blocked">This item can’t be opened right now. Check Files, then try again.</string>
-    <string name="tv_error_network">Check the network and try again.</string>
-    <string name="tv_error_session">Your session expired. Sign in again.</string>
+    <string name="tv_error_network">Check your internet connection.</string>
+    <string name="tv_error_timeout_title">Request timed out</string>
+    <string name="tv_error_timeout_recovery">Check your connection and try again.</string>
+    <string name="tv_error_timeout">Request timed out. Check your connection and try again.</string>
+    <string name="tv_error_session_title">Session expired</string>
+    <string name="tv_error_session_recovery">Please sign in again.</string>
+    <string name="tv_error_session">Session expired. Please sign in again.</string>
     <string name="tv_error_forbidden">You don’t have access to this folder.</string>
-    <string name="tv_error_rate_limited">put.io is receiving too many requests. Try again shortly.</string>
-    <string name="tv_error_unavailable">put.io is temporarily unavailable. Try again.</string>
+    <string name="tv_error_rate_limited_title">Too many requests</string>
+    <string name="tv_error_rate_limited_recovery">Please try again in a moment.</string>
+    <string name="tv_error_rate_limited">Too many requests. Please try again in a moment.</string>
+    <string name="tv_error_not_found_title">File not found</string>
+    <string name="tv_error_not_found_recovery">This file may have been deleted.</string>
+    <string name="tv_error_not_found">File not found. This file may have been deleted.</string>
+    <string name="tv_error_server_title">Something went wrong on our end</string>
+    <string name="tv_error_server_recovery">Try again in a few minutes, then contact support.</string>
+    <string name="tv_error_unexpected_title">Something unexpected happened</string>
+    <string name="tv_error_id">Error id: %1$s</string>
+    <string name="tv_error_unexpected">Something unexpected happened.</string>
+    <string name="tv_error_unexpected_with_id">Something unexpected happened. Error id: %1$s</string>
+    <string name="tv_error_unavailable">Something went wrong on our end. Try again in a few minutes, then contact support.</string>
     <string name="tv_global_search_description">Files in your put.io account</string>
+    <string name="tv_global_search_in_app">Search put.io for “%1$s”</string>
     <string name="tv_search_placeholder">Search your files</string>
     <string name="tv_search_field">Search files</string>
     <string name="tv_search_clear">Clear search</string>
@@ -231,7 +247,6 @@
     <string name="tv_search_no_results_title">Nothing matches.</string>
     <string name="tv_search_no_results_message">No files or folders named “%1$s”. Try fewer words.</string>
     <string name="tv_search_error_title">Couldn’t search.</string>
-    <string name="tv_search_load_more">Load more</string>
     <string name="tv_search_loading_more">Loading more results</string>
     <string name="tv_search_paging_error">Couldn’t load more results.</string>
     <string name="tv_search_open_result">Open %1$s</string>
@@ -257,11 +272,7 @@
     <string name="tv_history_detail_saved_to">Saved to</string>
     <string name="tv_history_empty">No activity yet.</string>
     <string name="tv_history_empty_message">Completed transfers and shared files will appear here.</string>
-    <string name="tv_history_off_title">History is off.</string>
-    <string name="tv_history_off_message">Turn on %1$s in %2$s to see what happens to your files.</string>
-    <string name="tv_history_open_account">Open Account</string>
     <string name="tv_history_error_title">Couldn’t load your history.</string>
-    <string name="tv_history_load_more">Load more</string>
     <string name="tv_history_loading_more">Loading more history</string>
     <string name="tv_history_paging_error">Couldn’t load more history.</string>
     <string name="tv_history_open_error">Couldn’t open this file. %1$s</string>
@@ -287,6 +298,8 @@
     <string name="tv_account_tunnel_route_loading">Loading proxies</string>
     <string name="tv_account_tunnel_route_error">Couldn’t load proxies</string>
     <string name="tv_account_resume_playback">Resume where you left off</string>
+    <string name="tv_account_resume_disable_title">Turn off resume?</string>
+    <string name="tv_account_resume_disable_message">This erases every saved playback position on your account, on all devices.</string>
     <string name="tv_account_playback_method">Playback method</string>
     <string name="tv_account_playback_standard">Standard</string>
     <string name="tv_account_playback_direct">Direct play</string>
@@ -297,12 +310,17 @@
     <string name="tv_account_auto_select_subtitles">Pick matching subtitles</string>
     <string name="tv_account_default_sort">Default sort order</string>
     <string name="tv_account_default_sort_unset">Not set</string>
+    <string name="tv_account_reset_sorts">Reset all sort settings</string>
+    <string name="tv_account_reset_sorts_title">Reset all sort settings?</string>
+    <string name="tv_account_reset_sorts_message">Every folder goes back to the default sort order.</string>
+    <string name="tv_account_reset">Reset</string>
     <string name="tv_account_trash_enabled">Move deleted files to Trash</string>
     <string name="tv_account_trash_disable_title">Turn off Trash?</string>
     <string name="tv_account_trash_disable_message">Deleted files will no longer be recoverable. Files already in Trash stay for their 14 days.</string>
-    <string name="tv_account_trash_disable_confirm">Turn off</string>
+    <string name="tv_account_turn_off">Turn off</string>
     <string name="tv_account_history_enabled">Keep account history</string>
     <string name="tv_account_qr_value">QR code</string>
+    <string name="tv_account_manage_account">Manage account at put.io</string>
     <string name="tv_account_open_source_licenses">Open source licenses. This app and the native components it bundles are open source, each under the license shown. Scan a code for its source code.</string>
     <string name="tv_account_open_source_name" translatable="false">%1$s %2$s</string>
     <string name="tv_account_open_source_terms">%1$s · %2$s</string>
@@ -329,7 +347,6 @@
     <string name="tv_account_error_access_denied">This app doesn’t have access to these settings.</string>
     <string name="tv_account_error_route_unavailable">That proxy isn’t available for your account. Choose another one.</string>
     <string name="tv_account_retry">Try again</string>
-    <string name="tv_account_save">Save</string>
     <string name="tv_account_done">Done</string>
     <string name="tv_account_cancel">Cancel</string>
     <string name="tv_trash_title">Trash</string>
@@ -340,18 +357,13 @@
     <string name="tv_trash_empty_message">When you send files to trash, we keep them here for 14 days.</string>
     <string name="tv_trash_error_title">Couldn’t load trash</string>
     <string name="tv_trash_refresh_error">Couldn’t refresh trash. %1$s</string>
-    <string name="tv_trash_load_more">Load more</string>
     <string name="tv_trash_loading_more">Loading more items</string>
     <string name="tv_trash_paging_error">Couldn’t load more items.</string>
     <string name="tv_trash_restore">Restore</string>
     <string name="tv_trash_delete">Delete permanently</string>
     <string name="tv_trash_ok">OK</string>
-    <string name="tv_trash_restore_title">Restore item?</string>
-    <string name="tv_trash_restore_message">%1$s goes back to Files. Restoration may take a moment.</string>
     <string name="tv_trash_delete_title">Delete permanently?</string>
     <string name="tv_trash_delete_message">%1$s will be removed from trash right away. This cannot be undone.</string>
-    <string name="tv_trash_restore_all_title">Restore everything?</string>
-    <string name="tv_trash_restore_all_message">Every item in trash goes back to Files. Restoration may take a moment.</string>
     <string name="tv_trash_empty_title_confirm">Empty trash?</string>
     <string name="tv_trash_empty_message_confirm">Every item in trash is deleted permanently. This can\'t be undone.</string>
     <plurals name="tv_trash_empty_count_message">
@@ -392,14 +404,45 @@
     <string name="tv_trash_restore_all_inconclusive">Items are still leaving trash. Check again in a moment.</string>
     <string name="tv_trash_delete_still_present">%1$s is still in trash.</string>
     <string name="tv_trash_empty_still_present">Trash still has items. Refresh in a moment and try again.</string>
+    <plurals name="tv_trash_delete_selected_title">
+        <item quantity="one">Delete %1$d item permanently?</item>
+        <item quantity="other">Delete %1$d items permanently?</item>
+    </plurals>
+    <plurals name="tv_trash_delete_selected_message">
+        <item quantity="one">It will be removed from trash right away. This cannot be undone.</item>
+        <item quantity="other">They will be removed from trash right away. This cannot be undone.</item>
+    </plurals>
+    <plurals name="tv_trash_restore_selected_started">
+        <item quantity="one">Restore started for %1$d item.</item>
+        <item quantity="other">Restore started for %1$d items.</item>
+    </plurals>
+    <plurals name="tv_trash_delete_selected_started">
+        <item quantity="one">Deletion of %1$d item requested.</item>
+        <item quantity="other">Deletion of %1$d items requested.</item>
+    </plurals>
+    <plurals name="tv_trash_delete_selected_verified">
+        <item quantity="one">%1$d item is no longer in trash.</item>
+        <item quantity="other">%1$d items are no longer in trash.</item>
+    </plurals>
+    <string name="tv_trash_delete_selected_some_failed">Couldn’t delete some items.</string>
+    <plurals name="tv_trash_delete_selected_failed">
+        <item quantity="one">Couldn’t delete %1$d item.</item>
+        <item quantity="other">Couldn’t delete %1$d items.</item>
+    </plurals>
+    <string name="tv_trash_delete_selected_inconclusive">Some items were not on the first page. Check trash again in a moment.</string>
     <string name="tv_player_loading">Loading</string>
+    <string name="tv_player_buffering">Buffering…</string>
+    <string name="tv_player_stalled">Playback stalled</string>
     <string name="tv_player_seek_bar">%1$s of %2$s</string>
     <string name="tv_player_error_title">Couldn\'t play this file.</string>
-    <string name="tv_player_error_link_expired">The stream link expired. Try again to get a fresh one.</string>
+    <string name="tv_player_error_crash">Playback error</string>
+    <string name="tv_player_connection_lost">Connection lost</string>
+    <string name="tv_player_error_link_expired_title">Playback link expired</string>
+    <string name="tv_player_error_link_expired">Try again to get a fresh link.</string>
     <string name="tv_player_error_forbidden">You don’t have access to this file.</string>
     <string name="tv_player_error_rejected">put.io couldn’t prepare this file for playback.</string>
-    <string name="tv_player_cant_play_title">This TV can\'t play this file.</string>
-    <string name="tv_player_cant_play_message">Its format isn\'t supported here. VLC can usually play it.</string>
+    <string name="tv_player_cant_play_title">Can’t play this here</string>
+    <string name="tv_player_cant_play_message">This format needs another player.</string>
     <string name="tv_player_open_in_vlc">Open in VLC</string>
     <string name="tv_player_play_in_vlc">Play in VLC now</string>
     <string name="tv_player_retry">Try again</string>
@@ -410,9 +453,11 @@
     <string name="tv_player_conversion_unavailable">This video cannot be converted.</string>
     <string name="tv_player_conversion_unknown">Conversion status is unavailable.</string>
     <string name="tv_player_conversion_percent">%1$d%%</string>
+    <string name="tv_player_conversion_queued">Waiting to convert…</string>
+    <string name="tv_player_conversion_status_failed">Can’t check conversion status. Check your internet connection.</string>
     <string name="tv_player_convert_again">Convert again</string>
     <string name="tv_player_check_again">Check again</string>
-    <string name="tv_player_unsupported_title">This file can’t be played</string>
+    <string name="tv_player_unsupported_title">Can’t play this here</string>
     <string name="tv_player_unsupported_video_message">This TV can’t play the original file, and it has no converted version.</string>
     <string name="tv_player_up_next">Up next</string>
     <string name="tv_player_up_next_in">Up next in %1$s</string>

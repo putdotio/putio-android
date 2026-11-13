@@ -40,9 +40,12 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.search.SearchPaging
+import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.holdAtPendingEnd
+import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.TvFilesRowPlace
@@ -102,7 +105,7 @@ internal fun TvSearchResultList(
     val lastRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
-    if (paging == SearchPaging.Complete && pagingHeldFocus.value) {
+    if (paging !is SearchPaging.Failed && pagingHeldFocus.value) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
     }
@@ -111,6 +114,12 @@ internal fun TvSearchResultList(
         derivedStateOf { listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key is Long }?.key as Long? }
     }
     val restoreRow = remember { FocusRequester() }
+    val lastLazyIndex = remember(groups) { groups.lazyIndexOf(items.last().id.value) }
+    TvAutoPaging(
+        page = paging as? SearchPaging.Available,
+        onLoadMore = onNextPage,
+        nearEnd = { listState.isNearEnd(lastLazyIndex) },
+    )
     val restoreComposed by remember(listState) {
         derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == restoreRowId } }
     }
@@ -149,8 +158,13 @@ internal fun TvSearchResultList(
             .focusGroup()
             .testTag(TV_SEARCH_RESULTS_TAG),
     ) {
-        val requesters =
-            TvSearchRowRequesters({ anchorId }, anchorRow, items.last().id.value, lastRow, restoreRowId, restoreRow)
+        val requesters = TvSearchRowRequesters(
+            { anchorId },
+            anchorRow,
+            last = TvSearchRowDetail(items.last().id.value, lastRow),
+            restore = TvSearchRowDetail(restoreRowId, restoreRow),
+            pendingEnd = paging.isPending,
+        )
         val row: @Composable (FilesItem) -> Unit = { item -> TvSearchResultRow(item, rows, requesters) }
         resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
         resultGroup(
@@ -164,7 +178,6 @@ internal fun TvSearchResultList(
             item(key = TV_SEARCH_PAGING_KEY, contentType = "paging") {
                 TvSearchPaging(
                     paging = paging,
-                    onNextPage = onNextPage,
                     onRetry = onRetry,
                     buttonModifier = Modifier.onFocusChanged { pagingHeldFocus.value = it.isFocused },
                 )
@@ -176,11 +189,13 @@ internal fun TvSearchResultList(
 private class TvSearchRowRequesters(
     val anchorId: () -> Long?,
     val anchor: FocusRequester,
-    val lastId: Long,
-    val last: FocusRequester,
-    val restoreId: Long?,
-    val restore: FocusRequester,
+    val last: TvSearchRowDetail,
+    val restore: TvSearchRowDetail,
+    val pendingEnd: Boolean,
 )
+
+private val SearchPaging.isPending: Boolean
+    get() = this is SearchPaging.Available || this is SearchPaging.Loading
 
 @Composable
 private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: TvSearchRowRequesters) {
@@ -194,8 +209,9 @@ private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: T
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }
             .focusRequesterIf(id == requesters.anchorId(), requesters.anchor)
-            .focusRequesterIf(id == requesters.lastId, requesters.last)
-            .focusRequesterIf(id == requesters.restoreId, requesters.restore)
+            .focusRequesterIf(id == requesters.last.id, requesters.last.row)
+            .holdAtPendingEnd(requesters.pendingEnd && id == requesters.last.id)
+            .focusRequesterIf(id == requesters.restore.id, requesters.restore.row)
             .focusRequesterIf(id == rows.detail.id, rows.detail.row),
     )
 }

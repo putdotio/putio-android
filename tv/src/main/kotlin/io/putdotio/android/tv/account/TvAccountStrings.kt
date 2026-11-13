@@ -10,11 +10,17 @@ import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.StreamingMethod
-import io.putdotio.android.settings.apiReason
+import io.putdotio.android.tv.isUnknown
+import io.putdotio.android.tv.tvLine
+import io.putdotio.android.tv.tvUnknownLine
 
 /** put.io's reason for a refused request, else this failure's copy. */
 @Composable
-internal fun AccountSettingsFailure.tvMessageText(): String = apiReason ?: stringResource(tvMessage())
+internal fun AccountSettingsFailure.tvMessageText(): String =
+    when (this) {
+        is AccountSettingsFailure.Putio -> failure.tvAppConfigMessageText()
+        is AccountSettingsFailure.RouteUnavailable -> stringResource(tvMessage())
+    }
 
 @StringRes
 internal fun AccountSettingsFailure.tvMessage(): Int =
@@ -25,22 +31,12 @@ internal fun AccountSettingsFailure.tvMessage(): Int =
 
 /** put.io's reason for a refused request, else this failure's copy. */
 @Composable
-internal fun PutioFailure.tvAppConfigMessageText(): String = apiReason ?: stringResource(tvAppConfigMessage())
+internal fun PutioFailure.tvAppConfigMessageText(): String =
+    apiReason ?: takeIf { it.isUnknown }?.tvUnknownLine() ?: stringResource(tvAppConfigMessage())
 
 @StringRes
 internal fun PutioFailure.tvAppConfigMessage(): Int =
-    when (this) {
-        is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
-        is PutioFailure.AccessDenied -> R.string.tv_account_error_access_denied
-        is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
-        is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
-        is PutioFailure.ServerUnavailable,
-        is PutioFailure.ApiRejected,
-        is PutioFailure.InvalidResponse,
-        is PutioFailure.Misconfigured,
-        is PutioFailure.Unexpected,
-        -> R.string.tv_error_unavailable
-    }
+    if (this is PutioFailure.AccessDenied) R.string.tv_account_error_access_denied else tvLine()
 
 @StringRes
 internal fun StreamingMethod.tvLabel(): Int =

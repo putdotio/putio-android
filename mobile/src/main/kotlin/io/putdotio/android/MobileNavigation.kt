@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import io.putdotio.android.files.rememberVlcInstalled
@@ -24,10 +25,16 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import io.putdotio.android.account.LoggedInAppsController
 import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
+import io.putdotio.android.account.loggedInAppsDestination
 import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
 import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
 import io.putdotio.android.account.MobileAccountLibrary
+import io.putdotio.android.account.MobileAccountListDetail
+import io.putdotio.android.account.MobileAccountPage
+import io.putdotio.android.account.MobileAccountPanes
+import io.putdotio.android.account.rememberAccountListScroll
 import io.putdotio.android.account.MobileAccountScreen
 import io.putdotio.android.account.MobileAppInfoScreen
 import io.putdotio.android.account.bytesOnDevice
@@ -51,6 +58,7 @@ import io.putdotio.android.files.FilesRepository
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.MobileFileOpener
 import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.MobileFilesItemActions
 import io.putdotio.android.files.FilesSelection
@@ -76,10 +84,12 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.rememberNextEpisode
+import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
+import io.putdotio.android.playback.confirmedRotateToLandscape
 import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.mobilePlaybackViewModelFactory
@@ -92,6 +102,7 @@ import io.putdotio.android.playback.subtitleStartupPolicy
 import io.putdotio.android.playback.nextEpisodeEnabled
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.android.search.MobileHistoryScreen
+import io.putdotio.android.settings.historyOpen
 import io.putdotio.android.search.MobileSearchScreen
 import io.putdotio.android.settings.AccountSettingsEvent
 import io.putdotio.android.settings.AccountSettingsRepositoryResult
@@ -115,6 +126,7 @@ import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.android.trash.TrashSelection
 import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
@@ -137,6 +149,7 @@ internal fun MobileNavHost(
     filesState: FilesBrowserState,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
+    trashSelection: TrashSelection,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
@@ -162,11 +175,13 @@ internal fun MobileNavHost(
     modifier: Modifier = Modifier,
     deviceClass: AppDiagnostics.DeviceClass = AppDiagnostics.DeviceClass.Phone,
     publicLinks: MobilePublicLinks? = null,
+    loggedInAppsController: LoggedInAppsController? = null,
     searchOpen: Boolean = false,
     searchForward: Boolean = true,
     filesBackPreview: MobileBackPreview = rememberMobileBackPreview(),
     fileDragOut: MobileFileDragOut? = null,
     continueWatching: ContinueWatching? = null,
+    pinnedFiles: MobilePinnedFiles? = null,
     onNewFolder: (() -> Unit)? = null,
     /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
     filesListPaneTopBar: (@Composable () -> Unit)? = null,
@@ -176,6 +191,7 @@ internal fun MobileNavHost(
     filesActions: MobileFilesActionsController? = null,
     folderCreator: FilesFolderCreator? = null,
     filesSelection: FilesSelection? = null,
+    accountPanes: MobileAccountPanes? = null,
 ) {
     val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
@@ -183,19 +199,43 @@ internal fun MobileNavHost(
     val appContext = LocalContext.current.applicationContext
     val moveTargetStore = remember(appContext, account.userId) { MobileMoveTargetStore(appContext, account.userId) }
     val motion = rememberMobileMotion()
+    val panes = accountPanes != null
+    val accountScroll = rememberAccountListScroll()
+    val accountList: @Composable (MobileAccountPage?) -> Unit = { open ->
+        MobileAccountTab(
+            account = account,
+            sessionId = sessionId,
+            settingsState = accountSettingsState,
+            appConfigState = appConfigState,
+            onSettingsEvent = onAccountSettingsEvent,
+            onAppConfigEvent = onAppConfigEvent,
+            loadTunnelRoutes = loadTunnelRoutes,
+            onSignOut = onSignOut,
+            onOpenPage = { navController.openAccountPage(it, besideList = panes) },
+            open = open,
+            listState = accountScroll.rememberListState(),
+            trashController = trashController,
+            publicLinks = publicLinks,
+            loggedInApps = loggedInAppsController != null,
+            downloadsState = downloadsState,
+        )
+    }
+    val accountPage: @Composable (MobileAccountPage, @Composable () -> Unit) -> Unit = { page, content ->
+        MobileAccountListDetail(accountPanes, page, accountList, content)
+    }
     SharedTransitionLayout(modifier = modifier) {
         CompositionLocalProvider(LocalMobileSharedTransition provides takeUnless { motion.reducedMotion }) {
             NavHost(
                 navController = navController,
                 startDestination = MobileDestination.start.route,
                 modifier = Modifier.fillMaxSize(),
-                enterTransition = { motion.enter(motion.between(initialState, targetState, pop = false)) },
-                exitTransition = { motion.exit(motion.between(initialState, targetState, pop = false)) },
-                popEnterTransition = { motion.enter(motion.between(initialState, targetState, pop = true)) },
-                popExitTransition = { motion.exit(motion.between(initialState, targetState, pop = true)) },
+                enterTransition = { motion.enter(motion.between(initialState, targetState, false, panes)) },
+                exitTransition = { motion.exit(motion.between(initialState, targetState, false, panes)) },
+                popEnterTransition = { motion.enter(motion.between(initialState, targetState, true, panes)) },
+                popExitTransition = { motion.exit(motion.between(initialState, targetState, true, panes)) },
                 // A Back gesture seeks the same pop, so it previews what Back will do.
-                predictivePopEnterTransition = { motion.enter(motion.between(initialState, targetState, pop = true)) },
-                predictivePopExitTransition = { motion.exit(motion.between(initialState, targetState, pop = true)) },
+                predictivePopEnterTransition = { motion.enter(motion.between(initialState, targetState, true, panes)) },
+                predictivePopExitTransition = { motion.exit(motion.between(initialState, targetState, true, panes)) },
             ) {
                 composable(MobileDestination.Files.route) {
                     val askForDownloadNotifications = rememberFirstDownloadNotificationPrompt()
@@ -204,12 +244,14 @@ internal fun MobileNavHost(
                         MobileFileDownloads(it, showSubtitles, askForDownloadNotifications)
                     }
                     val startDownload = fileDownloads?.bySetting
+                    val pinnedIds = pinnedFiles?.ids?.collectAsStateWithLifecycle()?.value
                     val filesItemActions = (
                         filesActions?.itemActions(
                             watchedToggle = accountSettingsState.confirmedResumePlayback() == true,
                             vlcInstalled = rememberVlcInstalled(),
                         ) ?: MobileFilesItemActions()
                         ).withContinueWatching(continueWatching)
+                        .withPins(pinnedFiles, pinnedIds)
                         .withPlayWith(appConfigState.confirmedStreamingMethod()) { item, method ->
                             navController.navigateToPlayback(item, method = method)
                         }
@@ -255,6 +297,7 @@ internal fun MobileNavHost(
                         },
                     ) {
                         val startedVideos = continueWatching?.entries?.collectAsStateWithLifecycle()?.value
+                        val pinnedItems = pinnedFiles?.items?.collectAsStateWithLifecycle()?.value
                         MobileFilesRoute(
                             state = filesState,
                             repository = filesRepository,
@@ -269,6 +312,8 @@ internal fun MobileNavHost(
                             publicLinks = publicLinks,
                             fileDragOut = fileDragOut,
                             continueWatching = startedVideos.orEmpty(),
+                            pinned = pinnedItems.orEmpty(),
+                            onRefreshPinned = pinnedFiles?.let { it::refresh },
                             onNewFolder = onNewFolder,
                             listPaneTopBar = filesListPaneTopBar,
                             linkedFile = linkedFile,
@@ -286,6 +331,8 @@ internal fun MobileNavHost(
                     MobileHistoryScreen(
                         historyState = searchHistoryState.history,
                         onHistoryEvent = searchHistoryActions.onHistoryEvent,
+                        open = accountSettingsState.historyOpen(),
+                        onRetryOpen = { onAccountSettingsEvent(AccountSettingsEvent.RetryLoad) },
                     )
                 }
                 composable(MobileDestination.Transfers.route) {
@@ -314,61 +361,45 @@ internal fun MobileNavHost(
                     }
                 }
                 composable(MobileDestination.Account.route) {
-                    val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
-                    MobileAccountScreen(
-                        account = account,
-                        sessionId = sessionId,
-                        settingsState = accountSettingsState,
-                        appConfigState = appConfigState,
-                        onSettingsEvent = onAccountSettingsEvent,
-                        onAppConfigEvent = onAppConfigEvent,
-                        loadTunnelRoutes = loadTunnelRoutes,
-                        onSignOut = onSignOut,
-                        onManageTrash = { navController.navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true } },
-                        onManagePublicLinks = publicLinks?.let {
-                            { navController.navigate(MOBILE_PUBLIC_LINKS_ROUTE) { launchSingleTop = true } }
-                        },
-                        onPrivacyControls = {
-                            navController.navigate(MOBILE_PRIVACY_CONTROLS_ROUTE) { launchSingleTop = true }
-                        },
-                        onAppInfo = { navController.navigate(MOBILE_APP_INFO_ROUTE) { launchSingleTop = true } },
-                        onOpenSourceLicenses = {
-                            navController.navigate(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) { launchSingleTop = true }
-                        },
-                        library = MobileAccountLibrary(
-                            exclusiveLinkCount =
-                                (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
-                            trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
-                        ),
-                        downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
-                    )
+                    MobileAccountListDetail(accountPanes, open = null, list = accountList, page = {})
                 }
                 composable(MOBILE_APP_INFO_ROUTE) {
-                    MobileAppInfoScreen(
-                        mobileAppDiagnostics(
-                            appConfigState.playbackPreference(),
-                            appConfigState.confirmedStreamingMethod(),
-                            deviceClass,
-                        ),
-                    )
+                    accountPage(MobileAccountPage.AppInfo) {
+                        MobileAppInfoScreen(
+                            mobileAppDiagnostics(
+                                appConfigState.playbackPreference(),
+                                appConfigState.confirmedStreamingMethod(),
+                                deviceClass,
+                            ),
+                        )
+                    }
                 }
                 composable(MOBILE_OPEN_SOURCE_LICENSES_ROUTE) {
-                    MobileOpenSourceLicensesScreen()
+                    accountPage(MobileAccountPage.OpenSourceLicenses) { MobileOpenSourceLicensesScreen() }
                 }
                 composable(MOBILE_PRIVACY_CONTROLS_ROUTE) {
-                    MobilePrivacyControlsScreen(
-                        settingsState = accountSettingsState,
-                        onSettingsEvent = onAccountSettingsEvent,
-                    )
+                    accountPage(MobileAccountPage.PrivacyControls) {
+                        MobilePrivacyControlsScreen(
+                            settingsState = accountSettingsState,
+                            onSettingsEvent = onAccountSettingsEvent,
+                        )
+                    }
+                }
+                loggedInAppsDestination(loggedInAppsController, onFilesAuthenticationRequired) { content ->
+                    accountPage(MobileAccountPage.LoggedInApps, content)
                 }
                 composable(MOBILE_PUBLIC_LINKS_ROUTE) {
-                    publicLinks?.let { MobilePublicLinksScreen(it) }
+                    accountPage(MobileAccountPage.ExclusiveLinks) {
+                        publicLinks?.let { MobilePublicLinksScreen(it) }
+                    }
                 }
                 composable(MOBILE_TRASH_ROUTE) {
-                    trashController?.let { controller ->
-                        val state by controller.state.collectAsStateWithLifecycle()
-                        LaunchedEffect(controller) { controller.dispatch(TrashEvent.Open) }
-                        MobileTrashScreen(state, controller::dispatch)
+                    accountPage(MobileAccountPage.Trash) {
+                        trashController?.let { controller ->
+                            val state by controller.state.collectAsStateWithLifecycle()
+                            LaunchedEffect(controller) { controller.dispatch(TrashEvent.Open) }
+                            MobileTrashScreen(state, controller::dispatch, selection = trashSelection)
+                        }
                     }
                 }
                 composable(
@@ -423,6 +454,7 @@ internal fun MobileNavHost(
                             analytics = playbackViewModel.analytics,
                             subtitleStartupPolicy = subtitleStartupPolicy,
                             autoplayNextVideo = appConfigState.confirmedAutoplayNextVideo(),
+                            rotateToLandscape = appConfigState.confirmedRotateToLandscape(),
                             onAuthenticationRequired = onPlaybackAuthenticationRequired,
                             onBack = navController::popBackStack,
                             playerFactory = playbackPlayerFactory,
@@ -451,6 +483,58 @@ internal fun MobileNavHost(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MobileAccountTab(
+    account: MobileAccount,
+    sessionId: MobileAuthSessionId,
+    settingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+    onSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
+    onSignOut: (removeDownloads: Boolean) -> Unit,
+    onOpenPage: (MobileAccountPage) -> Unit,
+    open: MobileAccountPage?,
+    listState: LazyListState,
+    trashController: TrashController?,
+    publicLinks: MobilePublicLinks?,
+    loggedInApps: Boolean,
+    downloadsState: DownloadsState,
+) {
+    val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
+    MobileAccountScreen(
+        account = account,
+        sessionId = sessionId,
+        settingsState = settingsState,
+        appConfigState = appConfigState,
+        onSettingsEvent = onSettingsEvent,
+        onAppConfigEvent = onAppConfigEvent,
+        loadTunnelRoutes = loadTunnelRoutes,
+        onSignOut = onSignOut,
+        onManageTrash = { onOpenPage(MobileAccountPage.Trash) },
+        onManagePublicLinks = publicLinks?.let { { onOpenPage(MobileAccountPage.ExclusiveLinks) } },
+        onPrivacyControls = { onOpenPage(MobileAccountPage.PrivacyControls) },
+        onLoggedInApps = { onOpenPage(MobileAccountPage.LoggedInApps) }.takeIf { loggedInApps },
+        onAppInfo = { onOpenPage(MobileAccountPage.AppInfo) },
+        onOpenSourceLicenses = { onOpenPage(MobileAccountPage.OpenSourceLicenses) },
+        open = open,
+        listState = listState,
+        library = MobileAccountLibrary(
+            exclusiveLinkCount = (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
+            trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
+        ),
+        downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
+    )
+}
+
+private fun NavHostController.openAccountPage(page: MobileAccountPage, besideList: Boolean) {
+    if (currentDestination?.route == page.route) return
+    navigate(page.route) {
+        launchSingleTop = true
+        if (besideList) popUpTo(MobileDestination.Account.route)
     }
 }
 
@@ -488,6 +572,7 @@ private fun MobilePlaybackRoute(
     analytics: PlaybackAnalyticsReporter,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
     autoplayNextVideo: Boolean,
+    rotateToLandscape: Boolean,
     onAuthenticationRequired: suspend () -> Unit,
     onBack: () -> Unit,
     playerFactory: MobilePlayerFactory,
@@ -505,6 +590,9 @@ private fun MobilePlaybackRoute(
     val nextEpisode = rememberNextEpisode(state, findNextEpisode) { currentOnAuthenticationRequired() }
     val neighbours = rememberFolderNeighbours(state, findNeighbours) { currentOnAuthenticationRequired() }
         ?: PlaybackNeighbours()
+    val upNext = rememberUpNext(state, findNeighbours.takeIf { autoplayNextVideo }) {
+        currentOnAuthenticationRequired()
+    }
     val authenticationFailure =
         when (val content = state.content) {
             is PlaybackContent.Failed -> content.failure
@@ -530,15 +618,21 @@ private fun MobilePlaybackRoute(
             val playing = controller.state.value
             // Audio plays on the session service's player, which reports its own failures.
             if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
+                controller.state.value.content is PlaybackContent.Failed &&
                 playing.target.mediaType == PlaybackMediaType.VIDEO
             ) {
                 PutioDiagnostics.capture(playing.playerFailureTelemetry(failure))
             }
         },
         onOriginalRejected = controller::rejectOriginal,
+        onOriginalChosen = { positionMillis: Long ->
+            controller.dispatch(PlaybackEvent.OriginalChosen(positionMillis))
+            Unit
+        }.takeIf { state.offersOriginal },
         onBack = onBack,
         subtitleStartupPolicy = subtitleStartupPolicy,
         autoplayNextVideo = autoplayNextVideo,
+        rotateToLandscape = rotateToLandscape,
         onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
         analytics = analytics,
         playerFactory = playerFactory,
@@ -547,11 +641,14 @@ private fun MobilePlaybackRoute(
         onRestart = { controller.dispatch(PlaybackEvent.Restart) },
         nextEpisode = nextEpisode,
         onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
+        upNext = upNext,
+        onPlayUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
         neighbours = neighbours,
         onPlay = onPlay,
         onOpenInVlc = onOpenInVlc?.let { open -> { open(state.target) } },
         cast = cast,
         castMedia = castMediaFor(castMedia, state.target),
+        onCastEnded = { controller.dispatch(PlaybackEvent.CastEnded) },
     )
 }
 

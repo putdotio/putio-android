@@ -143,7 +143,7 @@ class TvFilesProofTest {
         compose.waitUntil(5_000) { isFocused("Open $EMPTY") }
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) {
-            compose.onAllNodesWithText("Empty folder.").fetchSemanticsNodes().any(::focused)
+            compose.onAllNodesWithText("No files whatsoever!").fetchSemanticsNodes().any(::focused)
         }
         compose.focusTvTab("Files")
         screenshot("androidtv-st-s2-empty-folder")
@@ -174,6 +174,24 @@ class TvFilesProofTest {
         focusBlueLights()
         waitForText("English, English · SDH")
         screenshot("androidtv-st-s10-inactive")
+    }
+
+    @Test
+    fun familyPlanExpired() {
+        mount(
+            listings(),
+            account = TvAccount(
+                userId = 1,
+                username = "proof",
+                email = "proof@example.invalid",
+                historyEnabled = true,
+                inactiveNotice = InactiveAccountNotice.FamilyPlanExpired,
+            ),
+        )
+        compose.waitUntil(5_000) { isFocused("Open $BBB") }
+        focusBlueLights()
+        waitForText("English, English · SDH")
+        screenshot("androidtv-st-s10-inactive-family")
     }
 
     @Test
@@ -237,9 +255,9 @@ class TvFilesProofTest {
         press(KeyEvent.KEYCODE_MENU)
         waitForText("Delete permanently")
         chooseInSheet("Delete permanently")
-        waitForText("Delete permanently?")
+        waitForText("Delete 1 item permanently?")
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Cancel").fetchSemanticsNodes().any(::focused) }
         screenshot("androidtv-st-t4-delete")
-        press(KeyEvent.KEYCODE_DPAD_LEFT)
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { isFocused("Play $BBB_VIDEO") }
     }

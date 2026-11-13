@@ -44,7 +44,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
-private const val OAUTH_TOKEN_QUERY = "oauth_token"
+internal const val OAUTH_TOKEN_QUERY = "oauth_token"
 private const val API_HOST = "api.put.io"
 
 /**
@@ -66,6 +66,11 @@ internal class MobileDownloadCache private constructor(context: Context) {
         databaseProvider,
     )
     private val httpClient = OkHttpClient()
+    private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
+
+    init {
+        downloadExecutor.execute { cache.dropSignedMetadata() }
+    }
 
     /** Replaced by the auth layer on sign-in and sign-out; never persisted here. */
     @Volatile
@@ -94,21 +99,26 @@ internal class MobileDownloadCache private constructor(context: Context) {
      * else straight from the network: a null write sink keeps online playback from
      * filling the no-eviction download directory.
      */
-    fun playbackFactory(userId: Long): DataSource.Factory = cacheFactory(userId).setCacheWriteDataSinkFactory(null)
+    fun playbackFactory(userId: Long): DataSource.Factory =
+        cacheFactory(userId, upstreamFactory).setCacheWriteDataSinkFactory(null)
 
     /** Who the signed-in player belongs to; a player built before sign-in matches no cached bytes. */
     @Volatile
     var activeUserId: Long? = null
 
-    private fun cacheFactory(userId: Long): CacheDataSource.Factory =
+    private fun cacheFactory(userId: Long, upstream: DataSource.Factory): CacheDataSource.Factory =
         CacheDataSource.Factory()
             .setCache(cache)
             .setCacheKeyFactory(UserScopedCacheKeys(userId))
-            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setUpstreamDataSourceFactory(upstream)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
+    private val downloadUpstreamFactory = DataSource.Factory {
+        RequestUriDataSource(upstreamFactory.createDataSource())
+    }
+
     internal val downloaderFactory: DownloaderFactory =
-        UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS))
+        UserScopedDownloaderFactory({ userId -> cacheFactory(userId, downloadUpstreamFactory) }, downloadExecutor)
 
     /**
      * Media3's DownloadService binds the first manager it sees for the whole

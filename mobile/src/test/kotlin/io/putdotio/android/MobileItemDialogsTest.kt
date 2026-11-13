@@ -124,7 +124,7 @@ class MobileItemDialogsTest {
         val state = TrashState(content = TrashContent.Loaded(listOf(item), null, 1, item.sizeBytes))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
         compose.onNodeWithContentDescription("Restore ${item.name}").performClick()
-        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.SelectRestore(item.id)), events) }
+        compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Restore(item.id)), events) }
     }
 
     @Test

@@ -43,6 +43,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     testFixturesImplementation(project(":core:common"))
     testFixturesImplementation(libs.androidx.media3.common)
+    testFixturesImplementation(libs.androidx.media3.datasource)
     testImplementation(testFixtures(project(":core:common")))
     testImplementation(testFixtures(project(":domain:account")))
     testImplementation(libs.okhttp)

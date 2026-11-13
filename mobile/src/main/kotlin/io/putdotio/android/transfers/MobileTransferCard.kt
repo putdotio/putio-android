@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.putdotio.android.R
-import io.putdotio.android.appendMonoFigures
+import io.putdotio.android.appendMonoValue
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
@@ -220,7 +220,7 @@ private fun TransferItem.fillColor(): Color =
 internal fun List<MobileTransferPart>.annotated(mono: SpanStyle): AnnotatedString =
     buildAnnotatedString {
         for (part in this@annotated) {
-            if (part.mono) appendMonoFigures(part.text, mono) else append(part.text)
+            if (part.mono) appendMonoValue(part.text, mono) else append(part.text)
         }
     }
 

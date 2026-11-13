@@ -3,6 +3,7 @@ package io.putdotio.android.auth
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,32 +64,97 @@ class PendingTokenRevocationsTest {
     }
 
     @Test
-    fun `a reissued token whose record could not be cleared is not revoked on the next start`() = runTest {
-        val store = InMemoryAuthTokenStore(TOKEN).apply { failClear = true }
-        val session = InMemoryAuthTokenStore(TOKEN)
-        val revoker = ScriptedTokenRevoker()
-        PendingTokenRevocations(listOf(store), session, revoker, this).keep(TOKEN)
-        store.failClear = false
-
-        PendingTokenRevocations(listOf(store), session, revoker, this).resume()
+    fun `a signed-out token stays signed out across a restart until a sign-in keeps it`() = runTest {
+        val store = InMemoryAuthTokenStore()
+        val revoker = ScriptedTokenRevoker(TokenRevocationResult.UNAVAILABLE)
+        PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), revoker, this).revoke(TOKEN)
         testScheduler.advanceUntilIdle()
 
-        assertTrue(revoker.attempts.isEmpty())
+        val restarted = PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), revoker, this)
+
+        assertTrue(restarted.isSignedOut(TOKEN))
+        assertFalse(restarted.isSignedOut(SECOND))
+        assertTrue(restarted.keep(TOKEN) {})
+        assertFalse(restarted.isSignedOut(TOKEN))
         assertNull(store.token)
-        assertEquals(TOKEN.reveal(), session.token?.reveal())
     }
 
     @Test
-    fun `an unreadable session defers revocation instead of treating the token as unused`() = runTest {
-        val store = InMemoryAuthTokenStore(TOKEN)
-        val session = InMemoryAuthTokenStore(TOKEN).apply { failedReads = 1 }
-        val revoker = ScriptedTokenRevoker()
+    fun `a revoked token stays signed out for the life of the process`() = runTest {
+        val store = InMemoryAuthTokenStore()
+        val revocations = PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), ScriptedTokenRevoker(), this)
 
-        PendingTokenRevocations(listOf(store), session, revoker, this).resume()
+        revocations.revoke(TOKEN)
         testScheduler.advanceUntilIdle()
 
-        assertTrue(revoker.attempts.isEmpty())
         assertNull(store.token)
+        assertTrue(revocations.isSignedOut(TOKEN))
+    }
+
+    @Test
+    fun `a keep that cannot clear the record fails instead of leaving it beside the session`() = runTest {
+        val store = InMemoryAuthTokenStore(TOKEN).apply { failClear = true }
+        val revocations = PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), ScriptedTokenRevoker(), this)
+
+        assertTrue(runCatching { revocations.keep(TOKEN) {} }.exceptionOrNull() is AuthTokenStorageException)
+
+        assertEquals(TOKEN.reveal(), store.token?.reveal())
+        assertTrue(revocations.isSignedOut(TOKEN))
+    }
+
+    @Test
+    fun `a sign-in whose store fails puts back the record it dropped`() = runTest {
+        val store = InMemoryAuthTokenStore(TOKEN)
+        val revoker = ScriptedTokenRevoker()
+        val revocations = PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), revoker, this)
+        val failingStore: suspend () -> Unit = { throw AuthTokenStorageException("write") }
+        suspend fun keepFails(token: AccessToken) =
+            runCatching { revocations.keep(token, failingStore) }.exceptionOrNull() is AuthTokenStorageException
+
+        assertTrue(keepFails(TOKEN))
+        assertTrue(keepFails(SECOND))
+        assertEquals(TOKEN.reveal(), store.token?.reveal())
+        testScheduler.advanceUntilIdle()
+
+        assertEquals(listOf(TOKEN.reveal()), revoker.attempts)
+        assertNull(store.token)
+    }
+
+    @Test
+    fun `a sign-in that cannot read every record keeps the one it matched`() = runTest {
+        val stores = listOf(InMemoryAuthTokenStore(TOKEN), InMemoryAuthTokenStore(SECOND).apply { failedReads = 1 })
+        val revocations = PendingTokenRevocations(stores, InMemoryAuthTokenStore(), ScriptedTokenRevoker(), this)
+
+        assertTrue(runCatching { revocations.keep(TOKEN) {} }.exceptionOrNull() is AuthTokenStorageException)
+
+        assertEquals(listOf(TOKEN.reveal(), SECOND.reveal()), stores.map { it.token?.reveal() })
+    }
+
+    @Test
+    fun `a confirmed revocation keeps its record until the session no longer holds the token`() = runTest {
+        val store = InMemoryAuthTokenStore()
+        val session = InMemoryAuthTokenStore(TOKEN)
+        val revoker = ScriptedTokenRevoker()
+        val revocations = PendingTokenRevocations(listOf(store), session, revoker, this)
+
+        revocations.revoke(TOKEN)
+        testScheduler.runCurrent()
+        assertEquals(TOKEN.reveal(), store.token?.reveal())
+        assertTrue(PendingTokenRevocations(listOf(store), session, revoker, this).isSignedOut(TOKEN))
+
+        session.token = null
+        testScheduler.advanceUntilIdle()
+        assertNull(store.token)
+        assertEquals(listOf(TOKEN.reveal()), revoker.attempts)
+    }
+
+    @Test
+    fun `an unreadable record is not read as no sign-out`() = runTest {
+        val store = InMemoryAuthTokenStore(TOKEN).apply { failedReads = 1 }
+        val revocations = PendingTokenRevocations(listOf(store), InMemoryAuthTokenStore(), ScriptedTokenRevoker(), this)
+
+        assertTrue(runCatching { revocations.isSignedOut(TOKEN) }.exceptionOrNull() is AuthTokenStorageException)
+        assertTrue(revocations.isSignedOut(TOKEN))
     }
 
     @Test

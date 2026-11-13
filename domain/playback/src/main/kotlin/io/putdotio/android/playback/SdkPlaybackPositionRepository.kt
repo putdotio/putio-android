@@ -7,6 +7,7 @@ import kotlinx.coroutines.CancellationException
 
 public class SdkPlaybackPositionRepository internal constructor(
     private val setPosition: suspend (Long, Double) -> Unit,
+    private val clearPosition: suspend (Long) -> Unit = { error("Position resets are not configured") },
     private val getPosition: suspend (Long) -> Double = { error("Position reads are not configured") },
     private val loadResumeSetting: suspend () -> Boolean = { error("Setting reads are not configured") },
 ) {
@@ -15,13 +16,14 @@ public class SdkPlaybackPositionRepository internal constructor(
             client.files.setStartFrom(fileId, seconds)
             Unit
         },
+        clearPosition = { client.files.resetStartFrom(it) },
         getPosition = client.files::getStartFrom,
         loadResumeSetting = { client.account.getSettings().useStartFrom },
     )
 
     public suspend fun write(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> = request {
-        require(fileId > 0L && seconds.isFinite() && seconds > 0.0)
-        setPosition(fileId, seconds)
+        require(fileId > 0L && seconds.isFinite() && seconds >= 0.0)
+        if (seconds == 0.0) clearPosition(fileId) else setPosition(fileId, seconds)
     }
 
     /** The account's saved position for [fileId], in seconds. */

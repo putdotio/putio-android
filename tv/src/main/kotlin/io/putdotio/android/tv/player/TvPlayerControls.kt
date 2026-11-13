@@ -72,6 +72,7 @@ internal data class TvPlayerChipLabels(
     val audio: String,
     val subtitles: String,
     val speed: String,
+    val stream: String,
 )
 
 @Composable
@@ -79,7 +80,7 @@ internal fun TvPlayerControls(
     player: Player,
     title: String,
     paused: Boolean,
-    scrubTargetMillis: Long?,
+    seeking: Boolean,
     startPositionMillis: Long,
     listingDurationMillis: Long?,
     chips: List<TvPlayerControl>,
@@ -89,7 +90,7 @@ internal fun TvPlayerControls(
     circles: Boolean = true,
 ) {
     val progress = rememberPlayerProgress(player, paused, startPositionMillis)
-    val shownMillis = scrubTargetMillis ?: progress.positionMillis
+    val shownMillis = progress.positionMillis
     val knownDuration = knownDurationMillis(progress.durationMillis, listingDurationMillis)
     val elapsed = playerTime(shownMillis)
     val seekBarDescription = knownDuration?.let {
@@ -114,7 +115,7 @@ internal fun TvPlayerControls(
                 TvSeekBar(
                     fraction = knownDuration?.let { (shownMillis.toFloat() / it).coerceIn(0f, 1f) } ?: 0f,
                     description = seekBarDescription,
-                    scrubbing = scrubTargetMillis != null,
+                    scrubbing = seeking,
                     focused = focused == TvPlayerControl.SeekBar,
                     modifier = Modifier.padding(top = 10.dp, bottom = 12.dp),
                 )
@@ -345,9 +346,11 @@ internal fun TvPlayerChips(chips: List<TvPlayerControl>, labels: TvPlayerChipLab
                     labels.speed,
                     stringResource(PlaybackR.string.playback_speed_chip, labels.speed),
                 )
-                TvPlayerControl.Stream -> stringResource(PlaybackR.string.playback_stream_original).let {
-                    Triple(R.drawable.ic_ph_film_strip, it, stringResource(PlaybackR.string.playback_stream_chip, it))
-                }
+                TvPlayerControl.Stream -> Triple(
+                    R.drawable.ic_ph_film_strip,
+                    labels.stream,
+                    stringResource(PlaybackR.string.playback_stream_chip, labels.stream),
+                )
                 else -> stringResource(PlaybackR.string.playback_next_episode).let {
                     Triple(R.drawable.ic_ph_skip_forward, it, it)
                 }

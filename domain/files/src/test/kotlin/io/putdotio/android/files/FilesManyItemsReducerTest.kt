@@ -127,6 +127,44 @@ class FilesManyItemsReducerTest {
     }
 
     @Test
+    fun retryDeletesOnlyTheItemsAPartialDeleteLeft() {
+        val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), deleteBoth()))
+        val settled = reload(checkDelete(checking, listOf(notFound(), PutioResult.Success(second))), second, other)
+        val outcome = checkNotNull(settled.current.deleteOutcome)
+
+        val retry = outcome.retry(settled.current, FilesDeleteMode.TRASH)
+        assertEquals(FilesBrowserEvent.Delete(FilesFolder.Root.id, listOf(second.id), FilesDeleteMode.TRASH), retry)
+        assertEquals(listOf(second.id), (FilesBrowserReducer.reduce(settled, checkNotNull(retry)).effect
+            as FilesBrowserEffect.Delete).itemIds)
+        assertEquals(null, outcome.retry(settled.current, FilesDeleteMode.PERMANENT))
+        assertEquals(null, outcome.retry(settled.current, null))
+    }
+
+    @Test
+    fun aDeleteThatRemovedEveryItemOffersNoRetry() {
+        val checking = acknowledge(FilesBrowserReducer.reduce(loadedRoot(), deleteBoth()))
+        val settled = reload(checkDelete(checking, listOf(notFound(), notFound())), other)
+        assertEquals(null, settled.current.deleteOutcome?.retry(settled.current, FilesDeleteMode.TRASH))
+    }
+
+    @Test
+    fun retryMovesOnlyTheItemsAPartialMoveLeftIntoTheSameFolder() {
+        val moving = FilesBrowserReducer.reduce(loadedRoot(), moveBoth(other.id))
+        val checking = FilesBrowserReducer.reduce(moving.state, FilesBrowserEvent.MoveFinished(
+            checkNotNull(moving.effect).requestId, PutioResult.Success(emptyList()),
+        ))
+        val settled = reload(checkMove(checking, listOf(
+            PutioResult.Success(first.copy(parentId = other.id)), PutioResult.Success(second),
+        )), second, other)
+
+        val retry = checkNotNull(settled.current.moveOutcome).retry(settled)
+        assertEquals(FilesBrowserEvent.Move(FilesFolder.Root.id, listOf(second.id), other.id), retry)
+        val effect = FilesBrowserReducer.reduce(settled, checkNotNull(retry)).effect as FilesBrowserEffect.Move
+        assertEquals(listOf(second.id), effect.itemIds)
+        assertEquals(other.id, effect.destinationId)
+    }
+
+    @Test
     fun theControllerSendsOneRequestAndReadsEachItemBack() = runBlocking {
         val deletes = mutableListOf<List<FilesItemId>>()
         val reads = mutableListOf<FilesItemId>()
@@ -185,6 +223,11 @@ class FilesManyItemsReducerTest {
         FilesBrowserReducer.reduce(
             checking.state, FilesBrowserEvent.MoveChecked(checkNotNull(checking.effect).requestId, results),
         )
+
+    private fun reload(reloading: FilesBrowserTransition, vararg listed: FilesItem): FilesBrowserState =
+        FilesBrowserReducer.reduce(reloading.state, FilesBrowserEvent.LoadSucceeded(
+            checkNotNull(reloading.effect).requestId, FilesPage(listed.toList(), null),
+        )).state
 
     private fun loadedRoot(): FilesBrowserState {
         val started = FilesBrowserReducer.start()

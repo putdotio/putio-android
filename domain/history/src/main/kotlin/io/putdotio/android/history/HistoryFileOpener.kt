@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 public class HistoryFileOpener(
     requests: Flow<HistoryEffect.NavigateToFile>,
     private val resolver: FilesItemResolver,
-    private val deliver: suspend (FilesItem, FilesOpenOrigin) -> Unit,
+    private val deliver: suspend (FilesItem, FilesOpenOrigin, HistoryOpenTarget) -> Unit,
     parentScope: CoroutineScope,
 ) : Closeable {
     private val openerJob = SupervisorJob(parentScope.coroutineContext[Job])
@@ -40,16 +40,22 @@ public class HistoryFileOpener(
 
     init {
         scope.launch {
-            requests.collectLatest { request -> open(request.fileId.toFilesItemId(), FilesOpenOrigin.HISTORY) }
+            requests.collectLatest { request ->
+                open(request.fileId.toFilesItemId(), FilesOpenOrigin.HISTORY, request.target)
+            }
         }
     }
 
     /** Resolves and delivers one file; [origin] says whether a history row or a product link named it. */
-    public suspend fun open(fileId: FilesItemId, origin: FilesOpenOrigin) {
+    public suspend fun open(
+        fileId: FilesItemId,
+        origin: FilesOpenOrigin,
+        target: HistoryOpenTarget = HistoryOpenTarget.File,
+    ) {
         when (val result = resolver.resolveItem(fileId)) {
             is PutioResult.Success -> {
                 mutableFailure.value = null
-                deliver(result.value, origin)
+                deliver(result.value, origin, target)
             }
             is PutioResult.Failure -> mutableFailure.value = result.failure
         }

@@ -28,7 +28,7 @@ internal fun FilesBrowserState.loadFailed(event: FilesBrowserEvent.LoadFailed): 
             deleteFinished(FilesBrowserEvent.DeleteFinished(
                 event.requestId, PutioResult.Failure(event.failure),
             ))
-        else -> {
+        else -> leaveMissingFolder(index, event) ?: run {
             val updated = stack.getOrNull(index)?.loadFailed(event.requestId, event.failure)
             if (updated == null) {
                 FilesBrowserTransition(this, consumed = false)

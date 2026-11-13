@@ -1,6 +1,5 @@
 package io.putdotio.android.tv
 
-import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
 import androidx.core.net.toUri
@@ -23,40 +22,46 @@ internal sealed interface TvLaunchRequest {
 }
 
 /**
- * Reads `putio://files/<id>` (a system search result), `putio://continue/<id>` (a Watch Next
- * card) and `ACTION_SEARCH`, then removes them from the intent so a replayed intent cannot open
- * them twice. Anything else returns null and the app opens normally.
+ * Reads `putio://files/<id>~<key>` (a system search result), `putio://continue/<id>~<key>` (a
+ * Watch Next card) and `putio://search/<key>?q=<term>` (the system search row that searches
+ * put.io), then removes the link from the intent so a replayed intent cannot open it twice. A link
+ * without this install's key and anything else, an `ACTION_SEARCH` term included, return null,
+ * and the app opens normally.
  */
-internal fun Intent.consumeTvLaunchRequest(): TvLaunchRequest? =
-    when (action) {
-        Intent.ACTION_VIEW -> data?.toTvLaunchRequest()?.also { setDataAndType(null, null) }
-        Intent.ACTION_SEARCH ->
-            getStringExtra(SearchManager.QUERY)?.trim()?.takeIf(String::isNotEmpty)
-                ?.let { TvLaunchRequest.Search(SearchTerm(it)) }
-                .also { removeExtra(SearchManager.QUERY) }
-        else -> null
+internal fun Intent.consumeTvLaunchRequest(key: () -> TvLinkKey): TvLaunchRequest? =
+    data?.takeIf { action == Intent.ACTION_VIEW }?.let { link ->
+        setDataAndType(null, null)
+        link.toTvLaunchRequest()?.takeIf { link.linkKey()?.let { key().matches(it) } == true }
     }
 
 internal fun Uri.toTvLaunchRequest(): TvLaunchRequest? {
     if (scheme != SCHEME) return null
     // Shared folders such as Items shared with you (-2) have negative ids; only files are watched.
-    val id = pathSegments.singleOrNull()?.toLongOrNull()?.takeIf { it != 0L }?.let(::FilesItemId)
+    val id = pathSegments.singleOrNull()?.substringBefore(TvLinkKey.SEPARATOR)?.toLongOrNull()
+        ?.takeIf { it != 0L }?.let(::FilesItemId)
     return when (host) {
         HOST_FILES -> id?.let { TvLaunchRequest.OpenFile(it) }
         HOST_CONTINUE -> id?.takeIf { it.value > 0L }?.let { TvLaunchRequest.OpenFile(it, continueWatching = true) }
-        HOST_SEARCH -> getQueryParameter(QUERY)?.trim()?.takeIf(String::isNotEmpty)
+        HOST_SEARCH -> getQueryParameter(QUERY)?.trim()?.takeIf { pathSegments.size <= 1 && it.isNotEmpty() }
             ?.let { TvLaunchRequest.Search(SearchTerm(it)) }
         else -> null
     }
 }
 
-/** The request as a `putio://` URI: what Watch Next cards carry and saved state keeps. */
-internal fun TvLaunchRequest.toUri(): Uri =
+private fun Uri.linkKey(): String? =
+    pathSegments.singleOrNull()
+        ?.let { if (host == HOST_SEARCH) it else it.substringAfter(TvLinkKey.SEPARATOR, missingDelimiterValue = "") }
+        ?.takeIf(String::isNotEmpty)
+
+/** The request as a `putio://` URI: what saved state keeps, and with [key], what system links carry. */
+internal fun TvLaunchRequest.toUri(key: TvLinkKey? = null): Uri =
     when (this) {
         is TvLaunchRequest.OpenFile ->
-            "$SCHEME://${if (continueWatching) HOST_CONTINUE else HOST_FILES}/${id.value}".toUri()
+            "$SCHEME://${if (continueWatching) HOST_CONTINUE else HOST_FILES}/${key?.fileLinkSegment(id) ?: id.value}"
+                .toUri()
         is TvLaunchRequest.Search ->
-            Uri.Builder().scheme(SCHEME).authority(HOST_SEARCH).appendQueryParameter(QUERY, term.value).build()
+            Uri.Builder().scheme(SCHEME).authority(HOST_SEARCH).apply { key?.let { appendPath(it.value) } }
+                .appendQueryParameter(QUERY, term.value).build()
     }
 
 /** A pending launch request; it stays pending until the signed-in shell has acted on it. */

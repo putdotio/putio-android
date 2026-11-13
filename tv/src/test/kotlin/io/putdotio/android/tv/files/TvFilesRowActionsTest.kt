@@ -53,6 +53,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import io.putdotio.android.files.copyForTest
 import io.putdotio.android.tv.SNACKBAR_MILLIS
+import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TvTrashUndoOffer
 
@@ -207,7 +208,7 @@ class TvFilesRowActionsTest {
     }
 
     @Test
-    fun permanentDeletionConfirmsWithTheRedDeleteBeforeDispatching() {
+    fun permanentDeletionOpensOnCancelAndDispatchesOnlyFromTheRedDelete() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(
             state = { ready(item(3, "notes.txt", PutioFileType.TEXT)) },
@@ -217,16 +218,16 @@ class TvFilesRowActionsTest {
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
-        compose.onNodeWithText("Trash is off for this account, so notes.txt can't be restored.").assertIsDisplayed()
+        compose.onNodeWithText("Delete 1 item permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Trash is off for this account, so this can’t be undone.").assertIsDisplayed()
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(
@@ -236,7 +237,7 @@ class TvFilesRowActionsTest {
                 events,
             )
         }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
     }
 
     @Test
@@ -319,6 +320,78 @@ class TvFilesRowActionsTest {
         compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
     }
 
+    @Test
+    fun aFailedWatchedWriteShowsBrieflyInTheSnackbarWithoutAnOkDialog() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        var shown = 0
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                onEvent = { true },
+                onPlayMedia = {},
+                brief = brief,
+            )
+        }
+
+        compose.runOnIdle {
+            brief = TvBrief("Couldn’t update the watched state. No connection.") {
+                shown += 1
+                brief = null
+            }
+        }
+
+        compose.onNodeWithText("Couldn’t update the watched state.", substring = true).assertIsDisplayed()
+        compose.onAllNodesWithText("OK").assertCountEquals(0)
+        compose.runOnIdle { assertEquals(1, shown) }
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("Couldn’t update the watched state.", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun aBriefWaitsForTheUndoOfferInsteadOfReplacingIt() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)).withOutcome(trashedOutcome()),
+                onEvent = { true },
+                onPlayMedia = {},
+                trashUndo = rememberUndoOffer {},
+                brief = brief,
+            )
+        }
+        compose.onNodeWithText("Moved to Trash").assertIsDisplayed()
+
+        compose.runOnIdle { brief = TvBrief("Couldn’t update your pins. No connection.") { brief = null } }
+
+        compose.onNode(hasText("Undo") and hasClickAction()).assertIsDisplayed()
+        compose.onAllNodesWithText("Couldn’t update your pins.", substring = true).assertCountEquals(0)
+        compose.mainClock.advanceTimeBy(SNACKBAR_MILLIS + 500)
+        compose.onAllNodesWithText("Moved to Trash").assertCountEquals(0)
+        compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun aBriefWaitsForTheActionsSheetToClose() {
+        var brief by mutableStateOf<TvBrief?>(null)
+        compose.setTvContent {
+            TvFilesScreen(
+                state = ready(item(3, "notes.txt", PutioFileType.TEXT)),
+                onEvent = { true },
+                onPlayMedia = {},
+                pinnedIds = emptyList(),
+                brief = brief,
+            )
+        }
+        compose.onNodeWithContentDescription("notes.txt").performKeyInput { pressKey(Key.Menu) }
+        compose.onNode(hasText("Pin to Home") and isFocused()).assertIsDisplayed()
+
+        compose.runOnIdle { brief = TvBrief("Couldn’t update your pins. No connection.") { brief = null } }
+        compose.onAllNodesWithText("Couldn’t update your pins.", substring = true).assertCountEquals(0)
+
+        compose.onNode(hasText("Pin to Home") and isFocused()).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Couldn’t update your pins.", substring = true).assertIsDisplayed()
+    }
+
     private fun trashedOutcome(): FilesDeleteOutcome {
         val gone = item(4, "old.mp4", PutioFileType.VIDEO)
         return FilesDeleteOutcome(
@@ -384,10 +457,11 @@ class TvFilesRowActionsTest {
         compose.onNode(moveToTrash).performKeyInput { pressCenter() }
         compose.mainClock.autoAdvance = true
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
 
         compose.onNode(deletePermanently).assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Delete 1 item permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(
@@ -415,9 +489,9 @@ class TvFilesRowActionsTest {
         compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
         // The setting flipping under an open confirmation withdraws it rather than rewording it.
-        compose.onNodeWithText("Delete permanently?").assertIsDisplayed()
+        compose.onNodeWithText("Delete 1 item permanently?").assertIsDisplayed()
         compose.runOnIdle { trash = true }
-        compose.onAllNodesWithText("Delete permanently?").assertCountEquals(0)
+        compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
         compose.onNode(hasText("Move to trash") and isFocused()).assertExists()
     }
 
@@ -529,12 +603,12 @@ class TvFilesRowActionsTest {
             pressCenter()
         }
         compose.onNodeWithText(message).assertIsDisplayed()
-        compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressCenter() }
         compose.onAllNodesWithText(message).assertCountEquals(0)
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
         compose.onNode(hasText("Delete permanently") and hasClickAction()).performKeyInput { pressCenter() }
+        compose.onNodeWithText("Cancel").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNodeWithText("Delete").assertIsFocused().performKeyInput { pressCenter() }
         compose.runOnIdle {
             assertEquals(

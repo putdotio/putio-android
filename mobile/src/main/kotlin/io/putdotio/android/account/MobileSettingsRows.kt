@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -23,13 +24,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.PutioRadius
-import io.putdotio.android.monoFigures
+import io.putdotio.android.MobileSelectedRowTint
+import io.putdotio.android.monoValue
 import io.putdotio.android.design.PutioSwitch
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
@@ -94,6 +97,7 @@ internal fun MobileSettingsSegment(
     segment: SettingsSegment,
     modifier: Modifier = Modifier,
     interaction: Modifier = Modifier,
+    selected: Boolean = false,
     below: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -101,9 +105,11 @@ internal fun MobileSettingsSegment(
         modifier = modifier
             .fillMaxWidth()
             .clip(segment.shape())
-            .background(MaterialTheme.colorScheme.surfaceContainer),
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(if (selected) MobileSelectedRowTint else Color.Transparent),
     ) {
-        Column(interaction.fillMaxWidth(), content = content)
+        val marked = if (selected) Modifier.semantics { this.selected = true } else Modifier
+        Column(interaction.then(marked).fillMaxWidth(), content = content)
         below?.let { Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), content = it) }
     }
 }
@@ -118,12 +124,12 @@ internal sealed interface SettingsTrailing {
     data class Switch(val checked: Boolean, val enabled: Boolean) : SettingsTrailing
 }
 
-/** Plain text in a value slot; [mono] sets its figures in Berkeley Mono, for a number. */
+/** Plain text in a value slot; [mono] sets it in Berkeley Mono, for a number with its unit. */
 @Composable
 internal fun settingsValue(text: String, mono: Boolean = false, color: Color? = null): SettingsTrailing.Value =
     SettingsTrailing.Value(
         if (mono) {
-            monoFigures(text, MaterialTheme.typography.bodySmall.putioMono().toSpanStyle())
+            monoValue(text, MaterialTheme.typography.bodySmall.putioMono().toSpanStyle())
         } else {
             AnnotatedString(text)
         },
@@ -143,6 +149,7 @@ internal fun MobileSettingsLine(
     saving: Boolean = false,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     iconColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    alignTitleWithIcons: Boolean = false,
 ) {
     Row(
         modifier = modifier
@@ -152,8 +159,14 @@ internal fun MobileSettingsLine(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        icon?.let {
-            Icon(painterResource(it), contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
+        when {
+            icon != null -> Icon(
+                painterResource(icon),
+                contentDescription = null,
+                tint = iconColor,
+                modifier = Modifier.size(22.dp),
+            )
+            alignTitleWithIcons -> Spacer(Modifier.size(22.dp))
         }
         TitleAndTrailing(
             title = {

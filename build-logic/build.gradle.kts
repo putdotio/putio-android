@@ -7,14 +7,14 @@ dependencies {
     compileOnly(libs.android.gradle.plugin)
     compileOnly(libs.detekt.gradle.plugin)
     compileOnly(libs.sentry.gradle.plugin)
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation(gradleTestKit())
 }
 
-// The codegen tests read the repository's design contract, token graph and font lock.
+// The codegen tests read the repository's design contract, token graph and design, font and icon locks.
 tasks.test {
-    inputs.files("../DESIGN.md", "../design/tokens.dtcg.json", "../design/brand-fonts.lock.json")
+    inputs.files("../DESIGN.md", "../design/tokens.dtcg.json", "../design/brand-fonts.lock.json", "../design/phosphor-icons.lock.json", "../design/putio-design.lock.json")
         .withPropertyName("designSources")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }

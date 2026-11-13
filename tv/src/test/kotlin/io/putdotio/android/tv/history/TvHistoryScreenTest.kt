@@ -75,7 +75,7 @@ class TvHistoryScreenTest {
     private val clock = Clock.fixed(Instant.parse("2026-09-12T12:00:00Z"), ZoneOffset.UTC)
 
     @Test
-    fun eventsGroupUnderTheirDayWithThePhonesRowsAndCenterOpensTheFolder() {
+    fun eventsGroupUnderTheirDayWithThePhonesRowsAndCenterOpensTheFile() {
         show(historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)))
 
         compose.onNodeWithText("Today").assertIsDisplayed()
@@ -119,7 +119,7 @@ class TvHistoryScreenTest {
             pressKey(Key.DirectionLeft)
         }
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
-        assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(1))), log)
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.GoToFolder(HistoryFileId(1))), log)
     }
 
     @Test
@@ -228,14 +228,13 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun theClearConfirmFocusesTheRedButtonAndCancelSitsBesideIt() {
+    fun theClearConfirmFocusesCancelAndTheRedButtonSitsBesideIt() {
         var state by mutableStateOf(
             historyState(HistoryContent.Ready(items(), HistoryPaging.Complete), HistoryClearing.AwaitingConfirmation),
         )
         show { state }
 
         compose.onNodeWithText("Clear history?").assertIsDisplayed()
-        compose.onNode(hasText("Clear history") and isFocused()).performKeyInput { pressKey(Key.DirectionLeft) }
         compose.onNode(hasText("Cancel") and isFocused()).performKeyInput { pressKey(Key.DirectionRight) }
         compose.onNode(hasText("Clear history") and isFocused()).performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.ConfirmClear), log)
@@ -257,7 +256,7 @@ class TvHistoryScreenTest {
         )
 
         compose.onNodeWithText("Couldn’t clear history").assertIsDisplayed()
-        compose.onNodeWithText("Check the network and try again.").assertIsDisplayed()
+        compose.onNodeWithText("Check your internet connection.").assertIsDisplayed()
         compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.DismissClear), log)
     }
@@ -271,7 +270,7 @@ class TvHistoryScreenTest {
         )
         show { state }
 
-        compose.onNodeWithText("Can’t connect to put.io right now.").assertIsDisplayed()
+        compose.onNodeWithText("Can’t connect to put.io").assertIsDisplayed()
         compose.onNodeWithText("Try now").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.Retry), log)
 
@@ -291,39 +290,25 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun historyOffNamesTheSettingAndOpenAccountGoesThere() {
-        var opened = 0
-        show(onOpenAccount = { opened++ }) { historyState(HistoryContent.Disabled) }
-
-        compose.onNodeWithText("History is off.").assertIsDisplayed()
-        compose.onNodeWithText("Turn on Keep account history in Account to see what happens to your files.")
-            .assertIsDisplayed()
-        compose.onNode(hasText("Open Account") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(1, opened)
-        compose.onNode(hasText("Clear history") and hasClickAction()).assertDoesNotExist()
-    }
-
-    @Test
-    fun pagingLoadsMoreAndHandsFocusToTheLastRowWhenThePagesEnd() {
+    fun theNextPageLoadsNearTheEndAndAFailedPageRetriesOnlyFromTryAgain() {
         var state by mutableStateOf(
             historyState(HistoryContent.Ready(items(), HistoryPaging.Available(HistoryEventId(3)))),
         )
         show { state }
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
 
         compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
+            repeat(4) { pressKey(Key.DirectionDown) }
         }
-        compose.onNodeWithText("Load more").assertIsFocused().performKeyInput { pressCenter() }
-        assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
 
         compose.runOnIdle {
             state = historyState(
                 HistoryContent.Ready(items(), HistoryPaging.Loading(HistoryEventId(3), HistoryRequestId(2))),
             )
         }
-        compose.onNodeWithText("Loading more history").assertIsFocused()
+        compose.onNodeWithContentDescription("Loading more history").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
 
         compose.runOnIdle {
             state = historyState(
@@ -337,20 +322,31 @@ class TvHistoryScreenTest {
             )
         }
         compose.onNodeWithText("Couldn’t load more history.").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsDisplayed()
+        assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log)
+        compose.onNodeWithContentDescription("Open sintel.mp4").performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage, HistoryEvent.Retry), log)
 
         compose.runOnIdle {
+            state = historyState(
+                HistoryContent.Ready(items(), HistoryPaging.Loading(HistoryEventId(3), HistoryRequestId(3))),
+            )
+        }
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
+
+        compose.runOnIdle {
             state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
         }
-        compose.onNodeWithContentDescription("Open older.mkv").assertIsFocused()
+        compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
+        compose.onNodeWithContentDescription("Open older.mkv").assertIsDisplayed()
     }
 
     @Test
     fun aBlockedOpenIsExplainedAboveTheList() {
         val notices = listOf<Pair<FilesFailure, String>>(
             PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) to
-                "Couldn’t open this file. Check the network and try again.",
+                "Couldn’t open this file. Check your internet connection.",
             FilesFailure.NavigationBlocked to "This item can’t be opened right now. Check Files, then try again.",
         )
         var notice by mutableStateOf<FilesFailure?>(null)
@@ -388,7 +384,6 @@ class TvHistoryScreenTest {
     private fun show(
         notice: () -> FilesFailure? = { null },
         files: TvHistoryFiles = TvHistoryFiles.None,
-        onOpenAccount: () -> Unit = {},
         itemActions: TvHistoryItemActions? = null,
         state: () -> HistoryState,
     ) {
@@ -403,7 +398,6 @@ class TvHistoryScreenTest {
                 clock = clock,
                 files = files,
                 itemActions = itemActions,
-                onOpenAccount = onOpenAccount,
             )
         }
         compose.onNodeWithText("History").assertDoesNotExist()

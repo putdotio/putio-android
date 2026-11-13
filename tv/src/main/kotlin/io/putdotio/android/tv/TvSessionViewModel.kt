@@ -13,8 +13,8 @@ import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolderCounts
+import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.FilesMoveOutcome
 import io.putdotio.android.files.FilesMoveStatus
 import io.putdotio.android.tv.files.TvFilesEdits
 import io.putdotio.android.tv.files.isConfirmedTrash
@@ -31,8 +31,6 @@ import io.putdotio.android.files.FilesStreamUrls
 import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.PinnedFiles
-import io.putdotio.android.files.FilesDeleteMode
-import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.confirmedGone
 import io.putdotio.android.tv.home.TvHomePins
 import io.putdotio.android.tv.home.TvHomeReturn
@@ -42,6 +40,7 @@ import io.putdotio.android.tv.home.TvShowHomeSetting
 import io.putdotio.android.tv.home.TvShowHomeStore
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryFileOpener
+import io.putdotio.android.history.HistoryOpenTarget
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.tv.history.TvHistoryFiles
 import io.putdotio.android.settings.AndroidAppConfigState
@@ -54,6 +53,7 @@ import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.android.search.RecentSearchStoreOwner
 import io.putdotio.android.search.SearchController
 import io.putdotio.android.search.SearchFolderNames
@@ -68,9 +68,7 @@ import io.putdotio.android.settings.diagnosticsAllowed
 import io.putdotio.android.settings.productAnalyticsAnswers
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
-import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashController
-import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
@@ -78,7 +76,6 @@ import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.player.TvPlaybackReporting
 import io.putdotio.android.tv.watchnext.TvWatchNextPlayback
 import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
-import io.putdotio.android.tv.watchnext.toWatchNextMedia
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import kotlinx.coroutines.CoroutineScope
@@ -93,7 +90,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -148,6 +144,8 @@ internal enum class TvExternalOpen {
  * The controllers of one signed-in session. They survive navigation and configuration
  * changes together and are closed together when the session ends.
  */
+// One entry point per change the viewer makes to the signed-in session, which owns the state they share.
+@Suppress("TooManyFunctions")
 internal class TvSession internal constructor(
     dependencies: TvSessionDependencies,
     historyEnabled: Boolean,
@@ -179,20 +177,22 @@ internal class TvSession internal constructor(
     private val streamUrls = dependencies.streamUrls
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
-    private val historyOpenChannel = Channel<FilesItem>(Channel.BUFFERED)
+    private val historyOpenChannel = Channel<TvExternalOpen>(Channel.BUFFERED)
     private val historyOpener = HistoryFileOpener(
         history.navigation,
         dependencies.filesItemResolver,
-        { item, _ -> historyOpenChannel.send(item) },
+        { item, origin, target ->
+            historyOpenChannel.send(openExternal(item, origin, playMedia = target == HistoryOpenTarget.File))
+        },
         scope,
     )
     private val fileActionFailures = TvActionFailure()
     private val watchedJobs = mutableMapOf<FilesItemId, Job>()
     private val handledBrowserEdits = mutableSetOf<FilesRequestId>()
-
-    private val watchNextHandledDeletes = mutableSetOf<FilesRequestId>()
+    private val itemChanges = TvItemChangeBus()
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
+    private val mutablePlaybackInBackground = MutableStateFlow(false)
     /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null
     private var durationLookup: Job? = null
@@ -208,7 +208,7 @@ internal class TvSession internal constructor(
         dependencies.trashRepository,
         files,
         scope,
-        onUndone = { itemEditEffects.undone(it) },
+        onUndone = { itemChanges.publish(TvItemChange.Restored(it)) },
     )
 
     val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
@@ -218,10 +218,7 @@ internal class TvSession internal constructor(
     val searchFolderNames = SearchFolderNames(dependencies.filesItemResolver, search.state, scope)
 
     internal val positionSaved: (fileId: Long, seconds: Double) -> Unit = { fileId, seconds ->
-        files.dispatch(FilesBrowserEvent.PlaybackPositionReported(FilesItemId(fileId), seconds))
-        search.positionSaved(FilesItemId(fileId), seconds)
-        watchNextPlayback.saved(fileId, seconds)
-        continueWatching.positionSaved(FilesItemId(fileId), seconds)
+        itemChanges.publish(TvItemChange.PositionSaved(FilesItemId(fileId), seconds))
     }
 
     /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
@@ -246,35 +243,25 @@ internal class TvSession internal constructor(
 
     val historyFiles = TvHistoryFiles(dependencies.filesItemResolver)
 
-    private val itemEditEffects: TvItemEditEffects = TvItemEditEffects(
-        search,
-        files,
-        historyFiles,
-        homePins,
-        refreshTrash = { trash.refreshIfLoaded() },
-        onGone = { item, outcome ->
-            watchNext.fileGone(item.id.value)
-            continueWatching.removed(listOf(outcome))
-            if (outcome.isConfirmedTrash) trashUndoOffer.offer(outcome)
-        },
-    )
-
     val itemThumbnails = TvItemThumbnails(::originalStreamUrl)
 
     val filesEdits = TvFilesEdits(
         repository = filesRepository,
         scope = scope,
         changes = TvItemChanges(
-            onUpdated = itemEditEffects::edited,
-            onRemoved = itemEditEffects::removed,
+            onUpdated = { itemChanges.publish(TvItemChange.Edited(it)) },
+            onRemoved = { _, outcome ->
+                itemChanges.publish(TvItemChange.Removed(outcome, byFiles = false))
+                if (outcome.isConfirmedTrash) trashUndoOffer.offer(outcome)
+            },
             onSessionRejected = fileActionFailures::report,
         ),
     )
 
     val recentSearchFailure = recentSearches.failure
 
-    /** A history event's file, resolved and ready for Files to open. */
-    val historyOpens: Flow<FilesItem> = historyOpenChannel.receiveAsFlow()
+    /** What opening a history event's file did. */
+    val historyOpens: Flow<TvExternalOpen> = historyOpenChannel.receiveAsFlow()
 
     /** Why the last history row could not be resolved; cleared by the next success or dismissal. */
     val historyOpenFailure: StateFlow<PutioFailure?> = historyOpener.failure
@@ -298,43 +285,20 @@ internal class TvSession internal constructor(
         scope.launch {
             continueWatching.reconcile(filesItemResolver::resolveItem)?.let(fileActionFailures::report)
         }
+        itemChanges.listen(files::hear)
+        itemChanges.listen(TvSearchChanges(search))
+        itemChanges.listen(historyFiles::hear)
+        itemChanges.listen(homePins::hear)
+        itemChanges.listen(continueWatching::hear)
+        itemChanges.listen { watchNext.hear(it, watchNextPlayback) }
+        itemChanges.listen(trash::hear)
         scope.launch {
             files.state
-                .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::confirmsAnyGone) } }
+                .map { state -> state.stack.flatMap { it.browserChanges() } }
                 .distinctUntilChanged()
-                .collect { deletes ->
-                    continueWatching.removed(deletes)
-                    deletes.filter { watchNextHandledDeletes.add(it.requestId) }
-                        .flatMap { it.confirmedGone() }
-                        .forEach {
-                            watchNext.fileGone(it.value)
-                            homePins.itemRemoved(it)
-                        }
-                }
-        }
-        scope.launch {
-            files.state
-                .map { state -> state.stack.mapNotNull { it.deleteOutcome?.takeIf(::movesAnyToTrash) } }
-                .distinctUntilChanged()
-                .collect { moved -> if (moved.isNotEmpty()) trash.refreshIfLoaded() }
-        }
-        scope.launch {
-            files.state
-                .map { state -> state.stack.mapNotNull { it.renameCompletion } }
-                .distinctUntilChanged()
-                .collect { renames ->
-                    renames.filter { handledBrowserEdits.add(it.requestId) }
-                        .forEach { itemEditEffects.renamedInFiles(it.intent.itemId, it.intent.name) }
-                }
-        }
-        scope.launch {
-            files.state
-                .map { state -> state.stack.mapNotNull { it.moveOutcome?.takeIf { move -> move.moved } } }
-                .distinctUntilChanged()
-                .collect { moves ->
-                    moves.filter { handledBrowserEdits.add(it.requestId) }.forEach { move ->
-                        move.intent.itemIds.forEach { itemEditEffects.movedInFiles(it, move.intent.destinationId) }
-                    }
+                .collect { edits ->
+                    edits.filter { handledBrowserEdits.add(it.first) }
+                        .forEach { (_, changes) -> changes.forEach(itemChanges::publish) }
                 }
         }
         scope.launch {
@@ -355,16 +319,21 @@ internal class TvSession internal constructor(
     fun retryRecentSearches() = recentSearches.retry()
 
     /**
-     * The file playing full-screen, or null while the shell shows. It lives here so playback
-     * survives configuration changes and ends with the session.
+     * The file playing, or null while nothing plays. It lives here so playback survives
+     * configuration changes and ends with the session.
      */
     val playback: StateFlow<PlaybackController?> = mutablePlayback.asStateFlow()
+
+    val playbackInBackground: StateFlow<Boolean> = mutablePlaybackInBackground.asStateFlow()
 
     /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
     val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
 
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
         playbackRepository::findNeighbours
+
+    val findSubtitles: suspend (PlaybackTarget) -> PlaybackRepositoryResult<List<PlaybackSubtitle>> =
+        playbackRepository::listSubtitles
 
     fun play(item: FilesItem, start: TvPlayStart = TvPlayStart.Resume, method: StreamingMethod? = null) {
         durationLookup?.cancel()
@@ -423,6 +392,7 @@ internal class TvSession internal constructor(
         )
         val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
         playbackReporting.startPlayback()
+        mutablePlaybackInBackground.value = false
         mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item
         watchNextPlayback.follow(controller)
@@ -435,7 +405,7 @@ internal class TvSession internal constructor(
             }
         }
         continueSaved?.cancel()
-        continueSaved = scope.launch { controller.answerResumePrompt(start.answer) }
+        continueSaved = scope.launch { controller.answerResumePrompts(item.id, start.answer) }
     }
 
     /**
@@ -449,16 +419,37 @@ internal class TvSession internal constructor(
         watchNextPlayback.stopFollowing()
         continueWatchingFollow?.cancel()
         val stopped = mutablePlayback.value ?: return
-        val last = stopped.state.value.target.fileId
+        val shellShown = mutablePlaybackInBackground.value
+        mutablePlaybackInBackground.value = false
+        if (shellShown) {
+            mutablePlayback.value = null
+        } else {
+            returnToShell(stopped)
+        }
+        stopped.close()
+    }
+
+    fun backgroundPlayback() {
+        val playing = mutablePlayback.value ?: return
+        if (mutablePlaybackInBackground.value) return
+        mutablePlaybackInBackground.value = true
+        returnToShell(playing, keepPlaying = true)
+    }
+
+    fun foregroundPlayback() {
+        if (mutablePlayback.value != null) mutablePlaybackInBackground.value = false
+    }
+
+    private fun returnToShell(playing: PlaybackController, keepPlaying: Boolean = false) {
+        val last = playing.state.value.target.fileId
         if (playingFromHome) homeReturn.played(last)
-        mutablePlayback.value = null
+        if (!keepPlaying) mutablePlayback.value = null
         val start = playbackStart
         val folder = start?.parentId
         if (folder != null && last != start.id) {
             filesFocusMemory[folder.value] = last.value
             files.dispatch(FilesBrowserEvent.RevealItem(folder, last))
         }
-        stopped.close()
     }
 
     fun setWatched(item: FilesItem, watched: Boolean) {
@@ -475,12 +466,7 @@ internal class TvSession internal constructor(
             }
             if (!isActive || watchedJobs[item.id] !== coroutineContext[Job]) return@launch
             when (result) {
-                is PutioResult.Success -> {
-                    files.dispatch(FilesBrowserEvent.PlaybackPositionReported(item.id, seconds))
-                    search.positionSaved(item.id, seconds)
-                    watchNext.positionSaved(item.toWatchNextMedia(), seconds)
-                    continueWatching.positionSaved(item.id, seconds)
-                }
+                is PutioResult.Success -> itemChanges.publish(TvItemChange.PositionSaved(item.id, seconds, item))
                 is PutioResult.Failure -> fileActionFailures.report(result.failure)
             }
         }
@@ -598,13 +584,17 @@ internal enum class TvPlayStart(val answer: PlaybackEvent) {
     StartOver(PlaybackEvent.Restart),
 }
 
-private suspend fun PlaybackController.answerResumePrompt(answer: PlaybackEvent) {
-    val settled = state.map { it.content }
-        .first { it !is PlaybackContent.Loading && it !is PlaybackContent.Conversion }
-    if (settled is PlaybackContent.AwaitingResume) dispatch(answer)
+internal suspend fun PlaybackController.answerResumePrompts(opened: FilesItemId, answer: PlaybackEvent) {
+    var movedOn = false
+    state.collect { playing ->
+        if (playing.target.fileId != opened) movedOn = true
+        if (playing.content is PlaybackContent.AwaitingResume) {
+            dispatch(if (movedOn) PlaybackEvent.Resume else answer)
+        }
+    }
 }
 
-// A position within 10 s of the end starts over, which needs the duration that search results
+// A position past 95 % starts over, which needs the duration that search results
 // and single-file reads omit; listing the file itself returns it as the parent. Without one,
 // playback continues from the saved position.
 private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {
@@ -635,13 +625,12 @@ internal class TvActionFailure {
     }
 }
 
-private fun confirmsAnyGone(outcome: FilesDeleteOutcome): Boolean = outcome.confirmedGone().isNotEmpty()
-
-private fun TrashController.refreshIfLoaded() {
-    if (state.value.content is TrashContent.Loaded) dispatch(TrashEvent.Refresh)
-}
-
-private fun movesAnyToTrash(outcome: FilesDeleteOutcome): Boolean =
-    outcome.intent.mode == FilesDeleteMode.TRASH && confirmsAnyGone(outcome)
-
-private val FilesMoveOutcome.moved: Boolean get() = status == FilesMoveStatus.MOVED
+private fun FilesFolderState.browserChanges(): List<Pair<FilesRequestId, List<TvItemChange>>> = listOfNotNull(
+    deleteOutcome?.takeIf { it.confirmedGone().isNotEmpty() }?.let {
+        it.requestId to listOf(TvItemChange.Removed(it, byFiles = true))
+    },
+    renameCompletion?.let { it.requestId to listOf(TvItemChange.Renamed(it.intent.itemId, it.intent.name)) },
+    moveOutcome?.takeIf { it.status == FilesMoveStatus.MOVED }?.let { move ->
+        move.requestId to move.intent.itemIds.map { TvItemChange.Moved(it, move.intent.destinationId) }
+    },
+)

@@ -42,17 +42,22 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.action
 import io.putdotio.android.playback.apiReason
+import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.retryable
 import io.putdotio.android.playback.starting
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvLoadingIndicator
+import io.putdotio.android.tv.isUnknown
+import io.putdotio.android.tv.tvCopy
+import io.putdotio.android.tv.tvUnknownLine
 import io.putdotio.android.tv.withFullLineBox
 import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
 
 internal const val TV_CONVERSION_PERCENT_TAG = "tv-player-conversion-percent"
 internal const val TV_CONVERSION_PROGRESS_TAG = "tv-player-conversion-progress"
+internal const val TV_CONVERSION_QUEUED_TAG = "tv-player-conversion-queued"
 
 @Composable
 private fun TvPlayerStateFrame(
@@ -77,9 +82,9 @@ private fun TvPlayerStateFrame(
 }
 
 @Composable
-internal fun TvPlayerLoading(target: PlaybackTarget) {
+internal fun TvPlayerLoading(target: PlaybackTarget, @StringRes message: Int? = R.string.tv_player_loading) {
     TvPlayerStateFrame(target, dimmed = false) {
-        TvLoadingIndicator(stringResource(R.string.tv_player_loading))
+        TvLoadingIndicator(message?.let { stringResource(it) })
     }
 }
 
@@ -89,13 +94,15 @@ internal fun TvConversionScreen(
     conversion: PlaybackContent.Conversion,
     onRefresh: () -> Unit,
     onStartConversion: () -> Unit,
+    onCancel: () -> Unit,
     onPlayInVlc: (() -> Unit)? = null,
 ) {
     PlaybackConversionPolling(conversion, onRefresh)
     val state = conversion.state
     val polling = state == PlaybackConversionState.Queued || state is PlaybackConversionState.Converting
-    val running = conversion.starting || polling
+    val running = !conversion.statusCheckFailed && (conversion.starting || polling)
     val action = when (conversion.action) {
+        PlaybackConversionAction.RetryStatusCheck -> R.string.tv_player_retry to onRefresh
         PlaybackConversionAction.ConvertAgain -> R.string.tv_player_convert_again to onStartConversion
         PlaybackConversionAction.CheckAgain -> R.string.tv_player_check_again to onRefresh
         null -> (R.string.tv_player_check_again to onRefresh).takeIf { polling }
@@ -104,13 +111,13 @@ internal fun TvConversionScreen(
         TvEmptyState(
             glyph = null,
             headline = stringResource(R.string.tv_player_conversion_title),
-            message = if (running) stringResource(R.string.tv_player_conversion_message) else state.message(),
+            message = conversion.message(running),
             action = action?.let { (label, onClick) ->
                 TvEmptyStateAction(
                     label = stringResource(label),
                     onClick = onClick,
                     icon = R.drawable.ic_ph_arrows_clockwise,
-                    enabled = polling || conversion.refreshRequestId == null,
+                    enabled = polling || conversion.statusCheckFailed || conversion.refreshRequestId == null,
                 )
             },
             secondaryAction = onPlayInVlc?.let { onClick ->
@@ -120,8 +127,18 @@ internal fun TvConversionScreen(
                     icon = R.drawable.ic_ph_traffic_cone,
                 )
             },
+            tertiaryAction = TvEmptyStateAction(
+                label = stringResource(R.string.tv_dialog_cancel),
+                onClick = onCancel,
+                icon = R.drawable.ic_ph_x,
+            ).takeIf { running || conversion.statusCheckFailed },
             supporting = if (running) {
-                { TvConversionProgress((state as? PlaybackConversionState.Converting)?.percent) }
+                {
+                    TvConversionProgress(
+                        percent = (state as? PlaybackConversionState.Converting)?.percent,
+                        queued = state == PlaybackConversionState.Queued,
+                    )
+                }
             } else {
                 null
             },
@@ -131,7 +148,7 @@ internal fun TvConversionScreen(
 }
 
 @Composable
-private fun TvConversionProgress(percent: Double?) {
+private fun TvConversionProgress(percent: Double?, queued: Boolean) {
     Column(
         modifier = Modifier.padding(bottom = ACTION_EXTRA_GAP),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -161,11 +178,19 @@ private fun TvConversionProgress(percent: Double?) {
                 gapSize = 0.dp,
                 drawStopIndicator = {},
             )
+        }
+        val line = when {
+            percent != null -> stringResource(R.string.tv_player_conversion_percent, percent.roundToInt())
+            queued -> stringResource(R.string.tv_player_conversion_queued)
+            else -> null
+        }
+        if (line != null) {
+            val lineStyle = MaterialTheme.typography.bodySmall
             Text(
-                text = stringResource(R.string.tv_player_conversion_percent, percent.roundToInt()),
-                style = MaterialTheme.typography.bodySmall
+                text = line,
+                style = lineStyle
                     .copy(
-                        fontFamily = PutioTypeScale.tvMono.fontFamily,
+                        fontFamily = if (percent != null) PutioTypeScale.tvMono.fontFamily else lineStyle.fontFamily,
                         fontSize = PERCENT_SIZE,
                         lineHeight = PERCENT_LINE,
                     )
@@ -173,12 +198,20 @@ private fun TvConversionProgress(percent: Double?) {
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
                     .padding(top = PERCENT_GAP)
-                    .testTag(TV_CONVERSION_PERCENT_TAG)
+                    .testTag(if (percent != null) TV_CONVERSION_PERCENT_TAG else TV_CONVERSION_QUEUED_TAG)
                     .semantics { liveRegion = LiveRegionMode.Polite },
             )
         }
     }
 }
+
+@Composable
+private fun PlaybackContent.Conversion.message(running: Boolean): String =
+    when {
+        statusCheckFailed -> stringResource(R.string.tv_player_conversion_status_failed)
+        running -> stringResource(R.string.tv_player_conversion_message)
+        else -> state.message()
+    }
 
 @Composable
 private fun PlaybackConversionState.message(): String =
@@ -198,32 +231,31 @@ internal fun TvPlaybackFailureScreen(
     failure: PlaybackFailure,
     onRetry: () -> Unit,
     onOpenInVlc: (() -> Unit)?,
+    onBack: () -> Unit,
 ) {
     val cantPlay = failure is PlaybackFailure.MediaUnsupported
+    val lead = when {
+        failure.retryable -> TvEmptyStateAction(
+            label = stringResource(R.string.tv_player_retry),
+            onClick = onRetry,
+            icon = R.drawable.ic_ph_arrows_clockwise,
+        )
+        cantPlay && onOpenInVlc != null -> tvOpenInVlcAction(onOpenInVlc)
+        else -> null
+    }
     TvPlayerStateFrame(target, dimmed = true) {
         TvEmptyState(
             glyph = if (cantPlay) PutioEmptyGlyph.NoResults else PutioEmptyGlyph.CouldNotLoad,
-            headline = stringResource(
-                if (cantPlay) R.string.tv_player_cant_play_title else R.string.tv_player_error_title,
-            ),
+            headline = stringResource(failure.headlineResource()),
             message = if (cantPlay) {
                 stringResource(R.string.tv_player_cant_play_message)
             } else {
-                failure.apiReason ?: stringResource(failure.messageResource())
+                failure.apiReason
+                    ?: failure.putioFailure?.takeIf { it.isUnknown }?.tvUnknownLine()
+                    ?: stringResource(failure.messageResource())
             },
-            action = when {
-                failure.retryable -> TvEmptyStateAction(
-                    label = stringResource(R.string.tv_player_retry),
-                    onClick = onRetry,
-                    icon = R.drawable.ic_ph_arrows_clockwise,
-                )
-                cantPlay && onOpenInVlc != null -> TvEmptyStateAction(
-                    label = stringResource(R.string.tv_player_open_in_vlc),
-                    onClick = onOpenInVlc,
-                    icon = R.drawable.ic_ph_traffic_cone,
-                )
-                else -> null
-            },
+            action = lead ?: tvGoBackAction(onBack),
+            secondaryAction = lead?.let { tvGoBackAction(onBack) },
             glyphRunPerCharacter = !cantPlay,
             glyphModifier = if (cantPlay) Modifier.offset(y = -SHRUG_LIFT) else Modifier,
             messageColor = MaterialTheme.colorScheme.onSurface,
@@ -232,34 +264,79 @@ internal fun TvPlaybackFailureScreen(
 }
 
 @Composable
-internal fun TvUnsupportedScreen(target: PlaybackTarget) {
+internal fun TvPlaybackStalledScreen(
+    target: PlaybackTarget,
+    sheetOpen: Boolean,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+) {
+    TvPlayerStateFrame(target, dimmed = true) {
+        TvEmptyState(
+            claimFocus = !sheetOpen,
+            glyph = PutioEmptyGlyph.CouldNotLoad,
+            headline = stringResource(R.string.tv_player_stalled),
+            message = stringResource(R.string.tv_error_network),
+            action = TvEmptyStateAction(
+                label = stringResource(R.string.tv_player_retry),
+                onClick = onRetry,
+                icon = R.drawable.ic_ph_arrows_clockwise,
+            ),
+            secondaryAction = tvGoBackAction(onBack),
+            glyphRunPerCharacter = true,
+            messageColor = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+@Composable
+internal fun TvUnsupportedScreen(
+    target: PlaybackTarget,
+    onPlayInVlc: (() -> Unit)?,
+    onBack: () -> Unit,
+) {
+    val vlc = onPlayInVlc?.let { tvOpenInVlcAction(it) }
     TvPlayerStateFrame(target, dimmed = true) {
         TvEmptyState(
             glyph = PutioEmptyGlyph.NoResults,
             headline = stringResource(R.string.tv_player_unsupported_title),
             message = stringResource(R.string.tv_player_unsupported_video_message)
                 .takeIf { target.mediaType == PlaybackMediaType.VIDEO },
+            action = vlc ?: tvGoBackAction(onBack),
+            secondaryAction = vlc?.let { tvGoBackAction(onBack) },
         )
     }
 }
+
+@Composable
+private fun tvOpenInVlcAction(onClick: () -> Unit): TvEmptyStateAction =
+    TvEmptyStateAction(
+        label = stringResource(R.string.tv_player_open_in_vlc),
+        onClick = onClick,
+        icon = R.drawable.ic_ph_traffic_cone,
+    )
+
+@Composable
+private fun tvGoBackAction(onBack: () -> Unit): TvEmptyStateAction =
+    TvEmptyStateAction(label = stringResource(R.string.tv_files_go_back), onClick = onBack)
+
+@StringRes
+private fun PlaybackFailure.headlineResource(): Int =
+    when {
+        this is PlaybackFailure.MediaUnsupported -> R.string.tv_player_cant_play_title
+        this is PlaybackFailure.MediaCredentialUnavailable -> R.string.tv_player_error_link_expired_title
+        putioFailure is PutioFailure.NetworkUnavailable -> R.string.tv_player_connection_lost
+        putioFailure is PutioFailure.Unexpected -> R.string.tv_player_error_crash
+        else -> R.string.tv_player_error_title
+    }
 
 @StringRes
 private fun PlaybackFailure.messageResource(): Int =
     when (this) {
         is PlaybackFailure.MediaCredentialUnavailable -> R.string.tv_player_error_link_expired
         is PlaybackFailure.MediaUnsupported -> R.string.tv_player_cant_play_message
-        is PlaybackFailure.Putio -> when (failure) {
-            is PutioFailure.AuthenticationRequired -> R.string.tv_error_session
-            is PutioFailure.NetworkUnavailable -> R.string.tv_error_network
-            is PutioFailure.RateLimited -> R.string.tv_error_rate_limited
-            is PutioFailure.AccessDenied -> R.string.tv_player_error_forbidden
-            is PutioFailure.ApiRejected,
-            is PutioFailure.Misconfigured,
-            -> R.string.tv_player_error_rejected
-            is PutioFailure.ServerUnavailable,
-            is PutioFailure.InvalidResponse,
-            is PutioFailure.Unexpected,
-            -> R.string.tv_error_unavailable
+        is PlaybackFailure.Putio -> when {
+            failure is PutioFailure.AccessDenied -> R.string.tv_player_error_forbidden
+            else -> failure.tvCopy()?.line ?: R.string.tv_player_error_rejected
         }
     }
 
@@ -274,3 +351,5 @@ private val ACTION_EXTRA_GAP = 3.dp
 private val PERCENT_SIZE = 13.sp
 private val PERCENT_LINE = 17.sp
 private val SHRUG_LIFT = 2.dp
+
+internal fun Boolean.unless(other: Boolean): Boolean = this && !other

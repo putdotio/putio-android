@@ -24,7 +24,7 @@ public class SdkHistoryRepository internal constructor(
 
     override suspend fun load(before: HistoryEventId?): PutioResult<HistoryPage> =
         putioRequest {
-            val response = listEvents(HistoryListQuery(before = before?.value))
+            val response = listEvents(HistoryListQuery(perPage = HISTORY_PAGE_SIZE, before = before?.value))
             HistoryPage(response.events.map(HistoryEvent::toHistoryItem), response.hasMore)
         }
 
@@ -64,3 +64,5 @@ private fun HistoryEvent.notice(
     subject.nonBlank()?.let { HistoryEventKind.Notice(type, it, fileId) } ?: HistoryEventKind.Other(this.type.raw)
 
 private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)
+
+private const val HISTORY_PAGE_SIZE = 50

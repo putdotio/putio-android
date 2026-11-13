@@ -31,7 +31,7 @@ class TvPlayerTracksTest {
                 TvPlayerControl.Stream,
                 TvPlayerControl.NextEpisode,
             ),
-            tvPlayerChips(audioTracks = 1, subtitlesHidden = false, nextEpisode = true, original = true),
+            tvPlayerChips(audioTracks = 1, subtitlesHidden = false, nextEpisode = true, stream = true),
         )
         assertEquals(
             listOf(TvPlayerControl.Speed),
@@ -40,7 +40,7 @@ class TvPlayerTracksTest {
                 subtitlesHidden = false,
                 nextEpisode = false,
                 audioOnly = true,
-                original = true,
+                stream = true,
             ),
         )
         assertEquals(

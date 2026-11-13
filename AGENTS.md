@@ -31,12 +31,12 @@ script headers and `--help` own the harness.
 - A change to TV startup, sign-in or Home regenerates the TV baseline profile
   with `scripts/generate-baseline-profile.sh` on an emulator you booted.
 - Never hand-write design values or edit generated output.
-  `scripts/sync-design-assets.sh` (macOS only) and `scripts/generate-icons.sh`
-  write them from the locks in `design/`.
+  `./gradlew syncDesignAssets` and `./gradlew generateIcons` write them from the
+  locks in `design/`.
 - To take a design release:
   1. Set the lock's version, tarball, and `integrity`
      (`npm view @putdotio/design@<version> dist.integrity`).
-  2. Run the sync.
+  2. Run `./gradlew syncDesignAssets`.
   3. Replace each digest it reports as unlocked.
 
 ## Hazards
@@ -54,8 +54,9 @@ script headers and `--help` own the harness.
   Trash is off. Restore any account setting you change. Never use a personal
   profile or put tokens in the repo; app tokens belong in Android secure
   storage. Sign the mobile debug app in as `devs-auto` with
-  `./scripts/sign-in-devs-auto.sh <serial>`; each approval adds a grant until
-  you sign out in the app.
+  `./scripts/sign-in-devs-auto.sh <serial>`. put.io allows few device codes per
+  IP, so the script caches the app's token per host and reuses it on fresh
+  devices. Signing out in the app revokes that token for every run on the host.
 - **Shared emulators.** The machine may be running other emulators. The scripts
   reuse preexisting ones and stop only the serial they booted; never kill
   emulators by name or delete AVDs the harness did not create. A lane that
@@ -105,11 +106,12 @@ refreshes them. Don't edit their files.
 
 ```bash
 ./gradlew verify                                                  # canonical gate
+./gradlew verifyMobile                                            # one lane: verifyDocs, verifyScripts, verifyLibraries, verifyMobile, verifyTv, verifyRelease
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ```
 
-The root [`verify` task](build.gradle.kts)'s `dependsOn` list is the gate's
-inventory. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
+The root [`verify` task](build.gradle.kts) is the union of its `verify*` lane
+tasks; the build cache skips the work a change does not reach. Its script checks need `bash` 3.2+, `python3`, `node`, `ffprobe`,
 and `ffmpeg` with the `freezedetect` filter and `libx264` encoder on PATH.
 `markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
@@ -136,7 +138,7 @@ that matches. Report skipped or unavailable proof.
 | UI, navigation, playback, or launch | Mobile: the affected feature in [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane   |
 | Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery) |
 | Live API behavior                   | Mobile: [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md) with its fixture ledger; TV: the lane's `devs-auto` steps                              |
-| Design tokens or icons              | `./scripts/sync-design-assets.sh` or `./scripts/generate-icons.sh`, then `./gradlew verify`                                                                         |
+| Design tokens or icons              | `./gradlew syncDesignAssets` or `./gradlew generateIcons`, then `./gradlew verify`                                                                                  |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                              |
 
 Docs stay high level: a new product area or module boundary updates
@@ -148,10 +150,10 @@ DESIGN.md. Screen-level UI changes edit neither.
 Open pull requests against `main`. A merge runs only
 [CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
 
-- `Build release` and `Verify Android app` split `verify` plus the four debug
-  assembles between them. When either command changes, compare their
-  `--dry-run` task lists with the full command's; together they must run
-  exactly the same tasks.
+- CI runs the `verify*` lanes and debug assembles in three jobs: Mobile;
+  TV, docs and scripts; Release and libraries. A Markdown-only pull request runs only
+  Docs, and one that touches only files no build reads runs none; the build
+  cache skips what a change does not reach.
 
 ### Google Play delivery
 

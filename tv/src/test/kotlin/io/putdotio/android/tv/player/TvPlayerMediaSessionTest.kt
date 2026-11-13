@@ -63,8 +63,6 @@ class TvPlayerMediaSessionTest {
                     state = readyState(),
                     onBack = {},
                     onRetry = {},
-                    onResume = {},
-                    onRestart = {},
                     onPlayerFailure = { _, _ -> },
                     playerFactory = factory,
                 )
@@ -112,7 +110,7 @@ class TvPlayerMediaSessionTest {
     }
 
     @Test
-    fun aSystemPauseDuringAScrubKeepsItsTargetAndBackNoLongerResumes() {
+    fun aSystemPauseAfterASkipHoldsAndBackOnlyHidesTheControls() {
         val player = FakePlayer()
         val sessions = mutableListOf<MediaSession>()
         compose.showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
@@ -121,23 +119,23 @@ class TvPlayerMediaSessionTest {
             pressKey(Key.DirectionLeft)
         }
         compose.settle()
-        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.runOnIdle { assertTrue("A skip never pauses", player.playWhenReady) }
 
         val controller = connect(sessions.single())
         controller.pause()
         idleSession()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:27")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:32")
 
         compose.back()
         compose.runOnIdle {
-            assertEquals("Dismissing seek mode never seeks", 42_000L, player.currentPosition)
+            assertEquals(32_000L, player.currentPosition)
             assertFalse("The system's pause holds", player.playWhenReady)
         }
         controller.release()
     }
 
     @Test
-    fun aSystemSeekDuringAScrubReplacesItsTarget() {
+    fun aSystemSeekAfterASkipStands() {
         val player = FakePlayer()
         val sessions = mutableListOf<MediaSession>()
         compose.showReady(player, resumePositionMillis = 42_000L, playerFactory = sessionFactory(player, sessions))
@@ -146,7 +144,7 @@ class TvPlayerMediaSessionTest {
             pressKey(Key.DirectionLeft)
         }
         compose.settle()
-        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:27")
+        compose.onNodeWithTag(TV_PLAYER_ELAPSED_TAG).assertTextEquals("0:32")
 
         val controller = connect(sessions.single())
         controller.seekTo(90_000L)
@@ -155,7 +153,10 @@ class TvPlayerMediaSessionTest {
 
         compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.DirectionCenter) }
         compose.settle()
-        compose.runOnIdle { assertEquals("Center cannot undo the system's seek", 90_000L, player.currentPosition) }
+        compose.runOnIdle {
+            assertEquals("Center cannot undo the system's seek", 90_000L, player.currentPosition)
+            assertFalse("Center on the seek bar toggles play", player.playWhenReady)
+        }
         controller.release()
     }
 

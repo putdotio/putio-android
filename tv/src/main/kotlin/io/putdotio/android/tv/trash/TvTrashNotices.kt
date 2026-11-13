@@ -11,11 +11,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.trash.TrashAction
 import io.putdotio.android.trash.TrashActionCheck
@@ -27,6 +29,7 @@ import io.putdotio.android.trash.TrashRestoreCheck
 import io.putdotio.android.trash.TrashRestoreOutcome
 import io.putdotio.android.trash.TrashRestoreSubmission
 import io.putdotio.android.trash.TrashState
+import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvPaneFocusOwner
@@ -42,14 +45,17 @@ internal fun TvTrashNotices(
     val enabled = state.authenticationFailure == null
     state.restoreOutcome?.let { TvTrashRestoreOutcome(it, enabled, onEvent, owner) }
     state.actionOutcome?.let { TvTrashActionOutcome(it, enabled, onEvent, owner) }
-    (state.content as? TrashContent.Loaded)?.refreshFailure?.let { failure ->
-        TvTrashNotice(
-            text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
-            action = stringResource(R.string.tv_files_retry),
-            onAction = { onEvent(TrashEvent.Refresh) },
-            owner = owner,
-        )
-    }
+    val offline = LocalTvOffline.current
+    (state.content as? TrashContent.Loaded)?.refreshFailure
+        ?.takeUnless { offline && it is PutioFailure.NetworkUnavailable }
+        ?.let { failure ->
+            TvTrashNotice(
+                text = stringResource(R.string.tv_trash_refresh_error, failure.tvMessageText()),
+                action = stringResource(R.string.tv_files_retry),
+                onAction = { onEvent(TrashEvent.Refresh) },
+                owner = owner,
+            )
+        }
 }
 
 @Composable
@@ -147,7 +153,7 @@ private fun TrashActionOutcome.tvText(): String = when (check) {
     TrashActionCheck.CHECKING -> stringResource(R.string.tv_trash_checking)
     TrashActionCheck.VERIFIED -> action.verifiedText()
     TrashActionCheck.INCONCLUSIVE -> action.inconclusiveText()
-    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText()
+    TrashActionCheck.FAILED -> checkFailure?.tvMessageText() ?: action.stillPresentText(failedCount)
     TrashActionCheck.NOT_CHECKED -> submissionText()
 }
 
@@ -163,6 +169,10 @@ private fun TrashActionOutcome.submissionText(): String = when (submission) {
 @Composable
 private fun TrashAction.startedText(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_started, item.name)
+    is TrashAction.DeleteSelected ->
+        pluralStringResource(R.plurals.tv_trash_delete_selected_started, items.size, items.size)
+    is TrashAction.RestoreSelected ->
+        pluralStringResource(R.plurals.tv_trash_restore_selected_started, items.size, items.size)
     TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_started)
     TrashAction.Empty -> stringResource(R.string.tv_trash_empty_started)
 }
@@ -170,20 +180,27 @@ private fun TrashAction.startedText(): String = when (this) {
 @Composable
 private fun TrashAction.verifiedText(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_verified, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_verified)
+    is TrashAction.DeleteSelected ->
+        pluralStringResource(R.plurals.tv_trash_delete_selected_verified, items.size, items.size)
+    TrashAction.RestoreAll, is TrashAction.RestoreSelected -> stringResource(R.string.tv_trash_restore_all_verified)
     TrashAction.Empty -> stringResource(R.string.tv_trash_empty_verified)
 }
 
 @Composable
 private fun TrashAction.inconclusiveText(): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_inconclusive, item.name)
-    TrashAction.RestoreAll -> stringResource(R.string.tv_trash_restore_all_inconclusive)
+    is TrashAction.DeleteSelected -> stringResource(R.string.tv_trash_delete_selected_inconclusive)
+    TrashAction.RestoreAll, is TrashAction.RestoreSelected ->
+        stringResource(R.string.tv_trash_restore_all_inconclusive)
     TrashAction.Empty -> stringResource(R.string.tv_trash_empty_inconclusive)
 }
 
 @Composable
-private fun TrashAction.stillPresentText(): String = when (this) {
+private fun TrashAction.stillPresentText(failed: Int?): String = when (this) {
     is TrashAction.DeleteItem -> stringResource(R.string.tv_trash_delete_still_present, item.name)
+    is TrashAction.DeleteSelected -> failed?.let {
+        pluralStringResource(R.plurals.tv_trash_delete_selected_failed, it, it)
+    } ?: stringResource(R.string.tv_trash_delete_selected_some_failed)
     else -> stringResource(R.string.tv_trash_empty_still_present)
 }
 

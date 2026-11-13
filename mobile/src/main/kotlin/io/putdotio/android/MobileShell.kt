@@ -53,10 +53,11 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.putdotio.android.account.InactiveAccountNotice
-import io.putdotio.android.account.MOBILE_APP_INFO_ROUTE
-import io.putdotio.android.account.MOBILE_OPEN_SOURCE_LICENSES_ROUTE
-import io.putdotio.android.account.MOBILE_PRIVACY_CONTROLS_ROUTE
+import io.putdotio.android.account.LoggedInAppsController
+import io.putdotio.android.account.MobileAccountPage
+import io.putdotio.android.account.MobileAccountPanes
 import io.putdotio.android.account.MobileInactiveAccountNotice
+import io.putdotio.android.account.rememberDisplayDeviceClass
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.downloads.DownloadsController
@@ -81,6 +82,7 @@ import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.isFilesListDetail
 import io.putdotio.android.files.showsFilesListDetail
 import io.putdotio.android.files.ContinueWatching
+import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.FilesSelection
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_BAR_TAG
@@ -121,12 +123,13 @@ import io.putdotio.android.settings.AccountSettingsRepositoryResult
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.AndroidAppConfigEvent
 import io.putdotio.android.settings.AndroidAppConfigState
-import io.putdotio.android.settings.AppDiagnostics
 import io.putdotio.android.settings.ConfirmedDefaultSort
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.confirmedDefaultSort
-import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
+import io.putdotio.android.settings.HistoryOpen
+import io.putdotio.android.settings.historyOpen
+import io.putdotio.android.settings.historyTabShown
 import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileShareService
@@ -143,6 +146,8 @@ import io.putdotio.android.transfers.TransfersEvent
 import io.putdotio.android.transfers.TransfersReducer
 import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.android.trash.rememberTrashSelection
+import io.putdotio.android.trash.trashSelectionBar
 import io.putdotio.android.trash.trashTopBarActions
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashState
@@ -165,6 +170,7 @@ internal fun MobileShell(
     trashController: TrashController? = null,
     downloadsController: DownloadsController? = null,
     publicLinksController: PublicLinksController? = null,
+    loggedInAppsController: LoggedInAppsController? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
@@ -204,6 +210,7 @@ internal fun MobileShell(
     fileDragOut: MobileFileDragOut? = null,
     folderCreator: FilesFolderCreator? = null,
     continueWatching: ContinueWatching? = null,
+    pinnedFiles: MobilePinnedFiles? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
     filesActions: MobileFilesActionsController? = null,
 ) {
@@ -211,6 +218,8 @@ internal fun MobileShell(
     var rejectedNavigation by remember(sessionId) { mutableStateOf<FilesFailure?>(null) }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val selectedDestination = MobileDestination.fromRoute(backStackEntry?.destination?.route)
+    val historyShown = accountSettingsState.historyTabShown()
+    val destinations = remember(historyShown) { MobileDestination.shown(historyShown) }
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
     val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()
     LaunchedEffect(
@@ -267,6 +276,7 @@ internal fun MobileShell(
         leaveSearch(false)
         onFilesEvent(FilesBrowserEvent.PopToRoot)
     }
+    HiddenDestinationEffect(backStackEntry?.destination?.route, destinations, navController, showFilesRoot)
     val selectDestination = { destination: MobileDestination ->
         navController.select(destination, selectedDestination, showFilesRoot)
     }
@@ -285,6 +295,7 @@ internal fun MobileShell(
         searchOpen = searchOpen,
     )
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
+    val trashSelection = rememberTrashSelection(sessionId)
     TrashRestoreEffects(trashState, onFilesEvent)
     val shareNavigationBlocked = shareNavigationBlocked(filesState, trashState, transfersState, nowPlayingPending)
     DeepLinkNavigationEffect(
@@ -382,9 +393,9 @@ internal fun MobileShell(
             onOwnDragEnded = { drag, dropped -> fileDragOut?.ended(drag, dropped) },
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight)
+                val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight, destinations)
                 // Files keeps its panes while Search covers it, so nothing under Search is rebuilt.
-                val filesListDetail = isFilesListDetail(maxWidth, maxHeight)
+                val listDetail = isFilesListDetail(maxWidth, maxHeight)
                 val topBarInFilesPane = showsFilesListDetail(
                     width = maxWidth,
                     height = maxHeight,
@@ -397,11 +408,13 @@ internal fun MobileShell(
                     selectedDestination = selectedDestination,
                     onDestination = selectDestination,
                     enabled = !isPlayback,
+                    destinations = destinations,
                 ) { openNavigation ->
-                    val topBar: @Composable () -> Unit = {
+                    val topBarAt: @Composable (MobileDestination, String?, (() -> Unit)?, (() -> Unit)?) -> Unit = {
+                            destination, route, onSubpageBack, navigation ->
                         MobileTopBar(
-                            destination = selectedDestination,
-                            route = backStackEntry?.destination?.route,
+                            destination = destination,
+                            route = route,
                             searchOpen = searchOpen,
                             // A new scope clears the query, so it gets a fresh field, not a reconciled one.
                             searchBar = { navigation ->
@@ -425,28 +438,26 @@ internal fun MobileShell(
                                 openScopedSearch(scope)
                                 searchFocusPending = true
                             },
-                            onSubpageBack = { navController.popBackStack() },
+                            onSubpageBack = onSubpageBack,
                             filesState = filesState,
                             onFilesBack = onFilesBack,
                             onFilesEvent = onFilesEvent,
                             onNewFolder = requestNewFolder,
-                            openNavigation = openNavigation,
-                            summary = tabSummary(selectedDestination, transfersState, downloadsState),
+                            openNavigation = navigation,
+                            summary = tabSummary(destination, transfersState, downloadsState),
                             tabActions = tabActions(
-                                selectedDestination,
+                                destination,
                                 transfersState,
                                 transfersSessionId,
                                 onTransfersEvent,
                             ) ?: historyActions(
-                                selectedDestination,
+                                destination,
+                                accountSettingsState.historyOpen(),
                                 searchHistoryState.history,
                                 searchHistoryActions.onHistoryEvent,
                             ),
-                            subpageActions = trashTopBarActions(
-                                backStackEntry?.destination?.route,
-                                trashState,
-                                trashController,
-                            ),
+                            subpageActions = trashTopBarActions(route, trashState, trashController, trashSelection),
+                            subpageSelectionBar = trashSelectionBar(route, trashState, trashSelection),
                             downloads = downloadsController?.let {
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
                             },
@@ -454,18 +465,32 @@ internal fun MobileShell(
                             accountSort = accountSettingsState.defaultSort(),
                         )
                     }
+                    val topBar: @Composable () -> Unit = {
+                        val route = backStackEntry?.destination?.route
+                        topBarAt(selectedDestination, route, { navController.popBackStack() }, openNavigation)
+                    }
                     val paneTopBar: @Composable () -> Unit = {
                         MobileFilesPaneTopBar(topBarInFilesPane, topBar, account.inactiveNotice)
                     }
+                    val accountPanes = MobileAccountPanes(
+                        listTopBar = {
+                            MobileChromeTopBar(
+                                { topBarAt(MobileDestination.Account, null, null, openNavigation) },
+                                account.inactiveNotice,
+                            )
+                        },
+                        pageTopBar = { page -> topBarAt(MobileDestination.Account, page.route, null, null) },
+                    ).takeIf { listDetail }
                     MobileChrome(
                         visible = !isPlayback,
                         layout = navigationLayout,
                         navController = navController,
                         selectedDestination = selectedDestination,
+                        destinations = destinations,
                         onDestination = selectDestination,
                         playbackPlayerFactory = playbackPlayerFactory,
                         inactiveNotice = account.inactiveNotice,
-                        topBarInContent = topBarInFilesPane,
+                        topBarInContent = drawsTopBarInContent(topBarInFilesPane, listDetail, selectedDestination),
                         topBar = topBar,
                     ) { contentModifier ->
                         MobileNavHost(
@@ -474,6 +499,7 @@ internal fun MobileShell(
                             filesState = filesState,
                             filesRepository = filesRepository,
                             trashController = trashController,
+                            trashSelection = trashSelection,
                             downloadsController = downloadsController,
                             downloadsState = downloadsState,
                             downloadsSelection = downloadsSelection,
@@ -490,8 +516,7 @@ internal fun MobileShell(
                             onFilesEvent = onFilesEvent,
                             onAccountSettingsEvent = onAccountSettingsEvent,
                             loadTunnelRoutes = loadTunnelRoutes,
-                            deviceClass = if (maxWidth >= 600.dp) AppDiagnostics.DeviceClass.Tablet
-                                else AppDiagnostics.DeviceClass.Phone,
+                            deviceClass = rememberDisplayDeviceClass(),
                             onAppConfigEvent = onAppConfigEvent,
                             onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
                             onFilesAuthenticationRequired = onFilesAuthenticationRequired,
@@ -500,19 +525,22 @@ internal fun MobileShell(
                             onSignOut = onSignOut,
                             modifier = contentModifier,
                             publicLinks = publicLinks,
+                            loggedInAppsController = loggedInAppsController,
                             searchOpen = searchOpen,
                             searchForward = searchForward,
                             filesBackPreview = filesBackPreview,
                             fileDragOut = fileDragOut,
                             continueWatching = continueWatching,
+                            pinnedFiles = pinnedFiles,
                             onNewFolder = requestNewFolder,
-                            filesListPaneTopBar = paneTopBar.takeIf { filesListDetail },
+                            filesListPaneTopBar = paneTopBar.takeIf { listDetail },
                             linkedFile = linkedFile?.let(::FilesItemId),
                             onLinkedFileLanded = { linkedFile = null },
                             subtitleLanguages = subtitleLanguages,
                             filesActions = filesActions,
                             folderCreator = folderCreator,
                             filesSelection = filesSelection,
+                            accountPanes = accountPanes,
                         )
                     }
                 }
@@ -657,6 +685,23 @@ private fun NavHostController.openDownload(controller: DownloadsController?, fil
     val state = controller?.state?.value ?: return
     val entry = state.entry(fileId)?.takeIf { play && state.isAvailableOffline(fileId) }
     if (entry != null) navigateToPlayback(entry.toFilesItem()) else controller.dispatch(DownloadsEvent.Focus(fileId))
+}
+
+@Composable
+private fun HiddenDestinationEffect(
+    route: String?,
+    destinations: List<MobileDestination>,
+    navController: NavHostController,
+    showFilesRoot: () -> Unit,
+) {
+    val hidden = MobileDestination.ofRoute(route)?.let { it !in destinations } == true
+    val currentShowFilesRoot by rememberUpdatedState(showFilesRoot)
+    LaunchedEffect(hidden) {
+        if (hidden) {
+            navController.showTab(MobileDestination.Files)
+            currentShowFilesRoot()
+        }
+    }
 }
 
 @Composable
@@ -955,6 +1000,7 @@ private fun MobileChrome(
     layout: MobileNavigationLayout,
     navController: NavHostController,
     selectedDestination: MobileDestination,
+    destinations: List<MobileDestination>,
     onDestination: (MobileDestination) -> Unit,
     playbackPlayerFactory: MobilePlayerFactory,
     inactiveNotice: InactiveAccountNotice?,
@@ -983,7 +1029,7 @@ private fun MobileChrome(
                         navigationBarContainerColor = container,
                     ),
                 ) {
-                    MobileDestination.entries.forEach { destination ->
+                    destinations.forEach { destination ->
                         val selected = destination == selectedDestination
                         NavigationSuiteItem(
                             selected = selected,
@@ -1078,7 +1124,7 @@ private fun MobileTopBar(
     searchOpen: Boolean,
     searchBar: @Composable (navigation: (@Composable () -> Unit)?) -> Unit,
     onOpenSearch: (SearchScope?) -> Unit,
-    onSubpageBack: () -> Unit,
+    onSubpageBack: (() -> Unit)?,
     filesState: FilesBrowserState,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
@@ -1088,12 +1134,14 @@ private fun MobileTopBar(
     tabActions: (@Composable RowScope.() -> Unit)? = null,
     downloads: MobileDownloadsBar? = null,
     subpageActions: (@Composable RowScope.() -> Unit)? = null,
+    subpageSelectionBar: (@Composable () -> Unit)? = null,
     /** Set while Files is selecting; its bar then replaces the folder's or the root's. */
     filesSelection: FilesSelection? = null,
     accountSort: FilesSort? = null,
 ) {
     val subpageTitle = accountSubpageTitle(route)
     when {
+        subpageTitle != null && subpageSelectionBar != null -> subpageSelectionBar()
         subpageTitle != null -> MobileSmallTopBar(
             title = stringResource(subpageTitle),
             onBack = onSubpageBack,
@@ -1140,13 +1188,13 @@ private fun MobileTopBar(
 @Composable
 private fun MobileSmallTopBar(
     title: String,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)?,
     openNavigation: (() -> Unit)?,
     actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     TopAppBar(
         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        navigationIcon = { MobileBackButton(onClick = onBack) },
+        navigationIcon = { onBack?.let { MobileBackButton(onClick = it) } },
         actions = {
             openNavigation?.let { MobileNavigationMenuButton(it) }
             actions?.invoke(this)
@@ -1245,25 +1293,22 @@ private fun tabActions(
 /** History's overflow holds Clear history, so it shows only over a list to clear. */
 private fun historyActions(
     destination: MobileDestination,
+    open: HistoryOpen,
     history: HistoryState,
     onHistoryEvent: (HistoryEvent) -> Unit,
 ): (@Composable RowScope.() -> Unit)? =
-    if (destination == MobileDestination.History && history.content is HistoryContent.Ready) {
+    if (
+        destination == MobileDestination.History &&
+        open == HistoryOpen.History &&
+        history.content is HistoryContent.Ready
+    ) {
         { MobileHistoryOverflow(history.clearing, onHistoryEvent) }
     } else {
         null
     }
 
 @StringRes
-private fun accountSubpageTitle(route: String?): Int? =
-    when (route) {
-        MOBILE_TRASH_ROUTE -> R.string.mobile_trash_title
-        MOBILE_PUBLIC_LINKS_ROUTE -> R.string.mobile_settings_exclusive_links
-        MOBILE_PRIVACY_CONTROLS_ROUTE -> R.string.mobile_settings_privacy_controls
-        MOBILE_APP_INFO_ROUTE -> R.string.mobile_settings_about
-        MOBILE_OPEN_SOURCE_LICENSES_ROUTE -> R.string.mobile_settings_open_source_licenses
-        else -> null
-    }
+private fun accountSubpageTitle(route: String?): Int? = MobileAccountPage.ofRoute(route)?.title
 
 @Composable
 private fun MobileNowPlayingSlot(

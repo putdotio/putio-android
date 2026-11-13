@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.toggleable
@@ -61,6 +63,7 @@ import io.putdotio.android.R
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.account.R as AccountR
 import io.putdotio.android.apiReason
+import io.putdotio.android.monoArguments
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioDesignTokens
@@ -88,6 +91,7 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.TunnelRouteOption
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
+import io.putdotio.android.settings.trashOff
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 
@@ -99,6 +103,7 @@ internal const val MOBILE_ACCOUNT_SIGN_OUT_TAG = "mobile-account-sign-out"
 internal const val MOBILE_TUNNEL_ROUTE_ROW_TAG = "mobile-tunnel-route-row"
 internal const val MOBILE_PLAYBACK_METHOD_ROW_TAG = "mobile-playback-method-row"
 internal const val MOBILE_PRIVACY_POLICY_ROW_TAG = "mobile-privacy-policy-row"
+internal const val MOBILE_RESET_SORTS_ROW_TAG = "mobile-reset-sorts-row"
 
 /** What Account's Library rows show beside their titles, when the app already knows it. */
 internal data class MobileAccountLibrary(
@@ -122,8 +127,11 @@ internal fun MobileAccountScreen(
     onManageTrash: () -> Unit = {},
     onManagePublicLinks: (() -> Unit)? = null,
     onPrivacyControls: () -> Unit = {},
+    onLoggedInApps: (() -> Unit)? = null,
     onAppInfo: () -> Unit = {},
     onOpenSourceLicenses: () -> Unit = {},
+    open: MobileAccountPage? = null,
+    listState: LazyListState = rememberLazyListState(),
     library: MobileAccountLibrary = MobileAccountLibrary(),
     /** Bytes this account's downloads hold on the device; null when it holds none, which hides the option. */
     downloadsOnDeviceBytes: Long? = null,
@@ -140,19 +148,21 @@ internal fun MobileAccountScreen(
     val rows = AccountRows(
         settingsState = settingsState,
         appConfigState = appConfigState,
-        onSettingsChange = { change ->
-            if (change.disablesTrash) {
-                dialog = AccountDialog.TrashOff
-            } else {
-                onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+        onSettingsEvent = { event ->
+            val change = (event as? AccountSettingsEvent.ChangeRequested)?.change
+            when {
+                change?.turnsOff(AccountSettingsKey.Trash) == true -> dialog = AccountDialog.TrashOff
+                change?.turnsOff(AccountSettingsKey.ResumePlayback) == true -> dialog = AccountDialog.ResumeOff
+                else -> onSettingsEvent(event)
             }
         },
-        onRetrySettings = { onSettingsEvent(AccountSettingsEvent.RetryChange) },
         onAppConfigEvent = onAppConfigEvent,
         onOpen = { dialog = it },
+        open = open,
     )
     BoxWithConstraints(modifier.fillMaxSize()) {
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(MOBILE_ACCOUNT_LIST_TAG),
@@ -160,12 +170,12 @@ internal fun MobileAccountScreen(
         ) {
             item(key = IDENTITY_KEY) { MobileAccountIdentity(account) }
             item(key = STORAGE_KEY) { MobileAccountStorage(account.storage) }
-            libraryGroup(rows, library, onManagePublicLinks, onManageTrash)
+            libraryGroup(rows, library, onManagePublicLinks, onManageTrash.takeUnless { settingsState.trashOff })
             filesItems(settingsState, rows, onRetryLoad = { onSettingsEvent(AccountSettingsEvent.RetryLoad) })
             playbackItems(settingsState, appConfigState, rows, onRetryLoad = {
                 onAppConfigEvent(AndroidAppConfigEvent.RetryLoad)
             })
-            privacyItems(settingsState, rows, onPrivacyControls)
+            privacyItems(settingsState, rows, onPrivacyControls, onLoggedInApps)
             aboutItems(
                 rows = rows,
                 onAppInfo = onAppInfo,
@@ -188,13 +198,13 @@ internal fun MobileAccountScreen(
     )
 }
 
-private enum class AccountDialog { None, TrashOff, SignOut, Proxy, PlaybackMethod }
+private enum class AccountDialog { None, TrashOff, ResumeOff, ResetSorts, SignOut, Proxy, PlaybackMethod }
 
 private fun LazyListScope.libraryGroup(
     rows: AccountRows,
     library: MobileAccountLibrary,
     onManagePublicLinks: (() -> Unit)?,
-    onManageTrash: () -> Unit,
+    onManageTrash: (() -> Unit)?,
 ) {
     val links = onManagePublicLinks?.let { open ->
         SettingsRow { segment ->
@@ -205,20 +215,24 @@ private fun LazyListScope.libraryGroup(
                 value = library.exclusiveLinkCount?.let { settingsValue(it.toString(), mono = true) },
                 onClick = open,
                 tag = MOBILE_MANAGE_PUBLIC_LINKS_TAG,
+                page = MobileAccountPage.ExclusiveLinks,
             )
         }
     }
-    val trash = SettingsRow { segment ->
-        rows.Link(
-            segment = segment,
-            title = R.string.mobile_settings_trash_row,
-            icon = R.drawable.ic_ph_trash,
-            value = library.trashSizeBytes?.let {
-                settingsValue(formatFileSize(it.coerceAtLeast(0L)), mono = true)
-            },
-            onClick = onManageTrash,
-            tag = MOBILE_MANAGE_TRASH_TAG,
-        )
+    val trash = onManageTrash?.let { open ->
+        SettingsRow { segment ->
+            rows.Link(
+                segment = segment,
+                title = R.string.mobile_settings_trash_row,
+                icon = R.drawable.ic_ph_trash,
+                value = library.trashSizeBytes?.let {
+                    settingsValue(formatFileSize(it.coerceAtLeast(0L)), mono = true)
+                },
+                onClick = open,
+                tag = MOBILE_MANAGE_TRASH_TAG,
+                page = MobileAccountPage.Trash,
+            )
+        }
     }
     settingsGroup(LIBRARY_KEY, R.string.mobile_settings_section_library, listOfNotNull(links, trash))
 }
@@ -235,6 +249,7 @@ private fun LazyListScope.filesItems(settingsState: AccountSettingsState, rows: 
             label = R.string.mobile_settings_section_files,
             rows = listOf(
                 SettingsRow { rows.DefaultSort(it, content.preferences) },
+                SettingsRow { rows.ResetSorts(it) },
                 SettingsRow {
                     rows.AccountSwitch(it, R.string.mobile_settings_trash, R.drawable.ic_ph_trash_simple,
                         AccountSettingsKey.Trash, content.preferences.trashEnabled)
@@ -268,6 +283,7 @@ private fun LazyListScope.playbackItems(
                 }
             },
             config?.let { preferences -> SettingsRow { rows.AutoplayNext(it, preferences) } },
+            config?.let { preferences -> SettingsRow { rows.RotateToLandscape(it, preferences) } },
             config?.let { preferences -> SettingsRow { rows.PlaybackMethod(it, preferences) } },
             settings?.let { preferences -> SettingsRow { rows.Proxy(it, preferences) } },
         ),
@@ -291,6 +307,7 @@ private fun LazyListScope.privacyItems(
     settingsState: AccountSettingsState,
     rows: AccountRows,
     onPrivacyControls: () -> Unit,
+    onLoggedInApps: (() -> Unit)?,
 ) {
     val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
     if (preferences != null) {
@@ -322,6 +339,12 @@ private fun LazyListScope.privacyItems(
                 }
             },
             SettingsRow { rows.PrivacyControls(it, preferences, onPrivacyControls) },
+            onLoggedInApps?.let { open ->
+                SettingsRow {
+                    rows.Link(it, R.string.mobile_settings_logged_in_apps, R.drawable.ic_ph_devices, null, open,
+                        MOBILE_LOGGED_IN_APPS_ROW_TAG, MobileAccountPage.LoggedInApps)
+                }
+            },
         ),
     )
 }
@@ -340,7 +363,8 @@ private fun LazyListScope.aboutItems(
         rows = listOf(
             SettingsRow {
                 rows.Link(it, R.string.mobile_settings_about, R.drawable.ic_ph_info,
-                    settingsValue(BuildConfig.VERSION_NAME, mono = true), onAppInfo, MOBILE_ABOUT_ROW_TAG)
+                    settingsValue(BuildConfig.VERSION_NAME, mono = true), onAppInfo, MOBILE_ABOUT_ROW_TAG,
+                    MobileAccountPage.AppInfo)
             },
             SettingsRow {
                 rows.Link(it, AccountR.string.privacy_policy, R.drawable.ic_ph_file_text, null,
@@ -348,7 +372,7 @@ private fun LazyListScope.aboutItems(
             },
             SettingsRow {
                 rows.Link(it, R.string.mobile_settings_open_source_licenses, R.drawable.ic_ph_list_bullets, null,
-                    onOpenSourceLicenses, MOBILE_OPEN_SOURCE_LICENSES_ROW_TAG)
+                    onOpenSourceLicenses, MOBILE_OPEN_SOURCE_LICENSES_ROW_TAG, MobileAccountPage.OpenSourceLicenses)
             },
         ),
     )
@@ -363,10 +387,10 @@ private fun LazyListScope.aboutItems(
                 ) {
                     MobileSettingsLine(
                         title = stringResource(R.string.mobile_account_sign_out),
-                        icon = R.drawable.ic_ph_sign_out,
+                        icon = null,
                         trailing = SettingsTrailing.None,
                         titleColor = PutioDesignTokens.redTextSecondary,
-                        iconColor = PutioDesignTokens.redTextSecondary,
+                        alignTitleWithIcons = true,
                     )
                 }
             }
@@ -398,9 +422,30 @@ private fun MobileAccountDialogs(
     when (dialog) {
         AccountDialog.None -> Unit
         AccountDialog.TrashOff -> if (settings != null) {
-            MobileTrashOffDialog(
+            MobileConfirmDialog(
+                title = R.string.mobile_settings_trash_confirm_title,
+                message = R.string.mobile_settings_trash_confirm_message,
+                confirm = R.string.mobile_settings_turn_off,
                 onDismiss = onDismiss,
                 onConfirm = { change(AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)) },
+            )
+        }
+        AccountDialog.ResumeOff -> if (settings != null) {
+            MobileConfirmDialog(
+                title = R.string.mobile_settings_resume_confirm_title,
+                message = R.string.mobile_settings_resume_confirm_message,
+                confirm = R.string.mobile_settings_turn_off,
+                onDismiss = onDismiss,
+                onConfirm = { change(AccountSettingsChange(AccountSettingsKey.ResumePlayback, enabled = false)) },
+            )
+        }
+        AccountDialog.ResetSorts -> if (settings != null) {
+            MobileConfirmDialog(
+                title = R.string.mobile_settings_reset_sorts_confirm_title,
+                message = R.string.mobile_settings_reset_sorts_confirm_message,
+                confirm = R.string.mobile_settings_reset,
+                onDismiss = onDismiss,
+                onConfirm = { change(AccountSettingsChange.ResetFolderSorts) },
             )
         }
         AccountDialog.SignOut -> MobileSignOutDialog(
@@ -415,14 +460,14 @@ private fun MobileAccountDialogs(
             MobileTunnelRouteDialog(
                 selected = settings.tunnelRoute,
                 loadRoutes = loadTunnelRoutes,
-                onSave = { change(AccountSettingsChange.Route(it)) },
+                onSelect = { change(AccountSettingsChange.Route(it)) },
                 onDismiss = onDismiss,
             )
         }
         AccountDialog.PlaybackMethod -> if (config != null) {
             MobilePlaybackMethodDialog(
                 selected = config.streamingMethod,
-                onSave = {
+                onSelect = {
                     onDismiss()
                     onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.PlaybackMethod(it)))
                 },
@@ -451,10 +496,10 @@ private fun LazyListScope.settingsGroup(key: String, @StringRes label: Int, rows
 private class AccountRows(
     private val settingsState: AccountSettingsState,
     private val appConfigState: AndroidAppConfigState,
-    private val onSettingsChange: (AccountSettingsChange) -> Unit,
-    private val onRetrySettings: () -> Unit,
+    private val onSettingsEvent: (AccountSettingsEvent) -> Unit,
     private val onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
     private val onOpen: (AccountDialog) -> Unit,
+    private val open: MobileAccountPage?,
 ) {
     private val settingsEnabled = settingsState.accountControlsEnabled()
     private val configEnabled = appConfigState.appConfigControlsEnabled()
@@ -467,10 +512,12 @@ private class AccountRows(
         value: SettingsTrailing.Value?,
         onClick: () -> Unit,
         tag: String,
+        page: MobileAccountPage? = null,
     ) {
         MobileSettingsSegment(
             segment = segment,
             interaction = Modifier.clickable(role = Role.Button, onClick = onClick).testTag(tag),
+            selected = page != null && page == open,
         ) {
             MobileSettingsLine(stringResource(title), icon, value ?: SettingsTrailing.None)
         }
@@ -495,25 +542,52 @@ private class AccountRows(
             enabled = settingsEnabled,
             saving = saving,
             onToggle = { onSettingsChange(AccountSettingsChange(key, it)) },
-            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
         )
     }
 
     @Composable
     fun AutoplayNext(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
-        val mutation = appConfigState.mutation
-        val change = { candidate: AndroidAppConfigChange? -> candidate is AndroidAppConfigChange.AutoplayNextVideo }
-        SwitchSegment(
+        ConfigSwitch(
             segment = segment,
             title = R.string.mobile_settings_autoplay_next,
             icon = R.drawable.ic_ph_skip_forward,
             checked = preferences.autoplayNextVideo,
+            change = AndroidAppConfigChange::AutoplayNextVideo,
+        )
+    }
+
+    @Composable
+    fun RotateToLandscape(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
+        ConfigSwitch(
+            segment = segment,
+            title = R.string.mobile_settings_rotate_to_landscape,
+            icon = R.drawable.ic_ph_device_rotate,
+            checked = preferences.rotateToLandscape,
+            change = AndroidAppConfigChange::RotateToLandscape,
+        )
+    }
+
+    @Composable
+    private fun ConfigSwitch(
+        segment: SettingsSegment,
+        @StringRes title: Int,
+        icon: Int,
+        checked: Boolean,
+        change: (Boolean) -> AndroidAppConfigChange,
+    ) {
+        val mutation = appConfigState.mutation
+        val kind = change(checked)::class
+        val matches = { candidate: AndroidAppConfigChange? -> candidate != null && candidate::class == kind }
+        SwitchSegment(
+            segment = segment,
+            title = title,
+            icon = icon,
+            checked = checked,
             enabled = configEnabled,
-            saving = change((mutation as? AndroidAppConfigMutation.Saving)?.change),
-            onToggle = {
-                onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(AndroidAppConfigChange.AutoplayNextVideo(it)))
-            },
-            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { change(it.change) }?.let { failed ->
+            saving = matches((mutation as? AndroidAppConfigMutation.Saving)?.change),
+            onToggle = { onAppConfigEvent(AndroidAppConfigEvent.ChangeRequested(change(it))) },
+            failure = (mutation as? AndroidAppConfigMutation.Failed)?.takeIf { matches(it.change) }?.let { failed ->
                 { MobileAppConfigMutationError(failed.failure, failed.operation) { onRetryConfig() } }
             },
         )
@@ -566,6 +640,27 @@ private class AccountRows(
     }
 
     @Composable
+    fun ResetSorts(segment: SettingsSegment) {
+        val mutation = settingsState.mutation
+        val reset = { change: AccountSettingsChange? -> change == AccountSettingsChange.ResetFolderSorts }
+        val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { reset(it.change) }
+        MobileSettingsSegment(
+            segment = segment,
+            interaction = Modifier
+                .clickable(enabled = settingsEnabled, role = Role.Button) { onOpen(AccountDialog.ResetSorts) }
+                .testTag(MOBILE_RESET_SORTS_ROW_TAG),
+            below = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
+        ) {
+            MobileSettingsLine(
+                title = stringResource(R.string.mobile_settings_reset_sorts),
+                icon = R.drawable.ic_ph_arrow_counter_clockwise,
+                trailing = SettingsTrailing.None,
+                saving = reset((mutation as? AccountSettingsMutation.Saving)?.change),
+            )
+        }
+    }
+
+    @Composable
     fun Proxy(segment: SettingsSegment, preferences: AccountSettingsPreferences) {
         AccountChoice(
             segment = segment,
@@ -597,6 +692,7 @@ private class AccountRows(
             value = state,
             onClick = onOpen,
             tag = MOBILE_PRIVACY_CONTROLS_ROW_TAG,
+            page = MobileAccountPage.PrivacyControls,
         )
     }
 
@@ -621,11 +717,16 @@ private class AccountRows(
             saving = (mutation as? AccountSettingsMutation.Saving)?.change?.let(matches) == true,
             onChoose = onChoose,
             tag = tag,
-            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, onRetrySettings) } },
+            failure = failure?.let { { MobileAccountMutationError(it.failure, it.operation, ::onRetrySettings) } },
         )
     }
 
     private fun onRetryConfig() = onAppConfigEvent(AndroidAppConfigEvent.RetryChange)
+
+    private fun onSettingsChange(change: AccountSettingsChange) =
+        onSettingsEvent(AccountSettingsEvent.ChangeRequested(change))
+
+    private fun onRetrySettings() = onSettingsEvent(AccountSettingsEvent.RetryChange)
 }
 
 @Composable
@@ -741,17 +842,13 @@ private fun MobileAccountAvatarFallback(username: String, modifier: Modifier) {
     }
 }
 
-/** Storage is full when nothing is left to use; transfers then wait. */
-internal val AccountStorage.isFull: Boolean
-    get() = sizeBytes > 0L && (availableBytes <= 0L || usedBytes >= sizeBytes)
-
 @Composable
 private fun MobileAccountStorage(storage: AccountStorage) {
     val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
     fun size(bytes: Long) = formatFileSize(bytes.coerceAtLeast(0L))
     val full = storage.isFull
     val (template, shown) = when {
-        full -> R.string.mobile_account_storage_full_value to storage.usedBytes
+        full -> AccountR.string.account_storage_full_value to storage.usedBytes
         storage.showOptimisticUsage -> R.string.mobile_account_storage_free to storage.availableBytes
         else -> R.string.mobile_account_storage_used to storage.usedBytes
     }
@@ -788,7 +885,7 @@ private fun MobileAccountStorage(storage: AccountStorage) {
                 )
                 if (full) {
                     Text(
-                        stringResource(R.string.mobile_account_storage_full),
+                        stringResource(AccountR.string.account_storage_full),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 10.dp),

@@ -106,6 +106,7 @@ internal data class MobileWelcomeContent(
     val frames: List<MobileWelcomeFrame> = MobileWelcomeSequence,
     val notice: MobileWelcomeNotice? = null,
     val action: MobileWelcomeAction? = null,
+    val secondaryAction: MobileWelcomeAction? = null,
 )
 
 private val SignIn = MobileWelcomeAction(R.string.mobile_auth_sign_in, MobileWelcomeActionStyle.Filled)
@@ -143,12 +144,21 @@ internal fun mobileWelcomeContent(
             action = MobileWelcomeAction(R.string.mobile_auth_chrome_action, MobileWelcomeActionStyle.Filled),
         )
 
+        MobileSignedOutReason.ChromeStoreUnavailable -> MobileWelcomeContent(
+            title = R.string.mobile_welcome_title,
+            lede = R.string.mobile_welcome_lede,
+            frames = listOf(FailedFrame),
+            notice = MobileWelcomeNotice(R.string.mobile_auth_no_chrome_title, R.string.mobile_auth_no_chrome_message),
+            action = MobileWelcomeAction(R.string.mobile_action_retry, MobileWelcomeActionStyle.Filled),
+        )
+
         MobileSignedOutReason.SecureStorageUnavailable -> MobileWelcomeContent(
             title = R.string.mobile_welcome_title,
             lede = R.string.mobile_welcome_lede,
             frames = listOf(FailedFrame),
             notice = MobileWelcomeNotice(R.string.mobile_auth_storage_title, R.string.mobile_auth_storage_message),
-            action = MobileWelcomeAction(R.string.mobile_auth_storage_reset, MobileWelcomeActionStyle.Filled),
+            action = MobileWelcomeAction(R.string.mobile_action_retry, MobileWelcomeActionStyle.Filled),
+            secondaryAction = MobileWelcomeAction(R.string.mobile_auth_storage_reset, MobileWelcomeActionStyle.Text),
         )
 
         // Without an OAuth client there is nothing to offer: no button.
@@ -184,6 +194,7 @@ internal fun MobileWelcomeScreen(
     content: MobileWelcomeContent,
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
+    onSecondaryAction: () -> Unit = {},
 ) {
     Column(
         modifier = modifier
@@ -213,7 +224,12 @@ internal fun MobileWelcomeScreen(
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 WelcomeStage(frames = content.frames, modifier = Modifier.padding(top = stageTop))
-                WelcomeCopy(content = content, onAction = onAction, modifier = Modifier.padding(top = 24.dp))
+                WelcomeCopy(
+                    content = content,
+                    onAction = onAction,
+                    onSecondaryAction = onSecondaryAction,
+                    modifier = Modifier.padding(top = 24.dp),
+                )
             }
         }
     }
@@ -223,6 +239,7 @@ internal fun MobileWelcomeScreen(
 private fun WelcomeCopy(
     content: MobileWelcomeContent,
     onAction: () -> Unit,
+    onSecondaryAction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -252,6 +269,16 @@ private fun WelcomeCopy(
                 onClick = onAction,
                 modifier = Modifier
                     .padding(top = if (content.notice == null) 32.dp else 24.dp)
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp),
+            )
+        }
+        content.secondaryAction?.let { action ->
+            WelcomeAction(
+                action = action,
+                onClick = onSecondaryAction,
+                modifier = Modifier
+                    .padding(top = 8.dp)
                     .fillMaxWidth()
                     .heightIn(min = 56.dp),
             )

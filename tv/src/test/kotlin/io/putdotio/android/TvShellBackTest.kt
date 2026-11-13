@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
@@ -160,7 +161,7 @@ class TvShellBackTest {
             },
         )
         compose.openTab(TvDestination.Files)
-        compose.onNodeWithText("Empty folder.").assertIsFocused()
+        compose.onNodeWithText("No files whatsoever!").assertIsFocused()
 
         compose.pressBack()
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events)
@@ -314,37 +315,41 @@ class TvShellBackTest {
     }
 
     @Test
-    fun anotherTabAndBackKeepTheSearchSectionOrResultThatHeldFocus() {
-        val results = (1L..5L).map { id -> row(id, "clip $id.mp4").copy(type = PutioFileType.VIDEO) }
-        val picked = TvPickedRow()
-        compose.setTvContent {
-            TvShell(
-                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                onSignOut = {},
-                searchPane = { paneFocus ->
-                    TvSearchScreen(
-                        state = searchState(
-                            query = "clip",
-                            content = SearchContent.Ready(SearchTerm("clip"), results, SearchPaging.Complete),
-                            recentTerms = emptyList(),
-                            nextRequestValue = 2L,
-                        ),
-                        actions = TvSearchActions({}, {}, {}, {}, {}, TvRecentSearchActions({}, {}, {})),
-                        results = tvSearchResults(),
-                        detail = tvSearchDetail(),
-                        modifier = Modifier.focusRequester(paneFocus),
-                        pickedRow = picked,
-                    )
-                },
-            )
+    fun backFromASearchFilterOrResultFocusesTheFieldThenTheTabThenHome() {
+        setSearchShell()
+        compose.openTab(TvDestination.Search)
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionDown)
         }
+        compose.onNode(hasText("All") and hasClickAction()).assertIsFocused()
+        compose.pressBack()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
+            repeat(4) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused()
+
+        compose.pressBack()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().assert(hasText("clip"))
+        compose.pressBack()
+        compose.onTab("Search").assertIsFocused()
+        compose.pressBack()
+        compose.onTab("Home").assertIsFocused().assertIsSelected()
+    }
+
+    @Test
+    fun anotherTabAndBackKeepTheSearchSectionOrResultThatHeldFocus() {
+        var requested by mutableStateOf<TvDestination?>(null)
+        setSearchShell(requested = { requested }, onRequestHandled = { requested = null })
         compose.openTab(TvDestination.Search)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused().performKeyInput {
             repeat(4) { pressKey(Key.DirectionDown) }
         }
         compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused()
+        compose.runOnIdle { requested = TvDestination.History }
+        compose.waitForIdle()
         compose.pressBack()
-        visitNeighbourAndReturn("Search", TvDestination.History)
+        compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionLeft) }
+        compose.onTab("Search").assertIsFocused().assertIsSelected().performKeyInput { pressKey(Key.DirectionDown) }
         compose.onNodeWithContentDescription("Play clip 3.mp4").assertIsFocused().performKeyInput {
             repeat(4) { pressKey(Key.DirectionUp) }
         }
@@ -437,6 +442,43 @@ class TvShellBackTest {
             )
         }
         var requested by mutableStateOf<TvDestination?>(null)
+        setTrashInAccount(items, { requested }, { requested = null })
+        compose.openTab(TvDestination.Account)
+        compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionRight)
+        }
+        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
+        compose.onNode(hasText("trashed-1.txt") and hasClickAction()).assertIsFocused().performKeyInput {
+            repeat(2) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused()
+
+        compose.runOnIdle { requested = TvDestination.History }
+        compose.waitForIdle()
+        compose.pressBack()
+        compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
+        compose.onTab("Account").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused().performKeyInput {
+            repeat(3) { pressKey(Key.DirectionUp) }
+        }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        compose.onNode(hasText("Empty trash") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionLeft)
+        }
+        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
+            pressKey(Key.DirectionUp)
+        }
+        visitNeighbourAndReturn("Account", TvDestination.History)
+        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
+    }
+
+    private fun setTrashInAccount(
+        items: List<TrashItem>,
+        requested: () -> TvDestination?,
+        onRequestHandled: () -> Unit,
+    ) {
         compose.setTvContent {
             TvShell(
                 account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
@@ -459,33 +501,10 @@ class TvShellBackTest {
                         },
                     )
                 },
-                requestedDestination = requested,
-                onDestinationRequestHandled = { requested = null },
+                requestedDestination = requested(),
+                onDestinationRequestHandled = onRequestHandled,
             )
         }
-        compose.openTab(TvDestination.Account)
-        compose.onNode(hasText("Library") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionRight)
-        }
-        compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
-        compose.onNode(hasText("trashed-1.txt") and hasClickAction()).assertIsFocused().performKeyInput {
-            repeat(2) { pressKey(Key.DirectionDown) }
-        }
-        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused()
-
-        compose.runOnIdle { requested = TvDestination.History }
-        compose.waitForIdle()
-        compose.pressBack()
-        compose.onTab("History").assertIsFocused().performKeyInput { pressKey(Key.DirectionRight) }
-        compose.onTab("Account").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNode(hasText("trashed-3.txt") and hasClickAction()).assertIsFocused().performKeyInput {
-            repeat(3) { pressKey(Key.DirectionUp) }
-        }
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused().performKeyInput {
-            pressKey(Key.DirectionUp)
-        }
-        visitNeighbourAndReturn("Account", TvDestination.History)
-        compose.onNode(hasText("Restore all") and hasClickAction()).assertIsFocused()
     }
 
     private fun visitNeighbourAndReturn(tab: String, neighbour: TvDestination) {
@@ -497,6 +516,37 @@ class TvShellBackTest {
             pressKey(if (forward) Key.DirectionLeft else Key.DirectionRight)
         }
         compose.onTab(tab).assertIsFocused().assertIsSelected().performKeyInput { pressKey(Key.DirectionDown) }
+    }
+
+    private fun setSearchShell(
+        requested: () -> TvDestination? = { null },
+        onRequestHandled: () -> Unit = {},
+    ) {
+        val results = (1L..5L).map { id -> row(id, "clip $id.mp4").copy(type = PutioFileType.VIDEO) }
+        val picked = TvPickedRow()
+        compose.setTvContent {
+            TvShell(
+                account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                onSignOut = {},
+                searchPane = { paneFocus ->
+                    TvSearchScreen(
+                        state = searchState(
+                            query = "clip",
+                            content = SearchContent.Ready(SearchTerm("clip"), results, SearchPaging.Complete),
+                            recentTerms = emptyList(),
+                            nextRequestValue = 2L,
+                        ),
+                        actions = TvSearchActions({}, {}, {}, {}, {}, TvRecentSearchActions({}, {}, {})),
+                        results = tvSearchResults(),
+                        detail = tvSearchDetail(),
+                        modifier = Modifier.focusRequester(paneFocus),
+                        pickedRow = picked,
+                    )
+                },
+                requestedDestination = requested(),
+                onDestinationRequestHandled = onRequestHandled,
+            )
+        }
     }
 
     private fun setShell(

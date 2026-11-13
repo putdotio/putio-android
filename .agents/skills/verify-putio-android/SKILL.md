@@ -45,10 +45,13 @@ back: `SERIAL="$(sed -n 's/^SERIAL=//p' ".evidence/$RUN/run.env")"`.
 Three ways to get an emulator:
 
 - `--fresh`, the default: a new AVD named `<run>` from the `putio-phone`
-  image, signed out; `session.sh down` deletes it. The sign-in script shows
-  the debug-only device-code screen and approves it with
-  `PUTIO_CLI_PROFILE=devs-auto putio auth approve <code>`: no password, no
-  browser, one new grant. Sign out before `down` (see Cleanup).
+  image, signed out; `session.sh down` deletes it. The sign-in script pushes
+  the host's cached devs-auto token into the app, so no device code is
+  requested. With no cached token, or one put.io rejects, it shows the
+  debug-only device-code screen, approves it with
+  `PUTIO_CLI_PROFILE=devs-auto putio auth approve <code>` and caches the new
+  token. Never sign out in a `--fresh` run: that revokes the cached token for
+  every run on the host.
 - `--snapshot <name>`: a `-read-only` instance of `putio-phone`, loaded from
   its snapshot `<name>` on a free port. Saved signed in, it starts signed in
   and the sign-in script passes with no approval. Every instance shares that
@@ -205,18 +208,10 @@ Proof standards:
 
 ## Cleanup
 
-In this order, also after a failed attempt. A `--fresh` run first signs out
-under Account ([Account and sign-out](features/account-and-sign-out.md)) while
-online. Revocation runs in the background after Welcome shows and retries
-after 15 s, then a minute; deleting the AVD drops a pending retry. Before
-`session.sh down`, wait until the app holds no pending revocation:
-
-```bash
-until ! adb -s $SERIAL shell run-as io.put.putio.mobile.debug cat shared_prefs/putio_auth.xml | grep -q pending_revocation_token; do sleep 5; done
-```
-
-If it stays pending for several minutes, keep the run up and report the
-grant. A `--snapshot` run never signs out.
+In this order, also after a failed attempt. No run signs out: the session
+holds the host's cached token. A proof that signs out on purpose
+([Account and sign-out](features/account-and-sign-out.md)) revokes it, and the
+next run on the host approves one new code.
 
 ```bash
 $S/session.sh down "$RUN"     # force-stop the app; stop the emulator up booted; delete AVD <run> if --fresh

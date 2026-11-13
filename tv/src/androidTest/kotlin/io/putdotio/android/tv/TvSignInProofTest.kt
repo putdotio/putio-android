@@ -52,10 +52,33 @@ class TvSignInProofTest {
     }
 
     @Test
+    fun signInOffline() {
+        capture("androidtv-sign-in-no-connection", "No connection") {
+            TvLinkScreen(
+                phase = TvLinkPhase.AwaitingLink(CODE),
+                sessionExpired = false,
+                onRequestNewCode = {},
+                offline = true,
+            )
+        }
+    }
+
+    @Test
     fun codeExpired() {
         capture("androidtv-st-s9-code-expired", "This code expired.") {
             TvLinkScreen(
                 phase = TvLinkPhase.Stopped(TvLinkStop.CodeExpired, code = CODE),
+                sessionExpired = false,
+                onRequestNewCode = {},
+            )
+        }
+    }
+
+    @Test
+    fun storedSessionUnreadable() {
+        capture("androidtv-storage-unreadable", "Try again") {
+            TvLinkScreen(
+                phase = TvLinkPhase.Stopped(TvLinkStop.SessionUnreadable),
                 sessionExpired = false,
                 onRequestNewCode = {},
             )

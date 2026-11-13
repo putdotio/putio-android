@@ -119,6 +119,39 @@ class MobileFilesActionsControllerTest {
     }
 
     @Test
+    fun retryAfterAPartlyFailedSelectionWritesOnlyTheFilesPutioRefused() = runTest {
+        val controller = controller()
+        val notices = mutableListOf<MobileFilesNotice>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.notices.toList(notices) }
+        val videos = (1L..3L).map { video.copy(id = FilesItemId(200L + it), name = "Episode $it.mkv") }
+        watched.failing = setOf(videos[2].id)
+        controller.setWatched(videos, watched = true)
+        advanceUntilIdle()
+        assertEquals(videos.map { it.id }, watched.positions.map { it.first })
+
+        watched.failing = emptySet()
+        checkNotNull(notices.single().retry).invoke()
+        advanceUntilIdle()
+        assertEquals(videos.map { it.id } + videos[2].id, watched.positions.map { it.first })
+        assertEquals(
+            videos.map { FilesBrowserEvent.PlaybackPositionReported(it.id, 3_000.0) },
+            events.sortedBy { (it as FilesBrowserEvent.PlaybackPositionReported).itemId.value },
+        )
+        assertEquals(1, notices.size)
+    }
+
+    @Test
+    fun aSingleFileFailureOffersNoRetry() = runTest {
+        val controller = controller()
+        val notices = mutableListOf<MobileFilesNotice>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.notices.toList(notices) }
+        watched.failing = setOf(video.id)
+        controller.setWatched(video, watched = true)
+        advanceUntilIdle()
+        assertEquals(null, notices.single().retry)
+    }
+
+    @Test
     fun aNewerWatchedChoiceWaitsForTheOneSentAndBothSettleInOrder() = runTest {
         val controller = controller()
         val first = CompletableDeferred<PutioResult<Unit>>()
@@ -371,7 +404,7 @@ class MobileFilesActionsControllerTest {
                 }
             }
         }
-        override suspend fun deleteItem(itemId: FilesItemId): PutioResult<Unit> = error("unused")
+        override suspend fun deleteItems(itemIds: List<FilesItemId>): PutioResult<Unit> = error("unused")
         override suspend fun restoreAll(selection: TrashBulkSelection): PutioResult<Unit> =
             result.also { restoredAll += selection }
         override suspend fun empty(): PutioResult<Unit> = error("unused")

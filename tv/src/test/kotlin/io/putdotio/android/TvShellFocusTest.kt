@@ -54,6 +54,9 @@ class TvShellFocusTest {
     @get:Rule
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
 
+    private val pageFailed =
+        FilesPaging.Failed(FilesCursor("c"), PutioFailure.NetworkUnavailable(PutioConfigurationException("x")))
+
     @Test
     fun tabBarRoundTripWithoutLeavingFilesReturnsToTheLiveRow() {
         val files = filesBrowserState(
@@ -96,7 +99,7 @@ class TvShellFocusTest {
     fun tabBarRoundTripOnAnEmptyPageReturnsToItsPagingControl() {
         val files = filesBrowserState(
             stack = listOf(
-                FilesFolderState(FilesFolder.Root, FilesContent.Empty(FilesPaging.Available(FilesCursor("c")))),
+                FilesFolderState(FilesFolder.Root, FilesContent.Empty(pageFailed)),
             ),
             nextRequestValue = 10L,
         )
@@ -115,19 +118,19 @@ class TvShellFocusTest {
             )
         }
         compose.openTab(TvDestination.Files)
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
         compose.pressBack()
         compose.onTab("Files").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
     }
 
     @Test
-    fun tabBarRoundTripFromLoadMoreReturnsToLoadMore() {
+    fun tabBarRoundTripFromTryAgainReturnsToTryAgain() {
         val files = filesBrowserState(
             stack = listOf(
                 FilesFolderState(
                     FilesFolder.Root,
-                    FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Available(FilesCursor("c"))),
+                    FilesContent.Ready(listOf(row(1, "first.txt")), pageFailed),
                 ),
             ),
             nextRequestValue = 10L,
@@ -150,10 +153,10 @@ class TvShellFocusTest {
         compose.onNodeWithContentDescription("first.txt")
             .assertIsFocused()
             .performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
         compose.pressBack()
         compose.onTab("Files").assertIsFocused().performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
     }
 
     @Test
@@ -163,7 +166,7 @@ class TvShellFocusTest {
                 stack = listOf(
                     FilesFolderState(
                         FilesFolder.Root,
-                        FilesContent.Ready(listOf(row(1, "first.txt")), FilesPaging.Available(FilesCursor("c"))),
+                        FilesContent.Ready(listOf(row(1, "first.txt")), pageFailed),
                     ),
                 ),
                 nextRequestValue = 10L,
@@ -185,7 +188,7 @@ class TvShellFocusTest {
         }
         compose.openTab(TvDestination.Files)
         compose.onNodeWithContentDescription("first.txt").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Load more").assertIsFocused()
+        compose.onNodeWithText("Try again").assertIsFocused()
         compose.pressBack()
         compose.onTab("Files").assertIsFocused()
 

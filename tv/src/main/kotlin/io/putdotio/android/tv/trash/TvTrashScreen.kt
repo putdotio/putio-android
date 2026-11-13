@@ -62,8 +62,9 @@ import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.TvPickedRow
+import io.putdotio.android.tv.TvSectionLine
+import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.files.TvFolderHeading
-import io.putdotio.android.tv.files.tvLoadFailedMessage
 import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.refocusAfterDialog
@@ -96,7 +97,7 @@ internal fun TvTrashScreen(
         }
     }
     val headerOwnsFocus = content.isLoadingOrKnownEmpty
-    val dialogOpen = state.confirmation != null || state.actionConfirmation != null
+    val dialogOpen = state.actionConfirmation != null
     val dialogShowing = rememberUpdatedState(dialogOpen)
     val refreshedOnOpen = rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -134,7 +135,7 @@ internal fun TvTrashScreen(
         }
         val header: @Composable () -> Unit = {
             TvTrashHeader(
-                onRestoreAll = { onEvent(TrashEvent.SelectRestoreAll) },
+                onRestoreAll = { onEvent(TrashEvent.RestoreAll) },
                 onEmpty = { onEvent(TrashEvent.SelectEmpty) },
                 showsFocus = !dialogOpen,
                 showsActions = !knownEmpty,
@@ -151,7 +152,6 @@ internal fun TvTrashScreen(
                 TvLoadFailedState(
                     failure = content.failure,
                     headline = stringResource(R.string.tv_trash_error_title),
-                    message = content.failure.tvLoadFailedMessage(),
                     onRetry = { onEvent(TrashEvent.Retry) },
                     modifier = Modifier
                         .weight(1f)
@@ -241,7 +241,13 @@ private fun TvTrashListDetail(
         onDetailFocusChanged = { if (it) panelHeld.value = true },
         header = { header() },
         list = {
-            TvTrashInfo()
+            TvTrashInfo(
+                showsRefresh = loaded != null,
+                onRefresh = { if (loaded?.isRefreshing == false) onEvent(TrashEvent.Refresh) },
+                refreshShowsFocus = !listFocus.dialogShowing.value,
+                owner = listFocus.owner,
+                refreshFocus = focus.refresh,
+            )
             TvTrashNotices(state, onEvent, listFocus.owner)
             if (loaded == null) {
                 TvListSkeleton()
@@ -249,7 +255,7 @@ private fun TvTrashListDetail(
                 TvTrashList(
                     content = loaded,
                     restoreRowId = restoreRowId,
-                    onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.SelectRestore(it.id)) },
+                    onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.Restore(it.id)) },
                     onRowFocusChanged = { item, focused ->
                         if (focused) {
                             panelHeld.value = false
@@ -272,7 +278,7 @@ private fun TvTrashListDetail(
                     actions = TvTrashDetailActions(
                         canRestore = state.canRestore(detailItem.id),
                         canDelete = state.canDelete(detailItem.id),
-                        onRestore = { onEvent(TrashEvent.SelectRestore(detailItem.id)) },
+                        onRestore = { onEvent(TrashEvent.Restore(detailItem.id)) },
                         onDelete = { onEvent(TrashEvent.SelectDelete(detailItem.id)) },
                         showsFocus = !listFocus.dialogShowing.value,
                         restoreModifier = Modifier.keyedPaneSection("restore", listFocus.owner, focus.restore),
@@ -306,6 +312,7 @@ private class TvTrashFocus {
     val restoreAll = FocusRequester()
     val empty = FocusRequester()
     val list = FocusRequester()
+    val refresh = FocusRequester()
     val retry = FocusRequester()
     val restore = FocusRequester()
     val delete = FocusRequester()
@@ -410,14 +417,35 @@ private fun TvTrashHeaderButton(
 }
 
 @Composable
-private fun TvTrashInfo() {
+private fun TvTrashInfo(
+    showsRefresh: Boolean,
+    onRefresh: () -> Unit,
+    refreshShowsFocus: Boolean,
+    owner: TvPaneFocusOwner,
+    refreshFocus: FocusRequester,
+) {
     val info = stringResource(R.string.tv_trash_info)
-    Text(
-        text = remember(info) { monoNumber(info, RETENTION_DAYS) },
-        style = INFO_LABEL,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = ROW_BLEED, end = ROW_BLEED, bottom = INFO_GAP),
-    )
+    TvSectionLine(
+        pill = if (showsRefresh) {
+            {
+                TvSectionPill(
+                    icon = R.drawable.ic_ph_arrows_clockwise,
+                    label = stringResource(R.string.tv_refresh),
+                    onClick = onRefresh,
+                    modifier = Modifier.keyedPaneSection("refresh", owner, refreshFocus),
+                    showFocus = refreshShowsFocus,
+                )
+            }
+        } else {
+            null
+        },
+    ) {
+        Text(
+            text = remember(info) { monoNumber(info, RETENTION_DAYS) },
+            style = INFO_LABEL,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable
@@ -436,6 +464,5 @@ private val HEADER_HEIGHT = 76.dp
 private val HEADER_BUTTON_GAP = 8.dp
 private val HEADER_BUTTON_LIFT = 1.dp
 private val HEADER_BUTTON_LABEL = PutioTypeScale.tvButton.copy(fontSize = 12.sp)
-private val INFO_GAP = 4.dp
 private val INFO_LABEL = PutioTypeScale.tvLabel.withFullLineBox()
 private val STATE_BOTTOM_GAP = 3.dp

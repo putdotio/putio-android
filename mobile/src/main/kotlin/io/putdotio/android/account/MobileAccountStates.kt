@@ -25,13 +25,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.appendMonoFigures
 import io.putdotio.android.apiReason
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
@@ -49,20 +45,6 @@ import io.putdotio.android.settings.TunnelRouteName
 import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.neutralTextButtonColors
-
-/** [template] with its `%1$s`, `%2$s`… slots filled by [values] in [mono]. */
-internal fun monoArguments(template: String, mono: SpanStyle, vararg values: String): AnnotatedString =
-    buildAnnotatedString {
-        var cursor = 0
-        val slot = Regex("%(\\d+)\\\$s")
-        for (match in slot.findAll(template)) {
-            append(template.substring(cursor, match.range.first))
-            val value = values.getOrNull(match.groupValues[1].toInt() - 1).orEmpty()
-            appendMonoFigures(value, mono)
-            cursor = match.range.last + 1
-        }
-        append(template.substring(cursor))
-    }
 
 internal fun androidx.compose.ui.platform.UriHandler.openSafely(url: String) {
     try {
@@ -87,8 +69,8 @@ internal fun StreamingMethod.labelResource(): Int =
         StreamingMethod.File -> R.string.mobile_settings_playback_direct
     }
 
-internal val AccountSettingsChange.disablesTrash: Boolean
-    get() = this is AccountSettingsChange.Toggle && key == AccountSettingsKey.Trash && !enabled
+internal fun AccountSettingsChange.turnsOff(setting: AccountSettingsKey): Boolean =
+    this is AccountSettingsChange.Toggle && key == setting && !enabled
 
 internal fun AccountSettingsState.accountControlsEnabled(): Boolean = mutation.controlsEnabled()
 
@@ -226,7 +208,9 @@ private fun PutioFailure.appConfigMessageResource(): Int =
         is PutioFailure.AccessDenied -> R.string.mobile_settings_playback_error_access_denied
         is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-        is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+        is PutioFailure.NetworkUnavailable,
+        is PutioFailure.Timeout,
+        -> R.string.mobile_state_error_message
         is PutioFailure.ApiRejected,
         is PutioFailure.InvalidResponse,
         is PutioFailure.Misconfigured,
@@ -246,7 +230,9 @@ private fun AccountSettingsFailure.messageResource(): Int =
             is PutioFailure.AccessDenied -> R.string.mobile_settings_error_access_denied
             is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
             is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
-            is PutioFailure.NetworkUnavailable -> R.string.mobile_state_error_message
+            is PutioFailure.NetworkUnavailable,
+            is PutioFailure.Timeout,
+            -> R.string.mobile_state_error_message
             is PutioFailure.ApiRejected,
             is PutioFailure.InvalidResponse,
             is PutioFailure.Misconfigured,

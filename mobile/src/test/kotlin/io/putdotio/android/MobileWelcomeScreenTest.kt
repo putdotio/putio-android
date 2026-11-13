@@ -9,6 +9,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -20,6 +21,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.design.PutioTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,7 +30,7 @@ import org.robolectric.annotation.GraphicsMode
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35])
+@Config(sdk = [35], qualifiers = "w412dp-h915dp")
 class MobileWelcomeScreenTest {
 
     @get:Rule
@@ -53,7 +55,7 @@ class MobileWelcomeScreenTest {
 
         compose.onNodeWithContentDescription("put.io").assertIsDisplayed()
         compose.onNodeWithText("Welcome!").assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
-        compose.onNodeWithText("Your put.io files, streaming and offline on this phone.").assertIsDisplayed()
+        compose.onNodeWithText("Your put.io files, streaming and offline on this device.").assertIsDisplayed()
         compose.onNodeWithText("Sign in").performScrollTo().performClick()
         assertEquals(1, actions)
 
@@ -70,15 +72,40 @@ class MobileWelcomeScreenTest {
         compose.onAllNodesWithText("Sign in").assertCountEquals(0)
         compose.onNodeWithText("Try again").performScrollTo().performClick()
         assertEquals(3, actions)
+    }
 
-        compose.runOnIdle { reason = MobileSignedOutReason.SecureStorageUnavailable }
+    @Test
+    fun secureStorageFailureOffersTryAgainAboveResetAndSignIn() {
+        var retries = 0
+        compose.setContent {
+            PutioTheme {
+                Surface {
+                    MobileSignedOutScreen(
+                        reason = MobileSignedOutReason.SecureStorageUnavailable,
+                        canSignIn = true,
+                        onSignIn = { actions += 1 },
+                        onRetrySecureStorage = { retries += 1 },
+                    )
+                }
+            }
+        }
+
         compose.onNodeWithText("Secure storage is unavailable").assertIsDisplayed()
         compose.onNodeWithText(
             "Your session couldn’t be read or saved safely on this device. Reset clears it so you can sign in again.",
         ).assertIsDisplayed()
-        compose.onAllNodesWithText("Try again").assertCountEquals(0)
-        compose.onNodeWithText("Reset and sign in").performScrollTo().performClick()
-        assertEquals(4, actions)
+        compose.onAllNodes(hasClickAction()).assertCountEquals(2)
+        val tryAgain = compose.onNodeWithText("Try again").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val reset = compose.onNodeWithText("Reset and sign in").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue(tryAgain.bottom <= reset.top)
+
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(1, retries)
+        assertEquals(0, actions)
+
+        compose.onNodeWithText("Reset and sign in").performClick()
+        assertEquals(1, retries)
+        assertEquals(1, actions)
     }
 
     @Test
@@ -107,6 +134,31 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
+    fun deviceWithoutGooglePlayExplainsAndOffersOnlyTryAgain() {
+        var chromeRequests = 0
+        compose.setContent {
+            PutioTheme {
+                Surface {
+                    MobileSignedOutScreen(
+                        reason = MobileSignedOutReason.ChromeStoreUnavailable,
+                        canSignIn = true,
+                        onSignIn = { actions += 1 },
+                        onGetChrome = { chromeRequests += 1 },
+                    )
+                }
+            }
+        }
+
+        compose.onNodeWithText("This device can’t get Chrome").assertIsDisplayed()
+        compose.onNodeWithText("Sign-in needs Chrome from Google Play, which isn’t available here.")
+            .assertIsDisplayed()
+        compose.onAllNodes(hasClickAction()).assertCountEquals(1)
+        compose.onNodeWithText("Try again").performClick()
+        assertEquals(1, actions)
+        assertEquals(0, chromeRequests)
+    }
+
+    @Test
     fun missingOAuthClientExplainsWithoutAnAction() {
         setSignedOut(canSignIn = false)
 
@@ -132,7 +184,6 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
-    @Config(qualifiers = "w412dp-h915dp")
     fun aPhoneShowsTheActionWithoutScrolling() {
         setSignedOut()
 

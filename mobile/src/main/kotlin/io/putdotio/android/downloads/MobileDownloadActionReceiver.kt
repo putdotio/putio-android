@@ -124,7 +124,9 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
                 },
                 dismiss = { userId, fileId -> MobileDownloadNotifications.cancel(context, userId, fileId) },
                 decision = DownloadRetryDecision(
-                    directPlay = { fileId, subtitles -> directPlay.resolve(fileId, subtitles, RETRY_LOOKUP_BUDGET) },
+                    directPlay = { fileId, subtitles, chosen ->
+                        directPlay.resolve(fileId, subtitles, RETRY_LOOKUP_BUDGET, chosen)
+                    },
                     save = { userId, entry -> MobileDownloadStore.shared(context, userId).upsert(entry) },
                     failed = { userId, entry ->
                         MobileDownloadNotifications.post(
@@ -226,7 +228,8 @@ internal enum class DownloadRetryOutcome {
 }
 
 internal class DownloadRetryDecision(
-    val directPlay: suspend (FilesItemId, includeSubtitles: Boolean) -> DirectPlayDownload? = { _, _ -> null },
+    val directPlay: suspend (FilesItemId, includeSubtitles: Boolean, chosen: Boolean) -> DirectPlayDownload? =
+        { _, _, _ -> null },
     val save: suspend (userId: Long, entry: DownloadEntry) -> Unit = { _, _ -> },
     val failed: (userId: Long, entry: DownloadEntry) -> Unit = { _, _ -> },
 )
@@ -257,7 +260,7 @@ internal class DownloadNotificationRetries(
     private suspend fun queue(userId: Long, entry: DownloadEntry): DownloadRetryOutcome {
         val retry = entry.retryStart()
         val answer = if (retry.asksDirectPlay) {
-            decision.directPlay(entry.fileId, entry.subtitlesHidden != true)
+            decision.directPlay(entry.fileId, entry.subtitlesHidden != true, entry.directPlayChosen)
         } else {
             null
         }

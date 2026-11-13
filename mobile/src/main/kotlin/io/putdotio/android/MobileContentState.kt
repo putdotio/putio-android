@@ -162,6 +162,9 @@ internal fun MobileInlineError(
     }
 }
 
+internal val FilesFailure?.isUnreachable: Boolean
+    get() = this is PutioFailure.NetworkUnavailable || this is PutioFailure.Timeout
+
 /**
  * Calls [onRetry] once the default network is validated again, while this is on screen and the app
  * is started, and on a slow clock: the network may have returned before this was on screen, or
