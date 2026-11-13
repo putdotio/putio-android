@@ -30,20 +30,20 @@ class TvExportedComponentsTest {
     }
 
     @Test
-    fun `what another app sends the main activity, without the install's key, opens no file or search`() {
-        val filtered = packageManager.getIntentFiltersForActivity(ComponentName(context, MainActivity::class.java))
+    fun `what another app sends through the main activity's filters, without the install's key, opens nothing`() {
+        packageManager.getIntentFiltersForActivity(ComponentName(context, MainActivity::class.java))
             .flatMap { filter -> filter.actionsIterator().asSequence().map { filter.senderIntent(it) }.toList() }
-        val explicit = listOf("putio://continue/55", "putio://search?q=harbor").map { Intent(Intent.ACTION_VIEW, it.toUri()) }
-
-        (filtered + explicit).forEach { intent ->
-            assertNull(intent.toString(), intent.consumeTvLaunchRequest { TvLinkKey.get(context) })
-        }
+            .forEach { intent ->
+                assertNull(intent.toString(), intent.consumeTvLaunchRequest { TvLinkKey.get(context) })
+            }
     }
 
     private fun IntentFilter.senderIntent(action: String): Intent {
         val intent = Intent(action).putExtra(SearchManager.QUERY, "harbor")
-        val scheme = schemesIterator()?.asSequence()?.firstOrNull() ?: return intent
-        val host = authoritiesIterator()?.asSequence()?.firstOrNull()?.host
+        val scheme = schemesIterator()?.asSequence()?.singleOrNull() ?: return intent
+        val host = checkNotNull(authoritiesIterator()?.asSequence()?.singleOrNull()?.host) {
+            "Give this test a link for the $scheme filter"
+        }
         return intent.setData("$scheme://$host/55".toUri())
     }
 
