@@ -20,15 +20,14 @@ class TvBaselineProfileGenerator {
 
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val device = UiDevice.getInstance(instrumentation)
-    private val packageName = "io.put.putio"
 
     @Test
-    fun startupToHome() {
+    fun linkToHome() {
         try {
-            rule.collect(packageName = packageName, includeInStartupProfile = true) {
+            rule.collect(packageName = PACKAGE_NAME, maxIterations = 1) {
                 pressHome()
                 startActivityAndWait()
-                awaitShell()
+                check(awaitShell() != null) { "The app started signed in; generate on a signed-out emulator" }
                 device.wait(Until.hasObject(By.text(HOME_CONTENT)), CONTENT_TIMEOUT_MS)
             }
         } finally {
@@ -36,10 +35,28 @@ class TvBaselineProfileGenerator {
         }
     }
 
-    private fun awaitShell() {
+    @Test
+    fun storedTokenStartToHome() {
+        try {
+            device.executeShellCommand("am start -W -n $PACKAGE_NAME/$MAIN_ACTIVITY")
+            awaitShell()
+            rule.collect(packageName = PACKAGE_NAME, includeInStartupProfile = true) {
+                pressHome()
+                startActivityAndWait()
+                check(device.wait(Until.hasObject(By.text(ACCOUNT).pkg(PACKAGE_NAME)), CONTENT_TIMEOUT_MS)) {
+                    "The stored token did not restore the session"
+                }
+                device.wait(Until.hasObject(By.text(HOME_CONTENT)), CONTENT_TIMEOUT_MS)
+            }
+        } finally {
+            signOut()
+        }
+    }
+
+    private fun awaitShell(): String? {
         val deadline = SystemClock.uptimeMillis() + SIGN_IN_TIMEOUT_MS
         var announced: String? = null
-        while (!device.hasObject(By.text(ACCOUNT).pkg(packageName))) {
+        while (!device.hasObject(By.text(ACCOUNT).pkg(PACKAGE_NAME))) {
             check(SystemClock.uptimeMillis() < deadline) { "The shell never showed; approve the activation code in logcat tag $TAG" }
             val code = device.findObject(By.descStartsWith(CODE_PREFIX))?.contentDescription?.removePrefix(CODE_PREFIX)
             if (code != null && code != announced) {
@@ -48,11 +65,12 @@ class TvBaselineProfileGenerator {
             }
             SystemClock.sleep(POLL_MS)
         }
+        return announced
     }
 
     private fun signOut() {
-        device.executeShellCommand("am start -W -n $packageName/io.putdotio.android.MainActivity")
-        if (!device.wait(Until.hasObject(By.text(ACCOUNT).pkg(packageName)), CONTENT_TIMEOUT_MS)) return
+        device.executeShellCommand("am start -W -n $PACKAGE_NAME/$MAIN_ACTIVITY")
+        if (!device.wait(Until.hasObject(By.text(ACCOUNT).pkg(PACKAGE_NAME)), CONTENT_TIMEOUT_MS)) return
         repeat(MAX_MOVES) { device.pressDPadUp() }
         select(ACCOUNT) { device.pressDPadRight() }
         check(device.wait(Until.hasObject(By.text(SIGN_OUT)), CONTENT_TIMEOUT_MS)) { "Account showed no $SIGN_OUT row" }
@@ -79,6 +97,8 @@ class TvBaselineProfileGenerator {
         device.hasObject(By.focused(true).text(text)) || device.hasObject(By.focused(true).hasDescendant(By.text(text)))
 
     private companion object {
+        const val PACKAGE_NAME = "io.put.putio"
+        const val MAIN_ACTIVITY = "io.putdotio.android.MainActivity"
         const val TAG = "PutioBaselineProfile"
         const val ACCOUNT = "Account"
         const val SIGN_OUT = "Sign out"

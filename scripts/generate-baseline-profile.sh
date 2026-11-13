@@ -6,14 +6,18 @@ usage() {
   cat <<'EOF'
 Usage: scripts/generate-baseline-profile.sh <emulator-serial>
 
-Runs :tv:generateBaselineProfile on that emulator alone, approves the
+Runs :tv:generateBaselineProfile on that emulator alone, approves each
 activation code the generator logs (tag PutioBaselineProfile) as devs-auto
 with the putio CLI, and writes tv/src/main/generated/baselineProfiles/.
-The generator's journey is a cold start to Home; it signs out at the end,
-which revokes the grant it was approved with. Commit the regenerated files.
+The generator profiles two journeys, each linking with its own code and
+signing out at the end, which revokes its grant: linking to Home, and cold
+starts that restore the stored token. Only the stored-token starts feed the
+startup profile. Commit the regenerated files.
 
-  emulator-serial   a running emulator at API 33 or newer, e.g. emulator-5554;
-                    the generator presses Home, so use one you booted:
+  emulator-serial   a running emulator at API 34 or newer, e.g. emulator-5554;
+                    older ones reinstall the app before profiling, which
+                    drops the stored token; the generator presses Home, so
+                    use one you booted:
                     scripts/emulator.sh boot tv --headless --name <your-avd>
 
 Prerequisites: python3, and the putio CLI signed in:
@@ -53,7 +57,7 @@ require_sdk_root
 adb_() { "${ADB}" -s "${serial}" "$@"; }
 [[ "$(adb_ get-state 2>/dev/null)" == "device" ]] || die "${serial} is not running"
 sdk="$(adb_ shell getprop ro.build.version.sdk | tr -d '\r')"
-((sdk >= 33)) || die "${serial} runs API ${sdk}; the generator needs API 33 or newer"
+((sdk >= 34)) || die "${serial} runs API ${sdk}; the generator needs API 34 or newer"
 
 approve() {
   local code="$1" payload preview

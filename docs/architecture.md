@@ -42,9 +42,8 @@ flowchart TD
 - `mobile` and `tv`: navigation, screens, view models, the players, and the
   controllers of areas only one app has, such as sign-in and Downloads. Each
   app builds the SDK client and hands it to the repositories.
-- `baselineprofile:tv`: the macrobenchmark journey that writes the TV app's
-  baseline profile, a cold start to Home signed in as devs-auto;
-  `scripts/generate-baseline-profile.sh` runs it.
+- `baselineprofile:tv`: the macrobenchmark journeys that write the TV app's
+  baseline profile; `scripts/generate-baseline-profile.sh` runs them.
 
 The [Kotlin SDK](https://github.com/putdotio/putio-sdk-kotlin) is the only API
 boundary; a gap closes there, never with app-local HTTP.
