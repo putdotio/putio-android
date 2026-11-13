@@ -111,13 +111,14 @@ internal class MobileDownloadCache private constructor(context: Context) {
             .setCache(cache)
             .setCacheKeyFactory(UserScopedCacheKeys(userId))
             .setUpstreamDataSourceFactory(upstream)
-
-    private fun downloadFactory(userId: Long): CacheDataSource.Factory =
-        cacheFactory(userId) { RequestUriDataSource(upstreamFactory.createDataSource()) }
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
+    private val downloadUpstreamFactory = DataSource.Factory {
+        RequestUriDataSource(upstreamFactory.createDataSource())
+    }
+
     internal val downloaderFactory: DownloaderFactory =
-        UserScopedDownloaderFactory(::downloadFactory, downloadExecutor)
+        UserScopedDownloaderFactory({ userId -> cacheFactory(userId, downloadUpstreamFactory) }, downloadExecutor)
 
     /**
      * Media3's DownloadService binds the first manager it sees for the whole

@@ -30,12 +30,10 @@ internal fun Cache.dropSignedMetadata() {
     for (key in keys) {
         val names = getContentMetadata(key).signedNames()
         if (names.isEmpty()) continue
-        val mutations = ContentMetadataMutations()
-        names.forEach(mutations::remove)
+        val mutations = ContentMetadataMutations().apply { names.forEach(::remove) }
         try {
             applyContentMetadataMutations(key, mutations)
         } catch (_: Cache.CacheException) {
-            continue
         }
     }
 }
