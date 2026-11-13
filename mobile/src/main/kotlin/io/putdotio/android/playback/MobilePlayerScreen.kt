@@ -113,7 +113,6 @@ internal fun MobilePlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
-    /** Opens the original again from a position; null unless [PlaybackState.offersOriginal]. */
     onOriginalChosen: ((Long) -> Unit)? = null,
     autoplayNextVideo: Boolean = false,
     rotateToLandscape: Boolean = true,

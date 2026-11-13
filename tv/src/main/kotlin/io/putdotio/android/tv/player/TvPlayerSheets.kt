@@ -243,13 +243,14 @@ private fun ColumnScope.TvStreamSheet(
     onChoose: (PlaybackStream) -> Unit,
 ) {
     TvSheetRows {
+        val focused = current ?: PlaybackStream.Original
         PlaybackStream.entries.forEach { stream ->
             TvSheetOption(
                 label = stringResource(stream.label),
                 detail = AnnotatedString(stringResource(stream.detail)),
                 selected = stream == current,
                 onClick = { onChoose(stream) },
-                modifier = if (stream == current) Modifier.focusRequester(focus) else Modifier,
+                modifier = if (stream == focused) Modifier.focusRequester(focus) else Modifier,
             )
         }
     }
