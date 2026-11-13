@@ -644,6 +644,7 @@ private fun MobilePlaybackRoute(
         onOpenInVlc = onOpenInVlc?.let { open -> { open(state.target) } },
         cast = cast,
         castMedia = castMediaFor(castMedia, state.target),
+        onCastEnded = { controller.dispatch(PlaybackEvent.CastEnded) },
     )
 }
 

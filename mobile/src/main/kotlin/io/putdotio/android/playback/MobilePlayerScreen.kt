@@ -137,6 +137,7 @@ internal fun MobilePlayerScreen(
     /** The Cast session; with [castMedia], the top bar offers Cast once a receiver is in reach. */
     cast: MobileCastController? = null,
     castMedia: MobileCastMediaLoader? = null,
+    onCastEnded: (() -> Unit)? = null,
 ) {
     // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
@@ -193,7 +194,7 @@ internal fun MobilePlayerScreen(
         // The open device picker is modal: TalkBack reaches only it.
         Box(Modifier.fillMaxSize().hiddenFromAccessibility(castPicker.value)) {
             val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
-            val shown = state.shownContent(playerCast, onResume)
+            val shown = state.shownContent(playerCast, onResume, onCastEnded)
             when (val content = shown) {
                 is PlaybackContent.Loading ->
                     MobileLoadingState(stringResource(state.target.mediaType.loadingMessage()))
@@ -263,10 +264,19 @@ internal fun MobilePlayerScreen(
  * What the screen shows: a receiver already playing the file takes the place of a resume prompt,
  * which is answered with the saved position so a session that ends hands back as from any ready
  * file, and of a local failure, which leaves that receiver in reach. A session that already ended
- * answers the prompt too: the file resumes where the receiver stopped.
+ * answers the prompt too: the file resumes where the receiver stopped. An original that played
+ * converted only for the receiver loads as the original again once the session is gone.
  */
 @Composable
-private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> Unit): PlaybackContent {
+private fun PlaybackState.shownContent(
+    playerCast: PlayerCast,
+    onResume: () -> Unit,
+    onCastEnded: (() -> Unit)?,
+): PlaybackContent {
+    if (onCastEnded != null && convertedForCast && !playerCast.session) {
+        LaunchedEffect(target.fileId) { onCastEnded() }
+        return ReopeningOriginal
+    }
     val prompt = content as? PlaybackContent.AwaitingResume
     val attached = playerCast.attaches(target.fileId.value) && content.attachable
     // Where a receiver stopped is the answer the prompt would ask for, so it is not asked.
@@ -275,6 +285,8 @@ private fun PlaybackState.shownContent(playerCast: PlayerCast, onResume: () -> U
     }
     return if (attached) PlaybackContent.Session else content
 }
+
+private val ReopeningOriginal = PlaybackContent.Loading(PlaybackRequestId(0L))
 
 /** States a receiver that already plays the file stands in for: none needs the viewer first. */
 private val PlaybackContent.attachable: Boolean

@@ -72,7 +72,7 @@ class MobileDownloadActionReceiverTest {
             start = { _, entry -> sent += entry },
             dismiss = { userId, fileId -> dismissed += userId to fileId },
             decision = DownloadRetryDecision(
-                directPlay = { fileId, _ ->
+                directPlay = { fileId, _, _ ->
                     asked += fileId.value
                     val source = if (fileId == untouched.fileId) {
                         DirectPlayDownloadSource.Original
@@ -131,7 +131,7 @@ class MobileDownloadActionReceiverTest {
             start = { _, entry -> sent += entry },
             dismiss = { userId, fileId -> dismissed += userId to fileId },
             decision = DownloadRetryDecision(
-                directPlay = { _, _ ->
+                directPlay = { _, _, _ ->
                     account = SignedInAccount.Nobody
                     DirectPlayDownload(DirectPlayDownloadSource.Original, listOf(ENGLISH))
                 },
@@ -161,7 +161,7 @@ class MobileDownloadActionReceiverTest {
             start = { _, entry -> sent += entry },
             dismiss = { userId, fileId -> dismissed += userId to fileId },
             decision = DownloadRetryDecision(
-                directPlay = { fileId, _ ->
+                directPlay = { fileId, _, _ ->
                     if (fileId == removed.fileId) {
                         rows.remove(USER to fileId.value)
                     } else {

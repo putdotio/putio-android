@@ -263,6 +263,56 @@ class PlaybackOriginalFallbackTest {
     }
 
     @Test
+    fun theEndOfACastOpensTheOriginalAsItWasPickedFromWhereverTheConversionStood() {
+        val picked = Video.copy(method = StreamingMethod.File)
+        val playing = ready(source(PlaybackSourceKind.ORIGINAL), target = picked)
+        val cast = PlaybackReducer.reduce(playing, rejectedBy(PlaybackFallbackReason.CastReceiver))
+        val queued = PlaybackResolution.Conversion(PlaybackConversionState.Queued)
+        val converting = PlaybackReducer.reduce(cast.state, resolved(queued)).state
+        assertTrue(converting.convertedForCast)
+
+        val ended = PlaybackReducer.reduce(converting, PlaybackEvent.CastEnded)
+
+        assertEquals(PlaybackEffect.Resolve(picked, PlaybackRequestId(3L)), ended.effect)
+        assertEquals(picked, ended.state.target)
+        assertFalse(ended.state.convertedForCast)
+        assertFalse(PlaybackReducer.reduce(ended.state, PlaybackEvent.CastEnded).consumed)
+    }
+
+    @Test
+    fun aViewersSwitchOrAnotherFileIsNoCastToUndo() {
+        val playing = ready(source(PlaybackSourceKind.ORIGINAL))
+        val switched = PlaybackReducer.reduce(playing, rejectedBy(PlaybackFallbackReason.UserSwitched))
+        val cast = PlaybackReducer.reduce(playing, rejectedBy(PlaybackFallbackReason.CastReceiver))
+        val standard = PlaybackResolution.Ready(source(PlaybackSourceKind.HLS))
+        val casting = PlaybackReducer.reduce(cast.state, resolved(standard))
+        val next = PlaybackReducer.reduce(
+            casting.state,
+            PlaybackEvent.NextChosen(PlaybackTarget(FilesItemId(43L), "next.mkv")),
+        )
+
+        assertFalse(PlaybackReducer.reduce(switched.state, PlaybackEvent.CastEnded).consumed)
+        assertFalse(next.state.convertedForCast)
+        assertFalse(PlaybackReducer.reduce(next.state, PlaybackEvent.CastEnded).consumed)
+    }
+
+    @Test
+    fun aDownloadedOriginalConvertsForAReceiver() {
+        val rejected = PlaybackReducer.reduce(
+            ready(source(PlaybackSourceKind.ORIGINAL), offline = true),
+            rejectedBy(PlaybackFallbackReason.CastReceiver),
+        )
+
+        val standard = Video.copy(method = StreamingMethod.Hls)
+        assertEquals(PlaybackEffect.Resolve(standard, PlaybackRequestId(2L), convertedOnly = true), rejected.effect)
+    }
+
+    private fun rejectedBy(reason: PlaybackFallbackReason) = PlaybackEvent.OriginalRejected(reason, 1_000L)
+
+    private fun resolved(resolution: PlaybackResolution) =
+        PlaybackEvent.ResolveSucceeded(PlaybackRequestId(2L), resolution)
+
+    @Test
     fun aViewersOwnSwitchAndCastsStandardReportNothingAndEveryRescueIsAWarningWithItsCode() {
         val state = ready(source(PlaybackSourceKind.ORIGINAL))
         val expected = setOf(PlaybackFallbackReason.UserSwitched, PlaybackFallbackReason.CastReceiver)

@@ -123,6 +123,7 @@ internal class DownloadsController(
             subtitlesHidden = request.subtitlesHidden,
             startFromSeconds = request.startFromSeconds,
             durationSeconds = request.durationSeconds,
+            directPlayChosen = request.method == StreamingMethod.File,
         )
         enqueue {
             // Re-check under the mutation lock: a removal may have landed since dispatch.
@@ -130,15 +131,15 @@ internal class DownloadsController(
             val replaced = store.find(fresh.fileId)
             val kept = replaced?.takeIf { it.keepsArtifact && request.method == null }
             val entry = kept?.let {
-                fresh.copy(artifact = it.artifact, subtitles = it.subtitles, accepted = it.accepted)
+                fresh.copy(
+                    artifact = it.artifact,
+                    subtitles = it.subtitles,
+                    accepted = it.accepted,
+                    directPlayChosen = it.directPlayChosen,
+                )
             } ?: fresh
             store.upsert(entry)
-            queueStart(
-                entry,
-                decide = kept == null,
-                replaced = replaced,
-                chosen = request.method == StreamingMethod.File,
-            )
+            queueStart(entry, decide = kept == null, replaced = replaced)
         }
         return true
     }
@@ -148,11 +149,12 @@ internal class DownloadsController(
         decide: Boolean,
         replaced: DownloadEntry? = null,
         startup: Boolean = false,
-        chosen: Boolean = false,
     ) {
         val directPlay = if (decide && entry.resolvesDirectPlay) {
             scope.async {
-                lookups.withPermit { sources.directPlay(entry.fileId, entry.subtitlesHidden != true, chosen) }
+                lookups.withPermit {
+                    sources.directPlay(entry.fileId, entry.subtitlesHidden != true, entry.directPlayChosen)
+                }
             }
         } else {
             null
