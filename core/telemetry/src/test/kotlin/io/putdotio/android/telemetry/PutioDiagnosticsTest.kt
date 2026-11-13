@@ -32,18 +32,18 @@ class PutioDiagnosticsTest {
     @Test
     fun onUntilAnAccountOptsOutAndAColdLaunchKeepsTheOptOut() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         assertNotNull("no answer yet counts as on", SentryBoundary.current)
 
         PutioDiagnostics.update(allowed = false)
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
 
         assertNull("a cold launch ignored the stored opt-out", SentryBoundary.current)
     }
 
     @Test
     fun aLaunchSendsOnlyOnceTheAccountAllowsIt() {
-        PutioDiagnostics.start(ApplicationProvider.getApplicationContext<Application>(), CONFIGURATION)
+        launch(ApplicationProvider.getApplicationContext())
         assertEquals("a launch sent before the account answered", false, SentryBoundary.current?.confirmed)
 
         PutioDiagnostics.update(allowed = true)
@@ -54,7 +54,7 @@ class PutioDiagnosticsTest {
     @Test
     fun anOptOutMadeElsewhereDeletesWhatTheLaunchKept() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
         kept.writeText("synthetic")
 
@@ -67,9 +67,9 @@ class PutioDiagnosticsTest {
     @Test
     fun signingOutBeforeTheAccountAnswersDeletesWhatTheLaunchKept() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         PutioDiagnostics.update(DiagnosticsAnswer.Account(true))
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
         kept.writeText("synthetic")
 
@@ -83,9 +83,9 @@ class PutioDiagnosticsTest {
     @Test
     fun aCrashFromASignedOutSessionStillLeavesOnceSignedOutAgain() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         PutioDiagnostics.update(DiagnosticsAnswer.SignedOut)
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
         kept.writeText("synthetic")
 
@@ -124,8 +124,9 @@ class PutioDiagnosticsTest {
     @Test
     fun aLaunchAfterTheWipeStartsSentryOnTheLaunchThread() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
-        SentryBoundary.submit {}.get()
+        launch(application)
+        val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
+        kept.writeText("synthetic")
         val background = SentryBoundary.executor
         SentryBoundary.executor = Executor { error("a later launch queued work") }
         RecordingSentry.sessionAtInit.clear()
@@ -136,6 +137,12 @@ class PutioDiagnosticsTest {
         }
 
         assertEquals(1, RecordingSentry.sessionAtInit.size)
+        assertTrue("a later launch wiped the cache", kept.exists())
+    }
+
+    private fun launch(application: Application) {
+        PutioDiagnostics.start(application, CONFIGURATION)
+        SentryBoundary.submit {}.get()
     }
 
     private fun awaitDeleted(file: File, message: String) {
