@@ -3,6 +3,13 @@ package io.putdotio.android
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
+import androidx.compose.ui.platform.ViewRootForTest
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import io.putdotio.android.playback.MOBILE_CAST_BUTTON_TAG
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
@@ -154,7 +161,10 @@ class MobileCastRaceProofTest {
             await("Android to ask for the local network") {
                 onMain { cast.availability.value } == CastAvailability.NeedsLocalNetwork
             }
-            await("the player") { device.hasObject(By.pkg(context.packageName).desc("Back")) }
+            await("the player") {
+                device.findObject(By.text("Start over"))?.click()
+                device.hasObject(By.pkg(context.packageName).desc("Back"))
+            }
             check(onMain { mainActivity().isInMultiWindowMode }) {
                 "Precondition: the player shows in a multi-window task"
             }
@@ -170,12 +180,15 @@ class MobileCastRaceProofTest {
                 }
             }
             screenshot("01-player-controls")
+            check(playerShowsCast()) { "Precondition: the player window's Cast button is readable" }
             checkNotNull(castButton()) { "The controls hid before the tap" }.click()
             val allow = checkNotNull(device.wait(Until.findObject(ALLOW), PROMPT_MILLIS)) { "No local network prompt" }
             note("local network prompt shows over a player that keeps playing in its window")
             screenshot("02-local-network-prompt")
-            SystemClock.sleep(CONTROLS_HIDE_WAIT_MILLIS)
-            note("waited ${CONTROLS_HIDE_WAIT_MILLIS}ms, past the controls' auto-hide; answering Allow")
+            check(playerShowsCast()) { "Precondition: the controls still show right after the prompt" }
+            await("the controls to hide under the prompt", CONTROLS_HIDE_WAIT_MILLIS) { !playerShowsCast() }
+            check(device.hasObject(ALLOW)) { "The prompt closed before the controls hid" }
+            note("the player window lost its Cast button under the prompt; answering Allow")
             screenshot("03-controls-hidden")
             allow.click()
             val pickerOpened = device.wait(Until.hasObject(PICKER), PICKER_MILLIS) == true
@@ -294,6 +307,23 @@ class MobileCastRaceProofTest {
 
     private fun castButton() = device.findObject(CAST_BUTTON)
 
+    private fun playerShowsCast(): Boolean = onMain {
+        mainActivity().window.decorView.composeRoots().any { root ->
+            root.semanticsOwner.unmergedRootSemanticsNode.contains { node ->
+                node.config.getOrNull(SemanticsProperties.TestTag) == MOBILE_CAST_BUTTON_TAG
+            }
+        }
+    }
+
+    private fun View.composeRoots(): List<ViewRootForTest> = when {
+        this is ViewRootForTest -> listOf(this)
+        this is ViewGroup -> (0 until childCount).flatMap { getChildAt(it).composeRoots() }
+        else -> emptyList()
+    }
+
+    private fun SemanticsNode.contains(match: (SemanticsNode) -> Boolean): Boolean =
+        match(this) || children.any { it.contains(match) }
+
     private fun await(what: String, timeoutMillis: Long = WAIT_MILLIS, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + timeoutMillis
         while (!condition()) {
@@ -335,6 +365,7 @@ class MobileCastRaceProofTest {
             note("PASS")
         } catch (error: Throwable) {
             note("FAIL ${error.javaClass.simpleName}: ${error.message}")
+            runCatching { screenshot("failure") }
             throw error
         } finally {
             File(checkNotNull(directory), "$name.txt").writeText(log.joinToString("\n", postfix = "\n"))
@@ -356,7 +387,7 @@ class MobileCastRaceProofTest {
         const val WAIT_MILLIS = 60_000L
         const val PROMPT_MILLIS = 15_000L
         const val PICKER_MILLIS = 10_000L
-        const val CONTROLS_HIDE_WAIT_MILLIS = 8_000L
+        const val CONTROLS_HIDE_WAIT_MILLIS = 15_000L
         const val PICKER_LIST_MILLIS = 15_000L
         const val REVEAL_MILLIS = 1_500L
         const val MULTI_WINDOW = 6
