@@ -7,6 +7,7 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.BaseDataSource
+import androidx.media3.datasource.ByteArrayDataSource
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSourceInputStream
 import androidx.media3.datasource.DataSpec
@@ -48,10 +49,7 @@ class CacheRedirectsTest {
     @Test
     fun aDownloadThroughACdnRedirectStoresNoSignedUrlAndResumesThroughTheRequestUrl() {
         val cdn = RedirectingUpstream(bytes)
-        val reads = CacheDataSource.Factory()
-            .setCache(cache)
-            .setCacheKeyFactory(keys)
-            .setUpstreamDataSourceFactory { RequestUriDataSource(cdn) }
+        val reads = cacheFactory { RequestUriDataSource(cdn) }
 
         reads.read(DataSpec.Builder().setUri(API_URL).setLength(HALF.toLong()).build())
         val resumed = reads.read(DataSpec(API_URL))
@@ -59,44 +57,37 @@ class CacheRedirectsTest {
         assertArrayEquals(bytes, resumed)
         assertEquals(listOf(0L to API_URL, HALF.toLong() to API_URL), cdn.opened.map { it.position to it.uri })
         assertNull(ContentMetadata.getRedirectedUri(cache.getContentMetadata(keys.buildCacheKey(DataSpec(API_URL)))))
-        assertTrue(storedMetadata().none { it.contains(OAUTH_TOKEN_QUERY) })
+        assertTrue(storedMetadata().none { it.contains(OAUTH_TOKEN) })
     }
 
     @Test
     fun storedSignedMetadataIsDroppedAndTheDownloadStaysReadable() {
         val key = keys.buildCacheKey(DataSpec(API_URL))
         val playlist = keys.buildCacheKey(DataSpec(PLAYLIST_URL))
-        store(key, bytes)
-        store(playlist, "#EXTM3U".encodeToByteArray())
-        cache.applyContentMetadataMutations(
-            key,
-            ContentMetadataMutations.setContentLength(ContentMetadataMutations(), bytes.size.toLong())
-                .set(ContentMetadata.KEY_REDIRECTED_URI, CDN_URL.toString()),
-        )
+        cacheFactory { RedirectingUpstream(bytes) }.read(DataSpec(API_URL))
+        cacheFactory { ByteArrayDataSource(PLAYLIST) }.read(DataSpec(PLAYLIST_URL))
         cache.applyContentMetadataMutations(
             playlist,
-            ContentMetadataMutations().set(ContentMetadata.KEY_REDIRECTED_URI, "https://api.put.io/hls/a.m3u8")
+            ContentMetadataMutations()
                 .set("${ContentMetadata.KEY_CUSTOM_PREFIX}source", CDN_URL.toString())
                 .set("${ContentMetadata.KEY_CUSTOM_PREFIX}kept", "plain"),
         )
-        assertTrue(storedMetadata().any { it.contains(OAUTH_TOKEN_QUERY) })
+        assertEquals(CDN_URL, ContentMetadata.getRedirectedUri(cache.getContentMetadata(key)))
 
         cache.dropSignedMetadata()
         cache.release()
         cache = SimpleCache(directory, NoOpCacheEvictor(), database)
 
-        assertTrue(storedMetadata().none { it.contains(OAUTH_TOKEN_QUERY) || it.contains(ContentMetadata.KEY_REDIRECTED_URI) })
+        assertTrue(storedMetadata().none { it.contains(OAUTH_TOKEN) || it.contains(ContentMetadata.KEY_REDIRECTED_URI) })
         assertEquals(bytes.size.toLong(), ContentMetadata.getContentLength(cache.getContentMetadata(key)))
         assertEquals("plain", cache.getContentMetadata(playlist).get("${ContentMetadata.KEY_CUSTOM_PREFIX}kept", null as String?))
-        val offline = CacheDataSource.Factory().setCache(cache).setCacheKeyFactory(keys)
-        assertArrayEquals(bytes, offline.read(DataSpec(API_URL)))
+        val network = RedirectingUpstream(bytes)
+        assertArrayEquals(bytes, cacheFactory { network }.read(DataSpec(API_URL)))
+        assertTrue(network.opened.isEmpty())
     }
 
-    private fun store(key: String, content: ByteArray) {
-        val file = cache.startFile(key, 0L, content.size.toLong())
-        file.writeBytes(content)
-        cache.commitFile(file, content.size.toLong())
-    }
+    private fun cacheFactory(upstream: DataSource.Factory): CacheDataSource.Factory =
+        CacheDataSource.Factory().setCache(cache).setCacheKeyFactory(keys).setUpstreamDataSourceFactory(upstream)
 
     private fun storedMetadata(): List<String> {
         val db = database.readableDatabase
@@ -143,10 +134,12 @@ class CacheRedirectsTest {
     }
 
     private companion object {
+        const val OAUTH_TOKEN = "oauth_token"
         const val ALICE = 7L
         const val HALF = 100_000
         val API_URL: Uri = "https://api.put.io/v2/files/9/stream".toUri()
         val PLAYLIST_URL: Uri = "https://api.put.io/v2/files/9/hls/media.m3u8".toUri()
+        val PLAYLIST = "#EXTM3U".encodeToByteArray()
         val CDN_URL: Uri = "https://s1-cdn.put.io/stream/9?u=signed&oauth_token=secret".toUri()
     }
 }

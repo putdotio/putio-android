@@ -9,7 +9,7 @@ import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.ContentMetadataMutations
 import androidx.media3.datasource.cache.DefaultContentMetadata
 
-private val OAUTH_TOKEN_BYTES = OAUTH_TOKEN_QUERY.encodeToByteArray()
+private val OAUTH_TOKEN_BYTES = "oauth_token".encodeToByteArray()
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class RequestUriDataSource(private val upstream: DataSource) : DataSource by upstream {
