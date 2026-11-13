@@ -52,11 +52,11 @@ internal class TvSearchSuggestionsProvider internal constructor(
             ?: uri.lastPathSegment?.takeIf { it != SearchManager.SUGGEST_URI_PATH_QUERY }
         val limit = uri.getQueryParameter(SearchManager.SUGGEST_PARAMETER_LIMIT)?.toIntOrNull()
         val context = context
-        val search = globalSearch(context)
-        if (context == null || search == null) return MatrixCursor(SUGGESTION_COLUMNS)
         // A binder thread: the system search waits on this answer, so it is bounded.
-        val found = runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
-            ?: return MatrixCursor(SUGGESTION_COLUMNS)
+        val found = globalSearch(context)?.let { search ->
+            runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
+        }
+        if (context == null || found == null) return MatrixCursor(SUGGESTION_COLUMNS)
         return tvSearchSuggestions(
             searchRow = TvSearchRow(found.term, context.getString(R.string.tv_global_search_in_app, found.term.value)),
             items = found.items,
@@ -86,9 +86,9 @@ internal data class TvGlobalSearchResult(val term: SearchTerm, val items: List<F
 
 /**
  * A system search query: the first page of the account's file search, run in the signed-in
- * session. Null for a blank query, no session, or a session that ended while it ran; no items
- * for a failed search. Nobody watches this process, so a 401 goes to [reject], which ends the
- * session without requesting a code.
+ * session. Null for a blank query, no session, a 401 or a session that ended while it ran; no
+ * items for another failed search. Nobody watches this process, so a 401 goes to [reject], which
+ * ends the session without requesting a code.
  */
 internal class TvGlobalSearch(
     /** The signed-in session, restored without a screen when the app has not; null for none. */
@@ -100,13 +100,15 @@ internal class TvGlobalSearch(
 ) {
     suspend fun files(query: String?): TvGlobalSearchResult? {
         val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return null
-        val signedIn = session() ?: return null
+        return session()?.let { signedIn -> files(term, signedIn) }
+    }
+
+    private suspend fun files(term: SearchTerm, signedIn: TvAuthState.SignedIn): TvGlobalSearchResult? {
         val result = search(term)
-        if ((result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
-            reject(signedIn.sessionId)
-        }
-        if (!isCurrent(signedIn.sessionId)) return null
+        val rejected = (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired
+        if (rejected) reject(signedIn.sessionId)
         return TvGlobalSearchResult(term, (result as? PutioResult.Success)?.value?.items.orEmpty())
+            .takeIf { !rejected && isCurrent(signedIn.sessionId) }
     }
 }
 

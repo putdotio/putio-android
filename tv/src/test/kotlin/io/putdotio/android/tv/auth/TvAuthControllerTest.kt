@@ -9,7 +9,6 @@ import io.putdotio.android.auth.ScriptedTokenRevoker
 import io.putdotio.android.auth.TokenRevocationResult
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
-import io.putdotio.android.files.FilesItem
 import io.putdotio.android.tv.search.tvGlobalSearch
 import io.putdotio.sdk.account.AccountDisk
 import io.putdotio.sdk.account.AccountInfo
@@ -210,7 +209,7 @@ class TvAuthControllerTest {
             search = { PutioResult.Failure(rejected) },
         )
 
-        assertEquals(emptyList<FilesItem>(), search.files("harbor"))
+        assertNull(search.files("harbor"))
 
         assertEquals(TvAuthState.Initializing, harness.controller.state.value)
         assertNull(harness.tokenStore.stored)
