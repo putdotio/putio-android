@@ -113,7 +113,11 @@ public data class PlaybackState internal constructor(
     internal val conversionStatusRead: Boolean = false,
     internal val convertedOnly: Boolean = false,
     internal val linkRefetchedAtMillis: Long? = null,
-)
+    internal val castFallbackTarget: PlaybackTarget? = null,
+) {
+    /** Whether this opening plays converted only because a Cast receiver needed it. */
+    public val convertedForCast: Boolean get() = castFallbackTarget != null
+}
 
 public sealed interface PlaybackEvent {
     public data object Resume : PlaybackEvent
@@ -148,6 +152,9 @@ public sealed interface PlaybackEvent {
         val reason: PlaybackFallbackReason,
         val positionMillis: Long,
     ) : PlaybackEvent
+
+    /** The Cast session ended: an original converted for the receiver opens as it was picked again. */
+    public data object CastEnded : PlaybackEvent
 
     public data class ResolveSucceeded(
         val requestId: PlaybackRequestId,
@@ -242,6 +249,7 @@ public object PlaybackReducer {
             is PlaybackEvent.SourceRequired -> state.sourceRequired(event)
             is PlaybackEvent.PlayerFailed -> state.playerFailed(event)
             is PlaybackEvent.OriginalRejected -> state.originalRejected(event)
+            PlaybackEvent.CastEnded -> state.castEnded()
             is PlaybackEvent.ResolveSucceeded -> state.resolveSucceeded(event)
             is PlaybackEvent.ResolveFailed -> state.resolveFailed(event)
             is PlaybackEvent.NextChosen,

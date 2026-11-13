@@ -132,7 +132,11 @@ internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
         idleMain()
     }
 
-    override fun localNetworkAnswered() = Unit
+    var localNetworkAnswers = 0
+
+    override fun localNetworkAnswered() {
+        localNetworkAnswers++
+    }
 
     override fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float) {
         loads += Load(media.fileId, startMillis, autoplay, speed)

@@ -188,6 +188,32 @@ class DownloadMethodsTest {
     }
 
     @Test
+    fun aDirectPlayPickedFromAFileMenuKeepsLookingPastARememberedSwitchOnRetryAndRestart() = runBlocking {
+        val chosen = mutableListOf<Pair<FilesItemId, Boolean>>()
+        val sources = DownloadSources({ StreamingMethod.Hls }) { fileId, _, fromMenu ->
+            chosen += fileId to fromMenu
+            original()
+        }
+        DownloadsController(store, engine, this, sources = sources).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video.copy(method = StreamingMethod.File))))
+            engine.await { it.started.size == 1 }
+            val picked = store.find(video.fileId)!!
+            store.upsert(picked.copy(status = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)))
+
+            assertTrue(controller.dispatch(DownloadsEvent.Retry(video.fileId)))
+            engine.await { it.started.size == 2 }
+        }
+        val restarted = store.find(video.fileId)!!
+            .copy(artifact = DownloadArtifact.MP4, status = DownloadStatus.Queued, accepted = false)
+        store.upsert(restarted)
+        DownloadsController(store, engine, this, sources = sources).use {
+            engine.await { it.started.size == 3 }
+        }
+
+        assertEquals(List(3) { video.fileId to true }, chosen)
+    }
+
+    @Test
     fun aVideoWhoseLookupTheProcessLostAsksAgainOnTheNextStart() = runBlocking {
         val lost = DownloadEntry(
             video.fileId, video.name, PutioFileType.VIDEO, DownloadArtifact.MP4, DownloadStatus.Queued, createdAt = 1L,

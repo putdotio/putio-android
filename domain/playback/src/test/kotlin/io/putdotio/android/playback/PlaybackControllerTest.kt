@@ -6,6 +6,7 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
+import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -226,6 +227,111 @@ class PlaybackControllerTest {
                 controller.close()
             }
         }
+
+    @Test
+    fun theEndOfACastOpensTheOriginalEvenWhileAConversionReadHangs() = runBlocking {
+        var hang = false
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
+                if (!convertedOnly) return ready(target, PlaybackSourceKind.ORIGINAL)
+                if (hang) awaitCancellation()
+                return PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = error("Not expected")
+        }
+        val controller = PlaybackController(Target, repository, this)
+        try {
+            controller.awaitContent<PlaybackContent.Ready>()
+            assertTrue(controller.dispatch(PlaybackEvent.OriginalRejected(PlaybackFallbackReason.CastReceiver, 0L)))
+            controller.awaitContent<PlaybackContent.Conversion>()
+            hang = true
+            assertTrue(controller.dispatch(PlaybackEvent.RefreshConversion))
+
+            assertTrue(controller.dispatch(PlaybackEvent.CastEnded))
+
+            val reopened = controller.awaitContent<PlaybackContent.Ready>()
+            assertEquals(PlaybackSourceKind.ORIGINAL, reopened.source.kind)
+        } finally {
+            controller.close()
+        }
+    }
+
+    @Test
+    fun aSwitchToAConvertedStreamThatDoesNotExistIsNotRemembered() = runBlocking {
+        val remembered = mutableListOf<PlaybackTarget>()
+        var converted: PlaybackResolution = PlaybackResolution.Unsupported(PutioFileType.VIDEO)
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> =
+                if (convertedOnly) {
+                    PlaybackRepositoryResult.Success(converted)
+                } else {
+                    ready(target, PlaybackSourceKind.ORIGINAL)
+                }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = error("Not expected")
+
+            override fun rememberSwitchedToConverted(target: PlaybackTarget) {
+                remembered += target
+            }
+        }
+        suspend fun switchOnce(): PlaybackContent {
+            val controller = PlaybackController(Target, repository, this)
+            return try {
+                controller.awaitContent<PlaybackContent.Ready>()
+                assertTrue(controller.dispatch(PlaybackEvent.OriginalRejected(PlaybackFallbackReason.UserSwitched, 0L)))
+                withTimeout(TEST_TIMEOUT_MILLIS) { controller.state.first { it.content !is PlaybackContent.Loading } }
+                    .content
+            } finally {
+                controller.close()
+            }
+        }
+
+        assertTrue(switchOnce() is PlaybackContent.Unsupported)
+        assertEquals(emptyList<PlaybackTarget>(), remembered)
+
+        converted = PlaybackResolution.Ready(playbackSource(Target.fileId.value))
+        assertTrue(switchOnce() is PlaybackContent.Ready)
+        assertEquals(listOf(Target), remembered)
+    }
+
+    @Test
+    fun leavingBeforeASwitchResolvesStillRemembersIt() = runBlocking {
+        val remembered = mutableListOf<PlaybackTarget>()
+        val repository = object : PlaybackRepository {
+            override suspend fun resolve(
+                target: PlaybackTarget,
+                convertedOnly: Boolean,
+            ): PlaybackRepositoryResult<PlaybackResolution> {
+                if (convertedOnly) awaitCancellation()
+                return ready(target, PlaybackSourceKind.ORIGINAL)
+            }
+
+            override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = error("Not expected")
+
+            override fun rememberSwitchedToConverted(target: PlaybackTarget) {
+                remembered += target
+            }
+        }
+        val controller = PlaybackController(Target, repository, this)
+        controller.awaitContent<PlaybackContent.Ready>()
+        assertTrue(controller.dispatch(PlaybackEvent.OriginalRejected(PlaybackFallbackReason.UserSwitched, 0L)))
+
+        controller.close()
+
+        assertEquals(listOf(Target), remembered)
+    }
+
+    private fun ready(target: PlaybackTarget, kind: PlaybackSourceKind): PlaybackRepositoryResult<PlaybackResolution> =
+        PlaybackRepositoryResult.Success(
+            PlaybackResolution.Ready(playbackSource(target.fileId.value).copy(kind = kind)),
+        )
 
     private suspend inline fun <reified T : PlaybackContent> PlaybackController.awaitContent(
         crossinline predicate: (T) -> Boolean = { true },

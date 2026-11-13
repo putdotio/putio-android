@@ -116,6 +116,7 @@ internal class PlayerCast(
     val controller: MobileCastController?,
     val button: @Composable (Modifier) -> Unit,
     val casting: CastingTarget?,
+    val session: Boolean = casting != null,
 ) {
     /** Whether a session's receiver plays [fileId], so the player attaches instead of asking to resume. */
     fun attaches(fileId: Long): Boolean = casting?.controller?.holds(fileId) == true
@@ -140,15 +141,17 @@ internal fun rememberPlayerCast(
     val availability by (cast?.availability ?: NoCast).collectAsStateWithLifecycle()
     val status by (cast?.status ?: NoStatus).collectAsStateWithLifecycle()
     if (cast == null || castMedia == null) return NoPlayerCast
+    val askLocalNetwork = rememberLocalNetworkRequest(cast.gateway::localNetworkAnswered, onOpenPicker)
     // A session reconnecting still owns playback while the receiver's last status stands.
     val device = availability.connectedDevice
         ?: (availability as? CastAvailability.Connecting)?.takeIf { status != null }?.let { it.deviceName.orEmpty() }
     return PlayerCast(
         controller = cast,
         button = { modifier ->
-            MobileCastButton(availability, onOpenPicker, cast.gateway::localNetworkAnswered, modifier)
+            MobileCastButton(availability, onOpenPicker, askLocalNetwork, modifier)
         },
         casting = if (device == null) null else CastingTarget(cast, castMedia, device),
+        session = availability.casting,
     )
 }
 
