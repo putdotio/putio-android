@@ -64,6 +64,12 @@ internal fun mobileAppDiagnostics(
         streamingMethod = streamingMethod,
     )
 
+internal fun mobileDeviceClass(smallestScreenWidthDp: Int): AppDiagnostics.DeviceClass =
+    if (smallestScreenWidthDp >= TABLET_SMALLEST_WIDTH_DP) AppDiagnostics.DeviceClass.Tablet
+    else AppDiagnostics.DeviceClass.Phone
+
+private const val TABLET_SMALLEST_WIDTH_DP = 600
+
 // Media3 is the only player; the stream method is the one playback actually uses,
 // which falls back to HLS while config is loading and ignores unconfirmed saves.
 private fun playerLabel(playbackPreference: PlaybackPreference): String =
