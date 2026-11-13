@@ -7,6 +7,7 @@ import io.putdotio.android.files.FilesDeleteMode
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.files.confirmedGone
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchController
@@ -65,7 +66,7 @@ private fun FilesBrowserController.invalidateAll() {
 }
 
 internal class TvSearchChanges(private val search: SearchController) : (TvItemChange) -> Unit {
-    private val removals = mutableMapOf<FilesItemId, SearchRemoval>()
+    private val removals = mutableMapOf<FilesRequestId, List<SearchRemoval>>()
 
     override fun invoke(change: TvItemChange) {
         when (change) {
@@ -73,21 +74,25 @@ internal class TvSearchChanges(private val search: SearchController) : (TvItemCh
             is TvItemChange.Renamed -> result(change.itemId)?.let { search.itemUpdated(it.copy(name = change.name)) }
             is TvItemChange.Moved ->
                 result(change.itemId)?.let { search.itemUpdated(it.copy(parentId = change.destinationId)) }
-            is TvItemChange.Removed -> change.outcome.confirmedGone().forEach { removed(it, change.outcome) }
-            is TvItemChange.Restored -> change.outcome.intent.itemIds.forEach { id ->
-                removals.remove(id)?.let { search.itemRestored(it.item, it.index, it.term, it.filter) }
+            is TvItemChange.Removed -> removed(change.outcome)
+            is TvItemChange.Restored -> removals.remove(change.outcome.requestId)?.forEach {
+                search.itemRestored(it.item, it.index, it.term, it.filter)
             }
             is TvItemChange.PositionSaved -> search.positionSaved(change.itemId, change.seconds)
         }
     }
 
-    private fun removed(itemId: FilesItemId, outcome: FilesDeleteOutcome) {
+    private fun removed(outcome: FilesDeleteOutcome) {
+        val gone = outcome.confirmedGone().toSet()
         val results = search.state.value.content as? SearchContent.Ready
-        val index = results?.items?.indexOfFirst { it.id == itemId } ?: -1
-        if (results != null && index >= 0 && outcome.isConfirmedTrash) {
-            removals[itemId] = SearchRemoval(results.items[index], index, results.term, search.state.value.filter)
+        val dropped = results?.items.orEmpty().withIndex()
+            .filter { (_, item) -> item.id in gone || item.parentId in gone }
+        if (results != null && dropped.isNotEmpty() && outcome.isConfirmedTrash) {
+            val filter = search.state.value.filter
+            removals[outcome.requestId] =
+                dropped.map { (index, item) -> SearchRemoval(item, index, results.term, filter) }
         }
-        search.itemRemoved(itemId)
+        (gone + dropped.map { it.value.id }).forEach(search::itemRemoved)
     }
 
     private fun result(itemId: FilesItemId): FilesItem? =
@@ -100,8 +105,9 @@ internal fun TvHistoryFiles.hear(change: TvItemChange) {
     when (change) {
         is TvItemChange.PositionSaved -> forget(change.itemId)
         is TvItemChange.Moved -> forget(change.itemId)
-        is TvItemChange.Edited, is TvItemChange.Renamed, is TvItemChange.Removed, is TvItemChange.Restored ->
-            forgetAll()
+        is TvItemChange.Edited -> forgetWithChildren(change.item.id)
+        is TvItemChange.Renamed -> forgetWithChildren(change.itemId)
+        is TvItemChange.Removed, is TvItemChange.Restored -> forgetAll()
     }
 }
 

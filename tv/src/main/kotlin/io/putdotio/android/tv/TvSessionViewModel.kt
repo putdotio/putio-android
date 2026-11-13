@@ -297,7 +297,8 @@ internal class TvSession internal constructor(
                 .map { state -> state.stack.flatMap { it.browserChanges() } }
                 .distinctUntilChanged()
                 .collect { edits ->
-                    edits.filter { handledBrowserEdits.add(it.first) }.forEach { it.second.forEach(itemChanges::publish) }
+                    edits.filter { handledBrowserEdits.add(it.first) }
+                        .forEach { (_, changes) -> changes.forEach(itemChanges::publish) }
                 }
         }
         scope.launch {

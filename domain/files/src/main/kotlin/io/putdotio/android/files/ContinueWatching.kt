@@ -62,6 +62,8 @@ public interface ContinueWatchingStore {
  * resolved its name and duration and put.io has accepted a position for it, newest first, at most
  * [MAX_ENTRIES]. Finished, unwatched and deleted videos leave. Main-thread only.
  */
+// One entry point per change the player, put.io or the viewer makes to the row.
+@Suppress("TooManyFunctions")
 public class ContinueWatching(
     private val store: ContinueWatchingStore,
     private val clock: () -> Long = System::currentTimeMillis,
@@ -89,7 +91,6 @@ public class ContinueWatching(
         }
     }
 
-    /** put.io confirmed [fileId] now carries [name]. */
     public fun renamed(fileId: FilesItemId, name: String) {
         media[fileId]?.let { media[fileId] = it.copy(name = name) }
         update(mutableEntries.value.map { if (it.fileId == fileId) it.copy(name = name) else it })

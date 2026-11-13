@@ -843,6 +843,30 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `trashing a folder in Files takes its results out of Search and Undo puts them back in place`() = runTest {
+        val folder = media(30, "season", PutioFileType.FOLDER)
+        val inside = media(31, "season e01.mp4", PutioFileType.VIDEO).copy(parentId = folder.id)
+        val other = media(32, "season notes.txt", PutioFileType.TEXT)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.trashingOnly(folder, found = listOf(other, folder, inside)),
+            ),
+        )
+        session.search.updateQuery("season")
+        advanceUntilIdle()
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, folder.id, FilesDeleteMode.TRASH))
+        advanceUntilIdle()
+        assertEquals(listOf(other.id), session.searchResultIds())
+
+        session.trashUndo.undo(checkNotNull(session.files.state.value.current.deleteOutcome))
+        advanceUntilIdle()
+        assertEquals(listOf(other.id, folder.id, inside.id), session.searchResultIds())
+    }
+
+    @Test
     fun `renaming a video in Files renames its Continue watching card on Home`() = runTest {
         val clip = media(30, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
         val session = checkNotNull(
@@ -1123,7 +1147,10 @@ private fun TvSessionDependencies.findingOnly(item: FilesItem) = copy(
     },
 )
 
-private fun TvSessionDependencies.trashingOnly(item: FilesItem): TvSessionDependencies {
+private fun TvSessionDependencies.trashingOnly(
+    item: FilesItem,
+    found: List<FilesItem> = listOf(item),
+): TvSessionDependencies {
     var trashed = false
     return copy(
         filesRepository = object : StubFilesRepository() {
@@ -1138,7 +1165,7 @@ private fun TvSessionDependencies.trashingOnly(item: FilesItem): TvSessionDepend
         },
         searchRepository = object : SearchRepository by searchRepository {
             override suspend fun search(term: SearchTerm, filter: SearchFilter) =
-                PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
+                PutioResult.Success(SearchPage(found, nextCursor = null, total = found.size))
         },
         trashRepository = object : TrashRepository by StubTrashRepository {
             override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit).also { trashed = false }
