@@ -1,0 +1,358 @@
+package io.putdotio.android
+
+import android.net.Uri
+import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.test.core.app.ActivityScenario
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.runner.lifecycle.ActivityLifecycleMonitorRegistry
+import androidx.test.runner.lifecycle.Stage
+import androidx.test.uiautomator.By
+import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.UiDevice
+import androidx.test.uiautomator.Until
+import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.CastAccount
+import io.putdotio.android.playback.CastAvailability
+import io.putdotio.android.playback.CastPrepared
+import io.putdotio.android.playback.CastRemoteState
+import io.putdotio.android.playback.CastTransfer
+import io.putdotio.android.playback.casting
+import io.putdotio.android.playback.MobileCast
+import io.putdotio.android.playback.MobileCastController
+import io.putdotio.android.playback.PlaybackTarget
+import java.io.File
+import java.io.RandomAccessFile
+import java.util.Collections
+import java.util.UUID
+import kotlin.math.PI
+import kotlin.math.sin
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TestRule
+import org.junit.runner.RunWith
+import org.junit.runners.model.Statement
+
+/**
+ * The real app, signed in as devs-auto, casting to a real receiver: the live API resolves every file
+ * the receiver plays. Reads only; the Cast session it starts is stopped at the end.
+ */
+@RunWith(AndroidJUnit4::class)
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+class MobileCastRaceProofTest {
+    @get:Rule
+    val optIn = TestRule { base, _ ->
+        object : Statement() {
+            override fun evaluate() {
+                assumeTrue("Cast race proof requires opt-in", arguments.getString("$LANE.enabled") == "true")
+                UUID.fromString(requireNotNull(arguments.getString("$LANE.runId")) { "Missing $LANE.runId" })
+                base.evaluate()
+            }
+        }
+    }
+
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
+    private val context = instrumentation.targetContext
+    private val device = UiDevice.getInstance(instrumentation)
+    private val log = Collections.synchronizedList(mutableListOf<String>())
+    private val started = SystemClock.elapsedRealtime()
+
+    @Test
+    fun anOverlappingSessionAudioHandoffLeavesOnlyTheNewerFileOnTheReceiver() = proof("session-audio-handoff") {
+        val older = arguments.getString("$LANE.olderAudio")!!.toLong()
+        val newer = arguments.getString("$LANE.newerAudio")!!.toLong()
+        ActivityScenario.launch(MainActivity::class.java).use {
+            val session = signedIn()
+            val cast = awaitCast()
+            connect(cast)
+            val real = checkNotNull(onMain { cast.autoplay.account }) { "No signed-in Cast account" }
+            val gates = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
+            val asked = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
+            val seen = Collections.synchronizedSet(mutableSetOf<Long>())
+            val scope = MainScope()
+            var local: ExoPlayer? = null
+            try {
+                onMain {
+                    cast.autoplay.follow(session.sessionId, OrderedLookups(real, gates, asked))
+                    scope.launch { cast.status.collect { status -> status?.fileId?.let(seen::add) } }
+                }
+                val transfer = CastTransfer(
+                    toReceiver = { item, handover -> cast.castFromSession(item, handover, checkNotNull(local), scope) },
+                    toLocal = {},
+                )
+                local = onMain { ExoPlayer.Builder(context).build() }
+                playLocally(checkNotNull(local), older)
+                onMain { transfer.transferState(checkNotNull(local), cast.remotePlayer) }
+                await("older lookup asked") { asked.getValue(older).isCompleted }
+                playLocally(checkNotNull(local), newer)
+                onMain { transfer.transferState(checkNotNull(local), cast.remotePlayer) }
+                await("newer lookup asked") { asked.getValue(newer).isCompleted }
+                note("both handoffs wait on their lookups; the older one answers first")
+                gates.getValue(older).complete(Unit)
+                awaitOrElapse(OLDER_LOAD_WINDOW_MILLIS) { older in seen }
+                note("receiver after the older answer: ${onMain { cast.status.value }?.describe()}")
+                gates.getValue(newer).complete(Unit)
+                awaitOrElapse(RECEIVER_MILLIS) {
+                    onMain { cast.status.value?.let { it.fileId == newer && it.state == CastRemoteState.Playing } == true }
+                }
+                awaitOrElapse(RECEIVER_MILLIS) { onMain { checkNotNull(local).mediaItemCount == 0 } }
+                val status = onMain { cast.status.value }
+                note("receiver at the end: ${status?.describe()}; files seen there: $seen")
+                note("phone player: items=${onMain { local?.mediaItemCount }} playing=${onMain { local?.isPlaying }}")
+                screenshot("01-phone-after-handoffs")
+                assertFalse("The receiver loaded the superseded file", older in seen)
+                assertEquals(newer, status?.fileId)
+                assertEquals(CastRemoteState.Playing, status?.state)
+                assertEquals("The phone kept the handed-over file", 0, onMain { checkNotNull(local).mediaItemCount })
+                assertFalse("The phone still plays", onMain { checkNotNull(local).isPlaying })
+                assertTrue(
+                    "The session is stuck",
+                    onMain { cast.availability.value is CastAvailability.Connected && !cast.holds(older) },
+                )
+            } finally {
+                onMain {
+                    cast.autoplay.follow(session.sessionId, real)
+                    local?.release()
+                }
+                scope.cancel()
+                disconnect(cast)
+            }
+        }
+    }
+
+    @Test
+    fun aLocalNetworkAnswerAfterTheControlsHideStillOpensTheCastPicker() = proof("local-network-answer") {
+        val video = arguments.getString("$LANE.video")!!.toLong()
+        val receiver = arguments.getString("$LANE.receiver")!!
+        shell(
+            "am start --windowingMode $MULTI_WINDOW -a android.intent.action.VIEW -d putio://files/$video " +
+                "-n ${context.packageName}/${MainActivity::class.java.name}",
+        )
+        try {
+            signedIn()
+            val cast = awaitCast()
+            await("Android to ask for the local network") {
+                onMain { cast.availability.value } == CastAvailability.NeedsLocalNetwork
+            }
+            await("the player") { device.hasObject(By.pkg(context.packageName).desc("Back")) }
+            check(onMain { mainActivity().isInMultiWindowMode }) { "Precondition: the player shows in a multi-window task" }
+            await("the player's Cast button", WAIT_MILLIS) {
+                castButton() != null || false.also {
+                    val startOver = device.findObject(By.text("Start over"))
+                    if (startOver != null) startOver.click() else device.click(device.displayWidth / 2, device.displayHeight / 2)
+                    device.wait(Until.hasObject(CAST_BUTTON), REVEAL_MILLIS)
+                }
+            }
+            screenshot("01-player-controls")
+            checkNotNull(castButton()) { "The controls hid before the tap" }.click()
+            val allow = checkNotNull(device.wait(Until.findObject(ALLOW), PROMPT_MILLIS)) { "No local network prompt" }
+            note("local network prompt shows over a player that keeps playing in its window")
+            screenshot("02-local-network-prompt")
+            SystemClock.sleep(CONTROLS_HIDE_WAIT_MILLIS)
+            note("waited ${CONTROLS_HIDE_WAIT_MILLIS}ms, past the controls' auto-hide; answering Allow")
+            screenshot("03-controls-hidden")
+            allow.click()
+            val pickerOpened = device.wait(Until.hasObject(PICKER), PICKER_MILLIS) == true
+            note("picker opened=$pickerOpened availability=${onMain { cast.availability.value }}")
+            screenshot("04-after-allow")
+            val listed = pickerOpened && device.wait(Until.hasObject(By.textContains(receiver)), PICKER_LIST_MILLIS) == true
+            note("picker lists $receiver=$listed")
+            screenshot("05-picker")
+            assertTrue("The Cast picker never opened", pickerOpened)
+        } finally {
+            shell("am force-stop ${context.packageName}", wait = false)
+        }
+    }
+
+    private fun mainActivity(): MainActivity =
+        ActivityLifecycleMonitorRegistry.getInstance().let { monitor ->
+            (Stage.entries.flatMap { monitor.getActivitiesInStage(it) }).filterIsInstance<MainActivity>().first()
+        }
+
+    private fun shell(command: String, wait: Boolean = true) {
+        val output = instrumentation.uiAutomation.executeShellCommand(command)
+        if (wait) ParcelFileDescriptor.AutoCloseInputStream(output).use { it.readBytes() } else output.close()
+    }
+
+    private class OrderedLookups(
+        private val real: CastAccount,
+        private val gates: Map<Long, CompletableDeferred<Unit>>,
+        private val asked: Map<Long, CompletableDeferred<Unit>>,
+    ) : CastAccount {
+        override val autoplay: Boolean get() = real.autoplay
+
+        override suspend fun next(target: PlaybackTarget): PlaybackTarget? = real.next(target)
+
+        override suspend fun prepare(target: PlaybackTarget): CastPrepared? {
+            asked[target.fileId.value]?.complete(Unit)
+            gates[target.fileId.value]?.await()
+            return real.prepare(target)
+        }
+    }
+
+    private fun connect(cast: MobileCastController) {
+        val receiver = arguments.getString("$LANE.receiver")!!
+        check(!onMain { cast.availability.value.casting }) { "A Cast session already runs; leaving it alone" }
+        onMain { cast.gateway.startDiscovery() }
+        await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
+        val target = onMain { cast.gateway.devices.value.first { receiver in it.name } }
+        note("connecting to ${target.name} (${target.model})")
+        onMain { cast.gateway.select(target.id) }
+        await("a session on $receiver") { onMain { cast.availability.value is CastAvailability.Connected } }
+        onMain { cast.gateway.stopDiscovery() }
+    }
+
+    private fun disconnect(cast: MobileCastController) {
+        onMain { cast.gateway.stopCasting() }
+        awaitOrElapse(RECEIVER_MILLIS) { onMain { !cast.availability.value.casting } }
+        note("session ended: ${onMain { !cast.availability.value.casting }}")
+    }
+
+    private fun playLocally(player: ExoPlayer, fileId: Long) {
+        val tone = File(context.cacheDir, "cast-race-$fileId.wav").also { if (!it.exists()) writeTone(it, fileId) }
+        onMain {
+            player.setMediaItem(
+                MediaItem.Builder()
+                    .setMediaId(fileId.toString())
+                    .setUri(Uri.fromFile(tone))
+                    .setMediaMetadata(MediaMetadata.Builder().setTitle("cast-race-$fileId").build())
+                    .build(),
+            )
+            player.prepare()
+            player.play()
+        }
+        await("local playback of $fileId") { onMain { player.isPlaying } }
+    }
+
+    private fun writeTone(file: File, seed: Long) {
+        val samples = TONE_SECONDS * SAMPLE_RATE
+        val frequency = BASE_TONE_HZ + (seed % TONE_SPREAD_HZ)
+        RandomAccessFile(file, "rw").use { out ->
+            val data = ByteArray(samples * 2)
+            for (i in 0 until samples) {
+                val value = (sin(2 * PI * frequency * i / SAMPLE_RATE) * TONE_AMPLITUDE).toInt()
+                data[i * 2] = value.toByte()
+                data[i * 2 + 1] = (value shr 8).toByte()
+            }
+            out.write("RIFF".toByteArray())
+            out.write(le(36 + data.size, 4))
+            out.write("WAVEfmt ".toByteArray())
+            out.write(le(16, 4) + le(1, 2) + le(1, 2) + le(SAMPLE_RATE, 4) + le(SAMPLE_RATE * 2, 4) + le(2, 2) + le(16, 2))
+            out.write("data".toByteArray())
+            out.write(le(data.size, 4))
+            out.write(data)
+        }
+    }
+
+    private fun le(value: Int, bytes: Int) = ByteArray(bytes) { (value shr (8 * it)).toByte() }
+
+    private fun signedIn(): MobileAuthState.SignedIn {
+        val runtime = MobileOAuthRuntime.get(context)
+        await("the restored session") {
+            runtime.authController.state.value.let { it is MobileAuthState.SignedIn || it is MobileAuthState.SignedOut }
+        }
+        val session = checkNotNull(runtime.authController.state.value as? MobileAuthState.SignedIn) {
+            "Proof needs a signed-in session"
+        }
+        check(session.account.userId == arguments.getString("$LANE.accountId")!!.toLong()) { "Not the devs-auto account" }
+        return session
+    }
+
+    private fun awaitCast(): MobileCastController {
+        val cast = checkNotNull(onMain { MobileCast.controller(context) }) { "No Google Play services" }
+        await("Cast to start") { onMain { cast.availability.value != CastAvailability.Unsupported } }
+        await("the signed-in Cast account") { onMain { cast.autoplay.account != null } }
+        return cast
+    }
+
+    private fun castButton() = device.findObject(CAST_BUTTON)
+
+    private fun await(what: String, timeoutMillis: Long = WAIT_MILLIS, condition: () -> Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMillis
+        while (!condition()) {
+            check(SystemClock.elapsedRealtime() < deadline) { "Timed out waiting for $what" }
+            SystemClock.sleep(POLL_MILLIS)
+        }
+        note("ready: $what")
+    }
+
+    private fun awaitOrElapse(timeoutMillis: Long, condition: () -> Boolean) {
+        val deadline = SystemClock.elapsedRealtime() + timeoutMillis
+        while (!condition() && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(POLL_MILLIS)
+    }
+
+    private fun <T> onMain(block: () -> T): T {
+        var result: Result<T>? = null
+        instrumentation.runOnMainSync { result = runCatching(block) }
+        return checkNotNull(result).getOrThrow()
+    }
+
+    private fun note(line: String) {
+        log += "+${(SystemClock.elapsedRealtime() - started) / MILLIS_PER_SECOND_DOUBLE}s $line"
+    }
+
+    private var directory: File? = null
+
+    private fun screenshot(label: String) {
+        instrumentation.waitForIdleSync()
+        saveProofScreenshot(checkNotNull(directory), "${testName}-$label")
+    }
+
+    private var testName = ""
+
+    private fun proof(name: String, block: () -> Unit) {
+        testName = name
+        directory = proofDirectory("cast-race-proof-${arguments.getString("$LANE.runId")}")
+        try {
+            block()
+            note("PASS")
+        } catch (error: Throwable) {
+            note("FAIL ${error.javaClass.simpleName}: ${error.message}")
+            throw error
+        } finally {
+            File(checkNotNull(directory), "$name.txt").writeText(log.joinToString("\n", postfix = "\n"))
+        }
+    }
+
+    private fun io.putdotio.android.playback.CastRemoteStatus.describe(): String = "file=$fileId state=$state"
+
+    private val arguments get() = InstrumentationRegistry.getArguments()
+
+    private companion object {
+        const val LANE = "putio.castrace"
+        val ALLOW: BySelector = By.res("com.android.permissioncontroller", "permission_allow_button")
+        val CAST_BUTTON: BySelector = By.desc("Cast")
+        val PICKER: BySelector = By.text("Cast to")
+        const val WAIT_MILLIS = 60_000L
+        const val PROMPT_MILLIS = 15_000L
+        const val PICKER_MILLIS = 10_000L
+        const val CONTROLS_HIDE_WAIT_MILLIS = 8_000L
+        const val PICKER_LIST_MILLIS = 15_000L
+        const val REVEAL_MILLIS = 1_500L
+        const val MULTI_WINDOW = 6
+        const val RECEIVER_MILLIS = 45_000L
+        const val OLDER_LOAD_WINDOW_MILLIS = 30_000L
+        const val POLL_MILLIS = 200L
+        const val TONE_SECONDS = 120
+        const val SAMPLE_RATE = 22_050
+        const val BASE_TONE_HZ = 300L
+        const val TONE_SPREAD_HZ = 400L
+        const val TONE_AMPLITUDE = 6_000.0
+        const val MILLIS_PER_SECOND_DOUBLE = 1_000.0
+    }
+}
