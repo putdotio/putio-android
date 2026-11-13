@@ -823,6 +823,53 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `moving a search result to Trash in Files takes it out of Search and Undo puts it back`() = runTest {
+        val clip = media(30, "clip.mp4", PutioFileType.VIDEO)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies.trashingOnly(clip)),
+        )
+        session.search.updateQuery("clip")
+        advanceUntilIdle()
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, clip.id, FilesDeleteMode.TRASH))
+        advanceUntilIdle()
+        assertEquals(emptyList<FilesItemId>(), session.searchResultIds())
+
+        val outcome = checkNotNull(session.files.state.value.current.deleteOutcome)
+        session.trashUndo.undo(outcome)
+        advanceUntilIdle()
+        assertEquals(listOf(clip.id), session.searchResultIds())
+    }
+
+    @Test
+    fun `renaming a video in Files renames its Continue watching card on Home`() = runTest {
+        val clip = media(30, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies.findingOnly(clip)),
+        )
+        session.play(clip)
+        session.stopPlayback()
+        session.positionSaved(30L, 120.0)
+
+        session.files.dispatch(FilesBrowserEvent.Rename(FilesFolder.Root.id, clip.id, "new.mp4"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("new.mp4"), session.continueWatching.entries.value.map { it.name })
+    }
+
+    @Test
+    fun `marking a file watched drops the copy History's details panel holds`() = runTest {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val video = streamItem.copy(playback = FilesPlaybackProgress(0.0, 120.0))
+        session.historyFiles.load(HistoryFileId(video.id.value))
+        assertNotNull(session.historyFiles.known(HistoryFileId(video.id.value)))
+
+        session.setWatched(video, watched = true)
+
+        assertNull(session.historyFiles.known(HistoryFileId(video.id.value)))
+    }
+
+    @Test
     fun `moving a video to Trash from Files takes its Watch Next card away`() = runTest {
         val recorder = FakeWatchNextRecorder()
         rootPages = listOf(FilesPage(listOf(media(30, "clip.mp4", PutioFileType.VIDEO)), nextCursor = null))
@@ -1074,6 +1121,33 @@ private fun TvSessionDependencies.findingOnly(item: FilesItem) = copy(
             PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
     },
 )
+
+private fun TvSessionDependencies.trashingOnly(item: FilesItem): TvSessionDependencies {
+    var trashed = false
+    return copy(
+        filesRepository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId) =
+                PutioResult.Success(FilesPage(listOf(item).takeUnless { trashed }.orEmpty(), nextCursor = null))
+
+            override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                PutioResult.Success(FileDeleteResult(status = "OK")).also { trashed = true }
+
+            override suspend fun resolveItem(itemId: FilesItemId) =
+                if (trashed) PutioResult.Failure(notFound()) else PutioResult.Success(item)
+        },
+        searchRepository = object : SearchRepository by searchRepository {
+            override suspend fun search(term: SearchTerm, filter: SearchFilter) =
+                PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
+        },
+        trashRepository = object : TrashRepository by StubTrashRepository {
+            override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit).also { trashed = false }
+
+            override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(item)
+        },
+    )
+}
+
+private fun TvSession.searchResultIds() = (search.state.value.content as SearchContent.Ready).items.map { it.id }
 
 private fun PlaybackController.assertReadyAt(fileId: Long, positionMillis: Long) {
     val playing = state.value

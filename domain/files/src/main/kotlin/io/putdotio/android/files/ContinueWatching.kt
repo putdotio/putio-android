@@ -89,6 +89,12 @@ public class ContinueWatching(
         }
     }
 
+    /** put.io confirmed [fileId] now carries [name]. */
+    public fun renamed(fileId: FilesItemId, name: String) {
+        media[fileId]?.let { media[fileId] = it.copy(name = name) }
+        update(mutableEntries.value.map { if (it.fileId == fileId) it.copy(name = name) else it })
+    }
+
     /** put.io accepted [seconds] for [fileId], from playback or the offline sync. */
     public fun positionSaved(fileId: FilesItemId, seconds: Double) {
         val current = mutableEntries.value
