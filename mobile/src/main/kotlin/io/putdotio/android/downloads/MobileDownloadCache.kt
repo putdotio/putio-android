@@ -91,7 +91,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     /** Network access for downloads and for the player's cache misses. */
     val upstreamFactory: DataSource.Factory = DataSource.Factory {
-        RequestUriDataSource(ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize))
+        ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)
     }
 
     /**
@@ -99,21 +99,25 @@ internal class MobileDownloadCache private constructor(context: Context) {
      * else straight from the network: a null write sink keeps online playback from
      * filling the no-eviction download directory.
      */
-    fun playbackFactory(userId: Long): DataSource.Factory = cacheFactory(userId).setCacheWriteDataSinkFactory(null)
+    fun playbackFactory(userId: Long): DataSource.Factory =
+        cacheFactory(userId, upstreamFactory).setCacheWriteDataSinkFactory(null)
 
     /** Who the signed-in player belongs to; a player built before sign-in matches no cached bytes. */
     @Volatile
     var activeUserId: Long? = null
 
-    private fun cacheFactory(userId: Long): CacheDataSource.Factory =
+    private fun cacheFactory(userId: Long, upstream: DataSource.Factory): CacheDataSource.Factory =
         CacheDataSource.Factory()
             .setCache(cache)
             .setCacheKeyFactory(UserScopedCacheKeys(userId))
-            .setUpstreamDataSourceFactory(upstreamFactory)
+            .setUpstreamDataSourceFactory(upstream)
+
+    private fun downloadFactory(userId: Long): CacheDataSource.Factory =
+        cacheFactory(userId) { RequestUriDataSource(upstreamFactory.createDataSource()) }
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     internal val downloaderFactory: DownloaderFactory =
-        UserScopedDownloaderFactory(::cacheFactory, downloadExecutor)
+        UserScopedDownloaderFactory(::downloadFactory, downloadExecutor)
 
     /**
      * Media3's DownloadService binds the first manager it sees for the whole

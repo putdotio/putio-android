@@ -35,15 +35,14 @@ internal fun Cache.dropSignedMetadata() {
         try {
             applyContentMetadataMutations(key, mutations)
         } catch (_: Cache.CacheException) {
-            return
+            continue
         }
     }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun ContentMetadata.signedNames(): List<String> {
-    val entries = (this as? DefaultContentMetadata)?.entrySet()
-        ?: return listOfNotNull(ContentMetadata.KEY_REDIRECTED_URI.takeIf { ContentMetadata.getRedirectedUri(this) != null })
+    val entries = (this as? DefaultContentMetadata)?.entrySet() ?: return emptyList()
     return entries
         .filter { (name, value) -> name == ContentMetadata.KEY_REDIRECTED_URI || value.contains(OAUTH_TOKEN_BYTES) }
         .map { it.key }
