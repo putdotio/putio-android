@@ -527,6 +527,26 @@ class MobileCastSessionAudioTest {
     }
 
     @Test
+    fun sessionAudioLeavesAReceiverThatConnectsUnnamedInsteadOfItsOwnAndPlaysOnHere() {
+        val local = LocalPlayer(HANDED_OVER)
+        val account = SlowCastAccount(next = null)
+        cast.autoplay.follow(SESSION, account)
+        gateway.connect()
+        cast.castFromSession(AudioItem, HANDED_OVER, local, scope)
+        idle()
+
+        gateway.availability.value = CastAvailability.Connecting(null)
+        account.answer.complete(Unit)
+        idle()
+        gateway.connect("Kitchen speaker")
+        waitFor(RECEIVER_SETTLED)
+
+        assertTrue(gateway.loads.isEmpty())
+        assertEquals(listOf("stop"), gateway.commands)
+        assertPlaysHereWhereItStood(local)
+    }
+
+    @Test
     fun signingOutWhileFailedSessionAudioEndsTheReceiverLeavesThisDeviceSilent() {
         val local = LocalPlayer(HANDED_OVER)
         cast.autoplay.follow(SESSION, FakeCastAccount(next = null, prepares = false))
