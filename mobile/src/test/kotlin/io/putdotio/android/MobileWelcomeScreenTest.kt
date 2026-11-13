@@ -110,6 +110,7 @@ class MobileWelcomeScreenTest {
     }
 
     @Test
+    @Config(qualifiers = "w412dp-h915dp")
     fun missingAuthTabBrowserOffersChromeInsteadOfRetry() {
         var chromeRequests = 0
         compose.setContent {
