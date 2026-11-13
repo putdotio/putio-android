@@ -25,6 +25,9 @@ import io.putdotio.android.tv.tvLauncherFallbackArt
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 /**
  * put.io as an Android TV global search source. The system's search app queries this provider
@@ -99,11 +102,16 @@ internal class TvGlobalSearch(
 ) {
     suspend fun files(query: String?): TvGlobalSearchResult? {
         val term = query?.trim()?.takeIf(String::isNotEmpty)?.let(::SearchTerm) ?: return null
-        return session()?.let { signedIn -> files(term, signedIn) }
+        val started = TimeSource.Monotonic.markNow()
+        return session()?.let { signedIn -> files(term, signedIn, SEARCH_BUDGET - started.elapsedNow()) }
     }
 
-    private suspend fun files(term: SearchTerm, signedIn: TvAuthState.SignedIn): TvGlobalSearchResult? {
-        val result = withTimeoutOrNull(SEARCH_TIMEOUT_MILLIS) { search(term) }
+    private suspend fun files(
+        term: SearchTerm,
+        signedIn: TvAuthState.SignedIn,
+        budget: Duration,
+    ): TvGlobalSearchResult? {
+        val result = withTimeoutOrNull(budget) { search(term) }
         val rejected = (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired
         if (rejected) reject(signedIn.sessionId)
         return TvGlobalSearchResult(term, (result as? PutioResult.Success)?.value?.items.orEmpty())
@@ -192,5 +200,5 @@ private val SUGGESTION_COLUMNS = arrayOf(
 private const val DEFAULT_LIMIT = 20
 private const val SEARCH_ROW_ID = 0L
 private const val QUERY_TIMEOUT_MILLIS = 10_000L
-private const val SEARCH_TIMEOUT_MILLIS = 8_000L
+private val SEARCH_BUDGET = 8.seconds
 private const val MILLIS_PER_SECOND = 1_000.0

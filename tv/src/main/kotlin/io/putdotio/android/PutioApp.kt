@@ -41,6 +41,7 @@ import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
 import io.putdotio.android.search.AppConfigRecentSearchStore
 import io.putdotio.android.search.SdkSearchRepository
+import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchOutput
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.authoritativeSessionFailure
@@ -662,6 +663,7 @@ private fun rememberTvLaunchHandling(
                 session.links.cancel()
                 session.stopPlayback()
                 onSearchLaunched()
+                session.search.filter = SearchFilter.All
                 session.search.updateQuery(request.term.value)
                 session.search.submit()
                 onDestination(TvDestination.Search)
