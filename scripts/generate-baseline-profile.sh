@@ -90,5 +90,6 @@ if ! wait "${gradle_pid}"; then
   cat "${build_log}" >&2
   die "profile generation failed"
 fi
-adb_ logcat -d -s "${TAG}:I" | grep -q "signed out$" || die "the generator did not sign out; sign out of io.put.putio on ${serial} to revoke its grant"
+signed_out="$(adb_ logcat -d -s "${TAG}:I" | grep -c "signed out$" || true)"
+((signed_out >= 2)) || die "a journey did not sign out; sign out of io.put.putio on ${serial} to revoke its grant"
 log "wrote tv/src/main/generated/baselineProfiles/"

@@ -38,7 +38,7 @@ class TvBaselineProfileGenerator {
     @Test
     fun storedTokenStartToHome() {
         try {
-            device.executeShellCommand("am start -W -n $PACKAGE_NAME/$MAIN_ACTIVITY")
+            launch()
             awaitShell()
             rule.collect(packageName = PACKAGE_NAME, includeInStartupProfile = true) {
                 pressHome()
@@ -51,6 +51,10 @@ class TvBaselineProfileGenerator {
         } finally {
             signOut()
         }
+    }
+
+    private fun launch() {
+        device.executeShellCommand("am start -W -n $PACKAGE_NAME/$MAIN_ACTIVITY")
     }
 
     private fun awaitShell(): String? {
@@ -69,7 +73,7 @@ class TvBaselineProfileGenerator {
     }
 
     private fun signOut() {
-        device.executeShellCommand("am start -W -n $PACKAGE_NAME/$MAIN_ACTIVITY")
+        launch()
         if (!device.wait(Until.hasObject(By.text(ACCOUNT).pkg(PACKAGE_NAME)), CONTENT_TIMEOUT_MS)) return
         repeat(MAX_MOVES) { device.pressDPadUp() }
         select(ACCOUNT) { device.pressDPadRight() }
