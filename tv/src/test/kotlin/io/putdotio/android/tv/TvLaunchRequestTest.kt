@@ -7,7 +7,6 @@ import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.search.SearchTerm
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -53,17 +52,17 @@ class TvLaunchRequestTest {
     }
 
     @Test
-    fun `a search link needs no key, since it opens no file`() {
-        assertEquals(TvLaunchRequest.Search(SearchTerm("harbor")), view("putio://search?q=harbor").consume())
-    }
-
-    @Test
-    fun `a system search query opens Search with it`() {
-        val intent = Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, "  harbor film ")
-
-        assertEquals(TvLaunchRequest.Search(SearchTerm("harbor film")), intent.consume())
-        assertNull("Consumed once", intent.consume())
-        assertNull(Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, " ").consume())
+    fun `a search term or search link opens nothing, whoever sends it`() {
+        listOf(null, "k3y").forEach { extraData ->
+            val intent = Intent(Intent.ACTION_SEARCH).putExtra(SearchManager.QUERY, "harbor")
+                .apply { extraData?.let { putExtra(SearchManager.EXTRA_DATA_KEY, it) } }
+            assertNull(extraData, intent.consume())
+        }
+        listOf("putio://search?q=harbor", "putio://search/k3y?q=harbor").forEach { link ->
+            val intent = view(link)
+            assertNull(link, intent.consume())
+            assertNull(link, intent.data)
+        }
     }
 
     @Test
@@ -96,7 +95,6 @@ class TvLaunchRequestTest {
         listOf(
             TvLaunchRequest.OpenFile(FilesItemId(55L)),
             TvLaunchRequest.OpenFile(FilesItemId(55L), continueWatching = true),
-            TvLaunchRequest.Search(SearchTerm("harbor & film?")),
         ).forEach { request -> assertEquals(request, request.toUri().toString().toUri().toTvLaunchRequest()) }
     }
 

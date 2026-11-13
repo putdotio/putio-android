@@ -1,13 +1,18 @@
 package io.putdotio.android.tv
 
+import android.app.SearchManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ComponentInfo
 import android.content.pm.PackageManager
+import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.MainActivity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
@@ -22,6 +27,27 @@ class TvExportedComponentsTest {
     @Test
     fun `other apps reach only the reviewed components and intent filters`() {
         assertEquals(emptyList<String>(), exported().filterNot { it in REVIEWED })
+    }
+
+    @Test
+    fun `what another app sends through the main activity's filters, without the install's key, opens nothing`() {
+        packageManager.getIntentFiltersForActivity(ComponentName(context, MainActivity::class.java))
+            .flatMap { filter -> filter.senderIntents() }
+            .forEach { intent ->
+                assertNull(intent.toString(), intent.consumeTvLaunchRequest { TvLinkKey.get(context) })
+            }
+    }
+
+    private fun IntentFilter.senderIntents(): List<Intent> {
+        val actions = actionsIterator()?.asSequence()?.toList().orEmpty()
+        val schemes = schemesIterator()?.asSequence()?.toList().orEmpty()
+        val hosts = authoritiesIterator()?.asSequence()?.map { it.host }?.toList().orEmpty()
+        check(schemes.isEmpty() || hosts.isNotEmpty()) { "Give this test a link for the $schemes filter" }
+        val links = schemes.flatMap { scheme -> hosts.map { host -> "$scheme://$host/55".toUri() } }
+        return actions.flatMap { action ->
+            val intent = { Intent(action).putExtra(SearchManager.QUERY, "harbor") }
+            if (links.isEmpty()) listOf(intent()) else links.map { intent().setData(it) }
+        }
     }
 
     private fun exported(): List<String> {

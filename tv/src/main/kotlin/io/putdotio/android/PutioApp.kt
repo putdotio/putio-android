@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -309,7 +308,6 @@ internal fun TvSessionShell(
     var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
-    var searchLaunches by remember(session) { mutableIntStateOf(0) }
     val searchPlayStart = remember(session) { TvSearchPlayStart() }
     val openExternal: (FilesItem, FilesOpenOrigin) -> Boolean = { item, origin ->
         session.openPick(item, origin, onInFiles = { requestedDestination = TvDestination.Files })
@@ -341,10 +339,6 @@ internal fun TvSessionShell(
         onLaunchHandled = onLaunchHandled,
         linkOpenFailure = linkOpenFailure,
         onDestination = { requestedDestination = it },
-        onSearchLaunched = {
-            openRejected = false
-            searchLaunches++
-        },
     )
     InvalidateFilesOnRestore(session, trashState)
     val accountDefaultSort = rememberAccountDefaultSort(session, settingsState)
@@ -462,7 +456,7 @@ internal fun TvSessionShell(
                     fileActionFailure = fileActionFailure,
                     onQueryEdited = { openRejected = false },
                     playStart = searchPlayStart,
-                    sessionKey = sessionKey to searchLaunches,
+                    sessionKey = sessionKey,
                     paneFocus = paneFocus,
                     onSessionRejected = onSessionRejected,
                 )
@@ -627,8 +621,8 @@ private fun TvFilesPane(
 
 /**
  * Acts on what system search or a Watch Next card asked for: a file resolves, then plays or
- * opens in Files; a query opens Search with it. Returns what Files explains when a file did not
- * open; a 401 is left to the shell, which signs out.
+ * opens in Files. Returns what Files explains when a file did not open; a 401 is left to the
+ * shell, which signs out.
  */
 @Composable
 private fun rememberTvLaunchHandling(
@@ -637,7 +631,6 @@ private fun rememberTvLaunchHandling(
     onLaunchHandled: (TvLaunchRequest) -> Unit,
     linkOpenFailure: PutioFailure?,
     onDestination: (TvDestination) -> Unit,
-    onSearchLaunched: () -> Unit,
 ): TvLinkNotice {
     var rejected by remember(session) { mutableStateOf(false) }
     LaunchedEffect(session) {
@@ -656,13 +649,6 @@ private fun rememberTvLaunchHandling(
                 rejected = false
                 session.links.dismissFailure()
                 session.links.open(request.id, request.continueWatching)
-            }
-            is TvLaunchRequest.Search -> {
-                session.stopPlayback()
-                onSearchLaunched()
-                session.search.updateQuery(request.term.value)
-                session.search.submit()
-                onDestination(TvDestination.Search)
             }
         }
         onLaunchHandled(request)

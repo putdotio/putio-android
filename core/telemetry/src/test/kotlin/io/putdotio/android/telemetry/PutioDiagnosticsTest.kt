@@ -8,6 +8,8 @@ import io.sentry.Sentry
 import io.sentry.android.core.SentryAndroid
 import io.sentry.android.core.SentryAndroidOptions
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -21,23 +23,27 @@ import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [35], instrumentedPackages = ["io.sentry.android.core"], shadows = [PutioDiagnosticsTest.NoSentry::class])
+@Config(
+    sdk = [35],
+    instrumentedPackages = ["io.sentry.android.core"],
+    shadows = [PutioDiagnosticsTest.RecordingSentry::class],
+)
 class PutioDiagnosticsTest {
     @Test
     fun onUntilAnAccountOptsOutAndAColdLaunchKeepsTheOptOut() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         assertNotNull("no answer yet counts as on", SentryBoundary.current)
 
         PutioDiagnostics.update(allowed = false)
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
 
         assertNull("a cold launch ignored the stored opt-out", SentryBoundary.current)
     }
 
     @Test
     fun aLaunchSendsOnlyOnceTheAccountAllowsIt() {
-        PutioDiagnostics.start(ApplicationProvider.getApplicationContext<Application>(), CONFIGURATION)
+        launch(ApplicationProvider.getApplicationContext())
         assertEquals("a launch sent before the account answered", false, SentryBoundary.current?.confirmed)
 
         PutioDiagnostics.update(allowed = true)
@@ -48,7 +54,7 @@ class PutioDiagnosticsTest {
     @Test
     fun anOptOutMadeElsewhereDeletesWhatTheLaunchKept() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
         kept.writeText("synthetic")
 
@@ -61,9 +67,9 @@ class PutioDiagnosticsTest {
     @Test
     fun signingOutBeforeTheAccountAnswersDeletesWhatTheLaunchKept() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         PutioDiagnostics.update(DiagnosticsAnswer.Account(true))
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
         kept.writeText("synthetic")
 
@@ -77,9 +83,9 @@ class PutioDiagnosticsTest {
     @Test
     fun aCrashFromASignedOutSessionStillLeavesOnceSignedOutAgain() {
         val application = ApplicationProvider.getApplicationContext<Application>()
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         PutioDiagnostics.update(DiagnosticsAnswer.SignedOut)
-        PutioDiagnostics.start(application, CONFIGURATION)
+        launch(application)
         val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
         kept.writeText("synthetic")
 
@@ -91,15 +97,52 @@ class PutioDiagnosticsTest {
     }
 
     @Test
-    fun aSessionAnOlderBuildLeftNeverLeaves() {
+    fun aSessionAnOlderBuildLeftIsWipedOffTheLaunchThreadBeforeSentryStarts() {
         val application = ApplicationProvider.getApplicationContext<Application>()
         val session = File(DiagnosticsFiles(application).cache, "dsn/previous_session.json")
         session.parentFile?.mkdirs()
         session.writeText("synthetic")
+        val queued = ArrayDeque<Runnable>()
+        val background = SentryBoundary.executor
+        SentryBoundary.executor = Executor(queued::addLast)
+        RecordingSentry.sessionAtInit.clear()
+        try {
+            PutioDiagnostics.start(application, CONFIGURATION)
 
-        PutioDiagnostics.start(application, CONFIGURATION)
+            assertTrue("the launch thread wiped the cache", session.exists())
+            assertEquals("Sentry started on the launch thread", emptyList<Boolean>(), RecordingSentry.sessionAtInit)
+
+            while (queued.isNotEmpty()) queued.removeFirst().run()
+        } finally {
+            SentryBoundary.executor = background
+        }
 
         assertFalse("a session from an older build waited for the answer", session.exists())
+        assertEquals("Sentry started before the wipe", listOf(false), RecordingSentry.sessionAtInit)
+    }
+
+    @Test
+    fun aLaunchAfterTheWipeStartsSentryOnTheLaunchThread() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        launch(application)
+        val kept = File(DiagnosticsFiles(application).cache, "kept.envelope").apply { parentFile?.mkdirs() }
+        kept.writeText("synthetic")
+        val background = SentryBoundary.executor
+        SentryBoundary.executor = Executor { error("a later launch queued work") }
+        RecordingSentry.sessionAtInit.clear()
+        try {
+            PutioDiagnostics.start(application, CONFIGURATION)
+        } finally {
+            SentryBoundary.executor = background
+        }
+
+        assertEquals(1, RecordingSentry.sessionAtInit.size)
+        assertTrue("a later launch wiped the cache", kept.exists())
+    }
+
+    private fun launch(application: Application) {
+        PutioDiagnostics.start(application, CONFIGURATION)
+        SentryBoundary.submit {}.get()
     }
 
     private fun awaitDeleted(file: File, message: String) {
@@ -109,11 +152,15 @@ class PutioDiagnosticsTest {
     }
 
     @Implements(SentryAndroid::class)
-    object NoSentry {
+    object RecordingSentry {
+        val sessionAtInit: MutableList<Boolean> = CopyOnWriteArrayList()
+
         @Suppress("UnusedParameter") // Robolectric matches a shadow by the shadowed method's signature.
         @JvmStatic
         @Implementation
-        fun init(context: Context, configuration: Sentry.OptionsConfiguration<SentryAndroidOptions>) = Unit
+        fun init(context: Context, configuration: Sentry.OptionsConfiguration<SentryAndroidOptions>) {
+            sessionAtInit += File(DiagnosticsFiles(context).cache, "dsn/previous_session.json").exists()
+        }
     }
 
     private companion object {
