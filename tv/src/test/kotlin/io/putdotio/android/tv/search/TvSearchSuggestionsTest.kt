@@ -26,6 +26,7 @@ import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.consumeTvLaunchRequest
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -77,7 +78,6 @@ class TvSearchSuggestionsTest {
             ),
             rows,
         )
-        // A row's intent data wins; otherwise the search app appends its id to searchable.xml's.
         val chosen = rows.map { row ->
             Intent(
                 searchableAttribute("searchSuggestIntentAction"),
@@ -140,6 +140,13 @@ class TvSearchSuggestionsTest {
             isCurrent = { true },
         )
         assertEquals(TvGlobalSearchResult(SearchTerm("harbor"), emptyList()), failing.files("harbor"))
+    }
+
+    @Test
+    fun `a search that outlasts its budget still offers the search row`() = runTest {
+        val slow = globalSearch { awaitCancellation() }
+
+        assertEquals(TvGlobalSearchResult(SearchTerm("harbor"), emptyList()), slow.files("harbor"))
     }
 
     @Test

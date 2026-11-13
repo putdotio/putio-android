@@ -86,7 +86,7 @@ internal data class TvGlobalSearchResult(val term: SearchTerm, val items: List<F
 /**
  * A system search query: the first page of the account's file search, run in the signed-in
  * session. Null for a blank query, no session, a 401 or a session that ended while it ran; no
- * items for another failed search. Nobody watches this process, so a 401 goes to [reject], which
+ * items for another failed or slow search. Nobody watches this process, so a 401 goes to [reject], which
  * ends the session without requesting a code.
  */
 internal class TvGlobalSearch(
@@ -103,7 +103,7 @@ internal class TvGlobalSearch(
     }
 
     private suspend fun files(term: SearchTerm, signedIn: TvAuthState.SignedIn): TvGlobalSearchResult? {
-        val result = search(term)
+        val result = withTimeoutOrNull(SEARCH_TIMEOUT_MILLIS) { search(term) }
         val rejected = (result as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired
         if (rejected) reject(signedIn.sessionId)
         return TvGlobalSearchResult(term, (result as? PutioResult.Success)?.value?.items.orEmpty())
@@ -192,4 +192,5 @@ private val SUGGESTION_COLUMNS = arrayOf(
 private const val DEFAULT_LIMIT = 20
 private const val SEARCH_ROW_ID = 0L
 private const val QUERY_TIMEOUT_MILLIS = 10_000L
+private const val SEARCH_TIMEOUT_MILLIS = 8_000L
 private const val MILLIS_PER_SECOND = 1_000.0
