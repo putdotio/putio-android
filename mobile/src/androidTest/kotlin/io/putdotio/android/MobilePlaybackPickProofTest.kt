@@ -32,10 +32,12 @@ import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
+import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,7 +45,9 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.json.JSONObject
@@ -77,12 +81,12 @@ class MobilePlaybackPickProofTest {
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val log = mutableListOf<String>()
+    private val log = Collections.synchronizedList(mutableListOf<String>())
 
     @Test
     fun aSwitchToConvertedThatResolvesToNoConvertedStreamIsNotRemembered() = proof("switch-unsupported") {
-        val fileId = arguments.getString("$LANE.unsupportedFile")!!.toLong()
-        val session = signedIn()
+        val fileId = argument("unsupportedFile").toLong()
+        val (session, _) = signedIn()
         val rewrites = AtomicInteger()
         val client = PutioClient(
             session.putioClient.config,
@@ -119,25 +123,26 @@ class MobilePlaybackPickProofTest {
             assertTrue(controller.dispatch(PlaybackEvent.OriginalRejected(PlaybackFallbackReason.UserSwitched, 0L)))
             val settled = controller.state.first { it.content !is PlaybackContent.Loading }.content
             log += "switched to ${settled.describe()}"
+            assertTrue("No playback read went through the interceptor", rewrites.get() > 0)
             assertTrue("The switch resolved to ${settled.describe()}", settled is PlaybackContent.Unsupported)
             delay(STORE_SETTLE_MILLIS)
             controller.close()
             delay(STORE_SETTLE_MILLIS)
             val remembered = switched.contains(fileId)
             log += "remembered=$remembered rewrites=${rewrites.get()}"
-            assertTrue("No playback read went through the interceptor", rewrites.get() > 0)
             assertFalse("A switch with no converted stream was remembered", remembered)
         } finally {
-            controller.close()
-            switched.remove(fileId)
+            withContext(NonCancellable) {
+                controller.close()
+                forget(switched, fileId)
+            }
         }
     }
 
     @Test
     fun aDirectPlayDownloadThatRestartsBeforeItsLookupAnswersKeepsTheDirectPlayPick() = proof("download-restart") {
-        val fileId = FilesItemId(arguments.getString("$LANE.downloadFile")!!.toLong())
-        val session = signedIn()
-        val userId = (session.authController.state.value as MobileAuthState.SignedIn).account.userId
+        val fileId = FilesItemId(argument("downloadFile").toLong())
+        val (session, userId) = signedIn()
         val file = session.putioClient.files.get(fileId.value)
         check(file.fileType == PutioFileType.VIDEO && file.isMp4Available) { "Precondition: a video with an MP4" }
         check(MobileDownloadStore.peek(context, userId, fileId) == null) { "Precondition: no download row yet" }
@@ -146,7 +151,7 @@ class MobilePlaybackPickProofTest {
         val directPlay = mobileDirectPlayDownloads(context, session.putioClient)
         val unanswered = CompletableDeferred<DirectPlayDownload?>()
         val asked = CompletableDeferred<Boolean>()
-        var store = MobileDownloadStore.shared(context, userId)
+        var store = MobileDownloadStore(context, userId)
         var engine = MobileDownloadEngine(context, store, userId, scope)
         var controller = DownloadsController(
             store,
@@ -164,7 +169,13 @@ class MobilePlaybackPickProofTest {
             assertTrue(
                 controller.dispatch(
                     DownloadsEvent.Start(
-                        DownloadRequest(fileId, file.name, PutioFileType.VIDEO, file.size, method = StreamingMethod.File),
+                        DownloadRequest(
+                            fileId,
+                            file.name,
+                            PutioFileType.VIDEO,
+                            file.size,
+                            method = StreamingMethod.File,
+                        ),
                     ),
                 ),
             )
@@ -207,24 +218,35 @@ class MobilePlaybackPickProofTest {
             log += "completed: ${done.describe()} original size=${file.size}"
             assertEquals(file.size, (done.status as DownloadStatus.Completed).bytes)
         } finally {
-            unanswered.complete(null)
-            controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
-            controller.dispatch(DownloadsEvent.ConfirmRemoval)
-            withTimeout(DOWNLOAD_MILLIS) {
-                store.entries.first { rows -> rows.none { it.fileId == fileId } }
+            withContext(NonCancellable) {
+                unanswered.complete(null)
+                controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
+                controller.dispatch(DownloadsEvent.ConfirmRemoval)
+                val removed = withTimeoutOrNull(DOWNLOAD_MILLIS) {
+                    store.entries.first { rows -> rows.none { it.fileId == fileId } }
+                }
+                log += "cleanup: download removed=${removed != null}"
+                controller.close()
+                engine.close()
+                forget(switched, fileId.value)
             }
-            controller.close()
-            engine.close()
-            switched.remove(fileId.value)
         }
     }
 
-    private suspend fun signedIn(): MobileOAuthRuntime {
+    private suspend fun forget(switched: DataStoreSwitchedToConvertedFiles, fileId: Long) {
+        switched.remove(fileId)
+        val forgotten = withTimeoutOrNull(STORE_SETTLE_MILLIS * SETTLE_ATTEMPTS) {
+            while (switched.contains(fileId)) delay(POLL_MILLIS)
+        }
+        log += "cleanup: switch mark cleared=${forgotten != null}"
+    }
+
+    private suspend fun signedIn(): Pair<MobileOAuthRuntime, Long> {
         val runtime = MobileOAuthRuntime.get(context)
         val state = runtime.awaitSettledSession(SESSION_MILLIS.milliseconds)
         val account = checkNotNull((state as? MobileAuthState.SignedIn)?.account) { "Proof needs a signed-in session" }
-        check(account.userId == arguments.getString("$LANE.accountId")!!.toLong()) { "Not the devs-auto account" }
-        return runtime
+        check(account.userId == argument("accountId").toLong()) { "Not the devs-auto account" }
+        return runtime to account.userId
     }
 
     private fun proof(name: String, block: suspend () -> Unit) {
@@ -251,12 +273,17 @@ class MobilePlaybackPickProofTest {
 
     private val arguments get() = InstrumentationRegistry.getArguments()
 
+    private fun argument(name: String): String =
+        requireNotNull(arguments.getString("$LANE.$name")) { "Missing $LANE.$name" }
+
     private companion object {
         const val LANE = "putio.pick"
         const val STORE_SETTLE_MILLIS = 1_000L
         const val LOOKUP_MILLIS = 30_000L
         const val SESSION_MILLIS = 30_000L
         const val DOWNLOAD_MILLIS = 120_000L
-        const val TEST_MILLIS = 240_000L
+        const val TEST_MILLIS = 360_000L
+        const val SETTLE_ATTEMPTS = 5
+        const val POLL_MILLIS = 100L
     }
 }

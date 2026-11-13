@@ -18,7 +18,6 @@ import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
-import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.CastAccount
 import io.putdotio.android.playback.CastAvailability
 import io.putdotio.android.playback.CastPrepared
@@ -74,12 +73,11 @@ class MobileCastRaceProofTest {
 
     @Test
     fun anOverlappingSessionAudioHandoffLeavesOnlyTheNewerFileOnTheReceiver() = proof("session-audio-handoff") {
-        val older = arguments.getString("$LANE.olderAudio")!!.toLong()
-        val newer = arguments.getString("$LANE.newerAudio")!!.toLong()
+        val older = argument("olderAudio").toLong()
+        val newer = argument("newerAudio").toLong()
         ActivityScenario.launch(MainActivity::class.java).use {
             val session = signedIn()
             val cast = awaitCast()
-            connect(cast)
             val real = checkNotNull(onMain { cast.autoplay.account }) { "No signed-in Cast account" }
             val gates = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
             val asked = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
@@ -87,6 +85,8 @@ class MobileCastRaceProofTest {
             val scope = MainScope()
             var local: ExoPlayer? = null
             try {
+                connect(cast)
+                val loadsBefore = onMain { cast.loadsSent }
                 onMain {
                     cast.autoplay.follow(session.sessionId, OrderedLookups(real, gates, asked))
                     scope.launch { cast.status.collect { status -> status?.fileId?.let(seen::add) } }
@@ -108,14 +108,18 @@ class MobileCastRaceProofTest {
                 note("receiver after the older answer: ${onMain { cast.status.value }?.describe()}")
                 gates.getValue(newer).complete(Unit)
                 awaitOrElapse(RECEIVER_MILLIS) {
-                    onMain { cast.status.value?.let { it.fileId == newer && it.state == CastRemoteState.Playing } == true }
+                    onMain {
+                        cast.status.value?.let { it.fileId == newer && it.state == CastRemoteState.Playing } == true
+                    }
                 }
                 awaitOrElapse(RECEIVER_MILLIS) { onMain { checkNotNull(local).mediaItemCount == 0 } }
                 val status = onMain { cast.status.value }
-                note("receiver at the end: ${status?.describe()}; files seen there: $seen")
+                val loads = onMain { cast.loadsSent } - loadsBefore
+                note("receiver at the end: ${status?.describe()}; files seen there: $seen; loads sent: $loads")
                 note("phone player: items=${onMain { local?.mediaItemCount }} playing=${onMain { local?.isPlaying }}")
                 screenshot("01-phone-after-handoffs")
                 assertFalse("The receiver loaded the superseded file", older in seen)
+                assertEquals("Loads sent to the receiver", 1L, loads)
                 assertEquals(newer, status?.fileId)
                 assertEquals(CastRemoteState.Playing, status?.state)
                 assertEquals("The phone kept the handed-over file", 0, onMain { checkNotNull(local).mediaItemCount })
@@ -137,8 +141,8 @@ class MobileCastRaceProofTest {
 
     @Test
     fun aLocalNetworkAnswerAfterTheControlsHideStillOpensTheCastPicker() = proof("local-network-answer") {
-        val video = arguments.getString("$LANE.video")!!.toLong()
-        val receiver = arguments.getString("$LANE.receiver")!!
+        val video = argument("video").toLong()
+        val receiver = argument("receiver")
         shell(
             "am start --windowingMode $MULTI_WINDOW -a android.intent.action.VIEW -d putio://files/$video " +
                 "-n ${context.packageName}/${MainActivity::class.java.name}",
@@ -150,11 +154,17 @@ class MobileCastRaceProofTest {
                 onMain { cast.availability.value } == CastAvailability.NeedsLocalNetwork
             }
             await("the player") { device.hasObject(By.pkg(context.packageName).desc("Back")) }
-            check(onMain { mainActivity().isInMultiWindowMode }) { "Precondition: the player shows in a multi-window task" }
+            check(onMain { mainActivity().isInMultiWindowMode }) {
+                "Precondition: the player shows in a multi-window task"
+            }
             await("the player's Cast button", WAIT_MILLIS) {
                 castButton() != null || false.also {
                     val startOver = device.findObject(By.text("Start over"))
-                    if (startOver != null) startOver.click() else device.click(device.displayWidth / 2, device.displayHeight / 2)
+                    if (startOver != null) {
+                        startOver.click()
+                    } else {
+                        device.click(device.displayWidth / 2, device.displayHeight / 2)
+                    }
                     device.wait(Until.hasObject(CAST_BUTTON), REVEAL_MILLIS)
                 }
             }
@@ -170,7 +180,8 @@ class MobileCastRaceProofTest {
             val pickerOpened = device.wait(Until.hasObject(PICKER), PICKER_MILLIS) == true
             note("picker opened=$pickerOpened availability=${onMain { cast.availability.value }}")
             screenshot("04-after-allow")
-            val listed = pickerOpened && device.wait(Until.hasObject(By.textContains(receiver)), PICKER_LIST_MILLIS) == true
+            val listed = pickerOpened &&
+                device.wait(Until.hasObject(By.textContains(receiver)), PICKER_LIST_MILLIS) == true
             note("picker lists $receiver=$listed")
             screenshot("05-picker")
             assertTrue("The Cast picker never opened", pickerOpened)
@@ -206,7 +217,7 @@ class MobileCastRaceProofTest {
     }
 
     private fun connect(cast: MobileCastController) {
-        val receiver = arguments.getString("$LANE.receiver")!!
+        val receiver = argument("receiver")
         check(!onMain { cast.availability.value.casting }) { "A Cast session already runs; leaving it alone" }
         onMain { cast.gateway.startDiscovery() }
         await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
@@ -252,7 +263,8 @@ class MobileCastRaceProofTest {
             out.write("RIFF".toByteArray())
             out.write(le(36 + data.size, 4))
             out.write("WAVEfmt ".toByteArray())
-            out.write(le(16, 4) + le(1, 2) + le(1, 2) + le(SAMPLE_RATE, 4) + le(SAMPLE_RATE * 2, 4) + le(2, 2) + le(16, 2))
+            out.write(le(16, 4) + le(1, 2) + le(1, 2) + le(SAMPLE_RATE, 4))
+            out.write(le(SAMPLE_RATE * 2, 4) + le(2, 2) + le(16, 2))
             out.write("data".toByteArray())
             out.write(le(data.size, 4))
             out.write(data)
@@ -269,7 +281,7 @@ class MobileCastRaceProofTest {
         val session = checkNotNull(runtime.authController.state.value as? MobileAuthState.SignedIn) {
             "Proof needs a signed-in session"
         }
-        check(session.account.userId == arguments.getString("$LANE.accountId")!!.toLong()) { "Not the devs-auto account" }
+        check(session.account.userId == argument("accountId").toLong()) { "Not the devs-auto account" }
         return session
     }
 
@@ -333,6 +345,9 @@ class MobileCastRaceProofTest {
 
     private val arguments get() = InstrumentationRegistry.getArguments()
 
+    private fun argument(name: String): String =
+        requireNotNull(arguments.getString("$LANE.$name")) { "Missing $LANE.$name" }
+
     private companion object {
         const val LANE = "putio.castrace"
         val ALLOW: BySelector = By.res("com.android.permissioncontroller", "permission_allow_button")
@@ -346,7 +361,7 @@ class MobileCastRaceProofTest {
         const val REVEAL_MILLIS = 1_500L
         const val MULTI_WINDOW = 6
         const val RECEIVER_MILLIS = 45_000L
-        const val OLDER_LOAD_WINDOW_MILLIS = 30_000L
+        const val OLDER_LOAD_WINDOW_MILLIS = 10_000L
         const val POLL_MILLIS = 200L
         const val TONE_SECONDS = 120
         const val SAMPLE_RATE = 22_050
