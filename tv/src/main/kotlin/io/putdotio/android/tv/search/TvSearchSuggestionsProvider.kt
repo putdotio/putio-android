@@ -28,7 +28,7 @@ import kotlinx.coroutines.withTimeoutOrNull
  * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch], and a chosen row
  * opens `putio://files/<id>~<key>` in [io.putdotio.android.MainActivity]. Only callers holding
  * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names or the
- * [TvLinkKey] that lets a link open a file.
+ * [TvLinkKey] that lets a link open a file or a search term open Search.
  */
 internal class TvSearchSuggestionsProvider internal constructor(
     private val globalSearch: (Context?) -> TvGlobalSearch?,
@@ -111,7 +111,8 @@ internal fun tvGlobalSearch(
 
 /**
  * The rows the system search shows: the file's name, its kind, put.io's still or else
- * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>~<key>`.
+ * [fallbackArt], and a duration for media. The intent data id completes `putio://files/<id>~<key>`;
+ * the extra data hands an `ACTION_SEARCH` built from the row the same key.
  */
 internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackArt: String?, key: TvLinkKey): Cursor {
     val cursor = MatrixCursor(SUGGESTION_COLUMNS)
@@ -122,6 +123,7 @@ internal fun tvSearchSuggestions(items: List<FilesItem>, limit: Int?, fallbackAr
                 item.name,
                 item.type.suggestionKind(),
                 key.fileLinkSegment(item.id),
+                key.value,
                 item.screenshotUrl ?: fallbackArt,
                 item.playback?.durationSeconds?.let { (it * MILLIS_PER_SECOND).toLong() },
                 SearchManager.SUGGEST_NEVER_MAKE_SHORTCUT,
@@ -143,6 +145,7 @@ private val SUGGESTION_COLUMNS = arrayOf(
     SearchManager.SUGGEST_COLUMN_TEXT_1,
     SearchManager.SUGGEST_COLUMN_CONTENT_TYPE,
     SearchManager.SUGGEST_COLUMN_INTENT_DATA_ID,
+    SearchManager.SUGGEST_COLUMN_INTENT_EXTRA_DATA,
     SearchManager.SUGGEST_COLUMN_RESULT_CARD_IMAGE,
     SearchManager.SUGGEST_COLUMN_DURATION,
     SearchManager.SUGGEST_COLUMN_SHORTCUT_ID,
