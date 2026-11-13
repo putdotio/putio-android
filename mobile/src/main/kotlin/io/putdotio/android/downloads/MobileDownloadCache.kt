@@ -44,7 +44,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
-private const val OAUTH_TOKEN_QUERY = "oauth_token"
+internal const val OAUTH_TOKEN_QUERY = "oauth_token"
 private const val API_HOST = "api.put.io"
 
 /**
@@ -66,6 +66,11 @@ internal class MobileDownloadCache private constructor(context: Context) {
         databaseProvider,
     )
     private val httpClient = OkHttpClient()
+    private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
+
+    init {
+        downloadExecutor.execute { cache.dropSignedMetadata() }
+    }
 
     /** Replaced by the auth layer on sign-in and sign-out; never persisted here. */
     @Volatile
@@ -86,7 +91,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     /** Network access for downloads and for the player's cache misses. */
     val upstreamFactory: DataSource.Factory = DataSource.Factory {
-        ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)
+        RequestUriDataSource(ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize))
     }
 
     /**
@@ -108,7 +113,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     internal val downloaderFactory: DownloaderFactory =
-        UserScopedDownloaderFactory(::cacheFactory, Executors.newFixedThreadPool(DOWNLOAD_THREADS))
+        UserScopedDownloaderFactory(::cacheFactory, downloadExecutor)
 
     /**
      * Media3's DownloadService binds the first manager it sees for the whole
