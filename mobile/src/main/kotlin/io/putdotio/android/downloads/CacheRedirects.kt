@@ -9,7 +9,7 @@ import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.ContentMetadataMutations
 import androidx.media3.datasource.cache.DefaultContentMetadata
 
-private val OAUTH_TOKEN_BYTES = "oauth_token".encodeToByteArray()
+private const val OAUTH_TOKEN = "oauth_token"
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class RequestUriDataSource(private val upstream: DataSource) : DataSource by upstream {
@@ -42,9 +42,8 @@ internal fun Cache.dropSignedMetadata() {
 private fun ContentMetadata.signedNames(): List<String> {
     val entries = (this as? DefaultContentMetadata)?.entrySet() ?: return emptyList()
     return entries
-        .filter { (name, value) -> name == ContentMetadata.KEY_REDIRECTED_URI || value.contains(OAUTH_TOKEN_BYTES) }
+        .filter { (name, value) ->
+            name == ContentMetadata.KEY_REDIRECTED_URI || OAUTH_TOKEN in String(value, Charsets.ISO_8859_1)
+        }
         .map { it.key }
 }
-
-private fun ByteArray.contains(needle: ByteArray): Boolean =
-    (0..size - needle.size).any { start -> needle.indices.all { this[start + it] == needle[it] } }
