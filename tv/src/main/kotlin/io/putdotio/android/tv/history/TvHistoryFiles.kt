@@ -49,9 +49,15 @@ internal class TvHistoryFiles(private val resolver: FilesItemResolver?) {
     }
 
     fun forget(id: FilesItemId) {
-        files.remove(id)
-        gone.remove(id)
-        changes++
+        val dropped = files.remove(id) != null
+        if (gone.remove(id) || dropped) changes++
+    }
+
+    fun forgetWithChildren(id: FilesItemId) {
+        val children = files.filterValues { it.item.parentId == id }.keys
+        files.keys.removeAll(children)
+        forget(id)
+        if (children.isNotEmpty()) changes++
     }
 
     fun forgetAll() {

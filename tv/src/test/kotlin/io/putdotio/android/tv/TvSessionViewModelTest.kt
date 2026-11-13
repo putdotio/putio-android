@@ -823,6 +823,78 @@ class TvSessionViewModelTest {
     }
 
     @Test
+    fun `moving a search result to Trash in Files takes it out of Search and Undo puts it back`() = runTest {
+        val clip = media(30, "clip.mp4", PutioFileType.VIDEO)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies.trashingOnly(clip)),
+        )
+        session.search.updateQuery("clip")
+        advanceUntilIdle()
+        assertEquals(listOf(clip.id), session.searchResultIds())
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, clip.id, FilesDeleteMode.TRASH))
+        advanceUntilIdle()
+        assertEquals(emptyList<FilesItemId>(), session.searchResultIds())
+
+        val outcome = checkNotNull(session.files.state.value.current.deleteOutcome)
+        session.trashUndo.undo(outcome)
+        advanceUntilIdle()
+        assertEquals(listOf(clip.id), session.searchResultIds())
+    }
+
+    @Test
+    fun `trashing a folder in Files takes its results out of Search and Undo puts them back in place`() = runTest {
+        val folder = media(30, "season", PutioFileType.FOLDER)
+        val inside = media(31, "season e01.mp4", PutioFileType.VIDEO).copy(parentId = folder.id)
+        val other = media(32, "season notes.txt", PutioFileType.TEXT)
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(
+                account(),
+                TvAuthSessionId(1),
+                dependencies.trashingOnly(folder, found = listOf(other, folder, inside)),
+            ),
+        )
+        session.search.updateQuery("season")
+        advanceUntilIdle()
+
+        session.files.dispatch(FilesBrowserEvent.Delete(FilesFolder.Root.id, folder.id, FilesDeleteMode.TRASH))
+        advanceUntilIdle()
+        assertEquals(listOf(other.id), session.searchResultIds())
+
+        session.trashUndo.undo(checkNotNull(session.files.state.value.current.deleteOutcome))
+        advanceUntilIdle()
+        assertEquals(listOf(other.id, folder.id, inside.id), session.searchResultIds())
+    }
+
+    @Test
+    fun `renaming a video in Files renames its Continue watching card on Home`() = runTest {
+        val clip = media(30, "clip.mp4", PutioFileType.VIDEO).copy(playback = FilesPlaybackProgress(0.0, 600.0))
+        val session = checkNotNull(
+            TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies.findingOnly(clip)),
+        )
+        session.play(clip)
+        session.stopPlayback()
+        session.positionSaved(30L, 120.0)
+
+        session.files.dispatch(FilesBrowserEvent.Rename(FilesFolder.Root.id, clip.id, "new.mp4"))
+        advanceUntilIdle()
+
+        assertEquals(listOf("new.mp4"), session.continueWatching.entries.value.map { it.name })
+    }
+
+    @Test
+    fun `marking a file watched drops the copy History's details panel holds`() = runTest {
+        val session = checkNotNull(TvSessionViewModel(auth).sessionFor(account(), TvAuthSessionId(1), dependencies))
+        val video = streamItem.copy(playback = FilesPlaybackProgress(0.0, 120.0))
+        session.historyFiles.load(HistoryFileId(video.id.value))
+        assertNotNull(session.historyFiles.known(HistoryFileId(video.id.value)))
+
+        session.setWatched(video, watched = true)
+
+        assertNull(session.historyFiles.known(HistoryFileId(video.id.value)))
+    }
+
+    @Test
     fun `moving a video to Trash from Files takes its Watch Next card away`() = runTest {
         val recorder = FakeWatchNextRecorder()
         rootPages = listOf(FilesPage(listOf(media(30, "clip.mp4", PutioFileType.VIDEO)), nextCursor = null))
@@ -1074,6 +1146,40 @@ private fun TvSessionDependencies.findingOnly(item: FilesItem) = copy(
             PutioResult.Success(SearchPage(listOf(item), nextCursor = null, total = 1))
     },
 )
+
+private fun TvSessionDependencies.trashingOnly(
+    item: FilesItem,
+    found: List<FilesItem> = listOf(item),
+): TvSessionDependencies {
+    var trashed = false
+    return copy(
+        filesRepository = object : StubFilesRepository() {
+            override suspend fun loadFolder(folderId: FilesItemId) =
+                PutioResult.Success(FilesPage(listOf(item).takeUnless { trashed }.orEmpty(), nextCursor = null))
+
+            override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode) =
+                PutioResult.Success(FileDeleteResult(status = "OK")).also { trashed = true }
+
+            override suspend fun resolveItem(itemId: FilesItemId) =
+                if (trashed) PutioResult.Failure(notFound()) else PutioResult.Success(item)
+        },
+        searchRepository = object : SearchRepository by searchRepository {
+            override suspend fun search(term: SearchTerm, filter: SearchFilter) =
+                PutioResult.Success(SearchPage(found, nextCursor = null, total = found.size))
+        },
+        trashRepository = object : TrashRepository by StubTrashRepository {
+            override suspend fun restore(itemId: FilesItemId) = PutioResult.Success(Unit).also { trashed = false }
+
+            override suspend fun resolveItem(itemId: FilesItemId) = PutioResult.Success(item)
+        },
+    )
+}
+
+private fun TvSession.searchResultIds() = when (val content = search.state.value.content) {
+    is SearchContent.Ready -> content.items.map { it.id }
+    is SearchContent.Empty -> emptyList()
+    else -> error("Search is not settled: $content")
+}
 
 private fun PlaybackController.assertReadyAt(fileId: Long, positionMillis: Long) {
     val playing = state.value
