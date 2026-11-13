@@ -475,12 +475,13 @@ private class SessionHandoff(
         val session = receiver?.let { device ->
             withTimeoutOrNull(SESSION_CONNECT_WAIT_MILLIS) {
                 gateway.availability.first {
-                    it is CastAvailability.Connected || !it.casting || it.joinsOtherThan(device)
+                    it is CastAvailability.Connected || !it.casting ||
+                        (it as? CastAvailability.Connecting)?.deviceName?.let { name -> name != device } == true
                 }
             }
         } ?: gateway.availability.value
-        if (session !is CastAvailability.Connected || signedOut() || overtaken()) return false
-        if (receiver?.let { it != session.deviceName } == true) return false
+        val sameReceiver = session is CastAvailability.Connected && receiver?.let { it == session.deviceName } != false
+        if (!sameReceiver || signedOut() || overtaken()) return false
         val before = gateway.status.value
         if (prepared != null) cast.cast(prepared.media, item, handover)
         val reports = combine(gateway.status, gateway.availability) { status, availability ->
@@ -527,9 +528,6 @@ private class SessionHandoff(
 
     private fun receiverBusy(): Boolean = gateway.status.value?.takeIf { it.fileId != fileId }.live
 }
-
-private fun CastAvailability.joinsOtherThan(receiver: String): Boolean =
-    (this as? CastAvailability.Connecting)?.deviceName?.let { it != receiver } == true
 
 private enum class ReceiverReport { Silent, Loads, Plays, Fails }
 
