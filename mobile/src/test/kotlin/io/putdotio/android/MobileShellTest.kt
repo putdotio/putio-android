@@ -254,12 +254,47 @@ class MobileShellTest {
 
         compose.onNodeWithTag(MOBILE_NAV_RAIL_TAG).assertExists()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
+    }
 
-        // The rail narrows the content column below 600dp; device class still comes from the window.
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-land")
+    fun tabletReportsTabletInAppInfo() {
+        showAppInfo()
+
+        compose.onNodeWithText("Tablet").assertIsDisplayed()
+    }
+
+    @Test
+    @Config(qualifiers = "w780dp-h360dp-land")
+    fun phoneInLandscapeReportsPhoneInAppInfo() {
+        showAppInfo()
+
+        compose.onNodeWithText("Phone").assertIsDisplayed()
+        compose.onAllNodesWithText("Tablet").assertCountEquals(0)
+    }
+
+    private fun showAppInfo() {
+        compose.setContent {
+            PutioTheme {
+                MobileShell(
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    filesState = emptyFilesState(),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = ConversionRepository,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
         compose.onNodeWithText("Account").performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_ABOUT_ROW_TAG))
         compose.onNodeWithTag(MOBILE_ABOUT_ROW_TAG).performClick()
-        compose.onNodeWithText("Tablet").assertIsDisplayed()
     }
 
     @Test
