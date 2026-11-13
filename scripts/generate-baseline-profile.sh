@@ -74,11 +74,19 @@ adb_ logcat -c
 build_log="$(mktemp)"
 ANDROID_SERIAL="${serial}" ./gradlew -q -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :tv:generateBaselineProfile >"${build_log}" 2>&1 &
 gradle_pid=$!
-trap 'kill "${gradle_pid}" 2>/dev/null; rm -f "${build_log}"' EXIT
+sign_outs="$(mktemp)"
+trap 'kill "${gradle_pid}" 2>/dev/null; rm -f "${build_log}" "${sign_outs}"' EXIT
+
+poll() {
+  local lines
+  lines="$(adb_ logcat -d -s "${TAG}:I")"
+  grep "signed out$" <<<"${lines}" >>"${sign_outs}" || true
+  sed -n 's/.*activation code \([A-Z0-9]*\)$/\1/p' <<<"${lines}" | tail -1
+}
 
 approved=""
 while kill -0 "${gradle_pid}" 2>/dev/null; do
-  code="$(adb_ logcat -d -s "${TAG}:I" | sed -n 's/.*activation code \([A-Z0-9]*\)$/\1/p' | tail -1)"
+  code="$(poll)"
   if [[ -n "${code}" && "${code}" != "${approved}" ]]; then
     approve "${code}"
     approved="${code}"
@@ -90,6 +98,7 @@ if ! wait "${gradle_pid}"; then
   cat "${build_log}" >&2
   die "profile generation failed"
 fi
-signed_out="$(adb_ logcat -d -s "${TAG}:I" | grep -c "signed out$" || true)"
+poll >/dev/null
+signed_out="$(sort -u "${sign_outs}" | wc -l | tr -d ' ')"
 ((signed_out >= 2)) || die "a journey did not sign out; sign out of io.put.putio on ${serial} to revoke its grant"
 log "wrote tv/src/main/generated/baselineProfiles/"
