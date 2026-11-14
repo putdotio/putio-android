@@ -372,7 +372,6 @@ private fun MobileRefreshableFilesContent(
 
     var toolbarHeight by remember { mutableIntStateOf(0) }
     val toolbarClearance = selectionToolbarClearance(toolbarHeight)
-    val latestViewports = LocalMobileFilesViewports.current
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
@@ -433,8 +432,6 @@ private fun MobileRefreshableFilesContent(
                         ) {
                             MobileFilesList(
                                 content = content,
-                                viewport = latestViewports.latest(state.stack.size, state.current.folder.id)
-                                    ?: content.viewport,
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
@@ -952,7 +949,6 @@ private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
 @Composable
 private fun MobileFilesList(
     content: FilesContent.Ready,
-    viewport: FilesViewportPosition,
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
     onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
@@ -973,6 +969,7 @@ private fun MobileFilesList(
     /** Long-press starts selection with the row; null leaves long-press opening the row's actions. */
     onStartSelection: ((FilesItem) -> Unit)? = null,
 ) {
+    val viewport = LocalMobileFilesViewports.current.latest(content) ?: content.viewport
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
     val headerCount = headers.itemCount
     // A revealed row, the first included, scrolls past the headers to sit at the top.
@@ -1072,10 +1069,15 @@ private fun MobileFilesList(
 }
 
 internal fun interface MobileFilesViewports {
-    fun latest(depth: Int, folderId: FilesItemId): FilesViewportPosition?
+    fun latest(content: FilesContent.Ready): FilesViewportPosition?
 }
 
-internal val LocalMobileFilesViewports = staticCompositionLocalOf { MobileFilesViewports { _, _ -> null } }
+internal val LocalMobileFilesViewports = staticCompositionLocalOf { MobileFilesViewports { null } }
+
+internal fun FilesBrowserState.viewportOf(content: FilesContent.Ready): FilesViewportPosition? =
+    stack.firstNotNullOfOrNull { folder ->
+        (folder.content as? FilesContent.Ready)?.takeIf { it.items === content.items }?.viewport
+    }
 
 /** A folder opens; a file goes to [MobileFilesOpening] when there is one, else only media plays. */
 private fun rowClick(

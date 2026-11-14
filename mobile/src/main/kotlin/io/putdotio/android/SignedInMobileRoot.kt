@@ -35,7 +35,6 @@ import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
-import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.AppConfigPinnedFiles
@@ -46,6 +45,7 @@ import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.LocalMobileFilesViewports
 import io.putdotio.android.files.MobileFilesViewModel
 import io.putdotio.android.files.MobileFilesViewports
+import io.putdotio.android.files.viewportOf
 import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileVlcIntentHandoff
 import io.putdotio.android.files.SdkFilesRepository
@@ -430,7 +430,9 @@ private fun SignedInMobileSession(
         }
     }
 
-    val filesViewports = remember(filesController) { filesController.viewports() }
+    val filesViewports = remember(filesController) {
+        MobileFilesViewports { filesController.state.value.viewportOf(it) }
+    }
     CompositionLocalProvider(LocalMobileFilesViewports provides filesViewports) {
         MobileShell(
             transferDraft = transferDraft,
@@ -734,15 +736,6 @@ private fun TransfersWidgetEffect(content: TransfersContent, session: MobileSess
             else -> return@LaunchedEffect
         }
         MobileWidgets.transfers(appContext).show(session, items)
-    }
-}
-
-private fun FilesBrowserController.viewports() = MobileFilesViewports { depth, folderId ->
-    val folder = state.value.stack.getOrNull(depth - 1)?.takeIf { it.folder.id == folderId }
-    when (val content = folder?.content) {
-        is FilesContent.Ready -> content.viewport
-        is FilesContent.Empty -> content.viewport
-        is FilesContent.Failed, is FilesContent.Loading, null -> null
     }
 }
 

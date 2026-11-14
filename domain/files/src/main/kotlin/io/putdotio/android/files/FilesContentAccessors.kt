@@ -28,12 +28,15 @@ internal fun FilesContent.viewport(): FilesViewportPosition =
     }
 
 public fun FilesBrowserState.sameExceptViewports(other: FilesBrowserState): Boolean {
-    fun FilesFolderState.sameExceptViewport(other: FilesFolderState): Boolean {
-        val viewport = other.content.viewport()
-        return this == other || copy(content = content.withViewport(viewport) ?: content) == other
-    }
-    return this == other ||
-        stack.size == other.stack.size &&
+    fun FilesContent.sameExceptViewport(other: FilesContent): Boolean =
+        when {
+            this is FilesContent.Ready && other is FilesContent.Ready -> items == other.items && paging == other.paging
+            this is FilesContent.Empty && other is FilesContent.Empty -> paging == other.paging
+            else -> this == other
+        }
+    fun FilesFolderState.sameExceptViewport(other: FilesFolderState): Boolean =
+        content.sameExceptViewport(other.content) && copy(content = other.content) == other
+    return stack.size == other.stack.size &&
         stack.indices.all { stack[it].sameExceptViewport(other.stack[it]) } &&
         copy(stack = other.stack) == other
 }

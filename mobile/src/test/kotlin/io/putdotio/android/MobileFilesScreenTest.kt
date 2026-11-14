@@ -82,6 +82,7 @@ import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.LocalMobileFilesViewports
 import io.putdotio.android.files.MobileFilesScreen
 import io.putdotio.android.files.MobileFilesViewports
+import io.putdotio.android.files.viewportOf
 import io.putdotio.android.downloads.DownloadFailureReason
 import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
@@ -599,15 +600,17 @@ class MobileFilesListTest {
     @Test
     fun aListRebuiltBeforeItsStateCatchesUpStartsWhereItRested() {
         val items = (0L until 60L).map { index -> filesItem(id = index + 1L, name = "file-$index.txt") }
-        val state = browserState(FilesContent.Ready(items = items, paging = FilesPaging.Complete))
-        var rested: FilesViewportPosition? = null
+        val listed = FilesContent.Ready(items = items, paging = FilesPaging.Complete)
+        val shown = browserState(listed)
+        var latest = shown
+        val viewports = MobileFilesViewports { latest.viewportOf(it) }
         var pinned by mutableStateOf(emptyList<FilesItem>())
         compose.setContent {
             PutioTheme {
-                CompositionLocalProvider(LocalMobileFilesViewports provides MobileFilesViewports { _, _ -> rested }) {
+                CompositionLocalProvider(LocalMobileFilesViewports provides viewports) {
                     MobileFilesScreen(
-                        state = state,
-                        onEvent = { event -> if (event is FilesBrowserEvent.ViewportChanged) rested = event.position },
+                        state = shown,
+                        onEvent = { latest = FilesBrowserReducer.reduce(latest, it).state },
                         onPlayMedia = {},
                         pinned = pinned,
                     )
@@ -616,7 +619,7 @@ class MobileFilesListTest {
         }
 
         compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(40)
-        compose.waitUntil(timeoutMillis = 5_000L) { rested?.firstVisibleItemIndex == 40 }
+        compose.waitUntil(timeoutMillis = 5_000L) { latest.viewportOf(listed)?.firstVisibleItemIndex == 40 }
         compose.runOnIdle { pinned = listOf(filesItem(id = 900L, name = "pinned.txt")) }
 
         compose.onNodeWithText("file-40.txt").assertIsDisplayed()
