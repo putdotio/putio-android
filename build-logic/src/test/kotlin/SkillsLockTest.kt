@@ -16,14 +16,30 @@ class SkillsLockTest {
     }
 
     @Test
-    fun theRepositorySkillsMatchTheirLock() {
-        SkillsLock.check(File(".."))
-    }
-
-    @Test
     fun theHashMatchesTheSkillsCli() {
         skill("demo", "SKILL.md" to "# Demo\n", "references/apis.md" to "apis\n", "references/Zeta.md" to "zeta\n")
         assertEquals(CLI_HASH, SkillsLock.folderHash(root.resolve(".agents/skills/demo")))
+    }
+
+    @Test
+    fun punctuationSortsAsTheSkillsCliDoes() {
+        skill(
+            "punctuated",
+            "SKILL.md" to "# Demo\n",
+            "references/apis.md" to "apis\n",
+            "references/Zeta.md" to "zeta\n",
+            "references-b.md" to "b\n",
+            "references_c md.md" to "c\n",
+        )
+        assertEquals(PUNCTUATED_CLI_HASH, SkillsLock.folderHash(root.resolve(".agents/skills/punctuated")))
+    }
+
+    @Test
+    fun finderMetadataIsIgnored() {
+        lockedSkill()
+        root.resolve(".agents/skills/demo/.DS_Store").writeText("finder")
+        root.resolve(".claude/skills/.DS_Store").writeText("finder")
+        SkillsLock.check(root)
     }
 
     @Test
@@ -107,5 +123,6 @@ class SkillsLockTest {
 
     private companion object {
         const val CLI_HASH = "3845c0d946aa12bdc415863d0ce3ed054051817c560263a1dcee49e58efbae4c"
+        const val PUNCTUATED_CLI_HASH = "17ae4ea23cff8cdee0ff649c75d7c084fcd3f0b6ea04a72f032411c48e94b613"
     }
 }

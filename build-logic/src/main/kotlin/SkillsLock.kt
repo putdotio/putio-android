@@ -2,8 +2,6 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.security.MessageDigest
-import java.text.Collator
-import java.util.Locale
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -25,12 +23,11 @@ object SkillsLock {
     }
 
     fun folderHash(dir: File): String {
-        val collator = Collator.getInstance(Locale.ENGLISH)
         val files = dir.walkTopDown()
             .onEnter { it == dir || (it.name !in SKIPPED_DIRS && !Files.isSymbolicLink(it.toPath())) }
-            .filter { Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
+            .filter { it.name !in SKIPPED_FILES && Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
             .map { it.relativeTo(dir).invariantSeparatorsPath to it }
-            .sortedWith(compareBy(collator) { it.first })
+            .sortedWith { a, b -> localeCompare(a.first, b.first) }
         val digest = MessageDigest.getInstance("SHA-256")
         files.forEach { (path, file) ->
             digest.update(path.toByteArray())
@@ -38,6 +35,15 @@ object SkillsLock {
         }
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
+
+    internal fun localeCompare(a: String, b: String): Int {
+        a.zip(b).forEach { (x, y) -> primary(x).compareTo(primary(y)).takeIf { it != 0 }?.let { return it } }
+        if (a.length != b.length) return a.length.compareTo(b.length)
+        return a.zip(b).firstOrNull { (x, y) -> x != y }?.let { (x, y) -> x.isUpperCase().compareTo(y.isUpperCase()) } ?: 0
+    }
+
+    private fun primary(char: Char): Int =
+        ROOT_ORDER.indexOf(char.lowercaseChar()).takeIf { it >= 0 } ?: (ROOT_ORDER.length + char.code)
 
     private fun lockProblems(root: File): List<String> {
         val skills = runCatching {
@@ -57,7 +63,7 @@ object SkillsLock {
 
     private fun linkProblems(root: File): List<String> {
         val skills = root.resolve(SKILLS_PATH).listFiles(File::isDirectory).orEmpty().map { it.name }.toSet()
-        val links = root.resolve(LINKS_PATH).listFiles().orEmpty().associateBy { it.name }
+        val links = root.resolve(LINKS_PATH).listFiles().orEmpty().filter { it.name !in SKIPPED_FILES }.associateBy { it.name }
         val missing = (skills - links.keys).sorted().map { "$LINKS_PATH/$it is missing" }
         val wrong = links.toSortedMap().mapNotNull { (name, link) ->
             val expected = "../../$SKILLS_PATH/$name"
@@ -73,5 +79,8 @@ object SkillsLock {
     }
 
     private val SKIPPED_DIRS = setOf(".git", "node_modules")
+    private val SKIPPED_FILES = setOf(".DS_Store")
+    private const val ROOT_ORDER =
+        "\t\n\u000b\u000c\r _-,;:!?.'\"()[]{}@*/\\&#%`^+<=>|~$0123456789abcdefghijklmnopqrstuvwxyz"
     private const val FIX = "Run `npx skills update -p` for a pinned skill, or link a repo skill from $LINKS_PATH."
 }

@@ -37,7 +37,6 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.design.PutioMiddleCutText
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 
@@ -109,7 +108,7 @@ internal fun TvSheetOption(
             }
             Column(Modifier.weight(1f)) {
                 if (labelIsName) {
-                    PutioMiddleCutText(text = label, style = OPTION_LABEL, color = LocalContentColor.current)
+                    TvMiddleCutText(text = label, style = OPTION_LABEL, color = LocalContentColor.current)
                 } else {
                     Text(styledLabel ?: AnnotatedString(label), style = OPTION_LABEL)
                 }
