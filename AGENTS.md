@@ -151,9 +151,9 @@ Open pull requests against `main`. A merge runs only
 [CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
 
 - CI runs the `verify*` lanes and debug assembles in three jobs: Mobile;
-  TV, docs and scripts; Release and libraries. A pull request that touches only
-  Markdown or skills runs only Docs, and one that touches only files no build
-  reads runs none; the build cache skips what a change does not reach.
+  TV, docs and scripts; Release and libraries. Its `changes` job picks the
+  jobs a pull request needs; the build cache skips what a change does not
+  reach.
 
 ### Google Play delivery
 

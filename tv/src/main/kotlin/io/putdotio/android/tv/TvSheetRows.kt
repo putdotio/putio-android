@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
-import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -108,7 +107,7 @@ internal fun TvSheetOption(
             }
             Column(Modifier.weight(1f)) {
                 if (labelIsName) {
-                    TvMiddleCutText(text = label, style = OPTION_LABEL, color = LocalContentColor.current)
+                    TvMiddleCutText(text = label, style = OPTION_LABEL)
                 } else {
                     Text(styledLabel ?: AnnotatedString(label), style = OPTION_LABEL)
                 }
