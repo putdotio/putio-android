@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.content.IntentFilter
 import android.os.Looper
+import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteDescriptor
 import androidx.mediarouter.media.MediaRouteDiscoveryRequest
 import androidx.mediarouter.media.MediaRouteProvider
@@ -15,6 +16,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.playback.GmsCastRoutes
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -54,10 +56,12 @@ class GmsCastRoutesTest {
         routes.startDiscovery()
         idle()
         assertEquals(true, provider.request?.isActiveScan)
+        assertTrue(provider.asksForRemotePlayback())
 
         routes.stopDiscovery()
         idle()
         assertEquals(false, provider.request?.isActiveScan)
+        assertFalse(provider.asksForRemotePlayback())
 
         routes.unwatch()
         idle()
@@ -88,6 +92,9 @@ class GmsCastRoutesTest {
         override fun onDiscoveryRequestChanged(request: MediaRouteDiscoveryRequest?) {
             this.request = request
         }
+
+        fun asksForRemotePlayback(): Boolean =
+            request?.selector?.hasControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK) == true
 
         fun publish(name: String) {
             val route = MediaRouteDescriptor.Builder(name, name)
