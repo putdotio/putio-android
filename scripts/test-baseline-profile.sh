@@ -16,7 +16,7 @@ printf '#!/bin/sh\nexec %q "$@"\n' "$(python3 -c 'import sys; print(sys.executab
 cat > "${tmpdir}/cli/putio" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-echo "$*" >> "${FAKE_STATE}/putio-calls"
+printf '%s token=%s profile=%s\n' "$*" "${PUTIO_CLI_TOKEN:+set}" "${PUTIO_CLI_PROFILE:-}" >> "${FAKE_STATE}/putio-calls"
 case "$*" in
   "auth status --profile devs-auto --output json") echo '{"authenticated":true,"profile":"devs-auto"}' ;;
   "whoami --fields info --output json") echo '{"info":{"user_id":306077,"username":"devs-auto"}}' ;;
@@ -44,7 +44,7 @@ cat > "${tmpdir}/gradlew" <<'EOF'
 set -euo pipefail
 line() { printf '11-14 10:00:%02d.000  4242  4242 I PutioBaselineProfile: %s\n' "$1" "$2" >> "${FAKE_STATE}/logcat"; }
 line 1 "activation code ABC123"
-for _ in $(seq 50); do [[ -e "${FAKE_STATE}/approved" ]] && break; sleep 0.1; done
+for _ in $(seq 300); do [[ -e "${FAKE_STATE}/approved" ]] && break; sleep 0.1; done
 [[ -e "${FAKE_STATE}/approved" ]] || { echo "the code was never approved"; exit 1; }
 line 2 "signed out"
 [[ -e "${FAKE_STATE}/one-sign-out" ]] || line 3 "signed out"
@@ -56,7 +56,6 @@ chmod +x "${tmpdir}/tools/python3" "${tmpdir}/cli/putio" "${tmpdir}/sdk/platform
 failures=0
 fail() { echo "FAIL ${case_name}: $*" >&2; failures=$((failures + 1)); }
 
-# Runs the script from a fresh state dir; sets $status and $err (stderr).
 run_case() {
   case_name="$1"; shift
   state="${tmpdir}/state-${case_name}"
@@ -71,15 +70,16 @@ run_case() {
   done
   status=0
   (cd "${state}" && env -i HOME="${state}" PATH="${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" \
-    ANDROID_HOME="${tmpdir}/sdk" FAKE_STATE="${state}" \
+    ANDROID_HOME="${tmpdir}/sdk" FAKE_STATE="${state}" PUTIO_CLI_TOKEN=fake-ambient-token \
     bash "${REPO_ROOT}/scripts/generate-baseline-profile.sh" emulator-5554) 2> "${state}/err" || status=$?
   err="$(cat "${state}/err")"
+  ! grep -q 'token=set' "${state}/putio-calls" 2>/dev/null || fail "putio ran with an ambient PUTIO_CLI_TOKEN"
 }
 
 run_case generates
 [[ "${status}" == 0 ]] || fail "exit ${status}: ${err}"
 [[ "${err}" == *"wrote tv/src/main/generated/baselineProfiles/"* ]] || fail "stderr: ${err}"
-[[ "$(grep -c '^auth approve' "${state}/putio-calls")" == 2 ]] || fail "expected one dry run and one approval"
+[[ "$(grep -c '^auth approve.*profile=devs-auto$' "${state}/putio-calls")" == 2 ]] || fail "expected one dry run and one approval as devs-auto"
 
 run_case generator-fails gradle-exit=1
 [[ "${status}" == 1 ]] || fail "exit ${status}"
