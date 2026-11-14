@@ -276,9 +276,8 @@ class MobileCastRaceProofTest {
             } catch (error: Throwable) {
                 cleanUp(error, {
                     disconnect(cast) {
-                        val current = sessions.currentCastSession
-                        val connecting = current == null && castState() in BUSY
-                        events.resumed == null && (current === events.starting || connecting)
+                        val starting = events.starting
+                        events.resumed == null && starting != null && sessions.currentCastSession === starting
                     }
                 })
                 throw error
@@ -326,11 +325,12 @@ class MobileCastRaceProofTest {
         override fun onSessionEnding(session: CastSession) = Unit
 
         override fun onSessionEnded(session: CastSession, error: Int) {
+            if (started === session) started = null
             if (resumed === session) resumed = null
         }
 
         override fun onSessionResumeFailed(session: CastSession, error: Int) {
-            resumed = null
+            if (resumed === session) resumed = null
         }
 
         override fun onSessionSuspended(session: CastSession, reason: Int) = Unit
