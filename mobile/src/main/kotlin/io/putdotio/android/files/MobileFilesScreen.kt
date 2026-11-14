@@ -42,7 +42,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1067,17 +1066,6 @@ private fun MobileFilesList(
         }
     }
 }
-
-internal fun interface MobileFilesViewports {
-    fun latest(content: FilesContent.Ready): FilesViewportPosition?
-}
-
-internal val LocalMobileFilesViewports = staticCompositionLocalOf { MobileFilesViewports { null } }
-
-internal fun FilesBrowserState.viewportOf(content: FilesContent.Ready): FilesViewportPosition? =
-    stack.firstNotNullOfOrNull { folder ->
-        (folder.content as? FilesContent.Ready)?.takeIf { it.items === content.items }?.viewport
-    }
 
 /** A folder opens; a file goes to [MobileFilesOpening] when there is one, else only media plays. */
 private fun rowClick(
