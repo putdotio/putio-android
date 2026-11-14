@@ -31,6 +31,7 @@ import io.putdotio.android.playback.CastPrepared
 import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastTransfer
 import io.putdotio.android.playback.casting
+import io.putdotio.android.playback.connectedDevice
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.PlaybackTarget
@@ -249,8 +250,8 @@ class MobileCastRaceProofTest {
             }
             note("no session resumed; connecting to ${target.name} (${target.model})")
             await("a session on $receiver") { onMain { cast.availability.value is CastAvailability.Connected } }
-            val joined = onMain { cast.gateway.devices.value.firstOrNull { it.selected } }
-            check(joined?.id == target.id) { "Connected to ${joined?.name}, not the selected ${target.name}" }
+            val joined = onMain { cast.availability.value.connectedDevice }.orEmpty()
+            check(receiver in joined) { "Connected to \"$joined\", not the selected ${target.name}" }
         } finally {
             onMain { cast.gateway.stopDiscovery() }
         }
