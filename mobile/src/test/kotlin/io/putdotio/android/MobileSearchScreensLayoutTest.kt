@@ -179,6 +179,12 @@ class MobileSearchScreensLayoutTest {
                 }
             }
         }
+        if (history != null) {
+            compose.waitUntil(5_000L) {
+                compose.onAllNodesWithText(":", substring = true, useUnmergedTree = true)
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
+        }
     }
 
     private companion object {

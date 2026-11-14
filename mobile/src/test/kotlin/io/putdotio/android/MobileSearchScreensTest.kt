@@ -339,9 +339,6 @@ class MobileSearchScreensTest {
                         ),
                 )
             setHistoryScreen(history = history)
-            compose.waitUntil(5_000L) {
-                compose.onAllNodesWithText("3:25", substring = true).fetchSemanticsNodes().isNotEmpty()
-            }
 
             compose.onAllNodesWithText("Sep 9").assertCountEquals(1)
             compose.onAllNodesWithText("2026-09-09", substring = true).assertCountEquals(0)
@@ -458,6 +455,11 @@ class MobileSearchScreensTest {
                 MobileHistoryScreen(historyState = history, onHistoryEvent = actions.onHistoryEvent, today = TODAY)
             }
         }
+        if ((history.content as? HistoryContent.Ready)?.items.orEmpty().isNotEmpty()) waitForHistoryTimes()
+    }
+
+    private fun waitForHistoryTimes() = compose.waitUntil(5_000L) {
+        compose.onAllNodesWithText(":", substring = true, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     }
 
     private fun setScreen(
