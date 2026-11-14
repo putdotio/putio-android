@@ -27,6 +27,7 @@ class SkillsLockTest {
             "references/日本.md" to "nihon\n",
             "scripts/run.py" to "print(1)\r\nprint(2)\r\n",
             "metadata.json" to "{}\n",
+            "scripts/__pycache__/run.cpython-313.pyc" to "pyc",
         )
         assertEquals(NON_ASCII_CLI_HASH, SkillsLock.folderHash(files.mapValues { it.value.toByteArray() }))
     }

@@ -104,5 +104,5 @@ object SkillsLock {
     private const val FINDER_METADATA = ".DS_Store"
     private val EXCLUDED_FILES = setOf("metadata.json")
     private val EXCLUDED_DIRS = setOf(".git", "__pycache__", "__pypackages__")
-    private const val FIX = "Run `npx skills update -p` for a pinned skill, or link a repo skill from $LINKS_PATH."
+    private const val FIX = "Run `npx skills@latest update -p` for a pinned skill, or link a repo skill from $LINKS_PATH."
 }
