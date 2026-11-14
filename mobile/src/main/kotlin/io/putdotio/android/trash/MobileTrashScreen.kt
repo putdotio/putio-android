@@ -78,7 +78,7 @@ import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage
 import java.time.LocalDate
 import io.putdotio.android.design.PutioEmptyGlyph
-import io.putdotio.android.MobileIconButton
+import io.putdotio.android.MobileRowIconButton
 
 internal const val MOBILE_TRASH_ROUTE = "account/trash"
 internal const val MOBILE_MANAGE_TRASH_TAG = "mobile-manage-trash"
@@ -293,14 +293,14 @@ private fun MobileTrashRowButtons(
 ) {
     val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
     Row {
-        MobileIconButton(
+        MobileRowIconButton(
             stringResource(R.string.mobile_trash_restore_named, name),
             R.drawable.ic_ph_arrow_counter_clockwise,
             onRestore,
             enabled = access.canRestore,
             colors = muted,
         )
-        MobileIconButton(
+        MobileRowIconButton(
             stringResource(R.string.mobile_trash_actions_named, name),
             R.drawable.ic_ph_dots_three_vertical,
             onActions,
