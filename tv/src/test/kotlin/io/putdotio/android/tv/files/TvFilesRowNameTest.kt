@@ -25,8 +25,8 @@ class TvFilesRowNameTest {
     fun aLongNameInAFilesRowKeepsItsStartAndItsExtension() {
         compose.showFiles(state = { ready(item(1, NAME, PutioFileType.VIDEO)) })
 
-        val shown = compose.onNode(hasText(NAME) and hasAnyAncestor(hasTestTag(TV_FILES_ROW_TAG)), useUnmergedTree = true)
-            .fetchSemanticsNode().config[MiddleCutShown]
+        val row = hasText(NAME) and hasAnyAncestor(hasTestTag(TV_FILES_ROW_TAG))
+        val shown = compose.onNode(row, useUnmergedTree = true).fetchSemanticsNode().config[MiddleCutShown]
 
         assertTrue("$shown is cut", shown.length < NAME.length && "…" in shown)
         assertTrue("$shown keeps the start", shown.startsWith(NAME.take(KEPT)))
