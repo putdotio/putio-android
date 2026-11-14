@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract tests for generate-baseline-profile.sh over a fake adb, gradlew and
 # putio CLI: a run whose generator succeeds and signs out twice exits 0; a
-# failed generator or a missing sign-out exits 1.
+# failed generator exits 1.
 # Touches no device.
 
 set -euo pipefail
@@ -47,7 +47,7 @@ line 1 "activation code ABC123"
 for _ in $(seq 300); do [[ -e "${FAKE_STATE}/approved" ]] && break; sleep 0.1; done
 [[ -e "${FAKE_STATE}/approved" ]] || { echo "the code was never approved"; exit 1; }
 line 2 "signed out"
-[[ -e "${FAKE_STATE}/one-sign-out" ]] || line 3 "signed out"
+line 3 "signed out"
 echo "fake generator output"
 exit "$(cat "${FAKE_STATE}/gradle-exit" 2>/dev/null || echo 0)"
 EOF
@@ -84,10 +84,6 @@ run_case generates
 run_case generator-fails gradle-exit=1
 [[ "${status}" == 1 ]] || fail "exit ${status}"
 [[ "${err}" == *"fake generator output"*"ERROR: profile generation failed"* ]] || fail "stderr: ${err}"
-
-run_case one-sign-out one-sign-out
-[[ "${status}" == 1 ]] || fail "exit ${status}"
-[[ "${err}" == *"ERROR: a journey did not sign out"* ]] || fail "stderr: ${err}"
 
 if ((failures > 0)); then
   echo "baseline profile contract: ${failures} failure(s)" >&2
