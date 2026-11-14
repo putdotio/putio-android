@@ -16,13 +16,21 @@ class ProofHostFontScaleTest {
         val previous = RuntimeEnvironment.getApplication().resources.configuration.fontScale
         try {
             RuntimeEnvironment.setFontScale(2f)
-            listOf(MainActivity::class.java, MobileFullscreenProofActivity::class.java, MobileTabletProofActivity::class.java)
-                .forEach { host ->
-                    val activity = Robolectric.buildActivity(host).get()
-                    assertEquals(host.simpleName, 1.3f, activity.resources.configuration.fontScale)
-                }
+            val hosts = listOf(
+                MainActivity::class.java,
+                MobileFullscreenProofActivity::class.java,
+                MobileTabletProofActivity::class.java,
+            )
+            hosts.forEach { host ->
+                val activity = Robolectric.buildActivity(host).get()
+                assertEquals(host.simpleName, LARGEST_STEP, activity.resources.configuration.fontScale)
+            }
         } finally {
             RuntimeEnvironment.setFontScale(previous)
         }
+    }
+
+    private companion object {
+        const val LARGEST_STEP = 1.3f
     }
 }
