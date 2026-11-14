@@ -153,8 +153,7 @@ class MobilePlaybackPickProofTest {
         val unanswered = CompletableDeferred<DirectPlayDownload?>()
         val asked = CompletableDeferred<Boolean>()
         var downloads: Downloads? = null
-        var failure: Throwable? = null
-        try {
+        val outcome = runCatching {
             switched.add(fileId.value)
             val held = Downloads(
                 userId,
@@ -213,19 +212,13 @@ class MobilePlaybackPickProofTest {
             }
             log += "completed: ${done.describe()} original size=${file.size}"
             assertEquals(file.size, (done.status as DownloadStatus.Completed).bytes)
-        } catch (error: Throwable) {
-            failure = error
-            throw error
-        } finally {
-            unanswered.complete(null)
-            withContext(NonCancellable) {
-                try {
-                    cleanUp(downloads, userId, fileId, switched)
-                } catch (cleanup: Throwable) {
-                    failure?.addSuppressed(cleanup) ?: throw cleanup
-                }
-            }
         }
+        unanswered.complete(null)
+        val cleanupError = runCatching {
+            withContext(NonCancellable) { cleanUp(downloads, userId, fileId, switched) }
+        }.exceptionOrNull()
+        outcome.onFailure { error -> cleanupError?.let(error::addSuppressed) }.getOrThrow()
+        cleanupError?.let { throw it }
     }
 
     private suspend fun cleanUp(
@@ -235,7 +228,8 @@ class MobilePlaybackPickProofTest {
         switched: DataStoreSwitchedToConvertedFiles,
     ) {
         try {
-            val cleanup = downloads ?: Downloads(userId, DownloadSources(directPlay = { _, _, _ -> awaitCancellation() }))
+            val cleanup = downloads
+                ?: Downloads(userId, DownloadSources(directPlay = { _, _, _ -> awaitCancellation() }))
             try {
                 cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
                 cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
@@ -279,7 +273,9 @@ class MobilePlaybackPickProofTest {
         val runtime = MobileOAuthRuntime.get(context)
         val state = runtime.awaitSettledSession(SESSION_MILLIS.milliseconds)
         val settled = checkNotNull(state) { "The session never settled" }
-        val account = checkNotNull((settled as? MobileAuthState.SignedIn)?.account) { "Proof needs a signed-in session" }
+        val account = checkNotNull((settled as? MobileAuthState.SignedIn)?.account) {
+            "Proof needs a signed-in session"
+        }
         check(account.userId == argument("accountId").toLong()) { "Not the devs-auto account" }
         return runtime to account.userId
     }
