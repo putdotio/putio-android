@@ -36,17 +36,21 @@ public class PutioMiddleCuts internal constructor(
 
     internal fun names(names: List<String>) {
         if (names === this.names) return
-        val added = names - this.names.toSet()
+        val extends = names.size > this.names.size && names.subList(0, this.names.size) == this.names
+        val added = if (extends) names.subList(this.names.size, names.size) else names
         this.names = names
-        if (added.isEmpty()) return
-        jobs.keys.forEach { room -> jobs[room] = prefetch(room, added, after = jobs[room]) }
+        jobs.keys.forEach { room ->
+            val previous = jobs.getValue(room)
+            if (!extends) previous.cancel()
+            jobs[room] = prefetch(room, added, after = previous.takeIf { extends })
+        }
     }
 
     private fun prefetch(room: MiddleCutRoom, names: List<String>, after: Job? = null): Job =
         scope.launch(dispatcher) {
             after?.join()
             val measurer = TextMeasurer(room.fontFamilyResolver, room.scale, room.layoutDirection, cacheSize = 0)
-            names.forEach { name ->
+            names.take(PREFETCHED_NAMES).forEach { name ->
                 ensureActive()
                 room.fitMiddleCut(name.oneLine(), room.maxWidth, measurer, room.style, room.maxLines)
             }
@@ -71,6 +75,8 @@ internal data class MiddleCutRoom(
     override val layoutDirection: LayoutDirection,
     val fontFamilyResolver: FontFamily.Resolver,
 ) : IntrinsicMeasureScope, Density by scale
+
+private const val PREFETCHED_NAMES = 200
 
 private val MiddleCutDispatcher: CoroutineDispatcher by lazy {
     Executors.newSingleThreadExecutor { task ->

@@ -13,11 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -46,6 +43,7 @@ import io.putdotio.android.tv.TvFocusedItem
 import io.putdotio.android.tv.TvItemRequesters
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.composes
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
@@ -54,7 +52,6 @@ import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.tracksFocusedItem
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.TvFilesRowPlace
-import kotlinx.coroutines.flow.first
 
 internal const val TV_SEARCH_RESULTS_TAG = "tv-search-results"
 
@@ -124,15 +121,11 @@ internal fun TvSearchResultList(
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(lastLazyIndex) },
     )
-    val restoreComposed by remember(listState) {
-        derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == restoreRowId } }
-    }
     LaunchedEffect(listState) {
         val id = restoreRowId ?: return@LaunchedEffect
         val index = groups.lazyIndexOf(id)
         if (index < 0) return@LaunchedEffect
-        if (!restoreComposed) listState.scrollToItem(index)
-        snapshotFlow { restoreComposed }.first { it }
+        listState.bringIntoComposition(id, index)
         owner.enter(listFocus)
         withFrameNanos {}
         if (owner.hasFocus) restoreRow.requestFocus()
@@ -155,10 +148,9 @@ internal fun TvSearchResultList(
                 .keepsHeldFocusInView(listState, focused)
                 .focusRestorer {
                     val lastId = items.last().id.value
-                    val visible = listState.layoutInfo.visibleItemsInfo
-                    lastRow.takeIf { handOffToLastRow.value && visible.any { it.key == lastId } }
-                        ?: rows.detail.row.takeIf { visible.any { it.key == rows.detail.id } }
-                        ?: restoreRow.takeIf { restoreComposed }
+                    lastRow.takeIf { handOffToLastRow.value && listState.composes(lastId) }
+                        ?: rows.detail.row.takeIf { listState.composes(rows.detail.id) }
+                        ?: restoreRow.takeIf { listState.composes(restoreRowId) }
                         ?: rowFocus.firstComposed(listState) { it is Long }
                 }
                 .focusGroup()
