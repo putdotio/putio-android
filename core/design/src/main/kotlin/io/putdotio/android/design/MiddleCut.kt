@@ -1,5 +1,6 @@
 package io.putdotio.android.design
 
+import android.util.LruCache
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -38,6 +39,7 @@ import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.toSize
 import kotlin.math.roundToInt
 
@@ -102,6 +104,7 @@ private class MiddleCutTextNode(
     private var semanticsName: String? = null
     private var semanticsCut: String? = null
     private var laidOut: TextLayoutResult? = null
+    private var fitted: TextLayoutResult? = null
 
     fun update(element: MiddleCutTextElement) {
         val relayout = element.copy(color = this.element.color) != this.element
@@ -116,10 +119,12 @@ private class MiddleCutTextNode(
 
     override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
         if (constraints.maxWidth != cutWidth) {
-            shown = element.cutToFit(line, constraints.maxWidth)
+            val fit = fit(constraints.maxWidth)
+            shown = fit.text
+            fitted = fit.layout
             cutWidth = constraints.maxWidth
         }
-        val layout = layoutText(shown, constraints)
+        val layout = fitted?.takeIf { it.fills(constraints) } ?: layoutText(shown, constraints)
         if (layout.layoutInput != laidOut?.layoutInput) invalidateDraw()
         laidOut = layout
         drawn = layout.shownText()
@@ -158,7 +163,41 @@ private class MiddleCutTextNode(
         maxIntrinsicHeight(measurable, width)
 
     override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurable: IntrinsicMeasurable, width: Int): Int =
-        layoutText(element.cutToFit(line, width), Constraints(maxWidth = width)).size.height
+        layoutText(fit(width).text, Constraints(maxWidth = width)).size.height
+
+    private fun IntrinsicMeasureScope.fit(maxWidth: Int): Fit {
+        if (maxLines != 1) {
+            return Fit(middleCutWhere(line, maxWidth) { measurer.fitsLines(it, style, maxWidth, maxLines) })
+        }
+        val key = OneLineCut(line, maxWidth, style, density, fontScale, layoutDirection)
+        OneLineCuts[key]?.let { return Fit(it) }
+        val whole = oneLineLayout(line)
+        if (maxWidth !in 1 until Int.MAX_VALUE || whole.size.width <= maxWidth) {
+            return Fit(line, whole.takeIf { it.size.width <= maxWidth })
+        }
+        var measured: TextLayoutResult? = null
+        val cut = middleCut(line, maxWidth, whole.middleCutLayout()) { candidate ->
+            oneLineLayout(candidate).also { measured = it }.size.width
+        }
+        OneLineCuts.put(key, cut)
+        return Fit(cut, measured?.takeIf { it.layoutInput.text.text == cut && it.size.width <= maxWidth })
+    }
+
+    private fun IntrinsicMeasureScope.oneLineLayout(text: String): TextLayoutResult =
+        measurer.measure(
+            text = text,
+            style = style,
+            maxLines = 1,
+            softWrap = false,
+            layoutDirection = layoutDirection,
+            density = this,
+        )
+
+    private fun TextLayoutResult.middleCutLayout(): MiddleCutLayout {
+        val ellipsisWidth = { measurer.measure(ELLIPSIS, style, maxLines = 1, softWrap = false).size.width.toFloat() }
+        val leftToRight = getParagraphDirection(0) == ResolvedTextDirection.Ltr
+        return MiddleCutLayout(size.width, ellipsisWidth, leftToRight) { getHorizontalPosition(it, true) }
+    }
 
     private fun IntrinsicMeasureScope.layoutText(text: String, constraints: Constraints): TextLayoutResult =
         measurer.measure(
@@ -221,22 +260,21 @@ private class MiddleCutTextNode(
     }
 }
 
-private fun MiddleCutTextElement.cutToFit(line: String, maxWidth: Int): String =
-    if (maxLines == 1) {
-        middleCut(line, maxWidth, measurer.lineLayout(line, style)) { measurer.width(it, style) }
-    } else {
-        middleCutWhere(line, maxWidth) { measurer.fitsLines(it, style, maxWidth, maxLines) }
-    }
+private class Fit(val text: String, val layout: TextLayoutResult? = null)
 
-private fun TextMeasurer.lineLayout(text: String, style: TextStyle): MiddleCutLayout {
-    val line = measure(text, style, maxLines = 1, softWrap = false)
-    val ellipsisWidth = { measure(ELLIPSIS, style, maxLines = 1, softWrap = false).size.width.toFloat() }
-    val leftToRight = line.getParagraphDirection(0) == ResolvedTextDirection.Ltr
-    return MiddleCutLayout(line.size.width, ellipsisWidth, leftToRight) { line.getHorizontalPosition(it, true) }
-}
+private data class OneLineCut(
+    val text: String,
+    val maxWidth: Int,
+    val style: TextStyle,
+    val density: Float,
+    val fontScale: Float,
+    val layoutDirection: LayoutDirection,
+)
 
-private fun TextMeasurer.width(text: String, style: TextStyle): Int =
-    measure(text, style, maxLines = 1, softWrap = false).size.width
+private val OneLineCuts = LruCache<OneLineCut, String>(ONE_LINE_CUTS)
+
+private fun TextLayoutResult.fills(constraints: Constraints): Boolean =
+    size.width >= constraints.minWidth && size.height in constraints.minHeight..constraints.maxHeight
 
 /** Whether [text] wraps into [maxLines] lines of [maxWidth] without losing any of it. */
 private fun TextMeasurer.fitsLines(text: String, style: TextStyle, maxWidth: Int, maxLines: Int): Boolean =
@@ -251,4 +289,5 @@ private fun TextLayoutResult.shownText(): String {
 private fun String.oneLine(): String = replace(LINE_BREAKS, " ")
 
 private const val NO_CUT_WIDTH = -1
+private const val ONE_LINE_CUTS = 512
 private val LINE_BREAKS = Regex("\\R")

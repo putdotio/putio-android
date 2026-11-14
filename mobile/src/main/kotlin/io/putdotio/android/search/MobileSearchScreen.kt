@@ -66,7 +66,9 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.MobileFilesRow
+import io.putdotio.android.files.FilesRowText
 import io.putdotio.android.files.MobileFilesRowPlace
+import io.putdotio.android.files.rememberFilesRowText
 import io.putdotio.android.files.MobileFilesSkeleton
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.neutralTextButtonColors
@@ -392,14 +394,15 @@ private fun MobileSearchResults(
 ) {
     val (folders, files) = remember(content.items) { content.items.partition(FilesItem::isFolder) }
     val rootName = stringResource(R.string.mobile_destination_files)
+    val rowText = rememberFilesRowText(content.items)
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(listState, nextPage = content.paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {
         resultGroup(R.string.mobile_search_group_folders, "folders", folders) { item ->
-            MobileSearchResultRow(item, rows, rootName)
+            MobileSearchResultRow(item, rows, rootName, rowText[item])
         }
         resultGroup(R.string.mobile_search_group_files, "files", files) { item ->
-            MobileSearchResultRow(item, rows, rootName)
+            MobileSearchResultRow(item, rows, rootName, rowText[item])
         }
         if (content.paging != SearchPaging.Complete) {
             item(key = "search-paging", contentType = "paging") {
@@ -428,7 +431,7 @@ private fun LazyListScope.resultGroup(
 
 /** The shared file row, naming the folder the result sits in once that name is known. */
 @Composable
-private fun MobileSearchResultRow(item: FilesItem, rows: MobileSearchRows, rootName: String) {
+private fun MobileSearchResultRow(item: FilesItem, rows: MobileSearchRows, rootName: String, text: FilesRowText) {
     val folderName = item.parentId?.let { parent ->
         if (parent == FilesFolder.Root.id) rootName else rows.folderNames[parent]
     }
@@ -442,6 +445,7 @@ private fun MobileSearchResultRow(item: FilesItem, rows: MobileSearchRows, rootN
         onActions = rows.onActions?.let { open -> { open(item) } },
         downloadStatus = rows.downloadStatus(item.id),
         place = MobileFilesRowPlace.SearchResult(folderName),
+        text = text,
     )
 }
 

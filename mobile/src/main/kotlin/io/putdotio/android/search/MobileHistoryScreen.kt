@@ -1,5 +1,6 @@
 package io.putdotio.android.search
 
+import android.content.Context
 import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
@@ -35,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -51,6 +53,8 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobilePullToRefresh
 import io.putdotio.android.MobileRow
+import io.putdotio.android.MobileRowText
+import io.putdotio.android.rememberRowText
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
@@ -175,8 +179,9 @@ private fun MobileHistoryList(
 ) {
     val zone = ZoneId.systemDefault()
     // A stamp the parser cannot read keeps a group of its own, under itself.
-    val grouped = remember(content.items, zone) {
-        content.items.groupBy { item -> item.localDate(zone)?.let { it to null } ?: (null to item.createdAt) }
+    val rowText = rememberHistoryRowText(content.items, zone)
+    val grouped = remember(content.items, rowText) {
+        content.items.groupBy { item -> rowText[item].date?.let { it to null } ?: (null to item.createdAt) }
     }
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(
@@ -190,13 +195,15 @@ private fun MobileHistoryList(
             val (date, raw) = day
             val isFirst = first
             first = false
-            item(key = date?.let { "date-$it" } ?: "raw-$raw") {
+            item(key = date?.let { "date-$it" } ?: "raw-$raw", contentType = "day") {
                 MobileSectionLabel(historyDateLabel(date, today, raw.orEmpty()), first = isFirst)
             }
-            items(events, key = { it.id.value }) { item -> MobileHistoryRow(item, onEvent) }
+            items(events, key = { it.id.value }, contentType = { "row" }) { item ->
+                MobileHistoryRow(item, rowText[item], onEvent)
+            }
         }
         if (content.paging != HistoryPaging.Complete) {
-            item(key = "history-paging") {
+            item(key = "history-paging", contentType = "paging") {
                 MobileHistoryPaging(content.paging, onEvent, Modifier.fillMaxWidth())
             }
         }
@@ -205,11 +212,10 @@ private fun MobileHistoryList(
 
 /** One event: a neutral glyph, the name it concerns cut in the middle, then what happened and when. */
 @Composable
-private fun MobileHistoryRow(item: HistoryItem, onEvent: (HistoryEvent) -> Unit) {
+private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (HistoryEvent) -> Unit) {
     val fileId = item.kind.navigableFileId()
     val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
-    val time = item.timeLabel()
-    val kind = item.kindLabel()
+    val kind = text.kind
     MobileRow(
         leading = {
             Icon(
@@ -219,19 +225,19 @@ private fun MobileHistoryRow(item: HistoryItem, onEvent: (HistoryEvent) -> Unit)
                 modifier = Modifier.size(HISTORY_GLYPH_SIZE),
             )
         },
-        headline = { MobileMiddleCutText(item.title()) },
+        headline = { MobileMiddleCutText(text.title) },
         meta = {
             // The kind gives way at large font sizes; the time always shows.
             Row {
                 kind?.let {
                     Text(
-                        stringResource(R.string.mobile_history_metadata, it, ""),
+                        it,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
                 }
-                Text(AnnotatedString(time, mono), maxLines = 1, softWrap = false)
+                Text(AnnotatedString(text.time, mono), maxLines = 1, softWrap = false)
             }
         },
         modifier = if (fileId == null) Modifier else Modifier.clickable(
@@ -362,30 +368,42 @@ private fun historyDateLabel(date: LocalDate?, today: LocalDate, raw: String): S
     }
 }
 
+private class HistoryRowText(val title: String, val kind: String?, val time: String, val date: LocalDate?)
+
 @Composable
-private fun HistoryItem.timeLabel(): String {
-    val context = LocalContext.current
+private fun rememberHistoryRowText(items: List<HistoryItem>, zone: ZoneId): MobileRowText<HistoryItem, HistoryRowText> {
+    val context = LocalContext.current.applicationContext
+    val locales = LocalConfiguration.current.locales
+    return rememberRowText(items, context, locales, zone, key = { it.id.value }) { item, _ ->
+        HistoryRowText(
+            date = item.localDate(zone),
+            title = item.title(context),
+            kind = item.kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
+            time = item.timeLabel(context),
+        )
+    }
+}
+
+private fun HistoryItem.timeLabel(context: Context): String {
     val created = parsePutioTimestamp(createdAt) ?: return createdAt
     return DateUtils.formatDateTime(context, created.toEpochMilli(), DateUtils.FORMAT_SHOW_TIME)
 }
 
 /** The name the event concerns; an event without one reads No title. */
-@Composable
-private fun HistoryItem.title(): String =
+private fun HistoryItem.title(context: Context): String =
     when (val value = kind) {
-        is HistoryEventKind.File -> value.name ?: stringResource(R.string.mobile_history_no_title)
-        is HistoryEventKind.Transfer -> value.name ?: stringResource(R.string.mobile_history_no_title)
+        is HistoryEventKind.File -> value.name ?: context.getString(R.string.mobile_history_no_title)
+        is HistoryEventKind.Transfer -> value.name ?: context.getString(R.string.mobile_history_no_title)
         is HistoryEventKind.Notice -> value.subject
-        is HistoryEventKind.Other -> stringResource(R.string.mobile_history_no_title)
+        is HistoryEventKind.Other -> context.getString(R.string.mobile_history_no_title)
     }
 
 /** What happened, before the time; an event of a type with no copy gives its time alone. */
-@Composable
-private fun HistoryItem.kindLabel(): String? =
+private fun HistoryItem.kindLabel(context: Context): String? =
     when (val value = kind) {
-        is HistoryEventKind.File -> stringResource(R.string.mobile_history_kind_shared)
-        is HistoryEventKind.Transfer -> stringResource(R.string.mobile_history_kind_transfer_completed)
-        is HistoryEventKind.Notice -> stringResource(
+        is HistoryEventKind.File -> context.getString(R.string.mobile_history_kind_shared)
+        is HistoryEventKind.Transfer -> context.getString(R.string.mobile_history_kind_transfer_completed)
+        is HistoryEventKind.Notice -> context.getString(
             when (value.type) {
                 HistoryNoticeType.Upload -> R.string.mobile_history_kind_uploaded
                 HistoryNoticeType.TransferError -> R.string.mobile_history_kind_transfer_failed

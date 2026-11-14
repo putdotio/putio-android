@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import android.content.Context
 import androidx.annotation.StringRes
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -36,6 +38,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
+import io.putdotio.android.MobileRowText
+import io.putdotio.android.rememberRowText
 import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.monoValue
@@ -84,9 +88,10 @@ internal fun MobileFilesRow(
     checked: Boolean? = null,
     onCheckedChange: (() -> Unit)? = null,
     playbackBounds: Boolean = true,
+    text: FilesRowText = item.rowText(LocalContext.current, System.currentTimeMillis()),
 ) {
     if (checked != null) {
-        MobileFilesSelectableRow(item, checked, onCheckedChange, downloadStatus, place, modifier)
+        MobileFilesSelectableRow(item, text, checked, onCheckedChange, downloadStatus, place, modifier)
         return
     }
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
@@ -131,7 +136,7 @@ internal fun MobileFilesRow(
     MobileRow(
         leading = { FileTypeIcon(type = item.type, modifier = Modifier.size(FILES_ICON_SIZE)) },
         headline = { MobileMiddleCutText(text = item.name) },
-        meta = { MobileFilesMeta(item, downloadStatus = downloadStatus, place = place) },
+        meta = { MobileFilesMeta(item, text, downloadStatus = downloadStatus, place = place) },
         trailing = trailing,
         containerColor = when {
             highlighted -> MaterialTheme.colorScheme.secondaryContainer
@@ -155,6 +160,7 @@ internal fun MobileFilesRow(
 @Composable
 private fun MobileFilesSelectableRow(
     item: FilesItem,
+    text: FilesRowText,
     checked: Boolean,
     onCheckedChange: (() -> Unit)?,
     downloadStatus: DownloadStatus?,
@@ -166,7 +172,7 @@ private fun MobileFilesSelectableRow(
     MobileRow(
         leading = { MobileSelectionCheckbox(checked) },
         headline = { MobileMiddleCutText(text = item.name) },
-        meta = { MobileFilesMeta(item, downloadStatus = downloadStatus, place = place) },
+        meta = { MobileFilesMeta(item, text, downloadStatus = downloadStatus, place = place) },
         containerColor = if (checked) MobileSelectedRowTint else Color.Transparent,
         modifier = modifier
             .playbackContainer(item.id.value, playable = item.isPlayable)
@@ -178,6 +184,21 @@ private fun MobileFilesSelectableRow(
                 } ?: Modifier,
             ),
     )
+}
+
+internal class FilesRowText(val size: String?, val date: String?)
+
+internal fun FilesItem.rowText(context: Context, nowMillis: Long): FilesRowText =
+    FilesRowText(
+        size = formatFileSize(sizeBytes).takeIf { folderType == PutioFolderType.REGULAR },
+        date = updatedAgo(nowMillis) ?: createdAt.toDisplayDate(context),
+    )
+
+@Composable
+internal fun rememberFilesRowText(items: List<FilesItem>): MobileRowText<FilesItem, FilesRowText> {
+    val context = LocalContext.current.applicationContext
+    val locales = LocalConfiguration.current.locales
+    return rememberRowText(items, context, locales, key = { it.id.value }) { item, now -> item.rowText(context, now) }
 }
 
 /** Where a row is listed: in a folder, which dates it, or in search results, which name its folder. */
@@ -194,12 +215,15 @@ internal sealed interface MobileFilesRowPlace {
  * itself by its last change, "3 days ago"; the shared folders have no size of their own.
  */
 @Composable
-private fun MobileFilesMeta(item: FilesItem, downloadStatus: DownloadStatus?, place: MobileFilesRowPlace) {
-    val context = LocalContext.current
-    val size = formatFileSize(item.sizeBytes).takeIf { item.folderType == PutioFolderType.REGULAR }
+private fun MobileFilesMeta(
+    item: FilesItem,
+    text: FilesRowText,
+    downloadStatus: DownloadStatus?,
+    place: MobileFilesRowPlace,
+) {
+    val size = text.size
     val date = when (place) {
-        MobileFilesRowPlace.Listing ->
-            item.updatedAgo(System.currentTimeMillis()) ?: item.createdAt.toDisplayDate(context)
+        MobileFilesRowPlace.Listing -> text.date
         is MobileFilesRowPlace.SearchResult -> place.folderName
     }
     val finished = item.watchedChoice() == false

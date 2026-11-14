@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -63,6 +64,7 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.rememberRowText
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.neutralTextButtonColors
@@ -370,13 +372,19 @@ private fun MobileMoveFolderContent(
         nextPage = paging as? FilesPaging.Available,
         onLoadNextPage = { onEvent(FilesMoveDestinationEvent.LoadNextPage) },
     )
-    val context = LocalContext.current
+    val context = LocalContext.current.applicationContext
+    val folderDates = rememberRowText(
+        (content as? FilesContent.Ready)?.items.orEmpty(),
+        context,
+        LocalConfiguration.current.locales,
+        key = { it.id.value },
+    ) { folder, _ -> folder.createdAt.toDisplayDate(context).orEmpty() }
     LazyColumn(state = listState, modifier = listModifier.fillMaxWidth()) {
         when (content) {
-            is FilesContent.Loading -> item {
+            is FilesContent.Loading -> item(contentType = "loading") {
                 MobileLoadingState(stringResource(R.string.mobile_files_move_loading))
             }
-            is FilesContent.Failed -> item {
+            is FilesContent.Failed -> item(contentType = "failed") {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
                     Text(content.failure.moveDestinationMessage())
                     TextButton(
@@ -391,7 +399,7 @@ private fun MobileMoveFolderContent(
             is FilesContent.Ready, is FilesContent.Empty -> {
                 val items = (content as? FilesContent.Ready)?.items.orEmpty()
                 if (items.isEmpty()) {
-                    item {
+                    item(contentType = "empty") {
                         Text(
                             stringResource(
                                 if (paging == FilesPaging.Complete) {
@@ -406,11 +414,12 @@ private fun MobileMoveFolderContent(
                         )
                     }
                 }
-                items(items, key = { it.id.value }) { folder ->
+                items(items, key = { it.id.value }, contentType = { "folder" }) { folder ->
+                    val date = folderDates[folder]
                     MobileRow(
                         leading = { FileTypeIcon(PutioFileType.FOLDER, Modifier.size(FOLDER_ICON_SIZE)) },
                         headline = { MobileMiddleCutText(folder.name) },
-                        meta = folder.createdAt.toDisplayDate(context)?.let { date -> { Text(date, maxLines = 1) } },
+                        meta = date.takeIf { it.isNotEmpty() }?.let { { Text(it, maxLines = 1) } },
                         trailing = {
                             Icon(
                                 painterResource(R.drawable.ic_ph_caret_right),
@@ -426,7 +435,7 @@ private fun MobileMoveFolderContent(
                             },
                     )
                 }
-                item { MobileMovePaging(paging, onEvent) }
+                item(contentType = "paging") { MobileMovePaging(paging, onEvent) }
             }
         }
     }

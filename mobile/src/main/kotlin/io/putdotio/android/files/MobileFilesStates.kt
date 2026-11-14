@@ -491,12 +491,14 @@ internal fun MobileFilesOffline(
     onActions: ((FilesItem) -> Unit)? = null,
 ) {
     onRetry?.let { RetryWhenOnline(failure, it) }
+    val rowText = rememberFilesRowText(onDevice)
     LazyColumn(modifier = modifier.fillMaxSize().testTag(MOBILE_FILES_OFFLINE_TAG)) {
         if (onDevice.isNotEmpty()) {
-            item(key = "offline-banner") { MobileOfflineBanner() }
-            items(onDevice, key = { it.id.value }) { item ->
+            item(key = "offline-banner", contentType = "banner") { MobileOfflineBanner() }
+            items(onDevice, key = { it.id.value }, contentType = { "row" }) { item ->
                 MobileFilesRow(
                     item = item,
+                    text = rowText[item],
                     downloadStatus = DownloadStatus.Completed(item.sizeBytes),
                     onClick = if (item.isPlayable) ({ onPlayMedia(item) }) else null,
                     onActions = onActions?.let { open -> { open(item) } },
@@ -505,7 +507,7 @@ internal fun MobileFilesOffline(
                 )
             }
         }
-        item(key = "offline-state") {
+        item(key = "offline-state", contentType = "state") {
             MobileFilesEmptyState(
                 glyph = PutioEmptyGlyph.Offline,
                 headline = stringResource(R.string.mobile_files_offline_title),
