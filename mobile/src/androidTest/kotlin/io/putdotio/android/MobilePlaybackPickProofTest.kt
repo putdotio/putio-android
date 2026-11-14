@@ -41,9 +41,11 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -147,25 +149,23 @@ class MobilePlaybackPickProofTest {
         check(file.fileType == PutioFileType.VIDEO && file.isMp4Available) { "Precondition: a video with an MP4" }
         check(MobileDownloadStore.peek(context, userId, fileId) == null) { "Precondition: no download row yet" }
         val switched = DataStoreSwitchedToConvertedFiles.get(context)
-        switched.add(fileId.value)
         val directPlay = mobileDirectPlayDownloads(context, session.putioClient)
         val unanswered = CompletableDeferred<DirectPlayDownload?>()
         val asked = CompletableDeferred<Boolean>()
-        var store = MobileDownloadStore(context, userId)
-        var engine = MobileDownloadEngine(context, store, userId, scope)
-        var controller = DownloadsController(
-            store,
-            engine,
-            scope,
-            DownloadSources(
-                setting = { StreamingMethod.Hls },
-                directPlay = { _, _, chosen ->
-                    asked.complete(chosen)
-                    unanswered.await()
-                },
-            ),
-        )
-        try {
+        var downloads: Downloads? = null
+        val outcome = runCatching {
+            switched.add(fileId.value)
+            val held = Downloads(
+                userId,
+                DownloadSources(
+                    setting = { StreamingMethod.Hls },
+                    directPlay = { _, _, chosen ->
+                        asked.complete(chosen)
+                        unanswered.await()
+                    },
+                ),
+            ).also { downloads = it }
+            val controller = held.controller
             assertTrue(
                 controller.dispatch(
                     DownloadsEvent.Start(
@@ -185,50 +185,78 @@ class MobilePlaybackPickProofTest {
             check(waiting?.artifact == DownloadArtifact.MP4 && waiting.status == DownloadStatus.Queued) {
                 "Precondition: the row waits on its lookup"
             }
-            controller.close()
-            engine.close()
+            downloads = null
+            held.close()
 
             val answers = mutableListOf<Pair<Boolean, DirectPlayDownload?>>()
-            val restarted = MobileDownloadStore(context, userId).also { store = it }
-            engine = MobileDownloadEngine(context, restarted, userId, scope)
-            controller = DownloadsController(
-                restarted,
-                engine,
-                scope,
+            val restarted = Downloads(
+                userId,
                 DownloadSources(
                     setting = { StreamingMethod.Hls },
                     directPlay = { id, subtitles, chosen ->
                         directPlay.resolve(id, subtitles, chosen = chosen).also { answers += chosen to it }
                     },
                 ),
-            )
+            ).also { downloads = it }
             val decided = withTimeout(LOOKUP_MILLIS) {
-                restarted.entries.first { rows ->
-                    answers.isNotEmpty() && rows.firstOrNull { it.fileId == fileId }?.status != DownloadStatus.Queued
-                }.first { it.fileId == fileId }
+                restarted.store.entries.mapNotNull { rows -> rows.firstOrNull { it.fileId == fileId } }
+                    .first { answers.isNotEmpty() && it.status != DownloadStatus.Queued }
             }
             log += "after restart: lookup chosen=${answers.single().first} answer=${answers.single().second?.source}"
             log += "after restart: ${decided.describe()}"
             assertEquals(DirectPlayDownloadSource.Original, answers.single().second?.source)
             assertEquals(DownloadArtifact.ORIGINAL, decided.artifact)
             val done = withTimeout(DOWNLOAD_MILLIS) {
-                restarted.entries.first { rows -> rows.firstOrNull { it.fileId == fileId }?.isCompleted == true }
-                    .first { it.fileId == fileId }
+                restarted.store.entries.mapNotNull { rows -> rows.firstOrNull { it.fileId == fileId } }
+                    .first { it.isCompleted }
             }
             log += "completed: ${done.describe()} original size=${file.size}"
             assertEquals(file.size, (done.status as DownloadStatus.Completed).bytes)
-        } finally {
-            withContext(NonCancellable) {
-                unanswered.complete(null)
-                controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
-                controller.dispatch(DownloadsEvent.ConfirmRemoval)
+        }
+        unanswered.complete(null)
+        val cleanupError = runCatching {
+            withContext(NonCancellable) { cleanUp(downloads, userId, fileId, switched) }
+        }.exceptionOrNull()
+        outcome.onFailure { error -> cleanupError?.let(error::addSuppressed) }.getOrThrow()
+        cleanupError?.let { throw it }
+    }
+
+    private suspend fun cleanUp(
+        downloads: Downloads?,
+        userId: Long,
+        fileId: FilesItemId,
+        switched: DataStoreSwitchedToConvertedFiles,
+    ) {
+        try {
+            val cleanup = downloads
+                ?: Downloads(userId, DownloadSources(directPlay = { _, _, _ -> awaitCancellation() }))
+            try {
+                cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
+                cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
                 val removed = withTimeoutOrNull(DOWNLOAD_MILLIS) {
-                    store.entries.first { rows -> rows.none { it.fileId == fileId } }
+                    cleanup.store.entries.first { rows -> rows.none { it.fileId == fileId } }
                 }
                 log += "cleanup: download removed=${removed != null}"
+            } finally {
+                cleanup.close()
+            }
+        } finally {
+            forget(switched, fileId.value)
+        }
+    }
+
+    private inner class Downloads(userId: Long, sources: DownloadSources) {
+        val store = MobileDownloadStore(context, userId)
+        private val engine = MobileDownloadEngine(context, store, userId, scope)
+        val controller = runCatching { DownloadsController(store, engine, scope, sources) }
+            .onFailure { engine.close() }
+            .getOrThrow()
+
+        fun close() {
+            try {
                 controller.close()
+            } finally {
                 engine.close()
-                forget(switched, fileId.value)
             }
         }
     }
@@ -244,7 +272,10 @@ class MobilePlaybackPickProofTest {
     private suspend fun signedIn(): Pair<MobileOAuthRuntime, Long> {
         val runtime = MobileOAuthRuntime.get(context)
         val state = runtime.awaitSettledSession(SESSION_MILLIS.milliseconds)
-        val account = checkNotNull((state as? MobileAuthState.SignedIn)?.account) { "Proof needs a signed-in session" }
+        val settled = checkNotNull(state) { "The session never settled" }
+        val account = checkNotNull((settled as? MobileAuthState.SignedIn)?.account) {
+            "Proof needs a signed-in session"
+        }
         check(account.userId == argument("accountId").toLong()) { "Not the devs-auto account" }
         return runtime to account.userId
     }

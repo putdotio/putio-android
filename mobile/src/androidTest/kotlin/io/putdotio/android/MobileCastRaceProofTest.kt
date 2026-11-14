@@ -40,10 +40,12 @@ import java.util.Collections
 import java.util.UUID
 import kotlin.math.PI
 import kotlin.math.sin
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -89,9 +91,8 @@ class MobileCastRaceProofTest {
             val gates = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
             val asked = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
             val seen = Collections.synchronizedSet(mutableSetOf<Long>())
-            val scope = MainScope()
             var local: ExoPlayer? = null
-            check(!onMain { cast.availability.value.casting }) { "A Cast session already runs; leaving it alone" }
+            val scope = MainScope()
             try {
                 connect(cast)
                 val loadsBefore = onMain { cast.loadsSent }
@@ -201,13 +202,15 @@ class MobileCastRaceProofTest {
             assertTrue("The Cast picker never opened", pickerOpened)
             assertTrue("The Cast picker never listed $receiver", listed)
         } finally {
-            onMain { mainActivity().finish() }
+            onMain { mainActivityOrNull()?.finish() }
         }
     }
 
-    private fun mainActivity(): MainActivity =
+    private fun mainActivity(): MainActivity = checkNotNull(mainActivityOrNull()) { "No MainActivity" }
+
+    private fun mainActivityOrNull(): MainActivity? =
         ActivityLifecycleMonitorRegistry.getInstance().let { monitor ->
-            (Stage.entries.flatMap { monitor.getActivitiesInStage(it) }).filterIsInstance<MainActivity>().first()
+            Stage.entries.flatMap { monitor.getActivitiesInStage(it) }.filterIsInstance<MainActivity>().firstOrNull()
         }
 
     private fun shell(command: String) {
@@ -234,15 +237,32 @@ class MobileCastRaceProofTest {
     private fun connect(cast: MobileCastController) {
         val receiver = argument("receiver")
         onMain { cast.gateway.startDiscovery() }
-        await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
-        val target = onMain { cast.gateway.devices.value.first { receiver in it.name } }
-        note("connecting to ${target.name} (${target.model})")
-        onMain { cast.gateway.select(target.id) }
-        await("a session on $receiver") { onMain { cast.availability.value is CastAvailability.Connected } }
-        onMain { cast.gateway.stopDiscovery() }
+        try {
+            await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
+            awaitOrElapse(RESUME_MILLIS) { onMain { cast.availability.value.casting } }
+            val target = onMain {
+                check(!cast.availability.value.casting) { "A Cast session already runs; leaving it alone" }
+                cast.gateway.devices.value.first { receiver in it.name }.also {
+                    selected = true
+                    cast.gateway.select(it.id)
+                }
+            }
+            note("no session resumed; connecting to ${target.name} (${target.model})")
+            var joined: CastAvailability.Connected? = null
+            await("a session on $receiver") {
+                onMain { cast.availability.value as? CastAvailability.Connected }?.also { joined = it } != null
+            }
+            val name = checkNotNull(joined).deviceName
+            check(receiver in name) { "Connected to \"$name\", not the selected ${target.name}" }
+        } finally {
+            onMain { cast.gateway.stopDiscovery() }
+        }
     }
 
+    private var selected = false
+
     private fun disconnect(cast: MobileCastController) {
+        if (!selected) return
         onMain { cast.gateway.stopCasting() }
         awaitOrElapse(RECEIVER_MILLIS) { onMain { !cast.availability.value.casting } }
         note("session ended: ${onMain { !cast.availability.value.casting }}")
@@ -288,11 +308,8 @@ class MobileCastRaceProofTest {
     private fun le(value: Int, bytes: Int) = ByteArray(bytes) { (value shr (8 * it)).toByte() }
 
     private fun signedIn(): MobileAuthState.SignedIn {
-        val runtime = MobileOAuthRuntime.get(context)
-        await("the restored session") {
-            runtime.authController.state.value.let { it is MobileAuthState.SignedIn || it is MobileAuthState.SignedOut }
-        }
-        val session = checkNotNull(runtime.authController.state.value as? MobileAuthState.SignedIn) {
+        val state = runBlocking { MobileOAuthRuntime.get(context).awaitSettledSession(WAIT_MILLIS.milliseconds) }
+        val session = checkNotNull(checkNotNull(state) { "The session never settled" } as? MobileAuthState.SignedIn) {
             "Proof needs a signed-in session"
         }
         check(session.account.userId == argument("accountId").toLong()) { "Not the devs-auto account" }
@@ -393,6 +410,7 @@ class MobileCastRaceProofTest {
         const val REVEAL_MILLIS = 1_500L
         const val MULTI_WINDOW = 6
         const val RECEIVER_MILLIS = 45_000L
+        const val RESUME_MILLIS = 10_000L
         const val OLDER_LOAD_WINDOW_MILLIS = 10_000L
         const val POLL_MILLIS = 200L
         const val TONE_SECONDS = 120
