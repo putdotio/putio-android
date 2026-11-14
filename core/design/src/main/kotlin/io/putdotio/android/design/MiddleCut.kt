@@ -230,11 +230,9 @@ private fun MiddleCutTextElement.cutToFit(line: String, maxWidth: Int): String =
 
 private fun TextMeasurer.lineLayout(text: String, style: TextStyle): MiddleCutLayout {
     val line = measure(text, style, maxLines = 1, softWrap = false)
-    val ellipsis = measure(ELLIPSIS, style, maxLines = 1, softWrap = false)
+    val ellipsisWidth = { measure(ELLIPSIS, style, maxLines = 1, softWrap = false).size.width.toFloat() }
     val leftToRight = line.getParagraphDirection(0) == ResolvedTextDirection.Ltr
-    return MiddleCutLayout(line.size.width, ellipsis.size.width.toFloat(), leftToRight) {
-        line.getHorizontalPosition(it, true)
-    }
+    return MiddleCutLayout(line.size.width, ellipsisWidth, leftToRight) { line.getHorizontalPosition(it, true) }
 }
 
 private fun TextMeasurer.width(text: String, style: TextStyle): Int =

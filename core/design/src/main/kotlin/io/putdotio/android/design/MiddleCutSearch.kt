@@ -15,7 +15,7 @@ internal fun middleCut(text: String, maxWidth: Int, widthOf: (String) -> Int): S
 
 internal class MiddleCutLayout(
     val width: Int,
-    val ellipsisWidth: Float,
+    val ellipsisWidth: () -> Float,
     val leftToRight: Boolean = true,
     val offsetX: (Int) -> Float,
 )
@@ -46,11 +46,12 @@ private class PricedCut(val starts: List<Int>, val start: Int, val tailStart: In
 private fun pricedCut(text: String, maxWidth: Int, layout: MiddleCutLayout): PricedCut? {
     val left = layout.offsetX(0)
     val right = layout.offsetX(text.length)
+    val ellipsisWidth = layout.ellipsisWidth()
     val boundaries = text.characterBoundaries()
     val tailStart = text.tailStarts(boundaries)
-        .firstOrNull { layout.ellipsisWidth + abs(right - layout.offsetX(it)) <= maxWidth }
+        .firstOrNull { ellipsisWidth + abs(right - layout.offsetX(it)) <= maxWidth }
         ?: return null
-    val room = maxWidth - layout.ellipsisWidth - abs(right - layout.offsetX(tailStart))
+    val room = maxWidth - ellipsisWidth - abs(right - layout.offsetX(tailStart))
     val starts = boundaries.filter { it < tailStart }
     var low = 0
     var high = starts.lastIndex

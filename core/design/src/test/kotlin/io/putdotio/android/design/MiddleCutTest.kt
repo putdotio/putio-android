@@ -35,7 +35,7 @@ class MiddleCutTest {
 
     @Test
     fun aPricedCutMatchesTheMeasuredCutAtEveryWidth() {
-        val layout = MiddleCutLayout(NAME.length, ellipsisWidth = 1f) { it.toFloat() }
+        val layout = MiddleCutLayout(NAME.length, ellipsisWidth = { 1f }) { it.toFloat() }
         for (budget in 1..NAME.length + 1) {
             assertEquals("width $budget", middleCut(NAME, budget, width), middleCut(NAME, budget, layout, width))
         }
@@ -44,7 +44,7 @@ class MiddleCutTest {
     @Test
     fun aPricedCutThatMeasuresWiderFallsBackToTheMeasuredCut() {
         val kernedJoin: (String) -> Int = { it.length + if ('…' in it) 2 else 0 }
-        val layout = MiddleCutLayout(NAME.length, ellipsisWidth = 1f) { it.toFloat() }
+        val layout = MiddleCutLayout(NAME.length, ellipsisWidth = { 1f }) { it.toFloat() }
         for (budget in 1..NAME.length) {
             val priced = middleCut(NAME, budget, layout, kernedJoin)
             assertEquals("width $budget", middleCut(NAME, budget, kernedJoin), priced)
@@ -55,7 +55,7 @@ class MiddleCutTest {
     fun aMixedDirectionNameKeepsTheMeasuredCut() {
         val name = "abcdefghij" + "אבגדהוזחטיכלמנסעפצקר" + ".mp4"
         val rtl = 10 until 30
-        val layout = MiddleCutLayout(name.length, ellipsisWidth = 1f) { offset ->
+        val layout = MiddleCutLayout(name.length, ellipsisWidth = { 1f }) { offset ->
             (if (offset in rtl) rtl.first + rtl.last + 1 - offset else offset).toFloat()
         }
         for (budget in 1..name.length) {
@@ -64,7 +64,7 @@ class MiddleCutTest {
     }
 
     private fun cut(name: String, budget: Int): String =
-        middleCut(name, budget, MiddleCutLayout(name.length, ellipsisWidth = 1f) { it.toFloat() }, width)
+        middleCut(name, budget, MiddleCutLayout(name.length, ellipsisWidth = { 1f }) { it.toFloat() }, width)
 
     private fun String.pairedAt(index: Int): Boolean = when {
         this[index].isHighSurrogate() -> index + 1 < length && this[index + 1].isLowSurrogate()
