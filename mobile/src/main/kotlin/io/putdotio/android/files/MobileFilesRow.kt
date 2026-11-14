@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileRowText
+import io.putdotio.android.rememberMinute
 import io.putdotio.android.rememberRowText
 import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
@@ -201,7 +202,10 @@ internal fun rememberFilesRowText(
 ): MobileRowText<FilesItem, FilesRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
-    return rememberRowText(items, context, locales, dated, key = { it.id.value }) { it.rowText(context, dated) }
+    val minute = if (dated) rememberMinute() else null
+    return rememberRowText(items, context, locales, dated, key = { it.id.value }, refresh = minute) {
+        it.rowText(context, dated)
+    }
 }
 
 /** Where a row is listed: in a folder, which dates it, or in search results, which name its folder. */
