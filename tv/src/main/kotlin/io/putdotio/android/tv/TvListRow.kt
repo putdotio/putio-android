@@ -20,7 +20,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,7 +27,6 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
-import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 
@@ -90,7 +88,7 @@ internal fun TvListRow(
                 )
                 Row(
                     modifier = Modifier.padding(top = 1.dp),
-                    horizontalArrangement = Arrangement.spacedBy(ROW_META_GAP),
+                    horizontalArrangement = Arrangement.spacedBy(TV_LIST_ROW_META_GAP),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     meta(secondary)
@@ -108,19 +106,6 @@ internal fun TvListRow(
     }
 }
 
-@Composable
-internal fun TvListRowMetaParts(parts: List<@Composable () -> Unit>, color: Color) {
-    parts.forEachIndexed { index, part ->
-        if (index > 0) TvListRowDot(color)
-        part()
-    }
-}
-
-@Composable
-internal fun TvListRowDot(color: Color) {
-    Text("·", style = TV_LIST_ROW_META, color = color, modifier = Modifier.clearAndSetSemantics {})
-}
-
 internal val TV_LIST_ROW_META = PutioTypeScale.tvMeta.copy(lineHeight = 14.sp).withFullLineBox()
 internal val TV_LIST_ROW_META_MONO = TV_LIST_ROW_META.asMonoRun()
 internal val TV_LIST_ROW_META_ICON = 13.dp
@@ -129,5 +114,5 @@ private val ROW_PADDING = 12.dp
 private val ROW_GAP = 16.dp
 private val ROW_GLYPH = 20.dp
 private val ROW_CARET = 16.dp
-private val ROW_META_GAP = 5.dp
+internal val TV_LIST_ROW_META_GAP = 5.dp
 private val ROW_TITLE = PutioTypeScale.tvBody.copy(lineHeight = 16.sp).withFullLineBox()

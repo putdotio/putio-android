@@ -26,19 +26,21 @@ import kotlinx.coroutines.launch
 public class PutioMiddleCuts internal constructor(
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher,
+    private val fitter: (MiddleCutRoom) -> (String) -> Unit = MiddleCutRoom::fitter,
 ) {
     private val jobs = HashMap<MiddleCutRoom, Job>()
     private var names: List<String> = emptyList()
 
     internal fun seen(room: MiddleCutRoom) {
-        if (room.maxLines == 1 && room !in jobs) jobs[room] = prefetch(room, names)
+        if (room.maxLines == 1 && room !in jobs) jobs[room] = prefetch(room, names.prefetched(0))
     }
 
     internal fun names(names: List<String>) {
         if (names === this.names) return
         val extends = names.size > this.names.size && names.subList(0, this.names.size) == this.names
-        val added = if (extends) names.subList(this.names.size, names.size) else names
+        val added = names.prefetched(if (extends) this.names.size else 0)
         this.names = names
+        if (extends && added.isEmpty()) return
         jobs.keys.forEach { room ->
             val previous = jobs.getValue(room)
             if (!extends) previous.cancel()
@@ -49,12 +51,20 @@ public class PutioMiddleCuts internal constructor(
     private fun prefetch(room: MiddleCutRoom, names: List<String>, after: Job? = null): Job =
         scope.launch(dispatcher) {
             after?.join()
-            val measurer = TextMeasurer(room.fontFamilyResolver, room.scale, room.layoutDirection, cacheSize = 0)
-            names.take(PREFETCHED_NAMES).forEach { name ->
+            val fit = fitter(room)
+            names.forEach { name ->
                 ensureActive()
-                room.fitMiddleCut(name.oneLine(), room.maxWidth, measurer, room.style, room.maxLines)
+                fit(name)
             }
         }
+}
+
+private fun List<String>.prefetched(from: Int): List<String> =
+    subList(minOf(from, PREFETCHED_NAMES, size), minOf(size, PREFETCHED_NAMES))
+
+private fun MiddleCutRoom.fitter(): (String) -> Unit {
+    val measurer = TextMeasurer(fontFamilyResolver, scale, layoutDirection, cacheSize = 0)
+    return { name -> fitMiddleCut(name.oneLine(), maxWidth, measurer, style, maxLines) }
 }
 
 @Composable
