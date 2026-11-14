@@ -107,9 +107,11 @@ class MobilePinnedSectionTest {
                 LazyColumn {
                     mobileFilesHeaderItems(
                         headers = MobileFilesHeaders(pinned = pins),
-                        rowText = rowText,
+                        pinnedRows = MobilePinnedRows(
+                            rowText,
+                            MobilePinnedActions(onOpen = opened::add, onUnpin = unpinned::add),
+                        ),
                         onPlay = {},
-                        pinnedActions = MobilePinnedActions(onOpen = opened::add, onUnpin = unpinned::add),
                     )
                 }
             }

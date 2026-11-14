@@ -984,6 +984,7 @@ private fun MobileFilesList(
     val actionsEnabled = operation.canStartOperation
     val rowText = rememberFilesRowText(content.items)
     val pinnedText = rememberFilesRowText(headers.pinned)
+    val pinnedRows = remember(pinnedText, pinnedActions) { MobilePinnedRows(pinnedText, pinnedActions) }
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
@@ -1020,7 +1021,7 @@ private fun MobileFilesList(
         // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
-        mobileFilesHeaderItems(headers, pinnedText, onPlayEntry, onRemoveEntry, pinnedActions, hidden = selection != null)
+        mobileFilesHeaderItems(headers, pinnedRows, onPlayEntry, onRemoveEntry, hidden = selection != null)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },

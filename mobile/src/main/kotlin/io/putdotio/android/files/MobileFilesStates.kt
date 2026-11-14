@@ -118,6 +118,11 @@ internal class MobilePinnedActions(
     val onUnpin: ((FilesItem) -> Unit)? = null,
 )
 
+internal class MobilePinnedRows(
+    val text: MobileRowText<FilesItem, FilesRowText>,
+    val actions: MobilePinnedActions,
+)
+
 internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): MobilePinnedActions =
     MobilePinnedActions(onOpen = onOpen, onUnpin = onSetPinned?.let { set -> { item -> set(item, false) } })
 
@@ -127,10 +132,9 @@ internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): 
  */
 internal fun LazyListScope.mobileFilesHeaderItems(
     headers: MobileFilesHeaders,
-    rowText: MobileRowText<FilesItem, FilesRowText>,
+    pinnedRows: MobilePinnedRows,
     onPlay: (ContinueWatchingEntry) -> Unit,
     onRemove: ((ContinueWatchingEntry) -> Unit)? = null,
-    pinnedActions: MobilePinnedActions = MobilePinnedActions(onOpen = {}),
     hidden: Boolean = false,
 ) {
     fun header(key: String, type: String, content: @Composable () -> Unit) =
@@ -146,7 +150,7 @@ internal fun LazyListScope.mobileFilesHeaderItems(
     }
     if (headers.pinned.isNotEmpty()) {
         header("pinned", "pinned") {
-            MobilePinnedSection(headers.pinned, rowText, pinnedActions, top = if (watching) 12.dp else 20.dp)
+            MobilePinnedSection(headers.pinned, pinnedRows, top = if (watching) 12.dp else 20.dp)
         }
     }
     if (watching || headers.pinned.isNotEmpty()) {
@@ -161,8 +165,7 @@ internal fun LazyListScope.mobileFilesHeaderItems(
 @Composable
 private fun MobilePinnedSection(
     items: List<FilesItem>,
-    rowText: MobileRowText<FilesItem, FilesRowText>,
-    actions: MobilePinnedActions,
+    rows: MobilePinnedRows,
     top: Dp,
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -190,7 +193,7 @@ private fun MobilePinnedSection(
             },
         )
         val shown = if (expanded || !capped) items else items.take(PINNED_VISIBLE_ITEMS)
-        shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, rowText[item], actions) } }
+        shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, rows.text[item], rows.actions) } }
     }
 }
 
