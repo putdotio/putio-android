@@ -41,6 +41,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -211,22 +212,37 @@ class MobilePlaybackPickProofTest {
             }
             log += "completed: ${done.describe()} original size=${file.size}"
             assertEquals(file.size, (done.status as DownloadStatus.Completed).bytes)
-        } finally {
+        } catch (error: Throwable) {
+            unanswered.complete(null)
             withContext(NonCancellable) {
-                unanswered.complete(null)
-                val cleanup = downloads ?: Downloads(userId, DownloadSources(setting = { StreamingMethod.Hls }))
-                try {
-                    cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
-                    cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
-                    val removed = withTimeoutOrNull(DOWNLOAD_MILLIS) {
-                        cleanup.store.entries.first { rows -> rows.none { it.fileId == fileId } }
-                    }
-                    log += "cleanup: download removed=${removed != null}"
-                } finally {
-                    cleanup.close()
-                    forget(switched, fileId.value)
-                }
+                runCatching { cleanUp(downloads, userId, fileId, switched) }.exceptionOrNull()?.let(error::addSuppressed)
             }
+            throw error
+        }
+        unanswered.complete(null)
+        withContext(NonCancellable) { cleanUp(downloads, userId, fileId, switched) }
+    }
+
+    private suspend fun cleanUp(
+        downloads: Downloads?,
+        userId: Long,
+        fileId: FilesItemId,
+        switched: DataStoreSwitchedToConvertedFiles,
+    ) {
+        try {
+            val cleanup = downloads ?: Downloads(userId, DownloadSources(directPlay = { _, _, _ -> awaitCancellation() }))
+            try {
+                cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
+                cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
+                val removed = withTimeoutOrNull(DOWNLOAD_MILLIS) {
+                    cleanup.store.entries.first { rows -> rows.none { it.fileId == fileId } }
+                }
+                log += "cleanup: download removed=${removed != null}"
+            } finally {
+                cleanup.close()
+            }
+        } finally {
+            forget(switched, fileId.value)
         }
     }
 

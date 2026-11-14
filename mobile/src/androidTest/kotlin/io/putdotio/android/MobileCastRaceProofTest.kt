@@ -31,7 +31,6 @@ import io.putdotio.android.playback.CastPrepared
 import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastTransfer
 import io.putdotio.android.playback.casting
-import io.putdotio.android.playback.connectedDevice
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.PlaybackTarget
@@ -92,9 +91,8 @@ class MobileCastRaceProofTest {
             val gates = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
             val asked = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
             val seen = Collections.synchronizedSet(mutableSetOf<Long>())
-            val scope = MainScope()
             var local: ExoPlayer? = null
-            awaitNoSession(cast)
+            val scope = MainScope()
             try {
                 connect(cast)
                 val loadsBefore = onMain { cast.loadsSent }
@@ -236,32 +234,26 @@ class MobileCastRaceProofTest {
         }
     }
 
-    private fun awaitNoSession(cast: MobileCastController) {
+    private fun connect(cast: MobileCastController) {
         val receiver = argument("receiver")
         onMain { cast.gateway.startDiscovery() }
         try {
             await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
             awaitOrElapse(RESUME_MILLIS) { onMain { cast.availability.value.casting } }
-            check(!onMain { cast.availability.value.casting }) { "A Cast session already runs; leaving it alone" }
-            note("no session resumed within ${RESUME_MILLIS}ms of $receiver in reach")
+            val target = onMain {
+                check(!cast.availability.value.casting) { "A Cast session already runs; leaving it alone" }
+                cast.gateway.devices.value.first { receiver in it.name }.also {
+                    selected = true
+                    cast.gateway.select(it.id)
+                }
+            }
+            note("no session resumed; connecting to ${target.name} (${target.model})")
+            await("a session on $receiver") { onMain { cast.availability.value is CastAvailability.Connected } }
+            val joined = onMain { cast.gateway.devices.value.firstOrNull { it.selected } }
+            check(joined?.id == target.id) { "Connected to ${joined?.name}, not the selected ${target.name}" }
         } finally {
             onMain { cast.gateway.stopDiscovery() }
         }
-    }
-
-    private fun connect(cast: MobileCastController) {
-        val receiver = argument("receiver")
-        onMain { cast.gateway.startDiscovery() }
-        await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
-        val target = onMain { cast.gateway.devices.value.first { receiver in it.name } }
-        check(!onMain { cast.availability.value.casting }) { "A Cast session started before the selection" }
-        note("connecting to ${target.name} (${target.model})")
-        selected = true
-        onMain { cast.gateway.select(target.id) }
-        await("a session on $receiver") { onMain { cast.availability.value is CastAvailability.Connected } }
-        onMain { cast.gateway.stopDiscovery() }
-        val connected = onMain { cast.availability.value.connectedDevice }
-        check(connected == target.name) { "Connected to $connected, not the selected ${target.name}" }
     }
 
     private var selected = false
