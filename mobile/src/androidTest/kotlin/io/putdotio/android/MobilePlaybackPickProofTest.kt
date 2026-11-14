@@ -186,8 +186,11 @@ class MobilePlaybackPickProofTest {
             check(waiting?.artifact == DownloadArtifact.MP4 && waiting.status == DownloadStatus.Queued) {
                 "Precondition: the row waits on its lookup"
             }
-            held.close()
-            downloads = null
+            try {
+                held.close()
+            } finally {
+                downloads = null
+            }
 
             val answers = CopyOnWriteArrayList<Pair<Boolean, DirectPlayDownload?>>()
             val restarted = Downloads(
@@ -237,8 +240,10 @@ class MobilePlaybackPickProofTest {
                 },
             )
             try {
-                cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
-                cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
+                if (downloads != null) {
+                    cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
+                    cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
+                }
                 val removed = withTimeoutOrNull(DOWNLOAD_MILLIS) {
                     cleanup.store.entries.first { rows -> rows.none { it.fileId == fileId } }
                 }

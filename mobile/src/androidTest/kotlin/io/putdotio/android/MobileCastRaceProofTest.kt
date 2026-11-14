@@ -96,11 +96,11 @@ class MobileCastRaceProofTest {
             val asked = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
             val seen = Collections.synchronizedSet(mutableSetOf<Long>())
             var local: ExoPlayer? = null
-            var started: CastSession? = null
+            var ours: CastSession? = null
             val scope = MainScope()
             var failure: Throwable? = null
             try {
-                started = connect(cast)
+                ours = connect(cast)
                 val loadsBefore = onMain { cast.loadsSent }
                 onMain {
                     cast.autoplay.follow(session.sessionId, OrderedLookups(real, gates, asked))
@@ -152,7 +152,7 @@ class MobileCastRaceProofTest {
                     { onMain { cast.autoplay.follow(session.sessionId, real) } },
                     { onMain { local?.release() } },
                     { scope.cancel() },
-                    { started?.let { disconnect(cast, it) } },
+                    { ours?.let { disconnect(cast, it) } },
                 )
             }
         }
@@ -262,13 +262,13 @@ class MobileCastRaceProofTest {
                 cast.gateway.devices.value.first { receiver in it.name }.also { cast.gateway.select(it.id) }
             }
             note("no session resumed; connecting to ${target.name} (${target.model})")
-            val started = awaitValue("Cast to start a session on $receiver") {
-                onMain {
-                    check(events.resumed == null) { "A Cast session resumed while connecting; leaving it alone" }
-                    events.started
-                }
-            }
             try {
+                awaitValue("Cast to start a session on $receiver") {
+                    onMain {
+                        check(events.resumed == null) { "A Cast session resumed while connecting; leaving it alone" }
+                        events.started
+                    }
+                }
                 val joined = awaitValue("a session on $receiver") {
                     onMain { cast.availability.value as? CastAvailability.Connected }
                 }
@@ -276,10 +276,10 @@ class MobileCastRaceProofTest {
                     "Connected to \"${joined.deviceName}\", not the selected ${target.name}"
                 }
             } catch (error: Throwable) {
-                cleanUp(error, { disconnect(cast, started) })
+                cleanUp(error, { onMain { events.starting }?.let { disconnect(cast, it) } })
                 throw error
             }
-            return started
+            return onMain { checkNotNull(events.started) }
         } finally {
             onMain {
                 sessions.removeSessionManagerListener(events, CastSession::class.java)
@@ -291,6 +291,7 @@ class MobileCastRaceProofTest {
     private fun castState(): Int = checkNotNull(CastContext.getSharedInstance()).castState
 
     private class SessionEvents : SessionManagerListener<CastSession> {
+        var starting: CastSession? = null
         var started: CastSession? = null
         var resumed: CastSession? = null
 
@@ -306,7 +307,9 @@ class MobileCastRaceProofTest {
             resumed = session
         }
 
-        override fun onSessionStarting(session: CastSession) = Unit
+        override fun onSessionStarting(session: CastSession) {
+            starting = session
+        }
 
         override fun onSessionStartFailed(session: CastSession, error: Int) = Unit
 
@@ -314,14 +317,16 @@ class MobileCastRaceProofTest {
 
         override fun onSessionEnded(session: CastSession, error: Int) = Unit
 
-        override fun onSessionResumeFailed(session: CastSession, error: Int) = Unit
+        override fun onSessionResumeFailed(session: CastSession, error: Int) {
+            resumed = null
+        }
 
         override fun onSessionSuspended(session: CastSession, reason: Int) = Unit
     }
 
-    private fun disconnect(cast: MobileCastController, started: CastSession) {
+    private fun disconnect(cast: MobileCastController, ours: CastSession) {
         val stopping = onMain {
-            (CastContext.getSharedInstance()?.sessionManager?.currentCastSession === started).also { ours ->
+            (CastContext.getSharedInstance()?.sessionManager?.currentCastSession === ours).also { ours ->
                 if (ours) cast.gateway.stopCasting()
             }
         }
