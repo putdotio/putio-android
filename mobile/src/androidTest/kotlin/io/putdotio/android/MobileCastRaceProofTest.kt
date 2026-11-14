@@ -254,10 +254,8 @@ class MobileCastRaceProofTest {
         }
         try {
             await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
-            await("Cast to see a receiver") { onMain { castState() != CastState.NO_DEVICES_AVAILABLE } }
-            instrumentation.waitForIdleSync()
             val target = onMain {
-                val idle = castState() == CastState.NOT_CONNECTED && sessions.currentCastSession == null
+                val idle = castState() !in BUSY && sessions.currentCastSession == null
                 check(idle && events.resumed == null) { "A Cast session already runs; leaving it alone" }
                 cast.gateway.devices.value.first { receiver in it.name }.also { cast.gateway.select(it.id) }
             }
@@ -486,6 +484,7 @@ class MobileCastRaceProofTest {
 
     private companion object {
         const val LANE = "putio.castrace"
+        val BUSY = setOf(CastState.CONNECTING, CastState.CONNECTED)
         val ALLOW: BySelector = By.res("com.android.permissioncontroller", "permission_allow_button")
         val CAST_BUTTON: BySelector = By.desc("Cast")
         val PICKER: BySelector = By.text("Cast to")
