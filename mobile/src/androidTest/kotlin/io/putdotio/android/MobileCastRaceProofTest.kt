@@ -23,6 +23,10 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
 import androidx.test.uiautomator.UiDevice
 import androidx.test.uiautomator.Until
+import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastSession
+import com.google.android.gms.cast.framework.CastState
+import com.google.android.gms.cast.framework.SessionManagerListener
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.playback.CastAccount
@@ -92,9 +96,11 @@ class MobileCastRaceProofTest {
             val asked = mapOf(older to CompletableDeferred<Unit>(), newer to CompletableDeferred())
             val seen = Collections.synchronizedSet(mutableSetOf<Long>())
             var local: ExoPlayer? = null
+            var ours: CastSession? = null
             val scope = MainScope()
+            var failure: Throwable? = null
             try {
-                connect(cast)
+                ours = connect(cast)
                 val loadsBefore = onMain { cast.loadsSent }
                 onMain {
                     cast.autoplay.follow(session.sessionId, OrderedLookups(real, gates, asked))
@@ -137,13 +143,17 @@ class MobileCastRaceProofTest {
                     "The session is stuck",
                     onMain { cast.availability.value is CastAvailability.Connected && !cast.holds(older) },
                 )
+            } catch (error: Throwable) {
+                failure = error
+                throw error
             } finally {
-                onMain {
-                    cast.autoplay.follow(session.sessionId, real)
-                    local?.release()
-                }
-                scope.cancel()
-                disconnect(cast)
+                cleanUp(
+                    failure,
+                    { onMain { cast.autoplay.follow(session.sessionId, real) } },
+                    { onMain { local?.release() } },
+                    { scope.cancel() },
+                    { ours?.let { disconnect(cast, it) } },
+                )
             }
         }
     }
@@ -234,38 +244,126 @@ class MobileCastRaceProofTest {
         }
     }
 
-    private fun connect(cast: MobileCastController) {
+    private fun connect(cast: MobileCastController): CastSession {
         val receiver = argument("receiver")
-        onMain { cast.gateway.startDiscovery() }
+        val sessions = onMain { sessionManager() }
+        val events = SessionEvents()
+        onMain {
+            sessions.addSessionManagerListener(events, CastSession::class.java)
+            cast.gateway.startDiscovery()
+        }
         try {
             await("$receiver in reach") { onMain { cast.gateway.devices.value.any { receiver in it.name } } }
-            awaitOrElapse(RESUME_MILLIS) { onMain { cast.availability.value.casting } }
             val target = onMain {
-                check(!cast.availability.value.casting) { "A Cast session already runs; leaving it alone" }
-                cast.gateway.devices.value.first { receiver in it.name }.also {
-                    selected = true
-                    cast.gateway.select(it.id)
-                }
+                val idle = castState() !in BUSY && sessions.currentCastSession == null
+                check(idle && events.resumed == null) { "A Cast session already runs; leaving it alone" }
+                cast.gateway.devices.value.first { receiver in it.name }.also { cast.gateway.select(it.id) }
             }
             note("no session resumed; connecting to ${target.name} (${target.model})")
-            var joined: CastAvailability.Connected? = null
-            await("a session on $receiver") {
-                onMain { cast.availability.value as? CastAvailability.Connected }?.also { joined = it } != null
+            try {
+                awaitValue("Cast to start a session on $receiver") {
+                    onMain {
+                        check(events.resumed.let { it == null || it === events.starting }) {
+                            "A Cast session resumed while connecting; leaving it alone"
+                        }
+                        events.started
+                    }
+                }
+                val joined = awaitValue("a session on $receiver") {
+                    onMain { cast.availability.value as? CastAvailability.Connected }
+                }
+                check(receiver in joined.deviceName) {
+                    "Connected to \"${joined.deviceName}\", not the selected ${target.name}"
+                }
+                return onMain { checkNotNull(events.starting) }
+            } catch (error: Throwable) {
+                cleanUp(error, {
+                    disconnect(cast) {
+                        val starting = events.starting
+                        starting != null && sessions.currentCastSession === starting
+                    }
+                })
+                throw error
             }
-            val name = checkNotNull(joined).deviceName
-            check(receiver in name) { "Connected to \"$name\", not the selected ${target.name}" }
         } finally {
-            onMain { cast.gateway.stopDiscovery() }
+            onMain {
+                sessions.removeSessionManagerListener(events, CastSession::class.java)
+                cast.gateway.stopDiscovery()
+            }
         }
     }
 
-    private var selected = false
+    private fun castContext(): CastContext = checkNotNull(CastContext.getSharedInstance()) { "Cast never started" }
 
-    private fun disconnect(cast: MobileCastController) {
-        if (!selected) return
-        onMain { cast.gateway.stopCasting() }
-        awaitOrElapse(RECEIVER_MILLIS) { onMain { !cast.availability.value.casting } }
-        note("session ended: ${onMain { !cast.availability.value.casting }}")
+    private fun sessionManager() = castContext().sessionManager
+
+    private fun castState(): Int = castContext().castState
+
+    private class SessionEvents : SessionManagerListener<CastSession> {
+        var starting: CastSession? = null
+        var started: CastSession? = null
+        var resumed: CastSession? = null
+
+        override fun onSessionStarted(session: CastSession, sessionId: String) {
+            started = session
+        }
+
+        override fun onSessionResuming(session: CastSession, sessionId: String) {
+            resumed = session
+        }
+
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) {
+            resumed = session
+        }
+
+        override fun onSessionStarting(session: CastSession) {
+            starting = session
+        }
+
+        override fun onSessionStartFailed(session: CastSession, error: Int) {
+            if (starting === session) starting = null
+        }
+
+        override fun onSessionEnding(session: CastSession) = Unit
+
+        override fun onSessionEnded(session: CastSession, error: Int) {
+            if (started === session) started = null
+            if (resumed === session) resumed = null
+        }
+
+        override fun onSessionResumeFailed(session: CastSession, error: Int) {
+            if (resumed === session) resumed = null
+        }
+
+        override fun onSessionSuspended(session: CastSession, reason: Int) = Unit
+    }
+
+    private fun disconnect(cast: MobileCastController, ours: CastSession) =
+        disconnect(cast) { sessionManager().currentCastSession === ours }
+
+    private fun disconnect(cast: MobileCastController, owned: () -> Boolean) {
+        val stopping = onMain {
+            val stop = owned()
+            if (stop) cast.gateway.stopCasting()
+            stop
+        }
+        if (stopping) {
+            awaitOrElapse(RECEIVER_MILLIS) { onMain { !cast.availability.value.casting } }
+            note("session ended: ${onMain { !cast.availability.value.casting }}")
+        } else {
+            note("the session this test started already ended")
+        }
+    }
+
+    private fun cleanUp(failure: Throwable?, vararg steps: () -> Unit) {
+        var first = failure
+        for (step in steps) {
+            runCatching(step).onFailure { error ->
+                val primary = first
+                if (primary == null) first = error else primary.addSuppressed(error)
+            }
+        }
+        if (failure == null) first?.let { throw it }
     }
 
     private fun playLocally(player: ExoPlayer, fileId: Long) {
@@ -351,6 +449,12 @@ class MobileCastRaceProofTest {
         note("ready: $what")
     }
 
+    private fun <T : Any> awaitValue(what: String, timeoutMillis: Long = WAIT_MILLIS, value: () -> T?): T {
+        var found: T? = null
+        await(what, timeoutMillis) { value()?.also { found = it } != null }
+        return checkNotNull(found)
+    }
+
     private fun awaitOrElapse(timeoutMillis: Long, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + timeoutMillis
         while (!condition() && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(POLL_MILLIS)
@@ -399,6 +503,7 @@ class MobileCastRaceProofTest {
 
     private companion object {
         const val LANE = "putio.castrace"
+        val BUSY = setOf(CastState.CONNECTING, CastState.CONNECTED)
         val ALLOW: BySelector = By.res("com.android.permissioncontroller", "permission_allow_button")
         val CAST_BUTTON: BySelector = By.desc("Cast")
         val PICKER: BySelector = By.text("Cast to")
@@ -410,7 +515,6 @@ class MobileCastRaceProofTest {
         const val REVEAL_MILLIS = 1_500L
         const val MULTI_WINDOW = 6
         const val RECEIVER_MILLIS = 45_000L
-        const val RESUME_MILLIS = 10_000L
         const val OLDER_LOAD_WINDOW_MILLIS = 10_000L
         const val POLL_MILLIS = 200L
         const val TONE_SECONDS = 120
