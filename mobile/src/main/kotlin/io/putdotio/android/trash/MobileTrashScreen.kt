@@ -5,6 +5,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
@@ -109,6 +111,7 @@ internal fun MobileTrashScreen(
             onSelect = { selection.start(currentState, it.id) },
             onToggle = { selection.toggle(it.id) },
             text = rowText,
+            states = currentState,
         )
     }
     ScrollToNewOutcome(state, listState)
@@ -149,7 +152,6 @@ internal fun MobileTrashScreen(
                     }
                     is TrashContent.Loaded -> loadedTrashItems(
                         content,
-                        state,
                         onEvent,
                         rowHandlers,
                     )
@@ -192,11 +194,11 @@ private class TrashRowHandlers(
     val onSelect: (TrashItem) -> Unit,
     val onToggle: (TrashItem) -> Unit,
     val text: MobileRowText<TrashItem, TrashRowText>,
+    val states: State<TrashState>,
 )
 
 private fun LazyListScope.loadedTrashItems(
     content: TrashContent.Loaded,
-    state: TrashState,
     onEvent: (TrashEvent) -> Boolean,
     rows: TrashRowHandlers,
 ) {
@@ -228,8 +230,7 @@ private fun LazyListScope.loadedTrashItems(
             MobileTrashRow(
                 item,
                 text,
-                enabled = state.canRestore(item.id) || state.canDelete(item.id),
-                canRestore = state.canRestore(item.id),
+                rows.states,
                 onRestore = { onEvent(TrashEvent.Restore(item.id)) },
                 onActions = { rows.onActions(item) },
                 onSelect = { rows.onSelect(item) },
@@ -250,13 +251,12 @@ private fun LazyListScope.loadedTrashItems(
 private fun MobileTrashRow(
     item: TrashItem,
     text: TrashRowText,
-    enabled: Boolean,
-    canRestore: Boolean,
+    states: State<TrashState>,
     onRestore: () -> Unit,
     onActions: () -> Unit,
     onSelect: () -> Unit,
 ) {
-    val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+    val access = remember(item.id, states) { TrashRowAccess(item.id, states) }
     val selectLabel = stringResource(R.string.mobile_trash_select)
     val currentOnSelect by rememberUpdatedState(onSelect)
     MobileRow(
@@ -264,34 +264,50 @@ private fun MobileTrashRow(
         headline = { MobileMiddleCutText(item.name) },
         meta = { MobileTrashRowMeta(text) },
         modifier = Modifier
-            .pointerInput(enabled) { if (enabled) detectTapGestures(onLongPress = { currentOnSelect() }) }
+            .pointerInput(access) { detectTapGestures(onLongPress = { if (access.enabled) currentOnSelect() }) }
             .semantics {
-                if (enabled) {
+                if (access.enabled) {
                     onLongClick(label = selectLabel) {
-                        onSelect()
+                        currentOnSelect()
                         true
                     }
                 }
             },
-        trailing = {
-            Row {
-                MobileIconButton(
-                    stringResource(R.string.mobile_trash_restore_named, item.name),
-                    R.drawable.ic_ph_arrow_counter_clockwise,
-                    onRestore,
-                    enabled = canRestore,
-                    colors = muted,
-                )
-                MobileIconButton(
-                    stringResource(R.string.mobile_trash_actions_named, item.name),
-                    R.drawable.ic_ph_dots_three_vertical,
-                    onActions,
-                    enabled = enabled,
-                    colors = muted,
-                )
-            }
-        },
+        trailing = { MobileTrashRowButtons(item.name, access, onRestore, onActions) },
     )
+}
+
+private class TrashRowAccess(itemId: FilesItemId, states: State<TrashState>) {
+    private val canRestoreState = derivedStateOf { states.value.canRestore(itemId) }
+    private val enabledState = derivedStateOf { canRestoreState.value || states.value.canDelete(itemId) }
+    val canRestore: Boolean get() = canRestoreState.value
+    val enabled: Boolean get() = enabledState.value
+}
+
+@Composable
+private fun MobileTrashRowButtons(
+    name: String,
+    access: TrashRowAccess,
+    onRestore: () -> Unit,
+    onActions: () -> Unit,
+) {
+    val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row {
+        MobileIconButton(
+            stringResource(R.string.mobile_trash_restore_named, name),
+            R.drawable.ic_ph_arrow_counter_clockwise,
+            onRestore,
+            enabled = access.canRestore,
+            colors = muted,
+        )
+        MobileIconButton(
+            stringResource(R.string.mobile_trash_actions_named, name),
+            R.drawable.ic_ph_dots_three_vertical,
+            onActions,
+            enabled = access.enabled,
+            colors = muted,
+        )
+    }
 }
 
 @Composable
