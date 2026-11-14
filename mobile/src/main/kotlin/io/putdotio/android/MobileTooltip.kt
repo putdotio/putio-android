@@ -41,16 +41,23 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun MobileTooltip(label: String, shortcut: String? = null, control: @Composable () -> Unit) {
     var shown by remember { mutableStateOf(false) }
+    var byHover by remember { mutableStateOf(false) }
     var hovered by remember { mutableStateOf(false) }
     val text = shortcut?.let { stringResource(R.string.mobile_tooltip_with_shortcut, label, it) }
     val longPressLabel = text?.let { stringResource(R.string.mobile_tooltip_show) }
     Box(
         Modifier
             .tooltipTrigger(
-                onLongPress = { shown = true },
+                onLongPress = {
+                    byHover = false
+                    shown = true
+                },
                 onHover = { inside ->
                     hovered = inside
-                    if (inside) shown = true
+                    if (inside && !shown) {
+                        byHover = true
+                        shown = true
+                    }
                 },
             )
             .then(
@@ -59,6 +66,7 @@ internal fun MobileTooltip(label: String, shortcut: String? = null, control: @Co
                 } else {
                     Modifier.semantics {
                         onLongClick(longPressLabel) {
+                            byHover = false
                             shown = true
                             true
                         }
@@ -70,7 +78,7 @@ internal fun MobileTooltip(label: String, shortcut: String? = null, control: @Co
         if (shown) {
             MobileTooltipPopup(
                 text = text ?: label,
-                dismiss = { !hovered },
+                left = { byHover && !hovered },
                 modifier = Modifier.matchParentSize(),
                 onDismissed = { shown = false },
             )
@@ -80,14 +88,17 @@ internal fun MobileTooltip(label: String, shortcut: String? = null, control: @Co
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MobileTooltipPopup(text: String, dismiss: () -> Boolean, modifier: Modifier, onDismissed: () -> Unit) {
+private fun MobileTooltipPopup(text: String, left: () -> Boolean, modifier: Modifier, onDismissed: () -> Unit) {
     val state = rememberTooltipState()
     LaunchedEffect(state) {
         try {
             coroutineScope {
-                launch { state.show(MutatePriority.UserInput) }
-                snapshotFlow { state.isVisible to dismiss() }.first { (visible, gone) -> visible && gone }
-                state.dismiss()
+                val leave = launch {
+                    snapshotFlow(left).first { it }
+                    state.dismiss()
+                }
+                state.show(MutatePriority.UserInput)
+                leave.cancel()
             }
         } finally {
             onDismissed()
