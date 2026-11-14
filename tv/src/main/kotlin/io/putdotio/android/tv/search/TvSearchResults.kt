@@ -13,8 +13,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -74,10 +76,9 @@ internal class TvSearchRowDetail(
 )
 
 internal fun TvSearchRows.place(item: FilesItem): TvFilesRowPlace.SearchResult =
-    TvFilesRowPlace.SearchResult(item.folderName(folderNames, rootName))
-
-private fun FilesItem.folderName(names: Map<FilesItemId, String>, rootName: String): String? =
-    parentId?.let { parent -> if (parent == FilesFolder.Root.id) rootName else names[parent] }
+    TvFilesRowPlace.SearchResult(
+        item.parentId?.let { parent -> if (parent == FilesFolder.Root.id) rootName else folderNames[parent] },
+    )
 
 internal class TvSearchGroups(items: List<FilesItem>) {
     val folders: List<FilesItem> = items.filter(FilesItem::isFolder)
@@ -108,10 +109,10 @@ internal fun TvSearchResultList(
     val items = groups.ordered
     val names = remember(items) { items.map { it.name } }
     val context = LocalContext.current
-    val folderNames = rows.folderNames
-    val rootName = rows.rootName
-    val rowText = rememberTvRowText(items, context, folderNames, rootName, key = { it.id.value }) {
-        it.rowText(context, TvFilesRowPlace.SearchResult(it.folderName(folderNames, rootName)), System.currentTimeMillis())
+    val currentRows by rememberUpdatedState(rows)
+    val folders = rows.folderNames to rows.rootName
+    val rowText = rememberTvRowText(items, context, key = { it.id.value }, refresh = folders) {
+        it.rowText(context, currentRows.place(it), System.currentTimeMillis())
     }
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
@@ -172,7 +173,9 @@ internal fun TvSearchResultList(
                 restore = TvSearchRowDetail(restoreRowId, restoreRow),
                 pendingEnd = paging.isPending,
             )
-            val row: @Composable (FilesItem) -> Unit = { item -> TvSearchResultRow(item, rowText[item], rows, requesters) }
+            val row: @Composable (FilesItem) -> Unit = { item ->
+                TvSearchResultRow(item, rowText[item], rows, requesters)
+            }
             resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
             resultGroup(
                 R.string.tv_search_group_files,
@@ -263,7 +266,6 @@ private fun TvSearchGroupLabel(title: String, count: Int, first: Boolean) {
     }
 }
 
-@StringRes
 internal val TV_SEARCH_LABEL_HEIGHT = 16.dp
 internal val TV_SEARCH_LABEL_GAP = 4.dp
 private val LABEL_INSET = 12.dp

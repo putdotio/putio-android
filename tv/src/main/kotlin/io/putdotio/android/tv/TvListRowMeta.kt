@@ -160,12 +160,18 @@ private class TvRowMetaNode(
 
     override fun ContentDrawScope.draw() {
         val canvas = drawContext.canvas
+        val clip = width > size.width
+        if (clip) {
+            canvas.save()
+            canvas.clipRect(0f, 0f, size.width, size.height)
+        }
         runs.forEach { run ->
             canvas.save()
             canvas.translate(run.x.toFloat(), run.y.toFloat())
             run.layout.multiParagraph.paint(canvas = canvas, color = color, drawStyle = Fill)
             canvas.restore()
         }
+        if (clip) canvas.restore()
     }
 
     override fun SemanticsPropertyReceiver.applySemantics() {

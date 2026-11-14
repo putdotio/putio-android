@@ -11,8 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -41,15 +43,15 @@ import io.putdotio.android.tv.TvListRow
 import io.putdotio.android.tv.TvListRowMeta
 import io.putdotio.android.tv.TvRowMeta
 import io.putdotio.android.tv.TvRowMetaPart
-import io.putdotio.android.tv.monoNumber
-import io.putdotio.android.tv.rememberTvRowText
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.composes
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.keepsHeldFocusInView
+import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.paneSection
+import io.putdotio.android.tv.rememberTvRowText
 import io.putdotio.android.tv.tracksFocusedItem
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
@@ -73,7 +75,10 @@ internal fun TvTrashList(
     val names = remember(items) { items.map { it.name } }
     val resources = LocalResources.current
     val today = LocalTrashToday.current
-    val rowMeta = rememberTvRowText(items, resources, today, key = { it.id.value }) { it.rowMeta(resources, today) }
+    val currentToday by rememberUpdatedState(today)
+    val rowMeta = rememberTvRowText(items, resources, key = { it.id.value }, refresh = today) {
+        it.rowMeta(resources, currentToday)
+    }
     val rows = remember { TrashRowFocus() }
     val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }

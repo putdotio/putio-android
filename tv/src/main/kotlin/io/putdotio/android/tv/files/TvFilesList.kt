@@ -39,13 +39,12 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
 import io.putdotio.android.tv.ProvideMiddleCuts
-import io.putdotio.android.tv.rememberTvMinute
-import io.putdotio.android.tv.rememberTvRowText
 import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.keepsHeldFocusInView
+import io.putdotio.android.tv.rememberTvRowText
 import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -177,8 +176,7 @@ internal fun TvFilesList(
     )
     val names = remember(content.items) { content.items.map { it.name } }
     val context = LocalContext.current
-    val minute = rememberTvMinute()
-    val rowText = rememberTvRowText(content.items, context, key = { it.id.value }, refresh = minute) {
+    val rowText = rememberTvRowText(content.items, context, key = { it.id.value }) {
         it.rowText(context, TvFilesRowPlace.Listing, System.currentTimeMillis())
     }
     RevealOnlyHiddenRows(names) {

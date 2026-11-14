@@ -38,7 +38,7 @@ internal sealed interface TvFilesRowPlace {
     data class SearchResult(val folderName: String?) : TvFilesRowPlace
 }
 
-internal class TvFilesRowText(val meta: TvRowMeta, val label: String)
+internal data class TvFilesRowText(val meta: TvRowMeta, val label: String)
 
 internal fun FilesItem.rowText(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvFilesRowText {
     val where = when (place) {
