@@ -76,6 +76,7 @@ internal fun TvFilesList(
     val currentOnOpen by rememberUpdatedState(onOpen)
     val currentOnActions by rememberUpdatedState(onActions)
     val currentOnRowFocused by rememberUpdatedState(onRowFocused)
+    val currentKeyHeld = rememberUpdatedState(keyHeld)
     val remembered = focusMemory[folderId]
     val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging is FilesPaging.Failed
     val rowFocus = remember(listState) { FocusRequester() }
@@ -158,7 +159,9 @@ internal fun TvFilesList(
         }
         // Started after the programmatic scroll so the settled position it reports is the one
         // on screen. Only the mount position is skipped: it came from the reducer already.
-        listState.reportViewport(viewport, keyHeld) { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
+        listState.reportViewport(viewport, { currentKeyHeld.value.value }) {
+            currentOnEvent(FilesBrowserEvent.ViewportChanged(it))
+        }
     }
 
     val lastItemId = content.items.last().id
@@ -297,12 +300,12 @@ private suspend fun FocusRequester.requestFocusNextFrame(paneHasFocus: State<Boo
 
 private suspend fun LazyListState.reportViewport(
     mounted: FilesViewportPosition,
-    keyHeld: State<Boolean>,
+    keyHeld: () -> Boolean,
     onChanged: (FilesViewportPosition) -> Unit,
 ) {
     var reported = mounted
     snapshotFlow {
-        if (isScrollInProgress || keyHeld.value) {
+        if (isScrollInProgress || keyHeld()) {
             null
         } else {
             FilesViewportPosition(firstVisibleItemIndex, firstVisibleItemScrollOffset)

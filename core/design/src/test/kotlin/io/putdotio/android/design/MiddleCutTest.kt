@@ -10,17 +10,17 @@ class MiddleCutTest {
 
     @Test
     fun aNameThatFitsStaysWhole() {
-        assertEquals("Sintel.mkv", middleCut("Sintel.mkv", 10, width))
+        assertEquals("Sintel.mkv", cut("Sintel.mkv", 10))
     }
 
     @Test
     fun aLongNameKeepsItsStartAndItsLastElevenCharacters() {
-        assertEquals("Blue.Lights.S04E01…ORGANiC.mkv", middleCut(NAME, 30, width))
+        assertEquals("Blue.Lights.S04E01…ORGANiC.mkv", cut(NAME, 30))
     }
 
     @Test
     fun aNarrowRowKeepsAShorterTailRatherThanLoseTheExtension() {
-        assertEquals("…ANiC.mkv", middleCut(NAME, 9, width))
+        assertEquals("…ANiC.mkv", cut(NAME, 9))
     }
 
     @Test
@@ -28,7 +28,7 @@ class MiddleCutTest {
         // The last eleven UTF-16 units start inside the first tree.
         val name = "Holiday 🎄 clips 🎄🎄🎄🎄.mp4"
         for (budget in 4..name.length) {
-            val cut = middleCut(name, budget, width)
+            val cut = cut(name, budget)
             assertTrue(cut, cut.indices.all { index -> cut.pairedAt(index) })
         }
     }
@@ -62,6 +62,9 @@ class MiddleCutTest {
             assertEquals("width $budget", middleCut(name, budget, width), middleCut(name, budget, layout, width))
         }
     }
+
+    private fun cut(name: String, budget: Int): String =
+        middleCut(name, budget, MiddleCutLayout(name.length, ellipsisWidth = 1f) { it.toFloat() }, width)
 
     private fun String.pairedAt(index: Int): Boolean = when {
         this[index].isHighSurrogate() -> index + 1 < length && this[index + 1].isLowSurrogate()

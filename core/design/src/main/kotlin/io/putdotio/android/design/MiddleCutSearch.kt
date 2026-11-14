@@ -13,12 +13,18 @@ import kotlin.math.abs
 internal fun middleCut(text: String, maxWidth: Int, widthOf: (String) -> Int): String =
     middleCutWhere(text, maxWidth) { widthOf(it) <= maxWidth }
 
-internal class MiddleCutLayout(val width: Int, val ellipsisWidth: Float, val offsetX: (Int) -> Float)
+internal class MiddleCutLayout(
+    val width: Int,
+    val ellipsisWidth: Float,
+    val leftToRight: Boolean = true,
+    val offsetX: (Int) -> Float,
+)
 
 internal fun middleCut(text: String, maxWidth: Int, layout: MiddleCutLayout, widthOf: (String) -> Int): String {
     if (maxWidth !in 1 until Int.MAX_VALUE || layout.width <= maxWidth) return text
     val fits = { cut: String -> widthOf(cut) <= maxWidth }
-    val priced = if (Bidi.requiresBidi(text.toCharArray(), 0, text.length)) null else pricedCut(text, maxWidth, layout)
+    val unidirectional = layout.leftToRight && !Bidi.requiresBidi(text.toCharArray(), 0, text.length)
+    val priced = if (unidirectional) pricedCut(text, maxWidth, layout) else null
     return priced?.tries(text)?.firstOrNull(fits) ?: middleCutWhere(text, maxWidth, fits)
 }
 
