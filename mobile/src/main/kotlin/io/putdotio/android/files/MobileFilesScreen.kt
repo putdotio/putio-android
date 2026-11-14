@@ -968,7 +968,7 @@ private fun MobileFilesList(
     /** Long-press starts selection with the row; null leaves long-press opening the row's actions. */
     onStartSelection: ((FilesItem) -> Unit)? = null,
 ) {
-    val viewport = content.viewport
+    val viewport = LocalMobileFilesViewports.current.latest(content) ?: content.viewport
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
     val headerCount = headers.itemCount
     // A revealed row, the first included, scrolls past the headers to sit at the top.
@@ -985,7 +985,7 @@ private fun MobileFilesList(
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
-        // rebuild FilesBrowserState and recompose the whole signed-in tree.
+        // rebuild FilesBrowserState on every frame.
         snapshotFlow {
             if (listState.isScrollInProgress) {
                 null

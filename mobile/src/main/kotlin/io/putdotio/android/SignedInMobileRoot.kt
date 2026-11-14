@@ -1,7 +1,9 @@
 package io.putdotio.android
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +34,7 @@ import io.putdotio.android.downloads.OfflinePositionsResume
 import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.AppConfigPinnedFiles
@@ -39,7 +42,10 @@ import io.putdotio.android.files.ContinueWatching
 import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.files.MobileFilesActionSources
 import io.putdotio.android.files.MobileFilesActionsController
+import io.putdotio.android.files.LocalMobileFilesViewports
 import io.putdotio.android.files.MobileFilesViewModel
+import io.putdotio.android.files.MobileFilesViewports
+import io.putdotio.android.files.viewportOf
 import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileVlcIntentHandoff
 import io.putdotio.android.files.SdkFilesRepository
@@ -48,6 +54,7 @@ import io.putdotio.android.files.SdkFilesStreamUrls
 import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.confirmedGone
+import io.putdotio.android.files.sameExceptViewports
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
@@ -383,7 +390,7 @@ private fun SignedInMobileSession(
         runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
     )
     val trashState by trashController.state.collectAsStateWithLifecycle()
-    val filesState by filesController.state.collectAsStateWithLifecycle()
+    val filesState by filesController.collectStateIgnoringViewports()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
@@ -423,85 +430,90 @@ private fun SignedInMobileSession(
         }
     }
 
-    MobileShell(
-        transferDraft = transferDraft,
-        trashController = trashController,
-        filesState = filesState,
-        filesRepository = filesRepository,
-        accountSettingsState = accountSettingsState,
-        appConfigState = appConfigState,
-        searchHistoryState =
-            MobileSearchHistoryState(
-                search = searchState,
-                history = historyState,
-                recentSearchFailure =
-                    recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired },
-                folderNames = searchFolderNames,
-            ),
-        transfersState = transfersState,
-        transfersSessionId = sessionId,
-        account = account,
-        playbackRepository = playbackRepository,
-        playbackPlayerFactory = reportingPlayerFactory,
-        nowPlayingRequests = nowPlayingRequests,
-        deepLinkRequests = deepLinkRequests,
-        onOpenFile = searchHistorySession::openFile,
-        onShareItem = { item -> MobileFileShareService.start(appContext, item.id, item.name) },
-        fileDragOut = remember(appContext, account.userId, sessionId) {
-            MobileFileDragOut(appContext, MobileSessionKey(account.userId, sessionId))
-        },
-        downloadsController = downloadsController,
-        publicLinksController = publicLinksController,
-        loggedInAppsController = loggedInAppsController,
-        folderCreator = filesRepository,
-        continueWatching = continueWatching,
-        pinnedFiles = pinnedFiles,
-        subtitleLanguages = remember(runtime.putioClient) { SdkFilesSubtitleLanguages(runtime.putioClient) },
-        filesActions = filesActions,
-        sessionId = sessionId,
-        onFilesEvent = filesController::dispatch,
-        onAccountSettingsEvent = accountSettingsController::dispatch,
-        loadTunnelRoutes = {
-            accountSettingsRepository.loadTunnelRoutes().also { result ->
-                // A 401 here is as authoritative as one from Files or Playback.
-                if (result is AccountSettingsRepositoryResult.Failure &&
-                    result.failure.putioFailure is PutioFailure.AuthenticationRequired
-                ) {
-                    authController.rejectAuthoritativeSession()
+    val filesViewports = remember(filesController) {
+        MobileFilesViewports { filesController.state.value.viewportOf(it) }
+    }
+    CompositionLocalProvider(LocalMobileFilesViewports provides filesViewports) {
+        MobileShell(
+            transferDraft = transferDraft,
+            trashController = trashController,
+            filesState = filesState,
+            filesRepository = filesRepository,
+            accountSettingsState = accountSettingsState,
+            appConfigState = appConfigState,
+            searchHistoryState =
+                MobileSearchHistoryState(
+                    search = searchState,
+                    history = historyState,
+                    recentSearchFailure =
+                        recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired },
+                    folderNames = searchFolderNames,
+                ),
+            transfersState = transfersState,
+            transfersSessionId = sessionId,
+            account = account,
+            playbackRepository = playbackRepository,
+            playbackPlayerFactory = reportingPlayerFactory,
+            nowPlayingRequests = nowPlayingRequests,
+            deepLinkRequests = deepLinkRequests,
+            onOpenFile = searchHistorySession::openFile,
+            onShareItem = { item -> MobileFileShareService.start(appContext, item.id, item.name) },
+            fileDragOut = remember(appContext, account.userId, sessionId) {
+                MobileFileDragOut(appContext, MobileSessionKey(account.userId, sessionId))
+            },
+            downloadsController = downloadsController,
+            publicLinksController = publicLinksController,
+            loggedInAppsController = loggedInAppsController,
+            folderCreator = filesRepository,
+            continueWatching = continueWatching,
+            pinnedFiles = pinnedFiles,
+            subtitleLanguages = remember(runtime.putioClient) { SdkFilesSubtitleLanguages(runtime.putioClient) },
+            filesActions = filesActions,
+            sessionId = sessionId,
+            onFilesEvent = filesController::dispatch,
+            onAccountSettingsEvent = accountSettingsController::dispatch,
+            loadTunnelRoutes = {
+                accountSettingsRepository.loadTunnelRoutes().also { result ->
+                    // A 401 here is as authoritative as one from Files or Playback.
+                    if (result is AccountSettingsRepositoryResult.Failure &&
+                        result.failure.putioFailure is PutioFailure.AuthenticationRequired
+                    ) {
+                        authController.rejectAuthoritativeSession()
+                    }
                 }
-            }
-        },
-        onAppConfigEvent = appConfigController::dispatch,
-        onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
-        onFilesAuthenticationRequired = authController::rejectAuthoritativeSession,
-        searchHistoryActions =
-            MobileSearchHistoryActions(
-                onQueryChanged = { searchHistorySession.search.updateQuery(it) },
-                onSubmit = { searchHistorySession.search.submit() },
-                onResult = { searchHistorySession.search.openResult(it.id) },
-                onNextPage = { searchHistorySession.search.loadNextPage() },
-                onRetry = { searchHistorySession.search.retry() },
-                onRecentSearch = { term ->
-                    searchHistorySession.search.updateQuery(term.value)
-                    searchHistorySession.search.submit()
-                },
-                onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
-                onRecentRetry = searchHistorySession::retryRecentSearches,
-                onHistoryEvent = { searchHistorySession.history.dispatch(it) },
-                onScopeChanged = { searchHistorySession.search.scope = it },
-                onFilterSelected = { searchHistorySession.search.filter = it },
-            ),
-        onTransfersEvent = transfersController::dispatch,
-        resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },
-        onTransferAuthenticationRequired = authController::rejectAuthoritativeSession,
-        contentNavigation = searchHistorySession.navigation,
-        navigationFailure = navigationFailure,
-        onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
-        onSignOut = { removeDownloads ->
-            MobilePlaybackService.stop(appContext)
-            signOut.start(rootScope, removeDownloads)
-        },
-    )
+            },
+            onAppConfigEvent = appConfigController::dispatch,
+            onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
+            onFilesAuthenticationRequired = authController::rejectAuthoritativeSession,
+            searchHistoryActions =
+                MobileSearchHistoryActions(
+                    onQueryChanged = { searchHistorySession.search.updateQuery(it) },
+                    onSubmit = { searchHistorySession.search.submit() },
+                    onResult = { searchHistorySession.search.openResult(it.id) },
+                    onNextPage = { searchHistorySession.search.loadNextPage() },
+                    onRetry = { searchHistorySession.search.retry() },
+                    onRecentSearch = { term ->
+                        searchHistorySession.search.updateQuery(term.value)
+                        searchHistorySession.search.submit()
+                    },
+                    onRecentEdit = { searchHistorySession.search.editRecentSearches(it) },
+                    onRecentRetry = searchHistorySession::retryRecentSearches,
+                    onHistoryEvent = { searchHistorySession.history.dispatch(it) },
+                    onScopeChanged = { searchHistorySession.search.scope = it },
+                    onFilterSelected = { searchHistorySession.search.filter = it },
+                ),
+            onTransfersEvent = transfersController::dispatch,
+            resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },
+            onTransferAuthenticationRequired = authController::rejectAuthoritativeSession,
+            contentNavigation = searchHistorySession.navigation,
+            navigationFailure = navigationFailure,
+            onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
+            onSignOut = { removeDownloads ->
+                MobilePlaybackService.stop(appContext)
+                signOut.start(rootScope, removeDownloads)
+            },
+        )
+    }
     ProductAnalyticsPromptHost(
         sessionId = sessionId,
         accountSettingsState = accountSettingsState,
@@ -725,4 +737,11 @@ private fun TransfersWidgetEffect(content: TransfersContent, session: MobileSess
         }
         MobileWidgets.transfers(appContext).show(session, items)
     }
+}
+
+@Composable
+private fun FilesBrowserController.collectStateIgnoringViewports(): State<FilesBrowserState> {
+    val changes = remember(this) { state.distinctUntilChanged(FilesBrowserState::sameExceptViewports) }
+    val initial = remember(this) { state.value }
+    return changes.collectAsStateWithLifecycle(initial)
 }
