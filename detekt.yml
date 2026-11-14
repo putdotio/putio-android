@@ -39,4 +39,6 @@ style:
         reason: 'Report through core/telemetry, so every event passes its allowlist.'
       - value: 'com.posthog.*'
         reason: 'Capture through ProductAnalytics, so every event passes its allowlist.'
+      - value: 'androidx.compose.ui.text.style.TextOverflow.Companion.MiddleEllipsis'
+        reason: 'Cut names with TvMiddleCutText or MobileMiddleCutText, so the apps keep one middle cut.'
     excludes: ['**/core/telemetry/**']

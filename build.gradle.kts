@@ -159,9 +159,23 @@ val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
     stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
 }
 
+val trackedSkillFiles = providers.exec {
+    commandLine("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", SkillsLock.SKILLS_PATH)
+}.standardOutput.asText.map { it.split('\u0000').filter(String::isNotEmpty) }
+
 val checkSkillsLock = tasks.register<CheckSkillsLockTask>("checkSkillsLock") {
     group = "verification"
-    description = "Verify the skills match skills-lock.json and each has its .claude/skills link"
+    description = "Verify the skill files git does not ignore match skills-lock.json"
+    repositoryRoot.set(layout.projectDirectory)
+    lock.set(layout.projectDirectory.file(SkillsLock.LOCK_PATH))
+    trackedFiles.set(trackedSkillFiles)
+    skillFiles.from(trackedSkillFiles)
+    stamp.set(layout.buildDirectory.file("verification/checkSkillsLock.stamp"))
+}
+
+val checkSkillLinks = tasks.register<CheckSkillLinksTask>("checkSkillLinks") {
+    group = "verification"
+    description = "Verify each skill has its .claude/skills link"
     repositoryRoot.set(layout.projectDirectory)
 }
 
@@ -182,9 +196,10 @@ fun verifyLane(name: String, summary: String, vararg checks: Any) = tasks.regist
 
 val verifyDocs = verifyLane(
     "verifyDocs",
-    "Check Markdown, the DESIGN.md contract and the skills lock",
+    "Check Markdown, the DESIGN.md contract, the skills lock and the skill links",
     markdownCheck,
     checkSkillsLock,
+    checkSkillLinks,
 )
 
 val verifyScripts = verifyLane(

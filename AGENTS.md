@@ -93,7 +93,7 @@ depends on it.
 
 Skills live in `.agents/skills`, linked into `.claude/skills`.
 [`skills-lock.json`](skills-lock.json) pins the ones from
-[android/skills](https://github.com/android/skills); `npx skills update -p`
+[android/skills](https://github.com/android/skills); `npx skills@latest update -p`
 refreshes them. Don't edit their files.
 
 - R8 or keep rules: `r8-analyzer`

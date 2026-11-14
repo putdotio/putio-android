@@ -44,18 +44,21 @@ import kotlin.math.roundToInt
 /**
  * A name on one line, or up to [maxLines], cut in the middle when it does not fit: it keeps its
  * start and the last [MIDDLE_CUT_TAIL] characters, so the extension and what comes just before it
- * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name.
+ * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name. It draws in
+ * [color], else the style's colour, else [contentColor].
  */
 @Composable
 public fun PutioMiddleCutText(
     text: String,
     style: TextStyle,
-    color: Color,
+    contentColor: Color,
     modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
     maxLines: Int = 1,
 ) {
     val measurer = rememberTextMeasurer()
-    Spacer(modifier.then(MiddleCutTextElement(text, style, color, maxLines, measurer)))
+    val drawColor = color.takeOrElse { style.color.takeOrElse { contentColor } }
+    Spacer(modifier.then(MiddleCutTextElement(text, style, drawColor, maxLines, measurer)))
 }
 
 /** The text a cut name laid out, while accessibility reads the full name; for tests. */

@@ -9,6 +9,7 @@ import org.junit.Test
 
 class SkillsLockTest {
     private val root: File = Files.createTempDirectory("skills-lock").toFile()
+    private val tracked = mutableListOf<String>()
 
     @After
     fun deleteRoot() {
@@ -17,35 +18,41 @@ class SkillsLockTest {
 
     @Test
     fun theHashMatchesTheSkillsCli() {
-        skill("demo", "SKILL.md" to "# Demo\n", "references/apis.md" to "apis\n", "references/Zeta.md" to "zeta\n")
-        assertEquals(CLI_HASH, SkillsLock.folderHash(root.resolve(".agents/skills/demo")))
-    }
-
-    @Test
-    fun punctuationSortsAsTheSkillsCliDoes() {
-        skill(
-            "punctuated",
+        val files = mapOf(
             "SKILL.md" to "# Demo\n",
             "references/apis.md" to "apis\n",
             "references/Zeta.md" to "zeta\n",
-            "references-b.md" to "b\n",
-            "references_c md.md" to "c\n",
+            "references/éclair.md" to "eclair\n",
+            "references/fig.md" to "fig\n",
+            "references/日本.md" to "nihon\n",
+            "scripts/run.py" to "print(1)\r\nprint(2)\r\n",
+            "metadata.json" to "{}\n",
+            "scripts/__pycache__/run.cpython-313.pyc" to "pyc",
         )
-        assertEquals(PUNCTUATED_CLI_HASH, SkillsLock.folderHash(root.resolve(".agents/skills/punctuated")))
+        assertEquals(NON_ASCII_CLI_HASH, SkillsLock.folderHash(files.mapValues { it.value.toByteArray() }))
     }
 
     @Test
-    fun finderMetadataIsIgnored() {
+    fun ignoredFilesAndFinderMetadataAreSkipped() {
         lockedSkill()
+        root.resolve(".agents/skills/demo/scripts/__pycache__/run.cpython-313.pyc").apply { parentFile.mkdirs() }.writeText("pyc")
         root.resolve(".agents/skills/demo/.DS_Store").writeText("finder")
+        tracked += listOf(".agents/skills/demo/.DS_Store", ".agents/skills/demo/scripts/__pycache__/run.cpython-313.pyc")
         root.resolve(".claude/skills/.DS_Store").writeText("finder")
-        SkillsLock.check(root)
+        check()
+    }
+
+    @Test
+    fun anOlderLockVersionFails() {
+        lockedSkill()
+        root.resolve("skills-lock.json").writeText(root.resolve("skills-lock.json").readText().replace("\"version\": 2", "\"version\": 1"))
+        assertRejected("skills-lock.json is version 1; this check reads version 2")
     }
 
     @Test
     fun aMatchingSkillPasses() {
         lockedSkill()
-        SkillsLock.check(root)
+        check()
     }
 
     @Test
@@ -65,8 +72,8 @@ class SkillsLockTest {
     fun aLockedSkillMustExist() {
         lockedSkill()
         root.resolve(".agents/skills/demo").deleteRecursively()
-        Files.delete(root.resolve(".claude/skills/demo").toPath())
-        assertRejected("demo is locked but .agents/skills/demo is missing")
+        tracked.clear()
+        assertRejected("demo is locked but .agents/skills/demo has no files")
     }
 
     @Test
@@ -105,24 +112,32 @@ class SkillsLockTest {
     private fun lockedSkill(hash: String = CLI_HASH) {
         skill("demo", "SKILL.md" to "# Demo\n", "references/apis.md" to "apis\n", "references/Zeta.md" to "zeta\n")
         root.resolve("skills-lock.json").writeText(
-            """{"version": 1, "skills": {"demo": {"source": "android/skills", "computedHash": "$hash"}}}""",
+            """{"version": 2, "skills": {"demo": {"source": "android/skills", "computedHash": "$hash"}}}""",
         )
     }
 
     private fun skill(name: String, vararg files: Pair<String, String>) {
         val dir = root.resolve(".agents/skills/$name")
-        files.forEach { (path, text) -> dir.resolve(path).apply { parentFile.mkdirs() }.writeText(text) }
+        files.forEach { (path, text) ->
+            dir.resolve(path).apply { parentFile.mkdirs() }.writeText(text)
+            tracked += ".agents/skills/$name/$path"
+        }
         val links = root.resolve(".claude/skills").apply { mkdirs() }
         Files.createSymbolicLink(links.resolve(name).toPath(), File("../../.agents/skills/$name").toPath())
     }
 
+    private fun check() {
+        SkillsLock.check(root, tracked)
+        SkillsLock.checkLinks(root)
+    }
+
     private fun assertRejected(message: String) {
-        val error = assertThrows(GradleException::class.java) { SkillsLock.check(root) }
+        val error = assertThrows(GradleException::class.java) { check() }
         assertTrue(error.message, error.message!!.contains("- $message\n"))
     }
 
     private companion object {
-        const val CLI_HASH = "3845c0d946aa12bdc415863d0ce3ed054051817c560263a1dcee49e58efbae4c"
-        const val PUNCTUATED_CLI_HASH = "17ae4ea23cff8cdee0ff649c75d7c084fcd3f0b6ea04a72f032411c48e94b613"
+        const val CLI_HASH = "37e2137ae7c52476f9e4f038f24c909ccc8fca726955b1c7ba577a98fe803308"
+        const val NON_ASCII_CLI_HASH = "8b1394f11b08b579b2295fa12d73ca3274a4c3810ea3f7173aa3ac9cca97f6fe"
     }
 }
