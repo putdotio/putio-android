@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -11,6 +12,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -28,6 +30,7 @@ import io.putdotio.android.MobileSelectionToolbarOffset
 import io.putdotio.android.MobileToolbarTile
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
+import kotlinx.coroutines.flow.distinctUntilChanged
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
 
@@ -139,10 +142,15 @@ private fun FilesBrowserState.selectableIds(): Set<Long> =
 
 /** The session's Files selection, kept in step with the folder on screen and its rows. */
 @Composable
-internal fun rememberFilesSelection(key: Any?, state: FilesBrowserState): FilesSelection {
+internal fun rememberFilesSelection(key: Any?, states: State<FilesBrowserState>): FilesSelection {
     val selection = rememberSaveable(key, saver = FilesSelection.Saver) { FilesSelection() }
-    LaunchedEffect(selection, state.stack.size, state.current.folder.id, state.current.content) {
-        selection.reconcile(state)
+    LaunchedEffect(selection, states) {
+        snapshotFlow { states.value }
+            .distinctUntilChanged { old, new ->
+                old.stack.size == new.stack.size && old.current.folder.id == new.current.folder.id &&
+                    old.current.content === new.current.content
+            }
+            .collect(selection::reconcile)
     }
     return selection
 }

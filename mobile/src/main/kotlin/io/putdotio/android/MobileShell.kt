@@ -33,6 +33,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -77,6 +78,8 @@ import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesExternalOpen
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderCreator
+import io.putdotio.android.files.FilesFolderOperation
+import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesOpenOrigin
@@ -170,6 +173,102 @@ internal const val MOBILE_FILES_SEARCH_TAG = "mobile-files-search"
 @Composable
 internal fun MobileShell(
     filesState: FilesBrowserState,
+    transfersState: TransfersState = emptyTransfersState(),
+    accountSettingsState: AccountSettingsState,
+    appConfigState: AndroidAppConfigState,
+    account: MobileAccount,
+    playbackRepository: PlaybackRepository,
+    sessionId: MobileAuthSessionId,
+    onFilesEvent: (FilesBrowserEvent) -> Boolean,
+    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
+    onPlaybackAuthenticationRequired: suspend () -> Unit,
+    onSignOut: (removeDownloads: Boolean) -> Unit,
+    filesRepository: FilesRepository? = null,
+    trashController: TrashController? = null,
+    downloadsController: DownloadsController? = null,
+    publicLinksController: PublicLinksController? = null,
+    loggedInAppsController: LoggedInAppsController? = null,
+    searchHistoryState: MobileSearchHistoryState = remember { emptySearchHistoryState() },
+    transfersSessionId: MobileAuthSessionId? = null,
+    playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
+    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
+        AccountSettingsRepositoryResult.Failure(
+            AccountSettingsFailure.Putio(
+                PutioFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
+            ),
+        )
+    },
+    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
+    onFilesAuthenticationRequired: suspend () -> Unit = {},
+    searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
+    onTransfersEvent: (TransfersEvent) -> Unit = {},
+    resolveTransferFile: suspend (TransferFileId) -> PutioResult<FilesItem> = {
+        PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No transfer file resolver")))
+    },
+    onTransferAuthenticationRequired: suspend () -> Unit = {},
+    contentNavigation: Flow<FilesExternalOpen> = emptyFlow(),
+    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
+    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
+    onOpenFile: suspend (FilesItemId) -> Unit = {},
+    onShareItem: ((FilesItem) -> Unit)? = null,
+    navigationFailure: FilesFailure? = null,
+    onDismissNavigationFailure: () -> Unit = {},
+    transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
+    fileDragOut: MobileFileDragOut? = null,
+    folderCreator: FilesFolderCreator? = null,
+    continueWatching: ContinueWatching? = null,
+    pinnedFiles: MobilePinnedFiles? = null,
+    subtitleLanguages: FilesSubtitleLanguages? = null,
+    filesActions: MobileFilesActionsController? = null,
+) {
+    MobileShell(
+        filesStates = rememberUpdatedState(filesState),
+        transfersStates = rememberUpdatedState(transfersState),
+        filesRepository = filesRepository,
+        trashController = trashController,
+        downloadsController = downloadsController,
+        publicLinksController = publicLinksController,
+        loggedInAppsController = loggedInAppsController,
+        accountSettingsState = accountSettingsState,
+        appConfigState = appConfigState,
+        searchHistoryState = searchHistoryState,
+        transfersSessionId = transfersSessionId,
+        account = account,
+        playbackRepository = playbackRepository,
+        playbackPlayerFactory = playbackPlayerFactory,
+        sessionId = sessionId,
+        onFilesEvent = onFilesEvent,
+        onAccountSettingsEvent = onAccountSettingsEvent,
+        loadTunnelRoutes = loadTunnelRoutes,
+        onAppConfigEvent = onAppConfigEvent,
+        onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
+        searchHistoryActions = searchHistoryActions,
+        onTransfersEvent = onTransfersEvent,
+        resolveTransferFile = resolveTransferFile,
+        onTransferAuthenticationRequired = onTransferAuthenticationRequired,
+        contentNavigation = contentNavigation,
+        nowPlayingRequests = nowPlayingRequests,
+        deepLinkRequests = deepLinkRequests,
+        onOpenFile = onOpenFile,
+        onShareItem = onShareItem,
+        navigationFailure = navigationFailure,
+        onDismissNavigationFailure = onDismissNavigationFailure,
+        onSignOut = onSignOut,
+        transferDraft = transferDraft,
+        fileDragOut = fileDragOut,
+        folderCreator = folderCreator,
+        continueWatching = continueWatching,
+        pinnedFiles = pinnedFiles,
+        subtitleLanguages = subtitleLanguages,
+        filesActions = filesActions,
+    )
+}
+
+@Composable
+internal fun MobileShell(
+    filesStates: State<FilesBrowserState>,
+    transfersStates: State<TransfersState>,
     filesRepository: FilesRepository? = null,
     trashController: TrashController? = null,
     downloadsController: DownloadsController? = null,
@@ -178,7 +277,6 @@ internal fun MobileShell(
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState = remember { emptySearchHistoryState() },
-    transfersState: TransfersState = emptyTransfersState(),
     transfersSessionId: MobileAuthSessionId? = null,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
@@ -226,14 +324,12 @@ internal fun MobileShell(
     val destinations = remember(historyShown) { MobileDestination.shown(historyShown) }
     val incomingDraft by transferDraft.state.collectAsStateWithLifecycle()
     val nowPlayingPending by nowPlayingRequests.pending.collectAsStateWithLifecycle()
-    LaunchedEffect(
-        transferDraft,
-        transfersSessionId,
-        transfersState.mutation,
-        transfersState.lastSuccessfulAddRequestId,
-    ) {
+    val draftInputs by remember(transfersStates) {
+        derivedStateOf { transfersStates.value.mutation to transfersStates.value.lastSuccessfulAddRequestId }
+    }
+    LaunchedEffect(transferDraft, transfersSessionId, draftInputs) {
         transferDraft.reconcileSession(transfersSessionId)
-        transferDraft.reconcileTransfers(transfersState)
+        transferDraft.reconcileTransfers(transfersStates.value)
     }
     val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
@@ -269,7 +365,8 @@ internal fun MobileShell(
     val openSearch = { openScopedSearch(null) }
     // The folder New folder was asked for; the dialog shows while that folder is on screen.
     val newFolder = rememberNewFolderRequest(sessionId)
-    val requestNewFolder = newFolder.action(folderCreator, filesState.current)
+    val filesFolder by remember(filesStates) { derivedStateOf(FolderChrome) { filesStates.value.current } }
+    val requestNewFolder = newFolder.action(folderCreator, filesFolder)
     val leaveSearch = { forward: Boolean ->
         searchForward = forward
         searchOpen = false
@@ -292,17 +389,19 @@ internal fun MobileShell(
     // The Downloads top bar and list share one selection: in selection its bar replaces the title.
     val downloadsSelection = rememberDownloadsSelection()
     // So do Files' bar and folder; its selection belongs to the folder it started in.
-    val filesSelection = rememberFilesSelection(sessionId, filesState)
-    val filesSelecting = filesSelection.isShown(
-        filesState,
-        onFiles = selectedDestination == MobileDestination.Files,
-        searchOpen = searchOpen,
-    )
+    val filesSelection = rememberFilesSelection(sessionId, filesStates)
+    val filesSelectionActive by remember(filesStates, filesSelection) {
+        derivedStateOf { filesSelection.isActive(filesStates.value) }
+    }
+    val filesSelecting = selectedDestination == MobileDestination.Files && !searchOpen && filesSelectionActive
     val trashStates = trashController?.state?.collectAsStateWithLifecycle()
     val trashMutating by remember(trashStates) { derivedStateOf { trashStates?.value?.hasPendingMutation == true } }
     val trashSelection = rememberTrashSelection(sessionId)
     TrashRestoreEffects(trashStates, onFilesEvent)
-    val shareNavigationBlocked = shareNavigationBlocked(filesState, trashMutating, transfersState, nowPlayingPending)
+    val stateNavigationBlocked by remember(filesStates, transfersStates) {
+        derivedStateOf { shareNavigationBlocked(filesStates.value, transfersStates.value) }
+    }
+    val shareNavigationBlocked = stateNavigationBlocked || trashMutating || nowPlayingPending
     DeepLinkNavigationEffect(
         deepLinkRequests = deepLinkRequests,
         userId = account.userId,
@@ -329,7 +428,7 @@ internal fun MobileShell(
         transferDraft = transferDraft,
     )
     DefaultSortInvalidationEffect(sessionId, accountSettingsState, onFilesEvent)
-    StaleFilesReloadEffect(selectedDestination, isTrash, filesState, onFilesEvent)
+    StaleFilesReloadEffect(selectedDestination, isTrash, filesStates, onFilesEvent)
 
     // The NavHost owns Back between routes, the player's included, with its predictive preview.
     var searchFocusPending by remember { mutableStateOf(false) }
@@ -342,7 +441,9 @@ internal fun MobileShell(
     )
 
     val playbackFileId = if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null
-    val resolvingTransfer = transfersState.navigation as? TransferNavigation.Resolving
+    val resolvingTransfer by remember(transfersStates) {
+        derivedStateOf { transfersStates.value.navigation as? TransferNavigation.Resolving }
+    }
     NowPlayingNavigationEffect(nowPlayingRequests, playbackPlayerFactory, transferDraft, navController, playbackFileId)
     ContentNavigationEffect(
         contentNavigation = contentNavigation,
@@ -365,8 +466,10 @@ internal fun MobileShell(
         onTransferAuthenticationRequired = onTransferAuthenticationRequired,
     )
 
+    val filesBackGate by remember(filesStates) { derivedStateOf { FilesBackGate.of(filesStates.value) } }
     val filesBack = filesBack(
-        filesState = filesState,
+        gate = filesBackGate,
+        filesState = filesStates::value,
         onFiles = selectedDestination == MobileDestination.Files,
         closeSearch = if (searchOpen) ({ leaveSearch(false) }) else null,
         onFilesEvent = onFilesEvent,
@@ -444,15 +547,17 @@ internal fun MobileShell(
                                 searchFocusPending = true
                             },
                             onSubpageBack = onSubpageBack,
-                            filesState = filesState,
+                            filesStates = filesStates,
+                            filesFolder = filesFolder,
+                            filesBackGate = filesBackGate,
                             onFilesBack = onFilesBack,
                             onFilesEvent = onFilesEvent,
                             onNewFolder = requestNewFolder,
                             openNavigation = navigation,
-                            summary = tabSummary(destination, transfersState, downloadsState),
+                            summary = tabSummary(destination, transfersStates, downloadsState),
                             tabActions = tabActions(
                                 destination,
-                                transfersState,
+                                transfersStates,
                                 transfersSessionId,
                                 onTransfersEvent,
                             ) ?: historyActions(
@@ -501,7 +606,7 @@ internal fun MobileShell(
                         MobileNavHost(
                             transferDraft = transferDraft,
                             navController = navController,
-                            filesState = filesState,
+                            filesStates = filesStates,
                             filesRepository = filesRepository,
                             trashController = trashController,
                             trashSelection = trashSelection,
@@ -512,7 +617,7 @@ internal fun MobileShell(
                             accountSettingsState = accountSettingsState,
                             appConfigState = appConfigState,
                             searchHistoryState = searchHistoryState,
-                            transfersState = transfersState,
+                            transfersStates = transfersStates,
                             transfersSessionId = transfersSessionId,
                             account = account,
                             playbackRepository = playbackRepository,
@@ -554,7 +659,7 @@ internal fun MobileShell(
     }
     MobileNewFolderHost(
         request = newFolder,
-        folder = filesState.current.folder,
+        folder = filesFolder.folder,
         playing = isPlayback,
         onFiles = selectedDestination == MobileDestination.Files,
         searchOpen = searchOpen,
@@ -572,7 +677,7 @@ internal fun MobileShell(
         MobileShareProgressDialog(onCancel = { MobileFileShareService.cancel(shareContext) })
         MobileNavigationAlerts(
             navigationFailure = rejectedNavigation ?: navigationFailure,
-            transfersState = transfersState,
+            transfersStates = transfersStates,
             onDismissNavigationFailure = {
                 if (rejectedNavigation != null) rejectedNavigation = null else onDismissNavigationFailure()
             },
@@ -621,15 +726,11 @@ private fun TrashRestoreEffects(
     }
 }
 
-private fun shareNavigationBlocked(
-    filesState: FilesBrowserState,
-    trashMutating: Boolean,
-    transfersState: TransfersState,
-    nowPlayingPending: Boolean,
-): Boolean = filesState.stack.any {
-    it.operation.pendingDelete != null || it.operation.pendingMove != null
-} || trashMutating || transfersState.navigation is TransferNavigation.Resolving ||
-    transfersState.mutation is TransferMutation.Running || nowPlayingPending
+private fun shareNavigationBlocked(filesState: FilesBrowserState, transfersState: TransfersState): Boolean =
+    filesState.stack.any {
+        it.operation.pendingDelete != null || it.operation.pendingMove != null
+    } || transfersState.navigation is TransferNavigation.Resolving ||
+        transfersState.mutation is TransferMutation.Running
 
 /** What a routed link opens beyond plain navigation. */
 private class DeepLinkTargets(
@@ -753,17 +854,28 @@ private fun DefaultSortInvalidationEffect(
 private fun StaleFilesReloadEffect(
     selectedDestination: MobileDestination,
     isTrash: Boolean,
-    filesState: FilesBrowserState,
+    filesStates: State<FilesBrowserState>,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
 ) {
-    LaunchedEffect(selectedDestination, isTrash, filesState.current.folder.id,
-        filesState.current.needsReload, filesState.current.operation,
-        filesState.current.content is FilesContent.Loading) {
-        if (selectedDestination == MobileDestination.Files && !isTrash && filesState.current.needsReload) {
+    val reload by remember(filesStates) {
+        derivedStateOf {
+            val current = filesStates.value.current
+            StaleFilesReload(current.folder.id, current.needsReload, current.operation, current.content is FilesContent.Loading)
+        }
+    }
+    LaunchedEffect(selectedDestination, isTrash, reload) {
+        if (selectedDestination == MobileDestination.Files && !isTrash && reload.needsReload) {
             onFilesEvent(FilesBrowserEvent.ReloadIfStale)
         }
     }
 }
+
+private data class StaleFilesReload(
+    val folder: FilesItemId,
+    val needsReload: Boolean,
+    val operation: FilesFolderOperation,
+    val loading: Boolean,
+)
 
 @Composable
 private fun NowPlayingNavigationEffect(
@@ -882,6 +994,20 @@ private fun TransferFileNavigationEffect(
     }
 }
 
+private data class FilesBackGate(
+    val moveSettling: Boolean,
+    val canNavigateBack: Boolean,
+    val deletePending: Boolean,
+) {
+    companion object {
+        fun of(state: FilesBrowserState) = FilesBackGate(
+            moveSettling = state.stack.any { it.operation.pendingMove != null },
+            canNavigateBack = state.canNavigateBack,
+            deletePending = state.current.operation.pendingDelete != null,
+        )
+    }
+}
+
 /** Who takes Back on Files, whether the gesture may preview it, and what it does. */
 private class FilesBack(val ownsBack: Boolean, val previewable: Boolean, val onBack: () -> Unit) {
     /**
@@ -898,24 +1024,24 @@ private class FilesBack(val ownsBack: Boolean, val previewable: Boolean, val onB
  * nothing to preview.
  */
 private fun filesBack(
-    filesState: FilesBrowserState,
+    gate: FilesBackGate,
+    filesState: () -> FilesBrowserState,
     onFiles: Boolean,
     closeSearch: (() -> Unit)?,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     returnTo: (FilesOpenOrigin) -> Unit,
 ): FilesBack {
-    val moveSettling = filesState.stack.any { it.operation.pendingMove != null }
     // Closing Search leaves the folder alone, so it stays allowed while a move settles; Search would
     // otherwise hide the folder's Check status.
     val searchOwnsBack = closeSearch != null && onFiles
-    val ownsBack = searchOwnsBack || moveSettling || onFiles && filesState.canNavigateBack
+    val ownsBack = searchOwnsBack || gate.moveSettling || onFiles && gate.canNavigateBack
     // The reducer refuses to leave a folder while a move or its deletion settles: no preview then.
-    val refused = !searchOwnsBack && (moveSettling || filesState.current.operation.pendingDelete != null)
+    val refused = !searchOwnsBack && (gate.moveSettling || gate.deletePending)
     return FilesBack(ownsBack, previewable = ownsBack && !refused) {
         if (searchOwnsBack) {
             closeSearch?.invoke()
         } else {
-            val origin = filesState.current.openedFrom
+            val origin = filesState().current.openedFrom
             if (onFilesEvent(FilesBrowserEvent.NavigateBack)) origin?.let(returnTo)
         }
     }
@@ -942,10 +1068,14 @@ private fun TrashRecoveryBackHandler(enabled: Boolean, navController: NavHostCon
 @Composable
 private fun MobileNavigationAlerts(
     navigationFailure: FilesFailure?,
-    transfersState: TransfersState,
+    transfersStates: State<TransfersState>,
     onDismissNavigationFailure: () -> Unit,
     onTransfersEvent: (TransfersEvent) -> Unit,
 ) {
+    val transfersAlert by remember(transfersStates) {
+        derivedStateOf { transfersStates.value.let { it.navigation as? TransferNavigation.Failed to it.notice } }
+    }
+    val (failedNavigation, transfersNotice) = transfersAlert
     if (navigationFailure != null && navigationFailure !is PutioFailure.AuthenticationRequired) {
         AlertDialog(
             onDismissRequest = onDismissNavigationFailure,
@@ -958,7 +1088,7 @@ private fun MobileNavigationAlerts(
             },
         )
     }
-    (transfersState.navigation as? TransferNavigation.Failed)?.let { failed ->
+    failedNavigation?.let { failed ->
         AlertDialog(
             onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNavigationFailure) },
             title = { Text(stringResource(R.string.mobile_navigation_error_title)) },
@@ -972,7 +1102,7 @@ private fun MobileNavigationAlerts(
             },
         )
     }
-    transfersState.notice?.let { notice ->
+    transfersNotice?.let { notice ->
         AlertDialog(
             onDismissRequest = { onTransfersEvent(TransfersEvent.DismissNotice(notice.requestId)) },
             title = { Text(stringResource(R.string.mobile_transfers_open_unavailable_title)) },
@@ -1133,7 +1263,9 @@ private fun MobileTopBar(
     searchBar: @Composable (navigation: (@Composable () -> Unit)?) -> Unit,
     onOpenSearch: (SearchScope?) -> Unit,
     onSubpageBack: (() -> Unit)?,
-    filesState: FilesBrowserState,
+    filesStates: State<FilesBrowserState>,
+    filesFolder: FilesFolderState,
+    filesBackGate: FilesBackGate,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onNewFolder: (() -> Unit)?,
@@ -1175,13 +1307,14 @@ private fun MobileTopBar(
         }
         searchOpen -> searchBar(openNavigation?.let { { MobileNavigationMenuButton(it) } })
         filesSelection != null -> MobileSelectionBar(
-            count = filesSelection.selected(filesState).size,
-            onSelectAll = { filesSelection.selectAll(filesState) },
+            count = filesSelection.selected(filesStates.value).size,
+            onSelectAll = { filesSelection.selectAll(filesStates.value) },
             onClear = filesSelection::end,
             modifier = Modifier.testTag(MOBILE_FILES_SELECTION_BAR_TAG),
         )
         else -> MobileFilesTopBar(
-            filesState,
+            filesFolder,
+            filesBackGate,
             onFilesBack,
             onFilesEvent,
             onOpenSearch,
@@ -1216,7 +1349,8 @@ private fun MobileSmallTopBar(
  */
 @Composable
 private fun MobileFilesTopBar(
-    filesState: FilesBrowserState,
+    current: FilesFolderState,
+    gate: FilesBackGate,
     onFilesBack: () -> Unit,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onOpenSearch: (SearchScope?) -> Unit,
@@ -1224,11 +1358,11 @@ private fun MobileFilesTopBar(
     openNavigation: (() -> Unit)?,
     accountSort: FilesSort?,
 ) {
-    val folder = filesState.current.folder
-    val atRoot = !filesState.canNavigateBack && folder.id == FilesFolder.Root.id
+    val folder = current.folder
+    val atRoot = !gate.canNavigateBack && folder.id == FilesFolder.Root.id
     val title = folder.name?.takeIf(String::isNotBlank) ?: stringResource(MobileDestination.Files.labelRes)
     val actions = MobileFilesBarActions(
-        folder = filesState.current,
+        folder = current,
         onSelectSort = { onFilesEvent(FilesBrowserEvent.SelectSort(it)) },
         onOpenSearch = {
             onOpenSearch(folder.id.takeIf { it.value > 0L }?.let { SearchScope(it, title) })
@@ -1244,10 +1378,15 @@ private fun MobileFilesTopBar(
             title = title,
             actions = actions,
             onBack = onFilesBack,
-            backEnabled = filesState.canNavigateBack && filesState.current.operation.pendingDelete == null &&
-                filesState.stack.none { it.operation.pendingMove != null },
+            backEnabled = gate.canNavigateBack && !gate.deletePending && !gate.moveSettling,
         )
     }
+}
+
+private object FolderChrome : SnapshotMutationPolicy<FilesFolderState> {
+    override fun equivalent(a: FilesFolderState, b: FilesFolderState): Boolean =
+        a.folder == b.folder && a.operation == b.operation && a.summary == b.summary &&
+            a.content::class == b.content::class
 }
 
 @Composable
@@ -1271,13 +1410,13 @@ private class MobileDownloadsBar(
 @Composable
 private fun tabSummary(
     destination: MobileDestination,
-    transfersState: TransfersState,
+    transfersStates: State<TransfersState>,
     downloadsState: DownloadsState,
 ): AnnotatedString? {
     val context = LocalContext.current
     val mono = summaryMonoStyle()
     return when (destination) {
-        MobileDestination.Transfers -> summaryOf(transfersSummaryParts(context, transfersState), mono)
+        MobileDestination.Transfers -> summaryOf(transfersSummaryParts(context, transfersStates.value), mono)
         MobileDestination.Downloads -> downloadsSummary(downloadsState, mono)
         MobileDestination.Files, MobileDestination.History, MobileDestination.Account -> null
     }
@@ -1286,13 +1425,13 @@ private fun tabSummary(
 /** A tab's own actions in its title row; Transfers keeps Refresh and Clear completed there. */
 private fun tabActions(
     destination: MobileDestination,
-    transfersState: TransfersState,
+    transfersStates: State<TransfersState>,
     transfersSessionId: MobileAuthSessionId?,
     onTransfersEvent: (TransfersEvent) -> Unit,
 ): (@Composable RowScope.() -> Unit)? =
     when (destination) {
         MobileDestination.Transfers -> {
-            { MobileTransfersOverflow(transfersState, onTransfersEvent, transfersSessionId) }
+            { MobileTransfersOverflow(transfersStates.value, onTransfersEvent, transfersSessionId) }
         }
         MobileDestination.Files, MobileDestination.History, MobileDestination.Downloads, MobileDestination.Account ->
             null
