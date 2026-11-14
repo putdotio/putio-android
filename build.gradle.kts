@@ -160,12 +160,12 @@ val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
 }
 
 val trackedSkillFiles = providers.exec {
-    commandLine("git", "ls-files", "-z", "--", SkillsLock.SKILLS_PATH)
+    commandLine("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", SkillsLock.SKILLS_PATH)
 }.standardOutput.asText.map { it.split('\u0000').filter(String::isNotEmpty) }
 
 val checkSkillsLock = tasks.register<CheckSkillsLockTask>("checkSkillsLock") {
     group = "verification"
-    description = "Verify the tracked skill files match skills-lock.json"
+    description = "Verify the skill files git does not ignore match skills-lock.json"
     repositoryRoot.set(layout.projectDirectory)
     lock.set(layout.projectDirectory.file(SkillsLock.LOCK_PATH))
     trackedFiles.set(trackedSkillFiles)

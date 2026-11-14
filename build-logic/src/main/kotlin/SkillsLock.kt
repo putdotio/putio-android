@@ -69,12 +69,12 @@ object SkillsLock {
         return skills.mapNotNull { (name, entry) ->
             val locked = ((entry as? JsonObject)?.get("computedHash") as? JsonPrimitive)?.content
             val prefix = "$SKILLS_PATH/$name/"
-            val files = trackedFiles.filter { it.startsWith(prefix) }
+            val files = trackedFiles.filter { it.startsWith(prefix) && it.substringAfterLast('/') != FINDER_METADATA }
                 .mapNotNull { path -> root.resolve(path).takeIf(File::isFile)?.let { path.removePrefix(prefix) to it.readBytes() } }
                 .toMap()
             when {
                 locked == null -> "$name has no computedHash"
-                files.isEmpty() -> "$name is locked but $SKILLS_PATH/$name has no tracked files"
+                files.isEmpty() -> "$name is locked but $SKILLS_PATH/$name has no files"
                 folderHash(files) != locked -> "$name differs from its locked computedHash"
                 else -> null
             }

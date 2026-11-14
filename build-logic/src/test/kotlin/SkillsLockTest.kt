@@ -32,10 +32,11 @@ class SkillsLockTest {
     }
 
     @Test
-    fun untrackedFilesAreIgnored() {
+    fun ignoredFilesAndFinderMetadataAreSkipped() {
         lockedSkill()
         root.resolve(".agents/skills/demo/scripts/__pycache__/run.cpython-313.pyc").apply { parentFile.mkdirs() }.writeText("pyc")
         root.resolve(".agents/skills/demo/.DS_Store").writeText("finder")
+        tracked += ".agents/skills/demo/.DS_Store"
         root.resolve(".claude/skills/.DS_Store").writeText("finder")
         check()
     }
@@ -71,7 +72,7 @@ class SkillsLockTest {
         lockedSkill()
         root.resolve(".agents/skills/demo").deleteRecursively()
         tracked.clear()
-        assertRejected("demo is locked but .agents/skills/demo has no tracked files")
+        assertRejected("demo is locked but .agents/skills/demo has no files")
     }
 
     @Test
