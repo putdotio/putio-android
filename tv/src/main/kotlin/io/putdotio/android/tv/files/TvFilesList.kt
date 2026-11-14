@@ -30,7 +30,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.platform.testTag
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
@@ -38,11 +37,12 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
+import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
-import io.putdotio.android.tv.outrunsScroll
+import io.putdotio.android.tv.keepsHeldFocusInView
 import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -172,13 +172,14 @@ internal fun TvFilesList(
         onLoadMore = { currentOnEvent(FilesBrowserEvent.LoadNextPage) },
         nearEnd = { listState.isNearEnd(content.items.lastIndex) },
     )
-    RevealOnlyHiddenRows {
+    val names = remember(content.items) { content.items.map { it.name } }
+    RevealOnlyHiddenRows(names) {
         LazyColumn(
             state = listState,
             modifier = modifier
                 .fillMaxWidth()
                 .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
-                .onPreviewKeyEvent { it.outrunsScroll(listState, focusedRowId.value, pagingHeldFocus.value) }
+                .keepsHeldFocusInView(listState) { focusedRowId.value.takeUnless { pagingHeldFocus.value } }
                 .focusRestorer(entryFocus)
                 .focusGroup()
                 .testTag(TV_FILES_LIST_TAG),
@@ -327,8 +328,8 @@ private const val PAGING_FOCUS_MARKER = -1L
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RevealOnlyHiddenRows(content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalBringIntoViewSpec provides RevealOnlyHidden, content = content)
+private fun RevealOnlyHiddenRows(names: List<String>, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalBringIntoViewSpec provides RevealOnlyHidden) { ProvideMiddleCuts(names, content) }
 }
 
 private object RevealOnlyHidden : BringIntoViewSpec {

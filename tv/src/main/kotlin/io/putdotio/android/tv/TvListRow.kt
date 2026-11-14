@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
@@ -51,7 +52,9 @@ internal fun TvListRow(
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .graphicsLayer()
+            .fillMaxWidth(),
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(PutioRadius.medium)),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,

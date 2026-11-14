@@ -2,17 +2,17 @@ package io.putdotio.android.tv.files
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.Snapshot
-import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -20,8 +20,6 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
-import androidx.compose.ui.test.performKeyPress
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.files.FilesBrowserEvent
@@ -634,29 +632,8 @@ class TvFilesScreenTest {
         val names = (1..40L).map { "file-$it.txt" }
         val rows = names.mapIndexed { index, name -> item(index + 1L, name, PutioFileType.TEXT) }
         compose.showFiles(state = { state(FilesContent.Ready(rows, FilesPaging.Complete)) })
-        val listBottom = compose.onNodeWithTag(TV_FILES_LIST_TAG).fetchSemanticsNode().boundsInRoot.bottom
-        val lastWhole = names.indexOfLast { name ->
-            compose.onAllNodesWithContentDescription(name).fetchSemanticsNodes()
-                .any { it.positionInRoot.y + it.size.height <= listBottom }
-        }
-        compose.onNodeWithContentDescription(names[0]).performKeyInput {
-            repeat(lastWhole) { pressKey(Key.DirectionDown) }
-        }
-        val lastShown = compose.onNodeWithContentDescription(names[lastWhole]).assertIsFocused()
-        val hidden = compose.onNodeWithContentDescription(names[lastWhole + 1])
-
-        compose.mainClock.autoAdvance = false
-        lastShown.performKeyPress(dpadDown(repeatCount = 0))
-        hidden.assertIsFocused().performKeyPress(dpadDown(repeatCount = 1))
-        hidden.assertIsFocused()
-
-        compose.mainClock.autoAdvance = true
-        hidden.performKeyPress(dpadDown(repeatCount = 2))
-        compose.onNodeWithContentDescription(names[lastWhole + 2]).assertIsFocused()
+        compose.assertHeldDownWaitsForScroll(TV_FILES_LIST_TAG, names.map { hasContentDescription(it) })
     }
-
-    private fun dpadDown(repeatCount: Int) =
-        KeyEvent(AndroidKeyEvent(0L, 0L, AndroidKeyEvent.ACTION_DOWN, AndroidKeyEvent.KEYCODE_DPAD_DOWN, repeatCount))
 
     private fun hasSelectedState() = androidx.compose.ui.test.isSelected()
 

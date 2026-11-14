@@ -6,15 +6,16 @@ usage() {
   cat <<'EOF'
 Usage: scripts/generate-baseline-profile.sh <emulator-serial>
 
-Runs :tv:generateBaselineProfile on that emulator alone, approves each
+Runs :tv:generateBaselineProfile on that emulator alone, approves the
 activation code the generator logs (tag PutioBaselineProfile) as devs-auto
 with the putio CLI, and writes tv/src/main/generated/baselineProfiles/.
-The generator profiles two journeys, each linking with its own code and
-signing out at the end, which revokes its grant: linking to Home, and cold
-starts that restore the stored token. Only the stored-token starts feed the
-startup profile. Commit the regenerated files.
+The generator links once and keeps that session for three journeys in
+order: linking to Home, scrolling Files and History, and cold starts that
+restore the stored token. Only the stored-token starts feed the startup
+profile. It never signs out, so no grant is revoked; delete the emulator
+afterwards. Commit the regenerated files.
 
-  emulator-serial   a running emulator at API 34 or newer, e.g. emulator-5554;
+  emulator-serial   a fresh emulator at API 34 or newer, e.g. emulator-5554;
                     older ones reinstall the app before profiling, which
                     drops the stored token; the generator presses Home, so
                     use one you booted:
@@ -71,18 +72,14 @@ approve() {
 }
 
 adb_ logcat -c
-build_log="" sign_outs=""
-trap 'kill $(jobs -pr) 2>/dev/null || true; rm -f ${build_log:+"${build_log}"} ${sign_outs:+"${sign_outs}"}' EXIT
+build_log=""
+trap 'kill $(jobs -pr) 2>/dev/null || true; rm -f ${build_log:+"${build_log}"}' EXIT
 build_log="$(mktemp)"
-sign_outs="$(mktemp)"
 ANDROID_SERIAL="${serial}" ./gradlew -q -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :tv:generateBaselineProfile >"${build_log}" 2>&1 &
 gradle_pid=$!
 
 poll() {
-  local lines
-  lines="$(adb_ logcat -d -s "${TAG}:I")"
-  grep "signed out$" <<<"${lines}" >>"${sign_outs}" || true
-  sed -n 's/.*activation code \([A-Z0-9]*\)$/\1/p' <<<"${lines}" | tail -1
+  adb_ logcat -d -s "${TAG}:I" | sed -n 's/.*activation code \([A-Z0-9]*\)$/\1/p' | tail -1
 }
 
 approved=""
@@ -99,7 +96,4 @@ if ! wait "${gradle_pid}"; then
   cat "${build_log}" >&2
   die "profile generation failed"
 fi
-poll >/dev/null
-signed_out="$(sort -u "${sign_outs}" | wc -l | tr -d ' ')"
-((signed_out >= 2)) || die "a journey did not sign out; sign out of io.put.putio on ${serial} to revoke its grant"
 log "wrote tv/src/main/generated/baselineProfiles/"

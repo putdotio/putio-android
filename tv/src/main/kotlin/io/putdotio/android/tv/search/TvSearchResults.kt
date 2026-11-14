@@ -13,11 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -40,16 +37,21 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.search.SearchPaging
+import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.TvAutoPaging
+import io.putdotio.android.tv.TvFocusedItem
+import io.putdotio.android.tv.TvItemRequesters
 import io.putdotio.android.tv.TvPaneFocusOwner
 import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.composes
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
+import io.putdotio.android.tv.keepsHeldFocusInView
 import io.putdotio.android.tv.paneSection
+import io.putdotio.android.tv.tracksFocusedItem
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.TvFilesRowPlace
-import kotlinx.coroutines.flow.first
 
 internal const val TV_SEARCH_RESULTS_TAG = "tv-search-results"
 
@@ -101,7 +103,8 @@ internal fun TvSearchResultList(
     modifier: Modifier = Modifier,
 ) {
     val items = groups.ordered
-    val anchorRow = remember { FocusRequester() }
+    val names = remember(items) { items.map { it.name } }
+    val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
@@ -110,9 +113,7 @@ internal fun TvSearchResultList(
         handOffToLastRow.value = true
     }
     val listState = rememberLazyListState()
-    val anchorId by remember(listState) {
-        derivedStateOf { listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key is Long }?.key as Long? }
-    }
+    val focused = remember { TvFocusedItem() }
     val restoreRow = remember { FocusRequester() }
     val lastLazyIndex = remember(groups) { groups.lazyIndexOf(items.last().id.value) }
     TvAutoPaging(
@@ -120,15 +121,11 @@ internal fun TvSearchResultList(
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(lastLazyIndex) },
     )
-    val restoreComposed by remember(listState) {
-        derivedStateOf { listState.layoutInfo.visibleItemsInfo.any { it.key == restoreRowId } }
-    }
     LaunchedEffect(listState) {
         val id = restoreRowId ?: return@LaunchedEffect
         val index = groups.lazyIndexOf(id)
         if (index < 0) return@LaunchedEffect
-        if (!restoreComposed) listState.scrollToItem(index)
-        snapshotFlow { restoreComposed }.first { it }
+        listState.bringIntoComposition(id, index)
         owner.enter(listFocus)
         withFrameNanos {}
         if (owner.hasFocus) restoreRow.requestFocus()
@@ -141,54 +138,58 @@ internal fun TvSearchResultList(
         if (owner.owns(listFocus)) lastRow.requestFocus()
         handOffToLastRow.value = false
     }
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxWidth()
-            .paneSection(owner, listFocus)
-            .focusRequester(listFocus)
-            .focusRestorer {
-                val lastId = items.last().id.value
-                val visible = listState.layoutInfo.visibleItemsInfo
-                lastRow.takeIf { handOffToLastRow.value && visible.any { it.key == lastId } }
-                    ?: rows.detail.row.takeIf { visible.any { it.key == rows.detail.id } }
-                    ?: restoreRow.takeIf { restoreComposed }
-                    ?: anchorRow
-            }
-            .focusGroup()
-            .testTag(TV_SEARCH_RESULTS_TAG),
-    ) {
-        val requesters = TvSearchRowRequesters(
-            { anchorId },
-            anchorRow,
-            last = TvSearchRowDetail(items.last().id.value, lastRow),
-            restore = TvSearchRowDetail(restoreRowId, restoreRow),
-            pendingEnd = paging.isPending,
-        )
-        val row: @Composable (FilesItem) -> Unit = { item -> TvSearchResultRow(item, rows, requesters) }
-        resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
-        resultGroup(
-            R.string.tv_search_group_files,
-            "files",
-            groups.files,
-            first = groups.folders.isEmpty(),
-            row = row,
-        )
-        if (paging != SearchPaging.Complete) {
-            item(key = TV_SEARCH_PAGING_KEY, contentType = "paging") {
-                TvSearchPaging(
-                    paging = paging,
-                    onRetry = onRetry,
-                    buttonModifier = Modifier.onFocusChanged { pagingHeldFocus.value = it.isFocused },
-                )
+    ProvideMiddleCuts(names) {
+        LazyColumn(
+            state = listState,
+            modifier = modifier
+                .fillMaxWidth()
+                .paneSection(owner, listFocus)
+                .focusRequester(listFocus)
+                .keepsHeldFocusInView(listState, focused)
+                .focusRestorer {
+                    val lastId = items.last().id.value
+                    lastRow.takeIf { handOffToLastRow.value && listState.composes(lastId) }
+                        ?: rows.detail.row.takeIf { listState.composes(rows.detail.id) }
+                        ?: restoreRow.takeIf { listState.composes(restoreRowId) }
+                        ?: rowFocus.firstComposed(listState) { it is Long }
+                }
+                .focusGroup()
+                .testTag(TV_SEARCH_RESULTS_TAG),
+        ) {
+            val requesters = TvSearchRowRequesters(
+                focused,
+                rowFocus,
+                last = TvSearchRowDetail(items.last().id.value, lastRow),
+                restore = TvSearchRowDetail(restoreRowId, restoreRow),
+                pendingEnd = paging.isPending,
+            )
+            val row: @Composable (FilesItem) -> Unit = { item -> TvSearchResultRow(item, rows, requesters) }
+            resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
+            resultGroup(
+                R.string.tv_search_group_files,
+                "files",
+                groups.files,
+                first = groups.folders.isEmpty(),
+                row = row,
+            )
+            if (paging != SearchPaging.Complete) {
+                item(key = TV_SEARCH_PAGING_KEY, contentType = "paging") {
+                    TvSearchPaging(
+                        paging = paging,
+                        onRetry = onRetry,
+                        buttonModifier = Modifier
+                            .tracksFocusedItem(focused, TV_SEARCH_PAGING_KEY)
+                            .onFocusChanged { pagingHeldFocus.value = it.isFocused },
+                    )
+                }
             }
         }
     }
 }
 
 private class TvSearchRowRequesters(
-    val anchorId: () -> Long?,
-    val anchor: FocusRequester,
+    val focused: TvFocusedItem,
+    val rows: TvItemRequesters,
     val last: TvSearchRowDetail,
     val restore: TvSearchRowDetail,
     val pendingEnd: Boolean,
@@ -208,7 +209,8 @@ private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: T
         place = rows.place(item),
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }
-            .focusRequesterIf(id == requesters.anchorId(), requesters.anchor)
+            .tracksFocusedItem(requesters.focused, id)
+            .focusRequester(requesters.rows.of(id))
             .focusRequesterIf(id == requesters.last.id, requesters.last.row)
             .holdAtPendingEnd(requesters.pendingEnd && id == requesters.last.id)
             .focusRequesterIf(id == requesters.restore.id, requesters.restore.row)

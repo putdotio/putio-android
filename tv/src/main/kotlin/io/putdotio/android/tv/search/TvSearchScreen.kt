@@ -51,6 +51,8 @@ import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.heldDetail
+import io.putdotio.android.tv.rememberTvHeldDetail
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.TvListPaging
@@ -370,7 +372,8 @@ private fun TvSearchReady(
     modifier: Modifier = Modifier,
 ) {
     val groups = remember(content.items) { TvSearchGroups(content.items) }
-    var detailId by remember { mutableStateOf(restoreRowId) }
+    val heldDetail = rememberTvHeldDetail { restoreRowId }
+    val detailId = heldDetail.shown
     val detailItem = groups.ordered.firstOrNull { it.id.value == detailId } ?: groups.ordered.first()
     val detailFocus = remember { TvFilesDetailFocus() }
     val detailRow = remember { FocusRequester() }
@@ -402,14 +405,14 @@ private fun TvSearchReady(
         onResult = { openResult(it, detailRow) },
         onActions = openActions,
         onFocused = {
-            detailId = it.id.value
+            heldDetail.focus(it.id.value)
             pickedRow.pick(it.id.value)
             detailFocus.onListFocusChanged(true)
         },
         detail = TvSearchRowDetail(detailItem.id.value, detailRow),
     )
     TvListDetail(
-        modifier = modifier,
+        modifier = modifier.heldDetail(heldDetail),
         detailFocus = detailFocus.primary,
         listFocus = resultsFocus,
         onDetailFocusChanged = detailFocus::onDetailFocusChanged,
@@ -455,7 +458,7 @@ private fun TvSearchReady(
             snackbar = undoSnackbar.state,
             onAuthenticationRequired = itemActions.onAuthenticationRequired,
         )
-        TvSearchEditFocus(detailId, groups, detailRow, detailFocus, owner, resultsFocus) { detailId = it }
+        TvSearchEditFocus(detailId, groups, detailRow, detailFocus, owner, resultsFocus, heldDetail::focus)
     }
     val open = actionsFor
     val openItem = open?.let { id -> groups.ordered.firstOrNull { it.id.value == id } }

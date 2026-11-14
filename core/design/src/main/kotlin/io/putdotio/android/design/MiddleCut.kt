@@ -17,14 +17,17 @@ import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.node.CompositionLocalConsumerModifierNode
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.node.SemanticsModifierNode
+import androidx.compose.ui.node.currentValueOf
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.node.invalidateSemantics
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.getTextLayoutResult
@@ -37,6 +40,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.toSize
 import kotlin.math.roundToInt
 
@@ -89,7 +94,11 @@ private data class MiddleCutTextElement(
 
 private class MiddleCutTextNode(
     private var element: MiddleCutTextElement,
-) : Modifier.Node(), LayoutModifierNode, DrawModifierNode, SemanticsModifierNode {
+) : Modifier.Node(),
+    LayoutModifierNode,
+    DrawModifierNode,
+    SemanticsModifierNode,
+    CompositionLocalConsumerModifierNode {
     private val name get() = element.text
     private val style get() = element.style
     private val maxLines get() = element.maxLines
@@ -120,6 +129,7 @@ private class MiddleCutTextNode(
             (fittedFor.density.density != density || fittedFor.density.fontScale != fontScale ||
                 fittedFor.layoutDirection != layoutDirection)
         if (constraints.maxWidth != cutWidth || scopeChanged) {
+            reportRoom(constraints.maxWidth, style, maxLines, Density(density, fontScale), layoutDirection)
             val fit = fitMiddleCut(line, constraints.maxWidth, measurer, style, maxLines)
             shown = fit.text
             fitted = fit.layout
@@ -227,6 +237,18 @@ private class MiddleCutTextNode(
     }
 }
 
+private fun CompositionLocalConsumerModifierNode.reportRoom(
+    maxWidth: Int,
+    style: TextStyle,
+    maxLines: Int,
+    density: Density,
+    layoutDirection: LayoutDirection,
+) {
+    val cuts = currentValueOf(LocalPutioMiddleCuts) ?: return
+    val resolver = currentValueOf(LocalFontFamilyResolver)
+    cuts.seen(MiddleCutRoom(maxWidth, style, maxLines, density, layoutDirection, resolver))
+}
+
 private fun TextLayoutResult.fills(constraints: Constraints): Boolean =
     size.width >= constraints.minWidth && size.height in constraints.minHeight..constraints.maxHeight
 
@@ -236,7 +258,7 @@ private fun TextLayoutResult.shownText(): String {
     return if (isLineEllipsized(last)) shown.substring(0, getLineEnd(last, visibleEnd = true)) + ELLIPSIS else shown
 }
 
-private fun String.oneLine(): String = replace(LINE_BREAKS, " ")
+internal fun String.oneLine(): String = replace(LINE_BREAKS, " ")
 
 private const val NO_CUT_WIDTH = -1
 private val LINE_BREAKS = Regex("\\R")

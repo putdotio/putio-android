@@ -10,8 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
@@ -33,17 +31,23 @@ import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashItem
 import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
+import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.TV_LIST_ROW_META
 import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
 import io.putdotio.android.tv.TvAutoPaging
+import io.putdotio.android.tv.TvFocusedItem
+import io.putdotio.android.tv.TvItemRequesters
 import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvListRow
 import io.putdotio.android.tv.TvListRowMetaParts
 import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.composes
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
+import io.putdotio.android.tv.keepsHeldFocusInView
 import io.putdotio.android.tv.paneSection
+import io.putdotio.android.tv.tracksFocusedItem
 import kotlinx.coroutines.flow.first
 
 internal const val TV_TRASH_LIST_TAG = "tv-trash-list"
@@ -62,6 +66,7 @@ internal fun TvTrashList(
     modifier: Modifier = Modifier,
 ) {
     val items = content.items
+    val names = remember(items) { items.map { it.name } }
     val rows = remember { TrashRowFocus() }
     val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
@@ -73,8 +78,8 @@ internal fun TvTrashList(
     }
     val listState = rememberLazyListState()
     val rowsHoldFocus = remember { mutableStateOf(false) }
+    val focused = remember { TvFocusedItem() }
     listState.KeepTopWhenRowsArriveAbove(items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
-    val anchorIndex by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex } }
     val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
     TvAutoPaging(
         page = content.takeIf { it.mayLoadNextPage && !focus.dialogShowing.value },
@@ -82,6 +87,7 @@ internal fun TvTrashList(
         nearEnd = { listState.isNearEnd(items.lastIndex) },
     )
     LaunchedEffect(listState) {
+        val anchorIndex = listState.firstVisibleItemIndex
         if (!listState.awaitMountTarget(items, restoreIndex, anchorIndex, pagingShown)) return@LaunchedEffect
         withFrameNanos {}
         if (!mayPlaceFocus(focus.paneHasFocus, focus.dialogShowing)) return@LaunchedEffect
@@ -92,51 +98,57 @@ internal fun TvTrashList(
     val nextIndex = items.indexOfFirst { it.id.value == nextRowId.value }
     TvTrashHeldRowLeaves(items, heldRowId, nextRowId, listState, focus, rows.next)
     TvTrashLastRowHandOff(items, handOffToLastRow, listState, focus, rows.last)
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxWidth()
-            .paneSection(focus.owner, focus.list)
-            .focusRequester(focus.list)
-            .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
-            .focusRestorer {
-                val lastId = items.lastOrNull()?.id?.value
-                    ?: return@focusRestorer if (content.pageFailure != null) pagingFocus else FocusRequester.Default
-                listState.restoreTarget(
-                    rows, lastId, nextRowId.value, items.getOrNull(restoreIndex)?.id?.value, handOffToLastRow.value,
+    ProvideMiddleCuts(names) {
+        LazyColumn(
+            state = listState,
+            modifier = modifier
+                .fillMaxWidth()
+                .paneSection(focus.owner, focus.list)
+                .focusRequester(focus.list)
+                .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
+                .keepsHeldFocusInView(listState, focused)
+                .focusRestorer {
+                    val lastId = items.lastOrNull()?.id?.value
+                        ?: return@focusRestorer if (content.pageFailure != null) pagingFocus else FocusRequester.Default
+                    listState.restoreTarget(
+                        rows, lastId, nextRowId.value, items.getOrNull(restoreIndex)?.id?.value, handOffToLastRow.value,
+                    )
+                }
+                .focusGroup()
+                .testTag(TV_TRASH_LIST_TAG),
+        ) {
+            itemsIndexed(items, key = { _, item -> item.id.value }, contentType = { _, _ -> "row" }) { index, item ->
+                TvTrashRow(
+                    item = item,
+                    onClick = { onChoose(item) },
+                    showsFocus = !focus.dialogShowing.value,
+                    modifier = with(rows) {
+                        Modifier
+                            .tracksFocusedItem(focused, item.id.value)
+                            .focusRequester(anchors.of(item.id.value))
+                            .requesters(index, items.lastIndex, restoreIndex, content.pagePending)
+                            .focusRequesterIf(index == nextIndex, next)
+                            .onFocusChanged {
+                                if (it.isFocused) {
+                                    heldRowId.value = item.id.value
+                                    nextRowId.value = null
+                                }
+                                onRowFocusChanged(item, it.isFocused)
+                            }
+                    },
                 )
             }
-            .focusGroup()
-            .testTag(TV_TRASH_LIST_TAG),
-    ) {
-        itemsIndexed(items, key = { _, item -> item.id.value }) { index, item ->
-            TvTrashRow(
-                item = item,
-                onClick = { onChoose(item) },
-                showsFocus = !focus.dialogShowing.value,
-                modifier = with(rows) {
-                    Modifier
-                        .requesters(index, items.lastIndex, anchorIndex, restoreIndex, content.pagePending)
-                        .focusRequesterIf(index == nextIndex, next)
-                        .onFocusChanged {
-                            if (it.isFocused) {
-                                heldRowId.value = item.id.value
-                                nextRowId.value = null
-                            }
-                            onRowFocusChanged(item, it.isFocused)
-                        }
-                },
-            )
-        }
-        if (pagingShown) {
-            item(key = TV_TRASH_PAGING_KEY) {
-                TvTrashPaging(
-                    content = content,
-                    onRetry = onRetry,
-                    buttonModifier = Modifier
-                        .focusRequester(pagingFocus)
-                        .onFocusChanged { pagingHeldFocus.value = it.isFocused },
-                )
+            if (pagingShown) {
+                item(key = TV_TRASH_PAGING_KEY, contentType = "paging") {
+                    TvTrashPaging(
+                        content = content,
+                        onRetry = onRetry,
+                        buttonModifier = Modifier
+                            .tracksFocusedItem(focused, TV_TRASH_PAGING_KEY)
+                            .focusRequester(pagingFocus)
+                            .onFocusChanged { pagingHeldFocus.value = it.isFocused },
+                    )
+                }
             }
         }
     }
@@ -202,7 +214,7 @@ internal fun mayPlaceFocus(paneHasFocus: State<Boolean>, dialogShowing: State<Bo
     paneHasFocus.value && !dialogShowing.value
 
 private class TrashRowFocus {
-    val anchor = FocusRequester()
+    val anchors = TvItemRequesters()
     val last = FocusRequester()
     val restore = FocusRequester()
     val next = FocusRequester()
@@ -210,12 +222,10 @@ private class TrashRowFocus {
     fun Modifier.requesters(
         index: Int,
         lastIndex: Int,
-        anchorIndex: Int,
         restoreIndex: Int,
         pagePending: Boolean,
     ): Modifier =
         this
-            .focusRequesterIf(index == anchorIndex, anchor)
             .focusRequesterIf(index == lastIndex, last)
             .holdAtPendingEnd(pagePending && index == lastIndex)
             .focusRequesterIf(index == restoreIndex, restore)
@@ -231,11 +241,8 @@ private fun LazyListState.restoreTarget(
     handOffToLastRow && composes(lastId) -> rows.last
     composes(nextId) -> rows.next
     composes(restoreId) -> rows.restore
-    else -> rows.anchor
+    else -> rows.anchors.firstComposed(this) { it is Long }
 }
-
-private fun LazyListState.composes(key: Any?): Boolean =
-    key != null && layoutInfo.visibleItemsInfo.any { it.key == key }
 
 private suspend fun LazyListState.awaitMountTarget(
     items: List<TrashItem>,

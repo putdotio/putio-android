@@ -9,6 +9,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -46,6 +47,7 @@ import io.putdotio.android.tv.files.TvFilesEdits
 import io.putdotio.android.tv.files.TvItemChanges
 import io.putdotio.android.tv.files.TvItemThumbnails
 import io.putdotio.android.tv.files.tvActions
+import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -93,6 +95,21 @@ class TvHistoryScreenTest {
         }
         compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(3))), log)
+    }
+
+    @Test
+    fun aHeldDownWaitsForTheListToScrollTheFocusedRowIntoView() {
+        val names = (1..40L).map { "upload-$it.txt" }
+        val uploads = names.mapIndexed { index, name ->
+            val id = index + 1L
+            HistoryItem(
+                HistoryEventId(id),
+                "2026-09-12T05:22:00",
+                HistoryEventKind.Notice(HistoryNoticeType.Upload, name, HistoryFileId(id)),
+            )
+        }
+        show(historyState(HistoryContent.Ready(uploads, HistoryPaging.Complete)))
+        compose.assertHeldDownWaitsForScroll(TV_HISTORY_LIST_TAG, names.map { hasContentDescription("Open $it") })
     }
 
     @Test

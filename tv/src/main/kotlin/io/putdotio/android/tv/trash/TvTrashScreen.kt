@@ -19,14 +19,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -58,6 +58,8 @@ import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.heldDetail
+import io.putdotio.android.tv.rememberTvHeldDetail
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvLoadFailedState
 import io.putdotio.android.tv.TvPaneFocusOwner
@@ -227,7 +229,10 @@ private fun TvTrashListDetail(
     modifier: Modifier = Modifier,
 ) {
     val loaded = state.content as? TrashContent.Loaded
-    var detailId by rememberSaveable { mutableStateOf(pickedRow.id) }
+    val savedDetailId = rememberSaveable { mutableStateOf(pickedRow.id) }
+    val heldDetail = rememberTvHeldDetail { Snapshot.withoutReadObservation { savedDetailId.value } }
+    val detailId = heldDetail.shown
+    SideEffect { savedDetailId.value = detailId }
     val items = loaded?.items.orEmpty()
     val detailItem = items.firstOrNull { it.id.value == detailId }
         ?: items.firstOrNull { it.id.value == pickedRow.id }
@@ -235,7 +240,7 @@ private fun TvTrashListDetail(
     val panelHeld = remember { mutableStateOf(false) }
     TvTrashDetailLeaves(loaded, detailId, panelHeld, listFocus, focus.list)
     TvListDetail(
-        modifier = modifier,
+        modifier = modifier.heldDetail(heldDetail),
         detailFocus = focus.restore,
         listFocus = focus.list,
         onDetailFocusChanged = { if (it) panelHeld.value = true },
@@ -260,7 +265,7 @@ private fun TvTrashListDetail(
                         if (focused) {
                             panelHeld.value = false
                             pickedRow.pick(item.id.value)
-                            detailId = item.id.value
+                            heldDetail.focus(item.id.value)
                         }
                     },
                     onNextPage = { onEvent(TrashEvent.LoadNextPage) },
