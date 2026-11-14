@@ -44,6 +44,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -147,25 +148,23 @@ class MobilePlaybackPickProofTest {
         check(file.fileType == PutioFileType.VIDEO && file.isMp4Available) { "Precondition: a video with an MP4" }
         check(MobileDownloadStore.peek(context, userId, fileId) == null) { "Precondition: no download row yet" }
         val switched = DataStoreSwitchedToConvertedFiles.get(context)
-        switched.add(fileId.value)
         val directPlay = mobileDirectPlayDownloads(context, session.putioClient)
         val unanswered = CompletableDeferred<DirectPlayDownload?>()
         val asked = CompletableDeferred<Boolean>()
-        var store = MobileDownloadStore(context, userId)
-        var engine = MobileDownloadEngine(context, store, userId, scope)
-        var controller = DownloadsController(
-            store,
-            engine,
-            scope,
-            DownloadSources(
-                setting = { StreamingMethod.Hls },
-                directPlay = { _, _, chosen ->
-                    asked.complete(chosen)
-                    unanswered.await()
-                },
-            ),
-        )
+        var downloads: Downloads? = null
         try {
+            switched.add(fileId.value)
+            val held = Downloads(
+                userId,
+                DownloadSources(
+                    setting = { StreamingMethod.Hls },
+                    directPlay = { _, _, chosen ->
+                        asked.complete(chosen)
+                        unanswered.await()
+                    },
+                ),
+            ).also { downloads = it }
+            val controller = held.controller
             assertTrue(
                 controller.dispatch(
                     DownloadsEvent.Start(
@@ -185,51 +184,62 @@ class MobilePlaybackPickProofTest {
             check(waiting?.artifact == DownloadArtifact.MP4 && waiting.status == DownloadStatus.Queued) {
                 "Precondition: the row waits on its lookup"
             }
-            controller.close()
-            engine.close()
+            downloads = null
+            held.close()
 
             val answers = mutableListOf<Pair<Boolean, DirectPlayDownload?>>()
-            val restarted = MobileDownloadStore(context, userId).also { store = it }
-            engine = MobileDownloadEngine(context, restarted, userId, scope)
-            controller = DownloadsController(
-                restarted,
-                engine,
-                scope,
+            val restarted = Downloads(
+                userId,
                 DownloadSources(
                     setting = { StreamingMethod.Hls },
                     directPlay = { id, subtitles, chosen ->
                         directPlay.resolve(id, subtitles, chosen = chosen).also { answers += chosen to it }
                     },
                 ),
-            )
+            ).also { downloads = it }
             val decided = withTimeout(LOOKUP_MILLIS) {
-                restarted.entries.first { rows ->
-                    answers.isNotEmpty() && rows.firstOrNull { it.fileId == fileId }?.status != DownloadStatus.Queued
-                }.first { it.fileId == fileId }
+                restarted.store.entries.mapNotNull { rows -> rows.firstOrNull { it.fileId == fileId } }
+                    .first { answers.isNotEmpty() && it.status != DownloadStatus.Queued }
             }
             log += "after restart: lookup chosen=${answers.single().first} answer=${answers.single().second?.source}"
             log += "after restart: ${decided.describe()}"
             assertEquals(DirectPlayDownloadSource.Original, answers.single().second?.source)
             assertEquals(DownloadArtifact.ORIGINAL, decided.artifact)
             val done = withTimeout(DOWNLOAD_MILLIS) {
-                restarted.entries.first { rows -> rows.firstOrNull { it.fileId == fileId }?.isCompleted == true }
-                    .first { it.fileId == fileId }
+                restarted.store.entries.mapNotNull { rows -> rows.firstOrNull { it.fileId == fileId } }
+                    .first { it.isCompleted }
             }
             log += "completed: ${done.describe()} original size=${file.size}"
             assertEquals(file.size, (done.status as DownloadStatus.Completed).bytes)
         } finally {
             withContext(NonCancellable) {
                 unanswered.complete(null)
-                controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
-                controller.dispatch(DownloadsEvent.ConfirmRemoval)
-                val removed = withTimeoutOrNull(DOWNLOAD_MILLIS) {
-                    store.entries.first { rows -> rows.none { it.fileId == fileId } }
+                val cleanup = downloads ?: Downloads(userId, DownloadSources(setting = { StreamingMethod.Hls }))
+                try {
+                    cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
+                    cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
+                    val removed = withTimeoutOrNull(DOWNLOAD_MILLIS) {
+                        cleanup.store.entries.first { rows -> rows.none { it.fileId == fileId } }
+                    }
+                    log += "cleanup: download removed=${removed != null}"
+                } finally {
+                    cleanup.close()
+                    forget(switched, fileId.value)
                 }
-                log += "cleanup: download removed=${removed != null}"
-                controller.close()
-                engine.close()
-                forget(switched, fileId.value)
             }
+        }
+    }
+
+    private inner class Downloads(userId: Long, sources: DownloadSources) {
+        val store = MobileDownloadStore(context, userId)
+        private val engine = MobileDownloadEngine(context, store, userId, scope)
+        val controller = runCatching { DownloadsController(store, engine, scope, sources) }
+            .onFailure { engine.close() }
+            .getOrThrow()
+
+        fun close() {
+            controller.close()
+            engine.close()
         }
     }
 
