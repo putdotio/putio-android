@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.test.assertCountEquals
@@ -153,7 +154,7 @@ class MobileLoggedInAppsTest {
             PutioTheme {
                 val scope = rememberCoroutineScope()
                 MobileShell(
-                    filesState = emptyFiles(),
+                    filesStates = rememberUpdatedState(emptyFiles()),
                     loggedInAppsController = remember { repository?.let { LoggedInAppsController(it, scope) } },
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),

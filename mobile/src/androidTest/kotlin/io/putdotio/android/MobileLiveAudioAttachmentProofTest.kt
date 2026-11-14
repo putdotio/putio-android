@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.layout.fillMaxSize
@@ -208,9 +209,9 @@ class MobileLiveAudioAttachmentProofTest {
             PutioTheme {
                 Surface(Modifier.fillMaxSize()) {
                     MobileShell(
-                        filesState = filesBrowserState(listOf(FilesFolderState(
+                        filesStates = rememberUpdatedState(filesBrowserState(listOf(FilesFolderState(
                             FilesFolder.Root, FilesContent.Empty(FilesPaging.Complete),
-                        )), 1),
+                        )), 1)),
                         accountSettingsState = accountSettingsState(
                             AccountSettingsContent.Ready(AccountSettingsPreferences(false, true, false, false)),
                             AccountSettingsMutation.Idle, 1,

@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.content.res.Configuration
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalConfiguration
@@ -190,7 +191,7 @@ class MobileFilesBarsTest {
                 PutioTheme {
                     MobileShell(
                         playbackPlayerFactory = NoAudioSessionFactory,
-                        filesState = files(),
+                        filesStates = rememberUpdatedState(files()),
                         accountSettingsState = settings,
                         appConfigState = readyAndroidAppConfigState(),
                         account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),

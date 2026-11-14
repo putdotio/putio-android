@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -138,13 +139,13 @@ class MobileShellLinkActionsTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
-                    filesState = FilesBrowserReducer.start().state,
+                    filesStates = rememberUpdatedState(FilesBrowserReducer.start().state),
                     downloadsController = controller,
                     deepLinkRequests = links,
                     playbackPlayerFactory = NoAudioSessionFactory,
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = MobileAccount(userId = USER, username = "user", email = "user@example.com"),
                     playbackRepository = recording,
                     sessionId = MobileAuthSessionId(1L),

@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -125,6 +126,7 @@ import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -391,21 +393,23 @@ private fun SignedInMobileSession(
         runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
     )
     val trashState = trashController.state.collectAsStateWithLifecycle()
-    val filesState by filesController.collectStateIgnoringViewports()
+    val filesStates = filesController.collectStateIgnoringViewports()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
     val searchState = searchHistorySession.search.state.collectAsStateWithLifecycle()
     val historyState = searchHistorySession.history.state.collectAsStateWithLifecycle()
     val searchFolderNames = searchHistorySession.folderNames.names.collectAsStateWithLifecycle()
     val folderNameFailure by searchHistorySession.folderNames.authenticationFailure.collectAsStateWithLifecycle()
-    val transfersState by transfersController.state.collectAsStateWithLifecycle()
-    TransfersWidgetEffect(transfersState.content, MobileSessionKey(account.userId, sessionId))
+    val transfersStates = transfersController.state.collectAsStateWithLifecycle()
+    TransfersWidgetEffect(transfersStates, MobileSessionKey(account.userId, sessionId))
     val publicLinksState = publicLinksController?.state?.collectAsStateWithLifecycle()?.value
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
     val recentSearchFailure = searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
-    val listFailure by remember(trashState, searchState, historyState) {
+    val listFailure by remember(filesStates, transfersStates, trashState, searchState, historyState) {
         derivedStateOf {
-            trashState.value.authenticationFailure
+            filesStates.value.authoritativeSessionFailure()
+                ?: trashState.value.authenticationFailure
+                ?: transfersStates.value.authoritativeSessionFailure()
                 ?: searchState.value.authoritativeSessionFailure()
                 ?: historyState.value.authoritativeSessionFailure()
         }
@@ -425,9 +429,7 @@ private fun SignedInMobileSession(
         derivedStateOf { recentSearchFailure.value?.takeIf { it is PutioFailure.AuthenticationRequired } }
     }
     val authoritativeFailure = listOfNotNull(
-        filesState.authoritativeSessionFailure(),
         listFailure,
-        transfersState.authoritativeSessionFailure(),
         publicLinksState?.authenticationFailure,
         recentSearchSessionFailure,
         navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired },
@@ -456,12 +458,12 @@ private fun SignedInMobileSession(
         MobileShell(
             transferDraft = transferDraft,
             trashController = trashController,
-            filesState = filesState,
+            filesStates = filesStates,
             filesRepository = filesRepository,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
             searchHistoryState = searchHistoryState,
-            transfersState = transfersState,
+            transfersStates = transfersStates,
             transfersSessionId = sessionId,
             account = account,
             playbackRepository = playbackRepository,
@@ -739,15 +741,17 @@ internal fun TransfersState.authoritativeSessionFailure(): PutioFailure? =
 
 /** What the Transfers screen reads reaches the home-screen widget without another request. */
 @Composable
-private fun TransfersWidgetEffect(content: TransfersContent, session: MobileSessionKey) {
+private fun TransfersWidgetEffect(states: State<TransfersState>, session: MobileSessionKey) {
     val appContext = LocalContext.current.applicationContext
-    LaunchedEffect(content, session) {
-        val items = when (content) {
-            is TransfersContent.Ready -> content.items
-            TransfersContent.Empty -> emptyList()
-            else -> return@LaunchedEffect
+    LaunchedEffect(states, session) {
+        snapshotFlow { states.value.content }.collectLatest { content ->
+            val items = when (content) {
+                is TransfersContent.Ready -> content.items
+                TransfersContent.Empty -> emptyList()
+                else -> return@collectLatest
+            }
+            MobileWidgets.transfers(appContext).show(session, items)
         }
-        MobileWidgets.transfers(appContext).show(session, items)
     }
 }
 

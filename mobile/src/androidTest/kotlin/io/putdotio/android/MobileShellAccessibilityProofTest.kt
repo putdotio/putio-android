@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.content.Context
 import android.content.res.Configuration
 import android.net.Uri
@@ -147,10 +148,10 @@ class MobileShellAccessibilityProofTest {
                     if (mounted.value) {
                         MobileShell(
                             transferDraft = transferDraft,
-                            filesState = accessibilityFiles(),
+                            filesStates = rememberUpdatedState(accessibilityFiles()),
                             accountSettingsState = accessibilitySettings(),
                             appConfigState = accessibilityAppConfig(),
-                            transfersState = shellTransfers(),
+                            transfersStates = rememberUpdatedState(shellTransfers()),
                             transfersSessionId = MobileAuthSessionId(147),
                             account = MobileAccount(147, "Shell accessibility proof", "proof@example.invalid"),
                             playbackRepository = NoShellProofPlayback,

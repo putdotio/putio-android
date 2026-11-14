@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
@@ -230,7 +231,7 @@ class MobilePublicLinksTest {
             PutioTheme {
                 val scope = rememberCoroutineScope()
                 MobileShell(
-                    filesState = loaded(emptyList()),
+                    filesStates = rememberUpdatedState(loaded(emptyList())),
                     publicLinksController = remember { PublicLinksController(repository, scope) },
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),

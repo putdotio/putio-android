@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.content.ComponentName
 import android.content.Intent
 import androidx.activity.ComponentActivity
@@ -241,7 +242,7 @@ class MobileFilesListDetailTest {
                 Box(Modifier.requiredSize(width = width, height = 800.dp)) {
                     MobileShell(
                         playbackPlayerFactory = NoAudioSessionFactory,
-                        filesState = blueLights(),
+                        filesStates = rememberUpdatedState(blueLights()),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),

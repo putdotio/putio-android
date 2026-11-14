@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.UiAutomation
 import android.content.BroadcastReceiver
@@ -300,7 +301,7 @@ class MobileTabletPowerProofTest {
                 PutioTheme {
                     MobileShell(
                         transferDraft = draft,
-                        filesState = filesState,
+                        filesStates = rememberUpdatedState(filesState),
                         filesRepository = files,
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),

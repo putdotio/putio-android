@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -146,14 +147,14 @@ internal const val MOBILE_PLAYBACK_ROUTE =
 internal fun MobileNavHost(
     transferDraft: MobileTransferDraft,
     navController: NavHostController,
-    filesState: FilesBrowserState,
+    filesStates: State<FilesBrowserState>,
     filesRepository: FilesRepository?,
     trashController: TrashController?,
     trashSelection: TrashSelection,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
     searchHistoryState: MobileSearchHistoryState,
-    transfersState: TransfersState,
+    transfersStates: State<TransfersState>,
     transfersSessionId: MobileAuthSessionId?,
     account: MobileAccount,
     playbackRepository: PlaybackRepository,
@@ -193,7 +194,6 @@ internal fun MobileNavHost(
     filesSelection: FilesSelection? = null,
     accountPanes: MobileAccountPanes? = null,
 ) {
-    val currentTransfersState by rememberUpdatedState(transfersState)
     val currentTransfersSessionId by rememberUpdatedState(transfersSessionId)
     val currentOnTransfersEvent by rememberUpdatedState(onTransfersEvent)
     val appContext = LocalContext.current.applicationContext
@@ -299,7 +299,7 @@ internal fun MobileNavHost(
                         val startedVideos = continueWatching?.entries?.collectAsStateWithLifecycle()?.value
                         val pinnedItems = pinnedFiles?.items?.collectAsStateWithLifecycle()?.value
                         MobileFilesRoute(
-                            state = filesState,
+                            state = filesStates.value,
                             repository = filesRepository,
                             onEvent = onFilesEvent,
                             onPlayMedia = navController::navigateToPlayback,
@@ -340,7 +340,7 @@ internal fun MobileNavHost(
                     TransfersVisibilityEffect(currentTransfersSessionId, eventHandler)
                     MobileTransfersScreen(
                         draft = transferDraft,
-                        state = currentTransfersState,
+                        state = transfersStates.value,
                         onEvent = eventHandler,
                         sessionId = currentTransfersSessionId,
                         filesRepository = filesRepository,

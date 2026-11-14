@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.runtime.SideEffect
@@ -240,7 +241,7 @@ class MobileFilesSelectionTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = folderState(),
+                    filesStates = rememberUpdatedState(folderState()),
                     accountSettingsState = readyAccountSettingsState(
                         DefaultAccountSettingsPreferences.copy(trashEnabled = trashEnabled),
                     ),

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -11,6 +12,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
@@ -30,6 +32,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 internal const val MOBILE_FILES_SELECTION_BAR_TAG = "mobile-files-selection-bar"
 internal const val MOBILE_FILES_SELECTION_TOOLBAR_TAG = "mobile-files-selection-toolbar"
@@ -52,10 +55,6 @@ internal class FilesSelection(
 
     fun isActive(state: FilesBrowserState): Boolean =
         scope == state.selectionScope() && selection.isActive(state.selectableIds())
-
-    /** Whether the selection is on screen: Files is the tab, and Search doesn't cover it. */
-    fun isShown(state: FilesBrowserState, onFiles: Boolean, searchOpen: Boolean): Boolean =
-        onFiles && !searchOpen && isActive(state)
 
     /** The selected rows, in the listing's order. */
     fun selected(state: FilesBrowserState): List<FilesItem> {
@@ -139,10 +138,14 @@ private fun FilesBrowserState.selectableIds(): Set<Long> =
 
 /** The session's Files selection, kept in step with the folder on screen and its rows. */
 @Composable
-internal fun rememberFilesSelection(key: Any?, state: FilesBrowserState): FilesSelection {
+internal fun rememberFilesSelection(key: Any?, states: State<FilesBrowserState>): FilesSelection {
     val selection = rememberSaveable(key, saver = FilesSelection.Saver) { FilesSelection() }
-    LaunchedEffect(selection, state.stack.size, state.current.folder.id, state.current.content) {
-        selection.reconcile(state)
+    LaunchedEffect(selection, states) {
+        snapshotFlow { states.value }
+            .distinctUntilChanged { old, new ->
+                old.selectionScope() == new.selectionScope() && old.current.content == new.current.content
+            }
+            .collect(selection::reconcile)
     }
     return selection
 }
