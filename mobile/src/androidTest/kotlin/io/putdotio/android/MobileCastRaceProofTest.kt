@@ -275,6 +275,7 @@ class MobileCastRaceProofTest {
                 check(receiver in joined.deviceName) {
                     "Connected to \"${joined.deviceName}\", not the selected ${target.name}"
                 }
+                return onMain { checkNotNull(events.starting) }
             } catch (error: Throwable) {
                 cleanUp(error, {
                     disconnect(cast) {
@@ -284,7 +285,6 @@ class MobileCastRaceProofTest {
                 })
                 throw error
             }
-            return onMain { checkNotNull(events.started) }
         } finally {
             onMain {
                 sessions.removeSessionManagerListener(events, CastSession::class.java)
