@@ -35,9 +35,13 @@ internal class MobileRowText<T : Any, V>(
     operator fun get(item: T): V {
         prepared.intValue
         val key = key(item)
-        val entry = entries[key]
-        if (entry != null && entry.item == item) return entry.value
+        entries[key]?.takeIf { it.item == item }?.let { return it.value }
         waiting += key
+        val entry = entries[key]
+        if (entry != null && entry.item == item) {
+            waiting -= key
+            return entry.value
+        }
         return entry?.value ?: placeholder
     }
 
