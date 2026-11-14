@@ -81,9 +81,9 @@ import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.ROW_BLEED
-import io.putdotio.android.tv.TvHeldDetail
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.heldDetail
+import io.putdotio.android.tv.rememberTvHeldDetail
 import io.putdotio.android.tv.TvMiddleCutText
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TvFocusHandBack
@@ -231,7 +231,7 @@ internal fun TvFilesScreen(
     val emptyFocus = remember { FocusRequester() }
     entryTarget.value = content.paneEntryTarget(skeletonFocus, retryFocus, pagingFocus, emptyFocus, listEntry)
     val folderId = current.folder.id.value
-    val detailRow = remember(sessionKey, folderId) { TvHeldDetail(focusMemory[folderId]) }
+    val detailRow = rememberTvHeldDetail(sessionKey, folderId) { focusMemory[folderId] }
     val detailItem = content.detailItem(detailRow.shown, focusMemory[folderId])
     val detailFocus = remember { TvFilesDetailFocus() }
     val listing = rememberTvFilesListing(current)
@@ -326,6 +326,7 @@ internal fun TvFilesScreen(
                             detailOwnsFocus = detailFocus.owns,
                             skeletonFocus = skeletonFocus,
                             downToUndo = downToUndo,
+                            keyHeld = detailRow.held,
                             onEntryTarget = { listEntry.value = it },
                             rowsShowFocus = !centredDialogOpen,
                             modifier = Modifier.weight(1f),
@@ -556,6 +557,7 @@ private fun TvFilesRows(
     detailOwnsFocus: State<Boolean>,
     skeletonFocus: FocusRequester,
     downToUndo: FocusRequester?,
+    keyHeld: State<Boolean>,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
@@ -575,6 +577,7 @@ private fun TvFilesRows(
             headerHasFocus = headerHasFocus,
             detailOwnsFocus = detailOwnsFocus,
             downFromLast = downToUndo,
+            keyHeld = keyHeld,
             onEntryTarget = onEntryTarget,
             modifier = modifier,
             onEvent = onEvent,

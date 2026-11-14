@@ -55,9 +55,9 @@ import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.TvEmptyState
-import io.putdotio.android.tv.TvHeldDetail
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.heldDetail
+import io.putdotio.android.tv.rememberTvHeldDetail
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvLoadFailedState
@@ -242,7 +242,7 @@ private fun TvHistoryListDetail(
     val restoreRowId = remember { pickedRow.id }
     val today = remember(content.items) { LocalDate.now(clock) }
     val openFocus = remember { FocusRequester() }
-    val detailRow = remember { TvHeldDetail(restoreRowId) }
+    val detailRow = rememberTvHeldDetail { restoreRowId }
     val detailItem = content.items.firstOrNull { it.id.value == detailRow.shown } ?: content.items.first()
     val detailFileId = detailItem.kind.navigableFileId()
     val lookup = rememberTvHistoryLookup(detailFileId, files, onAuthenticationRequired)

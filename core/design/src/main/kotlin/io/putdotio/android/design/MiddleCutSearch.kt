@@ -1,5 +1,6 @@
 package io.putdotio.android.design
 
+import java.text.Bidi
 import java.text.BreakIterator
 import kotlin.math.abs
 
@@ -17,7 +18,8 @@ internal class MiddleCutLayout(val width: Int, val ellipsisWidth: Float, val off
 internal fun middleCut(text: String, maxWidth: Int, layout: MiddleCutLayout, widthOf: (String) -> Int): String {
     if (maxWidth !in 1 until Int.MAX_VALUE || layout.width <= maxWidth) return text
     val fits = { cut: String -> widthOf(cut) <= maxWidth }
-    return pricedCut(text, maxWidth, layout)?.tries(text)?.firstOrNull(fits) ?: middleCutWhere(text, maxWidth, fits)
+    val priced = if (Bidi.requiresBidi(text.toCharArray(), 0, text.length)) null else pricedCut(text, maxWidth, layout)
+    return priced?.tries(text)?.firstOrNull(fits) ?: middleCutWhere(text, maxWidth, fits)
 }
 
 /** [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. */
@@ -83,14 +85,5 @@ private fun longestFit(
     return cut(starts[low])
 }
 
-internal class BoundedCache<K : Any, V : Any>(private val capacity: Int) {
-    private val entries = object : LinkedHashMap<K, V>(capacity, LOAD_FACTOR, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>?): Boolean = size > capacity
-    }
-
-    fun getOrPut(key: K, compute: () -> V): V = entries[key] ?: compute().also { entries[key] = it }
-}
-
 internal const val ELLIPSIS = "…"
 private const val PRICED_TRIES = 3
-private const val LOAD_FACTOR = 0.75f

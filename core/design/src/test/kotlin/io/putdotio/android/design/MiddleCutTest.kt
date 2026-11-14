@@ -51,6 +51,18 @@ class MiddleCutTest {
         }
     }
 
+    @Test
+    fun aMixedDirectionNameKeepsTheMeasuredCut() {
+        val name = "abcdefghij" + "אבגדהוזחטיכלמנסעפצקר" + ".mp4"
+        val rtl = 10 until 30
+        val layout = MiddleCutLayout(name.length, ellipsisWidth = 1f) { offset ->
+            (if (offset in rtl) rtl.first + rtl.last + 1 - offset else offset).toFloat()
+        }
+        for (budget in 1..name.length) {
+            assertEquals("width $budget", middleCut(name, budget, width), middleCut(name, budget, layout, width))
+        }
+    }
+
     private fun String.pairedAt(index: Int): Boolean = when {
         this[index].isHighSurrogate() -> index + 1 < length && this[index + 1].isLowSurrogate()
         this[index].isLowSurrogate() -> index > 0 && this[index - 1].isHighSurrogate()
