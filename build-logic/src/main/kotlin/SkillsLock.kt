@@ -16,11 +16,11 @@ object SkillsLock {
     const val LINKS_PATH = ".claude/skills"
 
     fun check(root: File, trackedFiles: List<String>) {
-        fail(lockProblems(root, trackedFiles))
+        fail(lockProblems(root, trackedFiles), "Skills do not match $LOCK_PATH", LOCK_FIX)
     }
 
     fun checkLinks(root: File) {
-        fail(linkProblems(root))
+        fail(linkProblems(root), "Skills are not linked from $LINKS_PATH", LINK_FIX)
     }
 
     fun folderHash(files: Map<String, ByteArray>): String {
@@ -38,10 +38,10 @@ object SkillsLock {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun fail(problems: List<String>) {
+    private fun fail(problems: List<String>, heading: String, fix: String) {
         if (problems.isNotEmpty()) {
             throw GradleException(
-                problems.joinToString("\n", prefix = "Skills do not match $LOCK_PATH:\n", postfix = "\n$FIX") { "- $it" },
+                problems.joinToString("\n", prefix = "$heading:\n", postfix = "\n$fix") { "- $it" },
             )
         }
     }
@@ -104,5 +104,6 @@ object SkillsLock {
     private const val FINDER_METADATA = ".DS_Store"
     private val EXCLUDED_FILES = setOf("metadata.json")
     private val EXCLUDED_DIRS = setOf(".git", "__pycache__", "__pypackages__")
-    private const val FIX = "Run `npx skills@latest update -p` for a pinned skill, or link a repo skill from $LINKS_PATH."
+    private const val LOCK_FIX = "Run `npx skills@latest update -p`, then commit the skill files it writes."
+    private const val LINK_FIX = "Link each skill as $LINKS_PATH/<name> -> ../../$SKILLS_PATH/<name>."
 }

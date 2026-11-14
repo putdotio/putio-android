@@ -37,7 +37,7 @@ class SkillsLockTest {
         lockedSkill()
         root.resolve(".agents/skills/demo/scripts/__pycache__/run.cpython-313.pyc").apply { parentFile.mkdirs() }.writeText("pyc")
         root.resolve(".agents/skills/demo/.DS_Store").writeText("finder")
-        tracked += ".agents/skills/demo/.DS_Store"
+        tracked += listOf(".agents/skills/demo/.DS_Store", ".agents/skills/demo/scripts/__pycache__/run.cpython-313.pyc")
         root.resolve(".claude/skills/.DS_Store").writeText("finder")
         check()
     }
