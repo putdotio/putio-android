@@ -18,6 +18,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -30,6 +31,12 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
@@ -70,6 +77,9 @@ internal fun TvFilesList(
     val rowsHoldFocus = remember(listState) { mutableStateOf(false) }
     listState.KeepTopWhenRowsArriveAbove(content.items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
     val currentOnEvent by rememberUpdatedState(onEvent)
+    val currentOnOpen by rememberUpdatedState(onOpen)
+    val currentOnActions by rememberUpdatedState(onActions)
+    val currentOnRowFocused by rememberUpdatedState(onRowFocused)
     val remembered = focusMemory[folderId]
     val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging is FilesPaging.Failed
     val rowFocus = remember(listState) { FocusRequester() }
@@ -112,6 +122,8 @@ internal fun TvFilesList(
     // first time in. The row is scrolled into view first, since a lazy row that is not
     // composed has no focus requester to answer.
     val focusTarget = content.mountFocusTarget(remembered)
+    val rowFocusTarget = remember(listState) { mutableLongStateOf(focusTarget) }
+    SideEffect { rowFocusTarget.longValue = focusTarget }
     // After the rows change under a mounted list, keep the row that had focus composed, or the
     // fallback target when that row is gone: the panel's Left and the pane's enter redirect
     // land on it. Focus itself moves only if a row held it.
@@ -168,6 +180,7 @@ internal fun TvFilesList(
             modifier = modifier
                 .fillMaxWidth()
                 .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
+                .onPreviewKeyEvent { it.outrunsScroll(listState, focusedRowId.value, pagingHeldFocus.value) }
                 .focusRestorer(entryFocus)
                 .focusGroup()
                 .testTag(TV_FILES_LIST_TAG),
@@ -176,22 +189,25 @@ internal fun TvFilesList(
                 val holdsLiveFocus by remember(focusedRowId, item.id.value) {
                     derivedStateOf { focusedRowId.value == item.id.value }
                 }
+                val takesRowFocus by remember(rowFocusTarget, item.id.value) {
+                    derivedStateOf { rowFocusTarget.longValue == item.id.value }
+                }
                 TvFilesRow(
                     item = item,
-                    onClick = { onOpen(item) },
-                    onActions = { onActions(item) },
+                    onClick = { currentOnOpen(item) },
+                    onActions = { currentOnActions(item) },
                     showsFocus = rowsShowFocus,
                     modifier = Modifier
                         .downTo(downFromLast.takeIf { item.id == lastRowId })
                         .holdAtPendingEnd(item.id == pendingEndId)
-                        .focusRequesterIf(item.id.value == focusTarget, rowFocus)
+                        .focusRequesterIf(takesRowFocus, rowFocus)
                         .focusRequesterIf(holdsLiveFocus, liveRowFocus)
                         .onFocusChanged {
                             if (it.isFocused) {
                                 focusMemory[folderId] = item.id.value
                                 focusedRowId.value = item.id.value
                                 pagingHeldFocus.value = false
-                                onRowFocused(item)
+                                currentOnRowFocused(item)
                             }
                         },
                 )
@@ -216,6 +232,15 @@ internal fun TvFilesList(
             }
         }
     }
+}
+
+private fun KeyEvent.outrunsScroll(list: LazyListState, focusedRow: Long?, pagingHeld: Boolean): Boolean {
+    val heldUpOrDown = type == KeyEventType.KeyDown && nativeKeyEvent.repeatCount > 0 &&
+        (key == Key.DirectionDown || key == Key.DirectionUp)
+    if (focusedRow == null || pagingHeld || !heldUpOrDown) return false
+    val layout = list.layoutInfo
+    val row = layout.visibleItemsInfo.firstOrNull { it.key == focusedRow }
+    return row == null || row.offset < layout.viewportStartOffset || row.offset + row.size > layout.viewportEndOffset
 }
 
 private fun Modifier.downTo(target: FocusRequester?): Modifier =
