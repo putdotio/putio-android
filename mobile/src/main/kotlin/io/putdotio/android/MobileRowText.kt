@@ -3,6 +3,7 @@ package io.putdotio.android
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import java.util.concurrent.ConcurrentHashMap
@@ -26,13 +27,17 @@ internal class MobileRowText<T : Any, V>(
     @Volatile
     private var refresh: Any? = null
 
+    private val refreshed = mutableIntStateOf(0)
+
     operator fun get(item: T): V {
+        refreshed.intValue
         val entry = entries[key(item)]
         if (entry != null && entry.item == item) return entry.value
         return build(item).also { entries[key(item)] = Entry(item, it, refresh) }
     }
 
     suspend fun prepare(items: List<T>, refresh: Any?) {
+        val newRefresh = refresh != this.refresh
         this.refresh = refresh
         val known = entries
         val prepared = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
@@ -43,6 +48,7 @@ internal class MobileRowText<T : Any, V>(
         }
         currentCoroutineContext().ensureActive()
         entries = prepared
+        if (newRefresh) refreshed.intValue++
     }
 }
 
