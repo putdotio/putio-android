@@ -2,6 +2,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
 import java.security.MessageDigest
+import java.util.Arrays
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -26,7 +27,7 @@ object SkillsLock {
         val digest = MessageDigest.getInstance("SHA-256")
         files.filterKeys { !isExcluded(it) }
             .map { (path, content) -> path.toByteArray() to normalizeLineEndings(content) }
-            .sortedWith { a, b -> compareBytes(a.first, b.first) }
+            .sortedWith { a, b -> Arrays.compareUnsigned(a.first, b.first) }
             .forEach { (path, content) ->
                 digest.update(path)
                 digest.update(0)
@@ -57,11 +58,6 @@ object SkillsLock {
             if (byte != CR || content.getOrNull(index + 1) != LF) normalized.write(byte.toInt())
         }
         return normalized.toByteArray()
-    }
-
-    private fun compareBytes(a: ByteArray, b: ByteArray): Int {
-        a.zip(b).forEach { (x, y) -> (x.toInt() and 0xff).compareTo(y.toInt() and 0xff).takeIf { it != 0 }?.let { return it } }
-        return a.size.compareTo(b.size)
     }
 
     private fun lockProblems(root: File, trackedFiles: List<String>): List<String> {
