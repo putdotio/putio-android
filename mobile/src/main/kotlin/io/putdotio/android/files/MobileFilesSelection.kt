@@ -30,9 +30,9 @@ import io.putdotio.android.MobileSelectionToolbarOffset
 import io.putdotio.android.MobileToolbarTile
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
-import kotlinx.coroutines.flow.distinctUntilChanged
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsState
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 internal const val MOBILE_FILES_SELECTION_BAR_TAG = "mobile-files-selection-bar"
 internal const val MOBILE_FILES_SELECTION_TOOLBAR_TAG = "mobile-files-selection-toolbar"
@@ -55,10 +55,6 @@ internal class FilesSelection(
 
     fun isActive(state: FilesBrowserState): Boolean =
         scope == state.selectionScope() && selection.isActive(state.selectableIds())
-
-    /** Whether the selection is on screen: Files is the tab, and Search doesn't cover it. */
-    fun isShown(state: FilesBrowserState, onFiles: Boolean, searchOpen: Boolean): Boolean =
-        onFiles && !searchOpen && isActive(state)
 
     /** The selected rows, in the listing's order. */
     fun selected(state: FilesBrowserState): List<FilesItem> {
@@ -147,8 +143,7 @@ internal fun rememberFilesSelection(key: Any?, states: State<FilesBrowserState>)
     LaunchedEffect(selection, states) {
         snapshotFlow { states.value }
             .distinctUntilChanged { old, new ->
-                old.stack.size == new.stack.size && old.current.folder.id == new.current.folder.id &&
-                    old.current.content === new.current.content
+                old.selectionScope() == new.selectionScope() && old.current.content == new.current.content
             }
             .collect(selection::reconcile)
     }

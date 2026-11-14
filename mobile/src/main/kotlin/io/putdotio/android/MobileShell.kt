@@ -860,7 +860,12 @@ private fun StaleFilesReloadEffect(
     val reload by remember(filesStates) {
         derivedStateOf {
             val current = filesStates.value.current
-            StaleFilesReload(current.folder.id, current.needsReload, current.operation, current.content is FilesContent.Loading)
+            StaleFilesReload(
+                current.folder.id,
+                current.needsReload,
+                current.operation,
+                current.content is FilesContent.Loading,
+            )
         }
     }
     LaunchedEffect(selectedDestination, isTrash, reload) {
