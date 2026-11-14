@@ -27,15 +27,15 @@ internal fun FilesContent.viewport(): FilesViewportPosition =
         -> FilesViewportPosition()
     }
 
-public fun FilesBrowserState.sameExceptViewports(other: FilesBrowserState): Boolean =
-    this == other || withoutViewports() == other.withoutViewports()
-
-private fun FilesBrowserState.withoutViewports(): FilesBrowserState =
-    copy(
-        stack = stack.map { folder ->
-            folder.copy(content = folder.content.withViewport(NO_VIEWPORT) ?: folder.content)
-        },
-    )
+public fun FilesBrowserState.sameExceptViewports(other: FilesBrowserState): Boolean {
+    fun FilesBrowserState.withoutViewports() =
+        copy(
+            stack = stack.map { folder ->
+                folder.copy(content = folder.content.withViewport(NO_VIEWPORT) ?: folder.content)
+            },
+        )
+    return this == other || withoutViewports() == other.withoutViewports()
+}
 
 private val NO_VIEWPORT = FilesViewportPosition()
 
