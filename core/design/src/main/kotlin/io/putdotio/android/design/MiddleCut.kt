@@ -119,7 +119,11 @@ private class MiddleCutTextNode(
     }
 
     override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
-        if (constraints.maxWidth != cutWidth) {
+        val fittedFor = fitted?.layoutInput
+        val scopeChanged = fittedFor != null &&
+            (fittedFor.density.density != density || fittedFor.density.fontScale != fontScale ||
+                fittedFor.layoutDirection != layoutDirection)
+        if (constraints.maxWidth != cutWidth || scopeChanged) {
             val fit = fit(constraints.maxWidth)
             shown = fit.text
             fitted = fit.layout

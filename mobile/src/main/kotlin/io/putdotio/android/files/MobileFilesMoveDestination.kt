@@ -378,7 +378,7 @@ private fun MobileMoveFolderContent(
         context,
         LocalConfiguration.current.locales,
         key = { it.id.value },
-    ) { folder -> folder.createdAt.toDisplayDate(context).orEmpty() }
+    ) { folder -> folder.createdAt.toDisplayDate(context) }
     LazyColumn(state = listState, modifier = listModifier.fillMaxWidth()) {
         when (content) {
             is FilesContent.Loading -> item(contentType = "loading") {
@@ -419,7 +419,7 @@ private fun MobileMoveFolderContent(
                     MobileRow(
                         leading = { FileTypeIcon(PutioFileType.FOLDER, Modifier.size(FOLDER_ICON_SIZE)) },
                         headline = { MobileMiddleCutText(folder.name) },
-                        meta = date.takeIf { it.isNotEmpty() }?.let { { Text(it, maxLines = 1) } },
+                        meta = date?.let { { Text(it, maxLines = 1) } },
                         trailing = {
                             Icon(
                                 painterResource(R.drawable.ic_ph_caret_right),

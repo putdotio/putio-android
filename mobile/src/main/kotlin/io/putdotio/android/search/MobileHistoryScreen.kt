@@ -1,6 +1,7 @@
 package io.putdotio.android.search
 
 import android.content.Context
+import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.clickable
@@ -374,7 +375,8 @@ private data class HistoryRowText(val title: String, val kind: String?, val time
 private fun rememberHistoryRowText(items: List<HistoryItem>): MobileRowText<HistoryItem, HistoryRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
-    return rememberRowText(items, context, locales, key = { it.id.value }) { item ->
+    val hours24 = DateFormat.is24HourFormat(context)
+    return rememberRowText(items, context, locales, ZoneId.systemDefault(), hours24, key = { it.id.value }) { item ->
         HistoryRowText(
             title = item.title(context),
             kind = item.kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },

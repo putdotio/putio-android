@@ -7,12 +7,14 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 @Stable
-internal class MobileRowText<T : Any, V : Any>(
+internal class MobileRowText<T : Any, V>(
     private val key: (T) -> Any,
     private val build: (T) -> V,
 ) {
@@ -21,25 +23,31 @@ internal class MobileRowText<T : Any, V : Any>(
     @Volatile
     private var entries = ConcurrentHashMap<Any, Entry<T, V>>()
 
+    @Volatile
+    private var refresh: Any? = null
+
     operator fun get(item: T): V {
         val entry = entries[key(item)]
         if (entry != null && entry.item == item) return entry.value
-        return build(item).also { entries[key(item)] = Entry(item, it, refresh = null) }
+        return build(item).also { entries[key(item)] = Entry(item, it, refresh) }
     }
 
-    fun prepare(items: List<T>, refresh: Any?) {
+    suspend fun prepare(items: List<T>, refresh: Any?) {
+        this.refresh = refresh
         val known = entries
         val prepared = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
         items.forEach { item ->
+            currentCoroutineContext().ensureActive()
             prepared[key(item)] = known[key(item)]?.takeIf { it.item == item && it.refresh == refresh }
                 ?: Entry(item, build(item), refresh)
         }
+        currentCoroutineContext().ensureActive()
         entries = prepared
     }
 }
 
 @Composable
-internal fun <T : Any, V : Any> rememberRowText(
+internal fun <T : Any, V> rememberRowText(
     items: List<T>,
     vararg inputs: Any?,
     key: (T) -> Any,
