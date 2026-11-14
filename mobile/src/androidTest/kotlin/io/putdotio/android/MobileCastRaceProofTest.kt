@@ -148,7 +148,7 @@ class MobileCastRaceProofTest {
     }
 
     @Test
-    fun aLocalNetworkAnswerAfterTheControlsHideStillOpensTheCastPicker() = proof("local-network-answer") {
+    fun aLocalNetworkAnswerAfterTheControlsHideOpensTheCastPickerWithTheReceiver() = proof("local-network-answer") {
         val video = argument("video").toLong()
         val receiver = argument("receiver")
         shell(
@@ -199,6 +199,7 @@ class MobileCastRaceProofTest {
             note("picker lists $receiver=$listed")
             screenshot("05-picker")
             assertTrue("The Cast picker never opened", pickerOpened)
+            assertTrue("The Cast picker never listed $receiver", listed)
         } finally {
             onMain { mainActivity().finish() }
         }
@@ -388,7 +389,7 @@ class MobileCastRaceProofTest {
         const val PROMPT_MILLIS = 15_000L
         const val PICKER_MILLIS = 10_000L
         const val CONTROLS_HIDE_WAIT_MILLIS = 15_000L
-        const val PICKER_LIST_MILLIS = 15_000L
+        const val PICKER_LIST_MILLIS = 5_000L
         const val REVEAL_MILLIS = 1_500L
         const val MULTI_WINDOW = 6
         const val RECEIVER_MILLIS = 45_000L
