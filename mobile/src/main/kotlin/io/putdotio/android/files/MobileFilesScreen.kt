@@ -42,6 +42,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -371,7 +372,7 @@ private fun MobileRefreshableFilesContent(
 
     var toolbarHeight by remember { mutableIntStateOf(0) }
     val toolbarClearance = selectionToolbarClearance(toolbarHeight)
-    val listRest = remember { FilesListRest() }
+    val latestViewports = LocalMobileFilesViewports.current
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
@@ -432,12 +433,8 @@ private fun MobileRefreshableFilesContent(
                         ) {
                             MobileFilesList(
                                 content = content,
-                                rest = listRest.at(
-                                    state.stack.size,
-                                    state.current.viewportGeneration,
-                                    reported = content.viewport,
-                                    revealing = state.current.revealItemId != null,
-                                ),
+                                viewport = latestViewports.latest(state.stack.size, state.current.folder.id)
+                                    ?: content.viewport,
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
@@ -955,7 +952,7 @@ private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
 @Composable
 private fun MobileFilesList(
     content: FilesContent.Ready,
-    rest: FilesListRest.At,
+    viewport: FilesViewportPosition,
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
     onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
@@ -976,7 +973,6 @@ private fun MobileFilesList(
     /** Long-press starts selection with the row; null leaves long-press opening the row's actions. */
     onStartSelection: ((FilesItem) -> Unit)? = null,
 ) {
-    val viewport = rest.initial
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
     val headerCount = headers.itemCount
     // A revealed row, the first included, scrolls past the headers to sit at the top.
@@ -993,7 +989,7 @@ private fun MobileFilesList(
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
-        // rebuild FilesBrowserState and recompose the whole signed-in tree.
+        // rebuild FilesBrowserState on every frame.
         snapshotFlow {
             if (listState.isScrollInProgress) {
                 null
@@ -1008,10 +1004,7 @@ private fun MobileFilesList(
             .filterNotNull()
             .drop(1)
             .distinctUntilChanged()
-            .collect {
-                rest.record(it)
-                currentOnEvent(FilesBrowserEvent.ViewportChanged(it))
-            }
+            .collect { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
     }
 
     LoadNextPageNearEnd(
@@ -1078,22 +1071,11 @@ private fun MobileFilesList(
     }
 }
 
-internal class FilesListRest {
-    private var depth = -1
-    private var generation = -1L
-    private var position: FilesViewportPosition? = null
-
-    fun at(depth: Int, generation: Long, reported: FilesViewportPosition, revealing: Boolean): At {
-        val kept = position?.takeIf { !revealing && depth == this.depth && generation == this.generation }
-        return At(kept ?: reported) { rested ->
-            this.depth = depth
-            this.generation = generation
-            position = rested
-        }
-    }
-
-    class At(val initial: FilesViewportPosition, val record: (FilesViewportPosition) -> Unit)
+internal fun interface MobileFilesViewports {
+    fun latest(depth: Int, folderId: FilesItemId): FilesViewportPosition?
 }
+
+internal val LocalMobileFilesViewports = staticCompositionLocalOf { MobileFilesViewports { _, _ -> null } }
 
 /** A folder opens; a file goes to [MobileFilesOpening] when there is one, else only media plays. */
 private fun rowClick(

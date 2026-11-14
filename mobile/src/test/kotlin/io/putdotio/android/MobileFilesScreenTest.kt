@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -78,7 +79,9 @@ import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_FAILED_TAG
 import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_RING_TAG
 import io.putdotio.android.files.MobileFilesActions
 import io.putdotio.android.files.MobileFilesRow
+import io.putdotio.android.files.LocalMobileFilesViewports
 import io.putdotio.android.files.MobileFilesScreen
+import io.putdotio.android.files.MobileFilesViewports
 import io.putdotio.android.downloads.DownloadFailureReason
 import io.putdotio.android.downloads.DownloadPauseReason
 import io.putdotio.android.downloads.DownloadStatus
@@ -594,21 +597,26 @@ class MobileFilesListTest {
     }
 
     @Test
-    fun aGrownHeaderKeepsTheRestTheStateHasNotCaughtUpWith() {
+    fun aListRebuiltBeforeItsStateCatchesUpStartsWhereItRested() {
         val items = (0L until 60L).map { index -> filesItem(id = index + 1L, name = "file-$index.txt") }
         val state = browserState(FilesContent.Ready(items = items, paging = FilesPaging.Complete))
-        val events = mutableListOf<FilesBrowserEvent>()
+        var rested: FilesViewportPosition? = null
         var pinned by mutableStateOf(emptyList<FilesItem>())
         compose.setContent {
             PutioTheme {
-                MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {}, pinned = pinned)
+                CompositionLocalProvider(LocalMobileFilesViewports provides MobileFilesViewports { _, _ -> rested }) {
+                    MobileFilesScreen(
+                        state = state,
+                        onEvent = { event -> if (event is FilesBrowserEvent.ViewportChanged) rested = event.position },
+                        onPlayMedia = {},
+                        pinned = pinned,
+                    )
+                }
             }
         }
 
         compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(40)
-        compose.waitUntil(timeoutMillis = 5_000L) {
-            events.filterIsInstance<FilesBrowserEvent.ViewportChanged>().any { it.position.firstVisibleItemIndex == 40 }
-        }
+        compose.waitUntil(timeoutMillis = 5_000L) { rested?.firstVisibleItemIndex == 40 }
         compose.runOnIdle { pinned = listOf(filesItem(id = 900L, name = "pinned.txt")) }
 
         compose.onNodeWithText("file-40.txt").assertIsDisplayed()

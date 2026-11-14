@@ -28,16 +28,15 @@ internal fun FilesContent.viewport(): FilesViewportPosition =
     }
 
 public fun FilesBrowserState.sameExceptViewports(other: FilesBrowserState): Boolean {
-    fun FilesBrowserState.withoutViewports() =
-        copy(
-            stack = stack.map { folder ->
-                folder.copy(content = folder.content.withViewport(NO_VIEWPORT) ?: folder.content)
-            },
-        )
-    return this == other || withoutViewports() == other.withoutViewports()
+    fun FilesFolderState.sameExceptViewport(other: FilesFolderState): Boolean {
+        val viewport = other.content.viewport()
+        return this == other || copy(content = content.withViewport(viewport) ?: content) == other
+    }
+    return this == other ||
+        stack.size == other.stack.size &&
+        stack.indices.all { stack[it].sameExceptViewport(other.stack[it]) } &&
+        copy(stack = other.stack) == other
 }
-
-private val NO_VIEWPORT = FilesViewportPosition()
 
 internal fun FilesContent.withPaging(paging: FilesPaging): FilesContent? =
     when (this) {
