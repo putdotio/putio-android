@@ -60,6 +60,12 @@ val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
     commandLine(bash, "scripts/test-sign-in.sh")
 }
 
+val testBaselineProfileHarness = tasks.register<Exec>("testBaselineProfileHarness") {
+    description = "Run the TV baseline profile script's contract tests"
+    cacheableCheck()
+    commandLine(bash, "scripts/test-baseline-profile.sh")
+}
+
 val phosphorLock = layout.projectDirectory.file("design/phosphor-icons.lock.json")
 val phosphorDrawables = fileTree(".") {
     include(PhosphorIcons.DRAWABLE_PATTERNS)
@@ -187,6 +193,7 @@ val verifyScripts = verifyLane(
     checkDataSafety,
     checkDesignAssets,
     checkIcons,
+    testBaselineProfileHarness,
     testEmulatorHarness,
     testEvidence,
     testSignInHarness,

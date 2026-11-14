@@ -71,11 +71,12 @@ approve() {
 }
 
 adb_ logcat -c
+build_log="" sign_outs=""
+trap 'kill $(jobs -pr) 2>/dev/null || true; rm -f ${build_log:+"${build_log}"} ${sign_outs:+"${sign_outs}"}' EXIT
 build_log="$(mktemp)"
+sign_outs="$(mktemp)"
 ANDROID_SERIAL="${serial}" ./gradlew -q -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :tv:generateBaselineProfile >"${build_log}" 2>&1 &
 gradle_pid=$!
-sign_outs="$(mktemp)"
-trap 'kill "${gradle_pid}" 2>/dev/null; rm -f "${build_log}" "${sign_outs}"' EXIT
 
 poll() {
   local lines
