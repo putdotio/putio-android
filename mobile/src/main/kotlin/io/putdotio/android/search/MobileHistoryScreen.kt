@@ -184,6 +184,7 @@ private fun MobileHistoryList(
         content.items.groupBy { item -> item.localDate(zone)?.let { it to null } ?: (null to item.createdAt) }
     }
     val rowText = rememberHistoryRowText(content.items)
+    val dayLabels = rememberDayLabels(today, zone)
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(
         listState = listState,
@@ -197,7 +198,7 @@ private fun MobileHistoryList(
             val isFirst = first
             first = false
             item(key = date?.let { "date-$it" } ?: "raw-$raw", contentType = "day") {
-                MobileSectionLabel(historyDateLabel(date, today, raw.orEmpty()), first = isFirst)
+                MobileSectionLabel(date?.let(dayLabels::get) ?: raw.orEmpty(), first = isFirst)
             }
             items(events, key = { it.id.value }, contentType = { "row" }) { item ->
                 MobileHistoryRow(item, rowText[item], onEvent)
@@ -353,20 +354,28 @@ private fun HistoryItem.localDate(zone: ZoneId): LocalDate? =
     parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate()
 
 /** Today, Yesterday, then the date in words, with the year only when it is not this one. */
-@Composable
-private fun historyDateLabel(date: LocalDate?, today: LocalDate, raw: String): String {
-    val context = LocalContext.current
-    return when (date) {
-        null -> raw
-        today -> stringResource(R.string.mobile_history_today)
-        today.minusDays(1) -> stringResource(R.string.mobile_history_yesterday)
-        else -> DateUtils.formatDateTime(
-            context,
-            date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or
-                if (date.year == today.year) DateUtils.FORMAT_NO_YEAR else DateUtils.FORMAT_SHOW_YEAR,
-        )
+private class HistoryDayLabels(private val context: Context, private val today: LocalDate, private val zone: ZoneId) {
+    private val labels = HashMap<LocalDate, String>()
+
+    fun get(date: LocalDate): String = labels.getOrPut(date) {
+        when (date) {
+            today -> context.getString(R.string.mobile_history_today)
+            today.minusDays(1) -> context.getString(R.string.mobile_history_yesterday)
+            else -> DateUtils.formatDateTime(
+                context,
+                date.atStartOfDay(zone).toInstant().toEpochMilli(),
+                DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or
+                    if (date.year == today.year) DateUtils.FORMAT_NO_YEAR else DateUtils.FORMAT_SHOW_YEAR,
+            )
+        }
     }
+}
+
+@Composable
+private fun rememberDayLabels(today: LocalDate, zone: ZoneId): HistoryDayLabels {
+    val context = LocalContext.current.applicationContext
+    val locales = LocalConfiguration.current.locales
+    return remember(context, locales, today, zone) { HistoryDayLabels(context, today, zone) }
 }
 
 private data class HistoryRowText(val title: String, val kind: String?, val time: String)
