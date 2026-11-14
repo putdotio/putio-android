@@ -32,6 +32,9 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -173,7 +177,7 @@ internal fun MobileShell(
     loggedInAppsController: LoggedInAppsController? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
-    searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
+    searchHistoryState: MobileSearchHistoryState = remember { emptySearchHistoryState() },
     transfersState: TransfersState = emptyTransfersState(),
     transfersSessionId: MobileAuthSessionId? = null,
     account: MobileAccount,
@@ -294,10 +298,11 @@ internal fun MobileShell(
         onFiles = selectedDestination == MobileDestination.Files,
         searchOpen = searchOpen,
     )
-    val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
+    val trashStates = trashController?.state?.collectAsStateWithLifecycle()
+    val trashMutating by remember(trashStates) { derivedStateOf { trashStates?.value?.hasPendingMutation == true } }
     val trashSelection = rememberTrashSelection(sessionId)
-    TrashRestoreEffects(trashState, onFilesEvent)
-    val shareNavigationBlocked = shareNavigationBlocked(filesState, trashState, transfersState, nowPlayingPending)
+    TrashRestoreEffects(trashStates, onFilesEvent)
+    val shareNavigationBlocked = shareNavigationBlocked(filesState, trashMutating, transfersState, nowPlayingPending)
     DeepLinkNavigationEffect(
         deepLinkRequests = deepLinkRequests,
         userId = account.userId,
@@ -381,7 +386,7 @@ internal fun MobileShell(
         onBack = onFilesBack,
     )
     TrashRecoveryBackHandler(
-        enabled = !isPlayback && trashState?.hasPendingMutation == true && !filesBack.ownsBack,
+        enabled = !isPlayback && trashMutating && !filesBack.ownsBack,
         navController = navController,
     )
 
@@ -453,11 +458,11 @@ internal fun MobileShell(
                             ) ?: historyActions(
                                 destination,
                                 accountSettingsState.historyOpen(),
-                                searchHistoryState.history,
+                                searchHistoryState,
                                 searchHistoryActions.onHistoryEvent,
                             ),
-                            subpageActions = trashTopBarActions(route, trashState, trashController, trashSelection),
-                            subpageSelectionBar = trashSelectionBar(route, trashState, trashSelection),
+                            subpageActions = trashTopBarActions(route, trashStates, trashController, trashSelection),
+                            subpageSelectionBar = trashSelectionBar(route, trashStates, trashSelection),
                             downloads = downloadsController?.let {
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
                             },
@@ -598,29 +603,32 @@ private fun MobileShellKeyboardEffect(searchEnabled: Boolean, onSearch: () -> Un
 
 @Composable
 private fun TrashRestoreEffects(
-    trashState: TrashState?,
+    trashStates: State<TrashState>?,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
 ) {
-    LaunchedEffect(trashState?.restoredVersion) {
-        trashState?.lastRestoredItem?.let { item ->
-            onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(item))
+    val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
+    LaunchedEffect(trashStates) {
+        val states = trashStates ?: return@LaunchedEffect
+        snapshotFlow { states.value.restoredVersion to states.value.lastRestoredItem }.collect { (_, item) ->
+            item?.let { currentOnFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it)) }
         }
     }
-    LaunchedEffect(trashState?.bulkRestoreVersion) {
-        if ((trashState?.bulkRestoreVersion ?: 0L) > 0L) {
-            onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
+    LaunchedEffect(trashStates) {
+        val states = trashStates ?: return@LaunchedEffect
+        snapshotFlow { states.value.bulkRestoreVersion }.collect { version ->
+            if (version > 0L) currentOnFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
         }
     }
 }
 
 private fun shareNavigationBlocked(
     filesState: FilesBrowserState,
-    trashState: TrashState?,
+    trashMutating: Boolean,
     transfersState: TransfersState,
     nowPlayingPending: Boolean,
 ): Boolean = filesState.stack.any {
     it.operation.pendingDelete != null || it.operation.pendingMove != null
-} || trashState?.hasPendingMutation == true || transfersState.navigation is TransferNavigation.Resolving ||
+} || trashMutating || transfersState.navigation is TransferNavigation.Resolving ||
     transfersState.mutation is TransferMutation.Running || nowPlayingPending
 
 /** What a routed link opens beyond plain navigation. */
@@ -1294,15 +1302,15 @@ private fun tabActions(
 private fun historyActions(
     destination: MobileDestination,
     open: HistoryOpen,
-    history: HistoryState,
+    searchHistory: MobileSearchHistoryState,
     onHistoryEvent: (HistoryEvent) -> Unit,
 ): (@Composable RowScope.() -> Unit)? =
     if (
         destination == MobileDestination.History &&
         open == HistoryOpen.History &&
-        history.content is HistoryContent.Ready
+        searchHistory.history.content is HistoryContent.Ready
     ) {
-        { MobileHistoryOverflow(history.clearing, onHistoryEvent) }
+        { MobileHistoryOverflow(searchHistory.history.clearing, onHistoryEvent) }
     } else {
         null
     }
@@ -1338,13 +1346,32 @@ private fun MobileDestinationIcon(
     )
 }
 
-internal data class MobileSearchHistoryState(
-    val search: SearchState,
-    val history: HistoryState,
-    val recentSearchFailure: PutioFailure?,
+@Stable
+internal class MobileSearchHistoryState(
+    private val searchState: State<SearchState>,
+    private val historyState: State<HistoryState>,
+    private val recentSearchFailureState: State<PutioFailure?>,
+    private val folderNamesState: State<Map<FilesItemId, String>>,
+) {
+    constructor(
+        search: SearchState,
+        history: HistoryState,
+        recentSearchFailure: PutioFailure?,
+        folderNames: Map<FilesItemId, String> = emptyMap(),
+    ) : this(
+        mutableStateOf(search),
+        mutableStateOf(history),
+        mutableStateOf(recentSearchFailure),
+        mutableStateOf(folderNames),
+    )
+
+    val search: SearchState get() = searchState.value
+    val history: HistoryState get() = historyState.value
+    val recentSearchFailure: PutioFailure? get() = recentSearchFailureState.value
+
     /** The folders search results sit in, by id, as far as their names are known. */
-    val folderNames: Map<FilesItemId, String> = emptyMap(),
-)
+    val folderNames: Map<FilesItemId, String> get() = folderNamesState.value
+}
 
 internal data class MobileSearchHistoryActions(
     val onQueryChanged: (String) -> Unit = {},

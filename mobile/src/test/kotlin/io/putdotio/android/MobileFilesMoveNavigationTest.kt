@@ -36,6 +36,7 @@ import io.putdotio.android.files.FilesFolderOperation
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.filesBrowserState
@@ -161,6 +162,33 @@ class MobileFilesMoveNavigationTest {
                 assertTrue(controller.state.value.hasPendingRestore)
                 assertEquals(1, preview.effects.count { it is FilesBrowserEffect.Move })
             }
+        }
+    }
+
+    @Test
+    fun aRestoredItemInvalidatesItsFilesFolder() {
+        val preview = RootMoveBackPreview(startMove = false)
+        val restoreItem = trashItem(9L)
+        val restored = preview.item.copy(id = FilesItemId(9L), name = restoreItem.name, type = restoreItem.type)
+        val repository = FakeTrashRepository().apply {
+            onLoad = { page(restoreItem) }
+            onResolve = { PutioResult.Success(restored) }
+        }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val controller = TrashController(repository, scope)
+        try {
+            mount(preview, controller)
+            compose.runOnIdle { controller.dispatch(TrashEvent.Open) }
+            compose.waitUntil(5_000L) {
+                compose.runOnIdle { controller.state.value.content is TrashContent.Loaded }
+            }
+            compose.runOnIdle { controller.restore(restoreItem.id) }
+            compose.waitUntil(5_000L) {
+                compose.runOnIdle { FilesBrowserEvent.InvalidateRestoredItem(restored) in preview.events }
+            }
+        } finally {
+            controller.close()
+            scope.cancel()
         }
     }
 

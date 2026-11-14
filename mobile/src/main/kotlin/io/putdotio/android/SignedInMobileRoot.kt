@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -389,34 +390,52 @@ private fun SignedInMobileSession(
     SavedPositionEffects(
         runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
     )
-    val trashState by trashController.state.collectAsStateWithLifecycle()
+    val trashState = trashController.state.collectAsStateWithLifecycle()
     val filesState by filesController.collectStateIgnoringViewports()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
-    val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
-    val historyState by searchHistorySession.history.state.collectAsStateWithLifecycle()
-    val searchFolderNames by searchHistorySession.folderNames.names.collectAsStateWithLifecycle()
+    val searchState = searchHistorySession.search.state.collectAsStateWithLifecycle()
+    val historyState = searchHistorySession.history.state.collectAsStateWithLifecycle()
+    val searchFolderNames = searchHistorySession.folderNames.names.collectAsStateWithLifecycle()
     val folderNameFailure by searchHistorySession.folderNames.authenticationFailure.collectAsStateWithLifecycle()
     val transfersState by transfersController.state.collectAsStateWithLifecycle()
     TransfersWidgetEffect(transfersState.content, MobileSessionKey(account.userId, sessionId))
     val publicLinksState = publicLinksController?.state?.collectAsStateWithLifecycle()?.value
     val navigationFailure by searchHistorySession.navigationFailure.collectAsStateWithLifecycle()
-    val recentSearchFailure by searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
+    val recentSearchFailure = searchHistorySession.recentSearchFailure.collectAsStateWithLifecycle()
+    val listFailure by remember(trashState, searchState, historyState) {
+        derivedStateOf {
+            trashState.value.authenticationFailure
+                ?: searchState.value.authoritativeSessionFailure()
+                ?: historyState.value.authoritativeSessionFailure()
+        }
+    }
+    val searchHistoryState = remember(searchState, historyState, recentSearchFailure, searchFolderNames) {
+        MobileSearchHistoryState(
+            searchState = searchState,
+            historyState = historyState,
+            recentSearchFailureState = derivedStateOf {
+                recentSearchFailure.value?.takeUnless { it is PutioFailure.AuthenticationRequired }
+            },
+            folderNamesState = searchFolderNames,
+        )
+    }
     val confirmedHistoryEnabled = accountSettingsState.confirmedHistoryEnabled()
+    val recentSearchSessionFailure by remember(recentSearchFailure) {
+        derivedStateOf { recentSearchFailure.value?.takeIf { it is PutioFailure.AuthenticationRequired } }
+    }
     val authoritativeFailure = listOfNotNull(
         filesState.authoritativeSessionFailure(),
-        searchState.authoritativeSessionFailure(),
-        historyState.authoritativeSessionFailure(),
+        listFailure,
         transfersState.authoritativeSessionFailure(),
         publicLinksState?.authenticationFailure,
-        recentSearchFailure?.takeIf { it is PutioFailure.AuthenticationRequired },
+        recentSearchSessionFailure,
         navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired },
         folderNameFailure,
     ).firstOrNull()
 
     AuthoritativeSessionFailureEffect(
-        shouldReject = trashState.authenticationFailure != null ||
-            authoritativeFailure != null ||
+        shouldReject = authoritativeFailure != null ||
             settingsRequireSessionRejection(
                 accountSettingsState = accountSettingsState,
                 appConfigState = appConfigState,
@@ -441,14 +460,7 @@ private fun SignedInMobileSession(
             filesRepository = filesRepository,
             accountSettingsState = accountSettingsState,
             appConfigState = appConfigState,
-            searchHistoryState =
-                MobileSearchHistoryState(
-                    search = searchState,
-                    history = historyState,
-                    recentSearchFailure =
-                        recentSearchFailure?.takeUnless { it is PutioFailure.AuthenticationRequired },
-                    folderNames = searchFolderNames,
-                ),
+            searchHistoryState = searchHistoryState,
             transfersState = transfersState,
             transfersSessionId = sessionId,
             account = account,
