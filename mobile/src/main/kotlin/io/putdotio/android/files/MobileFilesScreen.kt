@@ -982,6 +982,7 @@ private fun MobileFilesList(
     val currentOnEvent by rememberUpdatedState(onEvent)
     val pendingItemIds = operation.pendingItemIds()
     val actionsEnabled = operation.canStartOperation
+    val rowText = rememberFilesRowText(content.items)
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
@@ -1051,6 +1052,7 @@ private fun MobileFilesList(
                     onClickLabel = rowClickLabel(item, fileOpening),
                     checked = selection?.let { item.id in it.checked },
                     onCheckedChange = selection?.takeIf { item.id.value > 0L }?.let { { it.onToggle(item) } },
+                    text = rowText[item],
                 )
             }
         }

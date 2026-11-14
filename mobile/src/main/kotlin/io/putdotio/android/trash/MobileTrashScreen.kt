@@ -47,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -67,7 +68,9 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.MobileRowText
 import io.putdotio.android.monoValue
+import io.putdotio.android.rememberRowText
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage
@@ -96,6 +99,7 @@ internal fun MobileTrashScreen(
     TrashSelectionEffects(state, selection)
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     val listState = rememberLazyListState()
+    val rowText = rememberTrashRowText((state.content as? TrashContent.Loaded)?.items.orEmpty())
     ScrollToNewOutcome(state, listState)
     LoadNextPageNearEnd(
         listState = listState,
@@ -141,6 +145,7 @@ internal fun MobileTrashScreen(
                             onActions = { sheetItemId = it.id.value },
                             onSelect = { selection.start(state, it.id) },
                             onToggle = { selection.toggle(it.id) },
+                            text = rowText,
                         ),
                     )
                 }
@@ -181,6 +186,7 @@ private class TrashRowHandlers(
     val onActions: (TrashItem) -> Unit,
     val onSelect: (TrashItem) -> Unit,
     val onToggle: (TrashItem) -> Unit,
+    val text: MobileRowText<TrashItem, TrashRowText>,
 )
 
 private fun LazyListScope.loadedTrashItems(
@@ -190,14 +196,16 @@ private fun LazyListScope.loadedTrashItems(
     rows: TrashRowHandlers,
 ) {
     val empty = content.items.isEmpty() && content.nextCursor == null
-    item(key = "summary") {
+    item(key = "summary", contentType = "summary") {
         if (!empty && rows.checked == null) MobileTrashSummary(content)
     }
     content.refreshFailure?.let { failure ->
-        item(key = "refresh-error") { TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) } }
+        item(key = "refresh-error", contentType = "failure") {
+            TrashReadFailure(failure) { onEvent(TrashEvent.Refresh) }
+        }
     }
     if (empty) {
-        item(key = "empty") {
+        item(key = "empty", contentType = "empty") {
             MobileEmptyState(
                 title = stringResource(R.string.mobile_trash_empty_title),
                 message = stringResource(R.string.mobile_trash_empty_message),
@@ -206,13 +214,15 @@ private fun LazyListScope.loadedTrashItems(
             )
         }
     }
-    items(content.items, key = { it.id.value }) { item ->
+    items(content.items, key = { it.id.value }, contentType = { "row" }) { item ->
         val checked = rows.checked
+        val text = rows.text[item]
         if (checked != null) {
-            MobileTrashSelectableRow(item, checked = item.id in checked, onToggle = { rows.onToggle(item) })
+            MobileTrashSelectableRow(item, text, checked = item.id in checked, onToggle = { rows.onToggle(item) })
         } else {
             MobileTrashRow(
                 item,
+                text,
                 enabled = state.canRestore(item.id) || state.canDelete(item.id),
                 canRestore = state.canRestore(item.id),
                 onRestore = { onEvent(TrashEvent.Restore(item.id)) },
@@ -221,7 +231,7 @@ private fun LazyListScope.loadedTrashItems(
             )
         }
     }
-    item(key = "paging") {
+    item(key = "paging", contentType = "paging") {
         val pageFailure = content.pageFailure
         when {
             content.isLoadingMore -> MobileTrashLoadingMore()
@@ -234,6 +244,7 @@ private fun LazyListScope.loadedTrashItems(
 @Composable
 private fun MobileTrashRow(
     item: TrashItem,
+    text: TrashRowText,
     enabled: Boolean,
     canRestore: Boolean,
     onRestore: () -> Unit,
@@ -246,7 +257,7 @@ private fun MobileTrashRow(
     MobileRow(
         leading = { FileTypeIcon(item.type, Modifier.size(26.dp)) },
         headline = { MobileMiddleCutText(item.name) },
-        meta = { MobileTrashRowMeta(item) },
+        meta = { MobileTrashRowMeta(text) },
         modifier = Modifier
             .pointerInput(enabled) { if (enabled) detectTapGestures(onLongPress = { currentOnSelect() }) }
             .semantics {
@@ -279,28 +290,42 @@ private fun MobileTrashRow(
 }
 
 @Composable
-private fun MobileTrashSelectableRow(item: TrashItem, checked: Boolean, onToggle: () -> Unit) {
+private fun MobileTrashSelectableRow(item: TrashItem, text: TrashRowText, checked: Boolean, onToggle: () -> Unit) {
     MobileRow(
         leading = { MobileSelectionCheckbox(checked = checked) },
         headline = { MobileMiddleCutText(item.name) },
-        meta = { MobileTrashRowMeta(item) },
+        meta = { MobileTrashRowMeta(text) },
         containerColor = if (checked) MobileSelectedRowTint else Color.Transparent,
         modifier = Modifier.toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() }),
     )
 }
 
 @Composable
-private fun MobileTrashRowMeta(item: TrashItem) {
-    val context = LocalContext.current
+private fun MobileTrashRowMeta(text: TrashRowText) {
     val style = MaterialTheme.typography.bodySmall
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        val size = formatFileSize(item.sizeBytes)
-        Text(monoValue(size, style.putioMono().toSpanStyle()), style = style, maxLines = 1)
-        item.expirationDate?.trashDaysLeft(LocalDate.now())?.let { days ->
+        Text(monoValue(text.size, style.putioMono().toSpanStyle()), style = style, maxLines = 1)
+        text.goneIn?.let { goneIn ->
             Text("·", style = style, modifier = Modifier.clearAndSetSemantics {})
-            Text(context.goneIn(days), style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(goneIn, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
+}
+
+internal data class TrashRowText(val size: String, val goneIn: String?)
+
+private fun TrashItem.rowText(context: Context, today: LocalDate): TrashRowText =
+    TrashRowText(
+        size = formatFileSize(sizeBytes),
+        goneIn = expirationDate?.trashDaysLeft(today)?.let(context::goneIn),
+    )
+
+@Composable
+private fun rememberTrashRowText(items: List<TrashItem>): MobileRowText<TrashItem, TrashRowText> {
+    val context = LocalContext.current.applicationContext
+    val locales = LocalConfiguration.current.locales
+    val today = LocalDate.now()
+    return rememberRowText(items, context, locales, today, key = { it.id.value }) { it.rowText(context, today) }
 }
 
 /** The section line: what Trash holds in mono, then how long it keeps items. */
