@@ -96,8 +96,10 @@ internal fun KeyEvent.outrunsScroll(list: LazyListState, focusedRow: Long?, pagi
         (key == Key.DirectionDown || key == Key.DirectionUp)
     if (focusedRow == null || pagingHeld || !heldUpOrDown) return false
     val layout = list.layoutInfo
+    val start = layout.viewportStartOffset
+    val end = layout.viewportEndOffset
     val row = layout.visibleItemsInfo.firstOrNull { it.key == focusedRow }
-    return row == null || row.offset < layout.viewportStartOffset || row.offset + row.size > layout.viewportEndOffset
+    return row == null || row.size < end - start && (row.offset < start || row.offset + row.size > end)
 }
 
 internal fun Modifier.holdAtPendingEnd(holds: Boolean): Modifier =
