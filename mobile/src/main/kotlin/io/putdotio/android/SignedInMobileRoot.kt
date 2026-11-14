@@ -32,6 +32,7 @@ import io.putdotio.android.downloads.OfflinePositionsResume
 import io.putdotio.android.downloads.OfflineResume
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.AppConfigPinnedFiles
@@ -48,6 +49,7 @@ import io.putdotio.android.files.SdkFilesStreamUrls
 import io.putdotio.android.files.SdkFilesWatchedRepository
 import io.putdotio.android.files.authoritativeSessionFailure
 import io.putdotio.android.files.confirmedGone
+import io.putdotio.android.files.sameExceptViewports
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.SdkHistoryRepository
 import io.putdotio.android.history.authoritativeSessionFailure
@@ -383,7 +385,9 @@ private fun SignedInMobileSession(
         runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
     )
     val trashState by trashController.state.collectAsStateWithLifecycle()
-    val filesState by filesController.state.collectAsStateWithLifecycle()
+    val filesState by remember(filesController) {
+        filesController.state.distinctUntilChanged(FilesBrowserState::sameExceptViewports)
+    }.collectAsStateWithLifecycle(filesController.state.value)
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()

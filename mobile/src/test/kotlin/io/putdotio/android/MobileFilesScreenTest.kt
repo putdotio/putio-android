@@ -594,6 +594,27 @@ class MobileFilesListTest {
     }
 
     @Test
+    fun aGrownHeaderKeepsTheRestTheStateHasNotCaughtUpWith() {
+        val items = (0L until 60L).map { index -> filesItem(id = index + 1L, name = "file-$index.txt") }
+        val state = browserState(FilesContent.Ready(items = items, paging = FilesPaging.Complete))
+        val events = mutableListOf<FilesBrowserEvent>()
+        var pinned by mutableStateOf(emptyList<FilesItem>())
+        compose.setContent {
+            PutioTheme {
+                MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {}, pinned = pinned)
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(40)
+        compose.waitUntil(timeoutMillis = 5_000L) {
+            events.filterIsInstance<FilesBrowserEvent.ViewportChanged>().any { it.position.firstVisibleItemIndex == 40 }
+        }
+        compose.runOnIdle { pinned = listOf(filesItem(id = 900L, name = "pinned.txt")) }
+
+        compose.onNodeWithText("file-40.txt").assertIsDisplayed()
+    }
+
+    @Test
     fun aCompletedSortResetsTheVisibleFolderViewport() {
         val initialItems = (0L until 30L).map { index ->
             filesItem(id = index + 1L, name = "initial-$index.txt")

@@ -371,6 +371,7 @@ private fun MobileRefreshableFilesContent(
 
     var toolbarHeight by remember { mutableIntStateOf(0) }
     val toolbarClearance = selectionToolbarClearance(toolbarHeight)
+    val listRest = remember { FilesListRest() }
     val snackbarHostState = remember { SnackbarHostState() }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
     MobileFilesNotices(itemActions.notices, snackbarHostState)
@@ -431,6 +432,12 @@ private fun MobileRefreshableFilesContent(
                         ) {
                             MobileFilesList(
                                 content = content,
+                                rest = listRest.at(
+                                    state.stack.size,
+                                    state.current.viewportGeneration,
+                                    reported = content.viewport,
+                                    revealing = state.current.revealItemId != null,
+                                ),
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
@@ -948,6 +955,7 @@ private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
 @Composable
 private fun MobileFilesList(
     content: FilesContent.Ready,
+    rest: FilesListRest.At,
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
     onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
@@ -968,7 +976,7 @@ private fun MobileFilesList(
     /** Long-press starts selection with the row; null leaves long-press opening the row's actions. */
     onStartSelection: ((FilesItem) -> Unit)? = null,
 ) {
-    val viewport = content.viewport
+    val viewport = rest.initial
     // The viewport counts rows; headers sit above them and show again when the list is back at its top.
     val headerCount = headers.itemCount
     // A revealed row, the first included, scrolls past the headers to sit at the top.
@@ -1000,7 +1008,10 @@ private fun MobileFilesList(
             .filterNotNull()
             .drop(1)
             .distinctUntilChanged()
-            .collect { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
+            .collect {
+                rest.record(it)
+                currentOnEvent(FilesBrowserEvent.ViewportChanged(it))
+            }
     }
 
     LoadNextPageNearEnd(
@@ -1065,6 +1076,23 @@ private fun MobileFilesList(
             }
         }
     }
+}
+
+internal class FilesListRest {
+    private var depth = -1
+    private var generation = -1L
+    private var position: FilesViewportPosition? = null
+
+    fun at(depth: Int, generation: Long, reported: FilesViewportPosition, revealing: Boolean): At {
+        val kept = position?.takeIf { !revealing && depth == this.depth && generation == this.generation }
+        return At(kept ?: reported) { rested ->
+            this.depth = depth
+            this.generation = generation
+            position = rested
+        }
+    }
+
+    class At(val initial: FilesViewportPosition, val record: (FilesViewportPosition) -> Unit)
 }
 
 /** A folder opens; a file goes to [MobileFilesOpening] when there is one, else only media plays. */

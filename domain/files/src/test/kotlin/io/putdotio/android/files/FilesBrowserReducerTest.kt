@@ -39,6 +39,20 @@ class FilesBrowserReducerTest {
     }
 
     @Test
+    fun aViewportReportIsTheOnlyChangeAViewportBlindViewSkips() {
+        val folder = item(id = 7L, name = "Shows", type = PutioFileType.FOLDER)
+        val root = loadedRoot(items = listOf(folder), nextCursor = FilesCursor("root-next"))
+        val rested =
+            FilesBrowserReducer.reduce(root, FilesBrowserEvent.ViewportChanged(FilesViewportPosition(4, 18))).state
+        val paging = FilesBrowserReducer.reduce(rested, FilesBrowserEvent.LoadNextPage).state
+        val opened = FilesBrowserReducer.reduce(rested, FilesBrowserEvent.OpenFolder(folder.id)).state
+
+        assertTrue(root.sameExceptViewports(rested))
+        assertFalse(rested.sameExceptViewports(paging))
+        assertFalse(rested.sameExceptViewports(opened))
+    }
+
+    @Test
     fun nestedBackRestoresParentItemsPagingAndViewport() {
         val folder = item(id = 7L, name = "Shows", type = PutioFileType.FOLDER)
         val root = loadedRoot(items = listOf(folder), nextCursor = FilesCursor("root-next"))
