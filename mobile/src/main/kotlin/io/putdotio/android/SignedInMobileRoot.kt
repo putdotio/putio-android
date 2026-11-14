@@ -2,6 +2,7 @@ package io.putdotio.android
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -385,9 +386,7 @@ private fun SignedInMobileSession(
         runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
     )
     val trashState by trashController.state.collectAsStateWithLifecycle()
-    val filesState by remember(filesController) {
-        filesController.state.distinctUntilChanged(FilesBrowserState::sameExceptViewports)
-    }.collectAsStateWithLifecycle(filesController.state.value)
+    val filesState by filesController.collectStateIgnoringViewports()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
     val appConfigState by appConfigController.state.collectAsStateWithLifecycle()
     val searchState by searchHistorySession.search.state.collectAsStateWithLifecycle()
@@ -729,4 +728,11 @@ private fun TransfersWidgetEffect(content: TransfersContent, session: MobileSess
         }
         MobileWidgets.transfers(appContext).show(session, items)
     }
+}
+
+@Composable
+private fun FilesBrowserController.collectStateIgnoringViewports(): State<FilesBrowserState> {
+    val changes = remember(this) { state.distinctUntilChanged(FilesBrowserState::sameExceptViewports) }
+    val initial = remember(this) { state.value }
+    return changes.collectAsStateWithLifecycle(initial)
 }
