@@ -153,6 +153,7 @@ class MobilePlaybackPickProofTest {
         val unanswered = CompletableDeferred<DirectPlayDownload?>()
         val asked = CompletableDeferred<Boolean>()
         var downloads: Downloads? = null
+        var failure: Throwable? = null
         try {
             switched.add(fileId.value)
             val held = Downloads(
@@ -213,14 +214,18 @@ class MobilePlaybackPickProofTest {
             log += "completed: ${done.describe()} original size=${file.size}"
             assertEquals(file.size, (done.status as DownloadStatus.Completed).bytes)
         } catch (error: Throwable) {
+            failure = error
+            throw error
+        } finally {
             unanswered.complete(null)
             withContext(NonCancellable) {
-                runCatching { cleanUp(downloads, userId, fileId, switched) }.exceptionOrNull()?.let(error::addSuppressed)
+                try {
+                    cleanUp(downloads, userId, fileId, switched)
+                } catch (cleanup: Throwable) {
+                    failure?.addSuppressed(cleanup) ?: throw cleanup
+                }
             }
-            throw error
         }
-        unanswered.complete(null)
-        withContext(NonCancellable) { cleanUp(downloads, userId, fileId, switched) }
     }
 
     private suspend fun cleanUp(
@@ -254,8 +259,11 @@ class MobilePlaybackPickProofTest {
             .getOrThrow()
 
         fun close() {
-            controller.close()
-            engine.close()
+            try {
+                controller.close()
+            } finally {
+                engine.close()
+            }
         }
     }
 
@@ -270,7 +278,8 @@ class MobilePlaybackPickProofTest {
     private suspend fun signedIn(): Pair<MobileOAuthRuntime, Long> {
         val runtime = MobileOAuthRuntime.get(context)
         val state = runtime.awaitSettledSession(SESSION_MILLIS.milliseconds)
-        val account = checkNotNull((state as? MobileAuthState.SignedIn)?.account) { "Proof needs a signed-in session" }
+        val settled = checkNotNull(state) { "The session never settled" }
+        val account = checkNotNull((settled as? MobileAuthState.SignedIn)?.account) { "Proof needs a signed-in session" }
         check(account.userId == argument("accountId").toLong()) { "Not the devs-auto account" }
         return runtime to account.userId
     }

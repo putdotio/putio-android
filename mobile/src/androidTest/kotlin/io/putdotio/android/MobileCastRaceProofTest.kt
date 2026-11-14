@@ -31,7 +31,6 @@ import io.putdotio.android.playback.CastPrepared
 import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastTransfer
 import io.putdotio.android.playback.casting
-import io.putdotio.android.playback.connectedDevice
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.PlaybackTarget
@@ -249,9 +248,12 @@ class MobileCastRaceProofTest {
                 }
             }
             note("no session resumed; connecting to ${target.name} (${target.model})")
-            await("a session on $receiver") { onMain { cast.availability.value is CastAvailability.Connected } }
-            val joined = onMain { cast.availability.value.connectedDevice }.orEmpty()
-            check(receiver in joined) { "Connected to \"$joined\", not the selected ${target.name}" }
+            var joined: CastAvailability.Connected? = null
+            await("a session on $receiver") {
+                onMain { cast.availability.value as? CastAvailability.Connected }?.also { joined = it } != null
+            }
+            val name = checkNotNull(joined).deviceName
+            check(receiver in name) { "Connected to \"$name\", not the selected ${target.name}" }
         } finally {
             onMain { cast.gateway.stopDiscovery() }
         }
@@ -307,7 +309,9 @@ class MobileCastRaceProofTest {
 
     private fun signedIn(): MobileAuthState.SignedIn {
         val state = runBlocking { MobileOAuthRuntime.get(context).awaitSettledSession(WAIT_MILLIS.milliseconds) }
-        val session = checkNotNull(state as? MobileAuthState.SignedIn) { "Proof needs a signed-in session" }
+        val session = checkNotNull(checkNotNull(state) { "The session never settled" } as? MobileAuthState.SignedIn) {
+            "Proof needs a signed-in session"
+        }
         check(session.account.userId == argument("accountId").toLong()) { "Not the devs-auto account" }
         return session
     }
