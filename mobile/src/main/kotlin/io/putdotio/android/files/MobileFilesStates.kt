@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRetryButton
+import io.putdotio.android.MobileRowText
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.R
 import io.putdotio.android.monoValue
@@ -126,6 +127,7 @@ internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): 
  */
 internal fun LazyListScope.mobileFilesHeaderItems(
     headers: MobileFilesHeaders,
+    rowText: MobileRowText<FilesItem, FilesRowText>,
     onPlay: (ContinueWatchingEntry) -> Unit,
     onRemove: ((ContinueWatchingEntry) -> Unit)? = null,
     pinnedActions: MobilePinnedActions = MobilePinnedActions(onOpen = {}),
@@ -144,7 +146,7 @@ internal fun LazyListScope.mobileFilesHeaderItems(
     }
     if (headers.pinned.isNotEmpty()) {
         header("pinned", "pinned") {
-            MobilePinnedSection(headers.pinned, pinnedActions, top = if (watching) 12.dp else 20.dp)
+            MobilePinnedSection(headers.pinned, rowText, pinnedActions, top = if (watching) 12.dp else 20.dp)
         }
     }
     if (watching || headers.pinned.isNotEmpty()) {
@@ -157,7 +159,12 @@ internal fun LazyListScope.mobileFilesHeaderItems(
 }
 
 @Composable
-private fun MobilePinnedSection(items: List<FilesItem>, actions: MobilePinnedActions, top: Dp) {
+private fun MobilePinnedSection(
+    items: List<FilesItem>,
+    rowText: MobileRowText<FilesItem, FilesRowText>,
+    actions: MobilePinnedActions,
+    top: Dp,
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val capped = items.size > PINNED_VISIBLE_ITEMS
     Column(modifier = Modifier.fillMaxWidth().testTag(MOBILE_FILES_PINNED_TAG)) {
@@ -183,7 +190,6 @@ private fun MobilePinnedSection(items: List<FilesItem>, actions: MobilePinnedAct
             },
         )
         val shown = if (expanded || !capped) items else items.take(PINNED_VISIBLE_ITEMS)
-        val rowText = rememberFilesRowText(items)
         shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, rowText[item], actions) } }
     }
 }
