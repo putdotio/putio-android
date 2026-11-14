@@ -34,6 +34,7 @@ import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CompletableDeferred
@@ -185,10 +186,10 @@ class MobilePlaybackPickProofTest {
             check(waiting?.artifact == DownloadArtifact.MP4 && waiting.status == DownloadStatus.Queued) {
                 "Precondition: the row waits on its lookup"
             }
-            downloads = null
             held.close()
+            downloads = null
 
-            val answers = mutableListOf<Pair<Boolean, DirectPlayDownload?>>()
+            val answers = CopyOnWriteArrayList<Pair<Boolean, DirectPlayDownload?>>()
             val restarted = Downloads(
                 userId,
                 DownloadSources(
@@ -228,8 +229,13 @@ class MobilePlaybackPickProofTest {
         switched: DataStoreSwitchedToConvertedFiles,
     ) {
         try {
-            val cleanup = downloads
-                ?: Downloads(userId, DownloadSources(directPlay = { _, _, _ -> awaitCancellation() }))
+            val cleanup = downloads ?: Downloads(
+                userId,
+                DownloadSources(directPlay = { _, _, _ -> awaitCancellation() }),
+                MobileDownloadStore(context, userId).apply {
+                    updateStatusBlocking(fileId) { it.copy(removing = true) }
+                },
+            )
             try {
                 cleanup.controller.dispatch(DownloadsEvent.RequestRemoval(setOf(fileId)))
                 cleanup.controller.dispatch(DownloadsEvent.ConfirmRemoval)
@@ -245,8 +251,11 @@ class MobilePlaybackPickProofTest {
         }
     }
 
-    private inner class Downloads(userId: Long, sources: DownloadSources) {
-        val store = MobileDownloadStore(context, userId)
+    private inner class Downloads(
+        userId: Long,
+        sources: DownloadSources,
+        val store: MobileDownloadStore = MobileDownloadStore(context, userId),
+    ) {
         private val engine = MobileDownloadEngine(context, store, userId, scope)
         val controller = runCatching { DownloadsController(store, engine, scope, sources) }
             .onFailure { engine.close() }
