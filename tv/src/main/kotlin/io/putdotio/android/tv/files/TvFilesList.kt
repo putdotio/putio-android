@@ -18,7 +18,6 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -31,12 +30,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEvent
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
@@ -48,6 +42,7 @@ import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
+import io.putdotio.android.tv.outrunsScroll
 import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -122,8 +117,7 @@ internal fun TvFilesList(
     // first time in. The row is scrolled into view first, since a lazy row that is not
     // composed has no focus requester to answer.
     val focusTarget = content.mountFocusTarget(remembered)
-    val rowFocusTarget = remember(listState) { mutableLongStateOf(focusTarget) }
-    SideEffect { rowFocusTarget.longValue = focusTarget }
+    val rowFocusTarget = rememberUpdatedState(focusTarget)
     // After the rows change under a mounted list, keep the row that had focus composed, or the
     // fallback target when that row is gone: the panel's Left and the pane's enter redirect
     // land on it. Focus itself moves only if a row held it.
@@ -190,7 +184,7 @@ internal fun TvFilesList(
                     derivedStateOf { focusedRowId.value == item.id.value }
                 }
                 val takesRowFocus by remember(rowFocusTarget, item.id.value) {
-                    derivedStateOf { rowFocusTarget.longValue == item.id.value }
+                    derivedStateOf { rowFocusTarget.value == item.id.value }
                 }
                 TvFilesRow(
                     item = item,
@@ -232,15 +226,6 @@ internal fun TvFilesList(
             }
         }
     }
-}
-
-private fun KeyEvent.outrunsScroll(list: LazyListState, focusedRow: Long?, pagingHeld: Boolean): Boolean {
-    val heldUpOrDown = type == KeyEventType.KeyDown && nativeKeyEvent.repeatCount > 0 &&
-        (key == Key.DirectionDown || key == Key.DirectionUp)
-    if (focusedRow == null || pagingHeld || !heldUpOrDown) return false
-    val layout = list.layoutInfo
-    val row = layout.visibleItemsInfo.firstOrNull { it.key == focusedRow }
-    return row == null || row.offset < layout.viewportStartOffset || row.offset + row.size > layout.viewportEndOffset
 }
 
 private fun Modifier.downTo(target: FocusRequester?): Modifier =

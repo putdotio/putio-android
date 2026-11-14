@@ -18,6 +18,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
@@ -84,6 +89,15 @@ private class SeenFirstKey(var value: Any?)
 internal fun LazyListState.isNearEnd(lastContentIndex: Int): Boolean {
     val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return false
     return lastVisible >= lastContentIndex - TV_PAGING_PREFETCH_ITEMS
+}
+
+internal fun KeyEvent.outrunsScroll(list: LazyListState, focusedRow: Long?, pagingHeld: Boolean): Boolean {
+    val heldUpOrDown = type == KeyEventType.KeyDown && nativeKeyEvent.repeatCount > 0 &&
+        (key == Key.DirectionDown || key == Key.DirectionUp)
+    if (focusedRow == null || pagingHeld || !heldUpOrDown) return false
+    val layout = list.layoutInfo
+    val row = layout.visibleItemsInfo.firstOrNull { it.key == focusedRow }
+    return row == null || row.offset < layout.viewportStartOffset || row.offset + row.size > layout.viewportEndOffset
 }
 
 internal fun Modifier.holdAtPendingEnd(holds: Boolean): Modifier =
