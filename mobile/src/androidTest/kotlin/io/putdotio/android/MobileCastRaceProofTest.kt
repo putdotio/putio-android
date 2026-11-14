@@ -246,7 +246,7 @@ class MobileCastRaceProofTest {
 
     private fun connect(cast: MobileCastController): CastSession {
         val receiver = argument("receiver")
-        val sessions = onMain { checkNotNull(CastContext.getSharedInstance()) { "Cast never started" }.sessionManager }
+        val sessions = onMain { sessionManager() }
         val events = SessionEvents()
         onMain {
             sessions.addSessionManagerListener(events, CastSession::class.java)
@@ -274,7 +274,13 @@ class MobileCastRaceProofTest {
                     "Connected to \"${joined.deviceName}\", not the selected ${target.name}"
                 }
             } catch (error: Throwable) {
-                cleanUp(error, { onMain { events.starting }?.let { disconnect(cast, it) } })
+                cleanUp(error, {
+                    disconnect(cast) {
+                        val current = sessions.currentCastSession
+                        val connecting = current == null && castState() in BUSY
+                        events.resumed == null && (current === events.starting || connecting)
+                    }
+                })
                 throw error
             }
             return onMain { checkNotNull(events.started) }
@@ -286,7 +292,11 @@ class MobileCastRaceProofTest {
         }
     }
 
-    private fun castState(): Int = checkNotNull(CastContext.getSharedInstance()).castState
+    private fun castContext(): CastContext = checkNotNull(CastContext.getSharedInstance()) { "Cast never started" }
+
+    private fun sessionManager() = castContext().sessionManager
+
+    private fun castState(): Int = castContext().castState
 
     private class SessionEvents : SessionManagerListener<CastSession> {
         var starting: CastSession? = null
@@ -309,11 +319,15 @@ class MobileCastRaceProofTest {
             starting = session
         }
 
-        override fun onSessionStartFailed(session: CastSession, error: Int) = Unit
+        override fun onSessionStartFailed(session: CastSession, error: Int) {
+            if (starting === session) starting = null
+        }
 
         override fun onSessionEnding(session: CastSession) = Unit
 
-        override fun onSessionEnded(session: CastSession, error: Int) = Unit
+        override fun onSessionEnded(session: CastSession, error: Int) {
+            if (resumed === session) resumed = null
+        }
 
         override fun onSessionResumeFailed(session: CastSession, error: Int) {
             resumed = null
@@ -322,11 +336,14 @@ class MobileCastRaceProofTest {
         override fun onSessionSuspended(session: CastSession, reason: Int) = Unit
     }
 
-    private fun disconnect(cast: MobileCastController, ours: CastSession) {
+    private fun disconnect(cast: MobileCastController, ours: CastSession) =
+        disconnect(cast) { sessionManager().currentCastSession === ours }
+
+    private fun disconnect(cast: MobileCastController, owned: () -> Boolean) {
         val stopping = onMain {
-            (CastContext.getSharedInstance()?.sessionManager?.currentCastSession === ours).also { ours ->
-                if (ours) cast.gateway.stopCasting()
-            }
+            val stop = owned()
+            if (stop) cast.gateway.stopCasting()
+            stop
         }
         if (stopping) {
             awaitOrElapse(RECEIVER_MILLIS) { onMain { !cast.availability.value.casting } }
