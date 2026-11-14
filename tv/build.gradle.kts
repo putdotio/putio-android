@@ -39,6 +39,10 @@ androidComponents {
     beforeVariants(selector().withBuildType("benchmarkRelease")) { variant ->
         variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
     }
+    onVariants(selector().withFlavor("channel" to "nightly").withBuildType("debug")) { variant ->
+        val profiles = checkNotNull(variant.sources.baselineProfiles) { "${variant.name} has no baseline profile sources" }
+        profiles.addStaticSourceDirectory(layout.projectDirectory.dir("src/main/generated/baselineProfiles").asFile.absolutePath)
+    }
     onVariants { variant ->
         // searchable.xml names the suggestions provider, whose authority follows the variant's id.
         variant.resValues.put(
