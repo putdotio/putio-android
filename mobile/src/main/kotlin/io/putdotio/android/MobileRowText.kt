@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -32,6 +33,8 @@ internal class MobileRowText<T : Any, V>(
 
     private val prepared = mutableIntStateOf(0)
 
+    private val generation = AtomicLong()
+
     operator fun get(item: T): V {
         prepared.intValue
         val key = key(item)
@@ -46,6 +49,7 @@ internal class MobileRowText<T : Any, V>(
     }
 
     suspend fun prepare(items: List<T>, refresh: Any?) {
+        val run = generation.incrementAndGet()
         val known = entries
         val built = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
         items.forEach { item ->
@@ -53,12 +57,15 @@ internal class MobileRowText<T : Any, V>(
             built[key(item)] = known[key(item)]?.takeIf { it.item == item && it.refresh == refresh }
                 ?: Entry(item, build(item), refresh)
         }
-        currentCoroutineContext().ensureActive()
-        entries = built
-        val newRefresh = refresh != this.refresh
-        this.refresh = refresh
-        val filled = waiting.entries.removeIf { (key, item) -> built[key]?.item == item }
-        if (newRefresh || filled) prepared.intValue++
+        val context = currentCoroutineContext()
+        val publish = synchronized(generation) {
+            if (run != generation.get() || !context.isActive) return
+            entries = built
+            val newRefresh = refresh != this.refresh
+            this.refresh = refresh
+            waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || newRefresh
+        }
+        if (publish) prepared.intValue++
     }
 }
 
