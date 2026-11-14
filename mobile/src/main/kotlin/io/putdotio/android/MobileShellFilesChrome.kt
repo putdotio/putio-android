@@ -3,6 +3,8 @@ package io.putdotio.android
 import androidx.compose.runtime.SnapshotMutationPolicy
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesFolderState
+import io.putdotio.android.files.pendingDelete
+import io.putdotio.android.files.pendingMove
 
 internal data class FilesBackGate(
     val moveSettling: Boolean,
