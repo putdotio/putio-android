@@ -28,7 +28,7 @@ internal class MobileRowText<T : Any, V>(
     @Volatile
     private var refresh: Any? = null
 
-    private val waiting = ConcurrentHashMap.newKeySet<Any>()
+    private val waiting = ConcurrentHashMap<Any, T>()
 
     private val prepared = mutableIntStateOf(0)
 
@@ -36,18 +36,16 @@ internal class MobileRowText<T : Any, V>(
         prepared.intValue
         val key = key(item)
         entries[key]?.takeIf { it.item == item }?.let { return it.value }
-        waiting += key
+        waiting[key] = item
         val entry = entries[key]
         if (entry != null && entry.item == item) {
-            waiting -= key
+            waiting.remove(key, item)
             return entry.value
         }
         return entry?.value ?: placeholder
     }
 
     suspend fun prepare(items: List<T>, refresh: Any?) {
-        val newRefresh = refresh != this.refresh
-        this.refresh = refresh
         val known = entries
         val built = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
         items.forEach { item ->
@@ -57,7 +55,9 @@ internal class MobileRowText<T : Any, V>(
         }
         currentCoroutineContext().ensureActive()
         entries = built
-        val filled = waiting.removeIf { built[it] != null }
+        val newRefresh = refresh != this.refresh
+        this.refresh = refresh
+        val filled = waiting.entries.removeIf { (key, item) -> built[key]?.item == item }
         if (newRefresh || filled) prepared.intValue++
     }
 }
