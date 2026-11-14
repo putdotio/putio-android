@@ -74,8 +74,7 @@ import io.putdotio.android.rememberRowText
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage
-import java.time.Instant
-import java.time.ZoneId
+import java.time.LocalDate
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.MobileIconButton
 
@@ -313,21 +312,20 @@ private fun MobileTrashRowMeta(text: TrashRowText) {
     }
 }
 
-internal class TrashRowText(val size: String, val goneIn: String?)
+internal data class TrashRowText(val size: String, val goneIn: String?)
 
-private fun TrashItem.rowText(context: Context, nowMillis: Long): TrashRowText =
+private fun TrashItem.rowText(context: Context, today: LocalDate): TrashRowText =
     TrashRowText(
         size = formatFileSize(sizeBytes),
-        goneIn = expirationDate
-            ?.trashDaysLeft(Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()).toLocalDate())
-            ?.let(context::goneIn),
+        goneIn = expirationDate?.trashDaysLeft(today)?.let(context::goneIn),
     )
 
 @Composable
 private fun rememberTrashRowText(items: List<TrashItem>): MobileRowText<TrashItem, TrashRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
-    return rememberRowText(items, context, locales, key = { it.id.value }) { item, now -> item.rowText(context, now) }
+    val today = LocalDate.now()
+    return rememberRowText(items, context, locales, today, key = { it.id.value }) { it.rowText(context, today) }
 }
 
 /** The section line: what Trash holds in mono, then how long it keeps items. */

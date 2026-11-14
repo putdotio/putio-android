@@ -179,10 +179,10 @@ private fun MobileHistoryList(
 ) {
     val zone = ZoneId.systemDefault()
     // A stamp the parser cannot read keeps a group of its own, under itself.
-    val rowText = rememberHistoryRowText(content.items, zone)
-    val grouped = remember(content.items, rowText) {
-        content.items.groupBy { item -> rowText[item].date?.let { it to null } ?: (null to item.createdAt) }
+    val grouped = remember(content.items, zone) {
+        content.items.groupBy { item -> item.localDate(zone)?.let { it to null } ?: (null to item.createdAt) }
     }
+    val rowText = rememberHistoryRowText(content.items)
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(
         listState = listState,
@@ -368,15 +368,14 @@ private fun historyDateLabel(date: LocalDate?, today: LocalDate, raw: String): S
     }
 }
 
-private class HistoryRowText(val title: String, val kind: String?, val time: String, val date: LocalDate?)
+private data class HistoryRowText(val title: String, val kind: String?, val time: String)
 
 @Composable
-private fun rememberHistoryRowText(items: List<HistoryItem>, zone: ZoneId): MobileRowText<HistoryItem, HistoryRowText> {
+private fun rememberHistoryRowText(items: List<HistoryItem>): MobileRowText<HistoryItem, HistoryRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
-    return rememberRowText(items, context, locales, zone, key = { it.id.value }) { item, _ ->
+    return rememberRowText(items, context, locales, key = { it.id.value }) { item ->
         HistoryRowText(
-            date = item.localDate(zone),
             title = item.title(context),
             kind = item.kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
             time = item.timeLabel(context),

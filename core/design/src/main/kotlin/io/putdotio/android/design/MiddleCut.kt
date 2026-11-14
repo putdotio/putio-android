@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.toSize
+import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -169,7 +170,7 @@ private class MiddleCutTextNode(
         if (maxLines != 1) {
             return Fit(middleCutWhere(line, maxWidth) { measurer.fitsLines(it, style, maxWidth, maxLines) })
         }
-        val key = OneLineCut(line, maxWidth, style, density, fontScale, layoutDirection)
+        val key = OneLineCut(line, maxWidth, style, Locale.getDefault(), density, fontScale, layoutDirection)
         OneLineCuts[key]?.let { return Fit(it) }
         val whole = oneLineLayout(line)
         if (maxWidth !in 1 until Int.MAX_VALUE || whole.size.width <= maxWidth) {
@@ -266,6 +267,7 @@ private data class OneLineCut(
     val text: String,
     val maxWidth: Int,
     val style: TextStyle,
+    val locale: Locale,
     val density: Float,
     val fontScale: Float,
     val layoutDirection: LayoutDirection,

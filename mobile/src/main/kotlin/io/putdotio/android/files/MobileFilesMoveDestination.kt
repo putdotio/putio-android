@@ -378,7 +378,7 @@ private fun MobileMoveFolderContent(
         context,
         LocalConfiguration.current.locales,
         key = { it.id.value },
-    ) { folder, _ -> folder.createdAt.toDisplayDate(context).orEmpty() }
+    ) { folder -> folder.createdAt.toDisplayDate(context).orEmpty() }
     LazyColumn(state = listState, modifier = listModifier.fillMaxWidth()) {
         when (content) {
             is FilesContent.Loading -> item(contentType = "loading") {

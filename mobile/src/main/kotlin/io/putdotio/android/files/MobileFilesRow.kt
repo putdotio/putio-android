@@ -88,7 +88,7 @@ internal fun MobileFilesRow(
     checked: Boolean? = null,
     onCheckedChange: (() -> Unit)? = null,
     playbackBounds: Boolean = true,
-    text: FilesRowText = item.rowText(LocalContext.current, System.currentTimeMillis()),
+    text: FilesRowText = item.rowText(LocalContext.current, dated = place == MobileFilesRowPlace.Listing),
 ) {
     if (checked != null) {
         MobileFilesSelectableRow(item, text, checked, onCheckedChange, downloadStatus, place, modifier)
@@ -186,19 +186,22 @@ private fun MobileFilesSelectableRow(
     )
 }
 
-internal class FilesRowText(val size: String?, val date: String?)
+internal data class FilesRowText(val size: String?, val date: String?)
 
-internal fun FilesItem.rowText(context: Context, nowMillis: Long): FilesRowText =
+internal fun FilesItem.rowText(context: Context, dated: Boolean): FilesRowText =
     FilesRowText(
         size = formatFileSize(sizeBytes).takeIf { folderType == PutioFolderType.REGULAR },
-        date = updatedAgo(nowMillis) ?: createdAt.toDisplayDate(context),
+        date = if (dated) updatedAgo(System.currentTimeMillis()) ?: createdAt.toDisplayDate(context) else null,
     )
 
 @Composable
-internal fun rememberFilesRowText(items: List<FilesItem>): MobileRowText<FilesItem, FilesRowText> {
+internal fun rememberFilesRowText(
+    items: List<FilesItem>,
+    dated: Boolean = true,
+): MobileRowText<FilesItem, FilesRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
-    return rememberRowText(items, context, locales, key = { it.id.value }) { item, now -> item.rowText(context, now) }
+    return rememberRowText(items, context, locales, dated, key = { it.id.value }) { it.rowText(context, dated) }
 }
 
 /** Where a row is listed: in a folder, which dates it, or in search results, which name its folder. */

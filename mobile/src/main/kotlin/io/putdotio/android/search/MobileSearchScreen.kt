@@ -394,7 +394,7 @@ private fun MobileSearchResults(
 ) {
     val (folders, files) = remember(content.items) { content.items.partition(FilesItem::isFolder) }
     val rootName = stringResource(R.string.mobile_destination_files)
-    val rowText = rememberFilesRowText(content.items)
+    val rowText = rememberFilesRowText(content.items, dated = false)
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(listState, nextPage = content.paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {
