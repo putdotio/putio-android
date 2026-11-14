@@ -43,6 +43,7 @@ import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.outrunsScroll
+import io.putdotio.android.tv.tracksHeldUpOrDown
 import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -70,6 +71,7 @@ internal fun TvFilesList(
         rememberLazyListState(viewport.firstVisibleItemIndex, viewport.firstVisibleItemScrollOffset)
     }
     val rowsHoldFocus = remember(listState) { mutableStateOf(false) }
+    val keyHeld = remember(listState) { mutableStateOf(false) }
     listState.KeepTopWhenRowsArriveAbove(content.items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
     val currentOnEvent by rememberUpdatedState(onEvent)
     val currentOnOpen by rememberUpdatedState(onOpen)
@@ -157,7 +159,7 @@ internal fun TvFilesList(
         }
         // Started after the programmatic scroll so the settled position it reports is the one
         // on screen. Only the mount position is skipped: it came from the reducer already.
-        listState.reportViewport(viewport) { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
+        listState.reportViewport(viewport, keyHeld) { currentOnEvent(FilesBrowserEvent.ViewportChanged(it)) }
     }
 
     val lastItemId = content.items.last().id
@@ -174,6 +176,7 @@ internal fun TvFilesList(
             modifier = modifier
                 .fillMaxWidth()
                 .onFocusChanged { rowsHoldFocus.value = it.hasFocus }
+                .tracksHeldUpOrDown(keyHeld)
                 .onPreviewKeyEvent { it.outrunsScroll(listState, focusedRowId.value, pagingHeldFocus.value) }
                 .focusRestorer(entryFocus)
                 .focusGroup()
@@ -296,11 +299,12 @@ private suspend fun FocusRequester.requestFocusNextFrame(paneHasFocus: State<Boo
 
 private suspend fun LazyListState.reportViewport(
     mounted: FilesViewportPosition,
+    keyHeld: State<Boolean>,
     onChanged: (FilesViewportPosition) -> Unit,
 ) {
     var reported = mounted
     snapshotFlow {
-        if (isScrollInProgress) {
+        if (isScrollInProgress || keyHeld.value) {
             null
         } else {
             FilesViewportPosition(firstVisibleItemIndex, firstVisibleItemScrollOffset)

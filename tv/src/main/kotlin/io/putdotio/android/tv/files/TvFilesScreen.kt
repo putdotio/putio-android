@@ -81,7 +81,9 @@ import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.ROW_BLEED
+import io.putdotio.android.tv.TvHeldDetail
 import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.heldDetail
 import io.putdotio.android.tv.TvMiddleCutText
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TvFocusHandBack
@@ -229,8 +231,8 @@ internal fun TvFilesScreen(
     val emptyFocus = remember { FocusRequester() }
     entryTarget.value = content.paneEntryTarget(skeletonFocus, retryFocus, pagingFocus, emptyFocus, listEntry)
     val folderId = current.folder.id.value
-    var detailId by remember(sessionKey, folderId) { mutableStateOf(focusMemory[folderId]) }
-    val detailItem = content.detailItem(detailId, focusMemory[folderId])
+    val detailRow = remember(sessionKey, folderId) { TvHeldDetail(focusMemory[folderId]) }
+    val detailItem = content.detailItem(detailRow.shown, focusMemory[folderId])
     val detailFocus = remember { TvFilesDetailFocus() }
     val listing = rememberTvFilesListing(current)
     val actionContext = TvFilesActionContext(
@@ -295,7 +297,7 @@ internal fun TvFilesScreen(
                 )
             } else {
                 TvListDetail(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).heldDetail(detailRow),
                     header = { TvFilesFolderHeader(state) },
                     detailFocus = detailFocus.primary,
                     listFocus = listEntry.value,
@@ -331,7 +333,7 @@ internal fun TvFilesScreen(
                             onOpen = open,
                             onActions = openActions,
                             onRowFocused = {
-                                detailId = it.id.value
+                                detailRow.focus(it.id.value)
                                 detailFocus.onListFocusChanged(true)
                             },
                         )

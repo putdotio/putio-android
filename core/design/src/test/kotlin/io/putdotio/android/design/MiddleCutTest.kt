@@ -33,6 +33,24 @@ class MiddleCutTest {
         }
     }
 
+    @Test
+    fun aPricedCutMatchesTheMeasuredCutAtEveryWidth() {
+        val layout = MiddleCutLayout(NAME.length, ellipsisWidth = 1f) { it.toFloat() }
+        for (budget in 1..NAME.length + 1) {
+            assertEquals("width $budget", middleCut(NAME, budget, width), middleCut(NAME, budget, layout, width))
+        }
+    }
+
+    @Test
+    fun aPricedCutThatMeasuresWiderFallsBackToTheMeasuredCut() {
+        val kernedJoin: (String) -> Int = { it.length + if ('…' in it) 2 else 0 }
+        val layout = MiddleCutLayout(NAME.length, ellipsisWidth = 1f) { it.toFloat() }
+        for (budget in 1..NAME.length) {
+            val priced = middleCut(NAME, budget, layout, kernedJoin)
+            assertEquals("width $budget", middleCut(NAME, budget, kernedJoin), priced)
+        }
+    }
+
     private fun String.pairedAt(index: Int): Boolean = when {
         this[index].isHighSurrogate() -> index + 1 < length && this[index + 1].isLowSurrogate()
         this[index].isLowSurrogate() -> index > 0 && this[index - 1].isHighSurrogate()

@@ -55,7 +55,9 @@ import io.putdotio.android.tv.TvConfirmDialog
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvDialog
 import io.putdotio.android.tv.TvEmptyState
+import io.putdotio.android.tv.TvHeldDetail
 import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.heldDetail
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvLoadFailedState
@@ -240,8 +242,8 @@ private fun TvHistoryListDetail(
     val restoreRowId = remember { pickedRow.id }
     val today = remember(content.items) { LocalDate.now(clock) }
     val openFocus = remember { FocusRequester() }
-    var detailId by remember { mutableStateOf(restoreRowId) }
-    val detailItem = content.items.firstOrNull { it.id.value == detailId } ?: content.items.first()
+    val detailRow = remember { TvHeldDetail(restoreRowId) }
+    val detailItem = content.items.firstOrNull { it.id.value == detailRow.shown } ?: content.items.first()
     val detailFileId = detailItem.kind.navigableFileId()
     val lookup = rememberTvHistoryLookup(detailFileId, files, onAuthenticationRequired)
     val detailActionable = lookup is TvHistoryLookup.Found || lookup == TvHistoryLookup.Unknown
@@ -252,7 +254,7 @@ private fun TvHistoryListDetail(
     Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize()) {
         TvListDetail(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).heldDetail(detailRow),
             header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
             detailFocus = if (detailFileId != null && detailActionable) openFocus else FocusRequester.Cancel,
             listFocus = focus.list,
@@ -272,7 +274,7 @@ private fun TvHistoryListDetail(
                             pickedRow.pick(it.id.value)
                             focus.clearHadFocus.value = false
                             detailHadFocus = false
-                            detailId = it.id.value
+                            detailRow.focus(it.id.value)
                         },
                         onClearFocused = {
                             pickedRow.pick(TV_HISTORY_CLEAR_PICK)

@@ -25,6 +25,7 @@ import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.node.invalidateSemantics
 import androidx.compose.ui.platform.InspectorInfo
+import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.getTextLayoutResult
@@ -33,12 +34,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.toSize
-import java.text.BreakIterator
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -58,7 +60,8 @@ public fun PutioMiddleCutText(
 ) {
     val measurer = rememberTextMeasurer()
     val drawColor = color.takeOrElse { style.color.takeOrElse { contentColor } }
-    Spacer(modifier.then(MiddleCutTextElement(text, style, drawColor, maxLines, measurer)))
+    val fonts = LocalFontFamilyResolver.current
+    Spacer(modifier.then(MiddleCutTextElement(text, style, drawColor, maxLines, measurer, fonts)))
 }
 
 /** The text a cut name laid out, while accessibility reads the full name; for tests. */
@@ -68,21 +71,13 @@ private var SemanticsPropertyReceiver.middleCutShown by MiddleCutShown
 /** Characters kept after the cut: the extension and a few before it. */
 public const val MIDDLE_CUT_TAIL: Int = 11
 
-/**
- * The longest start of [text] that fits [maxWidth] with an ellipsis and the last [MIDDLE_CUT_TAIL]
- * characters; [text] itself when it fits. A width too narrow for that tail keeps fewer of its last
- * characters; one too narrow for an ellipsis and a single character leaves the end cut to the
- * text's own ellipsis.
- */
-internal fun middleCut(text: String, maxWidth: Int, widthOf: (String) -> Int): String =
-    middleCutWhere(text, maxWidth) { widthOf(it) <= maxWidth }
-
 private data class MiddleCutTextElement(
     val text: String,
     val style: TextStyle,
     val color: Color,
     val maxLines: Int,
     val measurer: TextMeasurer,
+    val fonts: FontFamily.Resolver,
 ) : ModifierNodeElement<MiddleCutTextNode>() {
     override fun create() = MiddleCutTextNode(this)
 
@@ -125,7 +120,7 @@ private class MiddleCutTextNode(
 
     override fun MeasureScope.measure(measurable: Measurable, constraints: Constraints): MeasureResult {
         if (constraints.maxWidth != cutWidth) {
-            shown = element.cutToFit(line, constraints.maxWidth)
+            shown = element.cutToFit(line, constraints.maxWidth, this)
             cutWidth = constraints.maxWidth
         }
         val layout = layoutText(shown, constraints)
@@ -167,7 +162,7 @@ private class MiddleCutTextNode(
         maxIntrinsicHeight(measurable, width)
 
     override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurable: IntrinsicMeasurable, width: Int): Int =
-        layoutText(element.cutToFit(line, width), Constraints(maxWidth = width)).size.height
+        layoutText(element.cutToFit(line, width, this), Constraints(maxWidth = width)).size.height
 
     private fun IntrinsicMeasureScope.layoutText(text: String, constraints: Constraints): TextLayoutResult =
         measurer.measure(
@@ -230,40 +225,33 @@ private class MiddleCutTextNode(
     }
 }
 
-private fun MiddleCutTextElement.cutToFit(line: String, maxWidth: Int): String =
+private fun MiddleCutTextElement.cutToFit(line: String, maxWidth: Int, scope: IntrinsicMeasureScope): String =
     if (maxLines == 1) {
-        middleCut(line, maxWidth) { measurer.width(it, style) }
+        val ellipsis = ellipsisWidths.getOrPut(with(scope) { EllipsisKey(style, density, fontScale, fonts) }) {
+            measurer.ellipsisWidth(style)
+        }
+        middleCut(line, maxWidth, measurer.lineLayout(line, style, ellipsis)) { measurer.width(it, style) }
     } else {
         middleCutWhere(line, maxWidth) { measurer.fitsLines(it, style, maxWidth, maxLines) }
     }
 
-/** [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. */
-private fun middleCutWhere(text: String, maxWidth: Int, fits: (String) -> Boolean): String {
-    if (maxWidth !in 1 until Int.MAX_VALUE || fits(text)) return text
-    val boundaries = BreakIterator.getCharacterInstance().apply { setText(text) }
-        .let { breaks -> generateSequence(breaks.first()) { breaks.next().takeIf { it != BreakIterator.DONE } } }
-        .toList()
-    val tails = boundaries.filter { it in 1 until text.length && text.length - it <= MIDDLE_CUT_TAIL }
-    val tailStart = tails.firstOrNull { fits(ELLIPSIS + text.substring(it)) }
-    return tailStart?.let { longestFit(text, boundaries.filter { start -> start < it }, it, fits) }
-        ?: text
+private data class EllipsisKey(
+    val style: TextStyle,
+    val density: Float,
+    val fontScale: Float,
+    val fonts: FontFamily.Resolver,
+)
+
+private val ellipsisWidths = BoundedCache<EllipsisKey, Float>(ELLIPSIS_CACHE_SIZE)
+
+private fun TextMeasurer.lineLayout(text: String, style: TextStyle, ellipsisWidth: Float): MiddleCutLayout {
+    val line = measure(text, style, maxLines = 1, softWrap = false)
+    return MiddleCutLayout(line.size.width, ellipsisWidth) { line.getHorizontalPosition(it, true) }
 }
 
-/** The cut with the longest start that still fits, by binary search over the boundaries before the tail. */
-private fun longestFit(
-    text: String,
-    starts: List<Int>,
-    tailStart: Int,
-    fits: (String) -> Boolean,
-): String {
-    fun cut(startEnd: Int) = text.substring(0, startEnd).trimEnd() + ELLIPSIS + text.substring(tailStart)
-    var low = 0
-    var high = starts.lastIndex
-    while (low < high) {
-        val middle = (low + high + 1) / 2
-        if (fits(cut(starts[middle]))) low = middle else high = middle - 1
-    }
-    return cut(starts[low])
+private fun TextMeasurer.ellipsisWidth(style: TextStyle): Float {
+    val ellipsis = measure(ELLIPSIS, style, maxLines = 1, softWrap = false)
+    return abs(ellipsis.getHorizontalPosition(ELLIPSIS.length, true) - ellipsis.getHorizontalPosition(0, true))
 }
 
 private fun TextMeasurer.width(text: String, style: TextStyle): Int =
@@ -281,6 +269,7 @@ private fun TextLayoutResult.shownText(): String {
 
 private fun String.oneLine(): String = replace(LINE_BREAKS, " ")
 
-private const val ELLIPSIS = "…"
 private const val NO_CUT_WIDTH = -1
 private val LINE_BREAKS = Regex("\\R")
+
+private const val ELLIPSIS_CACHE_SIZE = 16
