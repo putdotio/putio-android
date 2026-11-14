@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -79,10 +80,11 @@ internal fun rememberTrashSelection(key: Any?): TrashSelection =
 
 internal fun trashSelectionBar(
     route: String?,
-    state: TrashState?,
+    states: State<TrashState>?,
     selection: TrashSelection,
-): (@Composable () -> Unit)? =
-    if (route == MOBILE_TRASH_ROUTE && state != null && selection.isActive(state)) {
+): (@Composable () -> Unit)? {
+    val state = states?.takeIf { route == MOBILE_TRASH_ROUTE }?.value
+    return if (state != null && selection.isActive(state)) {
         {
             MobileSelectionBar(
                 count = selection.selected(state).size,
@@ -94,6 +96,7 @@ internal fun trashSelectionBar(
     } else {
         null
     }
+}
 
 @Composable
 internal fun MobileTrashSelectionToolbar(

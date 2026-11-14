@@ -157,9 +157,7 @@ import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashState
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 
@@ -179,7 +177,7 @@ internal fun MobileShell(
     loggedInAppsController: LoggedInAppsController? = null,
     accountSettingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
-    searchHistoryState: MobileSearchHistoryState = emptySearchHistoryState(),
+    searchHistoryState: MobileSearchHistoryState = remember { emptySearchHistoryState() },
     transfersState: TransfersState = emptyTransfersState(),
     transfersSessionId: MobileAuthSessionId? = null,
     account: MobileAccount,
@@ -460,11 +458,11 @@ internal fun MobileShell(
                             ) ?: historyActions(
                                 destination,
                                 accountSettingsState.historyOpen(),
-                                searchHistoryState.history,
+                                searchHistoryState,
                                 searchHistoryActions.onHistoryEvent,
                             ),
-                            subpageActions = trashTopBarActions(route, trashStates?.value, trashController, trashSelection),
-                            subpageSelectionBar = trashSelectionBar(route, trashStates?.value, trashSelection),
+                            subpageActions = trashTopBarActions(route, trashStates, trashController, trashSelection),
+                            subpageSelectionBar = trashSelectionBar(route, trashStates, trashSelection),
                             downloads = downloadsController?.let {
                                 MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
                             },
@@ -611,14 +609,13 @@ private fun TrashRestoreEffects(
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
     LaunchedEffect(trashStates) {
         val states = trashStates ?: return@LaunchedEffect
-        launch {
-            snapshotFlow { states.value.restoredVersion }.distinctUntilChanged().collect {
-                states.value.lastRestoredItem?.let { item ->
-                    currentOnFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(item))
-                }
-            }
+        snapshotFlow { states.value.restoredVersion to states.value.lastRestoredItem }.collect { (_, item) ->
+            item?.let { currentOnFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it)) }
         }
-        snapshotFlow { states.value.bulkRestoreVersion }.distinctUntilChanged().collect { version ->
+    }
+    LaunchedEffect(trashStates) {
+        val states = trashStates ?: return@LaunchedEffect
+        snapshotFlow { states.value.bulkRestoreVersion }.collect { version ->
             if (version > 0L) currentOnFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
         }
     }
@@ -1305,15 +1302,15 @@ private fun tabActions(
 private fun historyActions(
     destination: MobileDestination,
     open: HistoryOpen,
-    history: HistoryState,
+    searchHistory: MobileSearchHistoryState,
     onHistoryEvent: (HistoryEvent) -> Unit,
 ): (@Composable RowScope.() -> Unit)? =
     if (
         destination == MobileDestination.History &&
         open == HistoryOpen.History &&
-        history.content is HistoryContent.Ready
+        searchHistory.history.content is HistoryContent.Ready
     ) {
-        { MobileHistoryOverflow(history.clearing, onHistoryEvent) }
+        { MobileHistoryOverflow(searchHistory.history.clearing, onHistoryEvent) }
     } else {
         null
     }

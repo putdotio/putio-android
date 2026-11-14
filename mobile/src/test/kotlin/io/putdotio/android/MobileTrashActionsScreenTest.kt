@@ -47,6 +47,7 @@ import androidx.compose.ui.test.SemanticsNodeInteractionsProvider
 import io.putdotio.android.trash.MOBILE_TRASH_MORE_TAG
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import io.putdotio.android.trash.MobileTrashOverflow
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
 import io.putdotio.android.trash.MOBILE_TRASH_SELECT_TAG
@@ -225,7 +226,7 @@ class MobileTrashActionsScreenTest {
     private fun TrashWithOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
         val selection = rememberTrashSelection(Unit)
         Column {
-            trashSelectionBar(MOBILE_TRASH_ROUTE, state, selection)?.invoke()
+            trashSelectionBar(MOBILE_TRASH_ROUTE, rememberUpdatedState(state), selection)?.invoke()
                 ?: MobileTrashOverflow(state, onEvent, onSelect = selection::start)
             MobileTrashScreen(state, onEvent, selection = selection)
         }

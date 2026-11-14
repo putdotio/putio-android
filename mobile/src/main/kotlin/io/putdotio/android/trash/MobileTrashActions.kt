@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,12 +112,12 @@ internal fun MobileTrashItemSheet(
 /** The overflow Trash's top bar carries, while Trash is the route on screen. */
 internal fun trashTopBarActions(
     route: String?,
-    state: TrashState?,
+    states: State<TrashState>?,
     controller: TrashController?,
     selection: TrashSelection,
 ): (@Composable RowScope.() -> Unit)? =
-    if (route == MOBILE_TRASH_ROUTE && state != null && controller != null) {
-        { MobileTrashOverflow(state, controller::dispatch, onSelect = selection::start) }
+    if (route == MOBILE_TRASH_ROUTE && states != null && controller != null) {
+        { MobileTrashOverflow(states.value, controller::dispatch, onSelect = selection::start) }
     } else {
         null
     }
