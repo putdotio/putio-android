@@ -102,16 +102,16 @@ internal fun MobileTrashScreen(
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     val listState = rememberLazyListState()
     val rowText = rememberTrashRowText((state.content as? TrashContent.Loaded)?.items.orEmpty())
-    val currentState by rememberUpdatedState(state)
+    val states = rememberUpdatedState(state)
     val checked = selected.takeIf { inSelection }
     val rowHandlers = remember(selection, checked, rowText) {
         TrashRowHandlers(
             checked = checked,
             onActions = { sheetItemId = it.id.value },
-            onSelect = { selection.start(currentState, it.id) },
+            onSelect = { selection.start(states.value, it.id) },
             onToggle = { selection.toggle(it.id) },
             text = rowText,
-            states = currentState,
+            states = states,
         )
     }
     ScrollToNewOutcome(state, listState)
