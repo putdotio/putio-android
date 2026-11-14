@@ -1,12 +1,11 @@
 package io.putdotio.android.tv.files
 
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.design.MiddleCutShown
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -26,13 +25,10 @@ class TvFilesRowNameTest {
     fun aLongNameInAFilesRowKeepsItsStartAndItsExtension() {
         compose.showFiles(state = { ready(item(1, NAME, PutioFileType.VIDEO)) })
 
-        val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNode(hasText(NAME) and hasAnyAncestor(hasTestTag(TV_FILES_ROW_TAG)), useUnmergedTree = true)
-            .fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
-        val layout = layouts.single()
-        val shown = NAME.filterIndexed { index, _ -> layout.getBoundingBox(index).width > 0f }
+        val shown = compose.onNode(hasText(NAME) and hasAnyAncestor(hasTestTag(TV_FILES_ROW_TAG)), useUnmergedTree = true)
+            .fetchSemanticsNode().config[MiddleCutShown]
 
-        assertTrue("The name overflows the row", layout.isLineEllipsized(0))
+        assertTrue("$shown is cut", shown.length < NAME.length && "…" in shown)
         assertTrue("$shown keeps the start", shown.startsWith(NAME.take(KEPT)))
         assertTrue("$shown keeps the extension", shown.endsWith(NAME.takeLast(KEPT)))
     }
