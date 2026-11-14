@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -19,6 +20,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -34,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.design.MIDDLE_CUT_TAIL
+import io.putdotio.android.design.MiddleCutShown
 import io.putdotio.android.design.PutioDesignTokens
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -72,6 +76,22 @@ class TvSharedComponentsTest {
         compose.waitForIdle()
 
         assertRowHoldsBothLinesCentred(2f)
+    }
+
+    @Test
+    fun aListRowAndTheDetailTitleCutALongNameAlike() {
+        compose.setTvContent {
+            Column(Modifier.width(CUT_WIDTH)) {
+                TvListRow(glyph = R.drawable.ic_ph_caret_right, title = LONG_NAME, onClick = {}) {}
+                TvDetailBody(tile = {}, title = LONG_NAME, meta = null, facts = emptyList()) {}
+            }
+        }
+
+        val shown = compose.onAllNodes(SemanticsMatcher.keyIsDefined(MiddleCutShown), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .map { it.config[MiddleCutShown] }
+        assertEquals("row and detail title both middle-cut", 2, shown.size)
+        shown.forEach { assertTrue(it, it.endsWith("…" + LONG_NAME.takeLast(MIDDLE_CUT_TAIL))) }
     }
 
     @Test
@@ -225,6 +245,8 @@ class TvSharedComponentsTest {
         const val LIST_ROW = "list-row"
         const val ROW_TITLE = "Sintel.2010.1080p.mkv"
         const val ROW_META = "1.1 GB"
+        const val LONG_NAME = "Blue.Lights.S04E01.The.Very.Long.Episode.Title.1080p.WEB.H264-ORGANiC.mkv"
+        val CUT_WIDTH = 360.dp
         const val FACT_LABEL = "Subtitles"
         const val FACT_VALUE = "English, English · SDH"
         const val CENTRE_TOLERANCE_DP = 1f

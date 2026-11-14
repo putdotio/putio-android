@@ -87,6 +87,7 @@ import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvBriefShown
+import io.putdotio.android.tv.TvMiddleCutText
 import io.putdotio.android.tv.TvPaneSnackbarHost
 import io.putdotio.android.tv.TvQrCode
 import io.putdotio.android.tv.TvSnackbarHeldWhile
@@ -636,12 +637,9 @@ private fun TvHomeCard(
                     tint = tvAccent(focused),
                     modifier = Modifier.size(CARD_GLYPH),
                 )
-                Text(
-                    name,
+                TvMiddleCutText(
+                    text = name,
                     style = CARD_NAME,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.MiddleEllipsis,
                 )
             }
             Spacer(Modifier.height(CARD_INNER_GAP))

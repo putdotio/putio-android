@@ -153,6 +153,12 @@ val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
     stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
 }
 
+val checkSkillsLock = tasks.register<CheckSkillsLockTask>("checkSkillsLock") {
+    group = "verification"
+    description = "Verify the skills match skills-lock.json and each has its .claude/skills link"
+    repositoryRoot.set(layout.projectDirectory)
+}
+
 val markdownCheck = tasks.register<Exec>("markdownCheck") {
     group = "verification"
     description = "Check Markdown formatting with oxfmt, and the DESIGN.md contract"
@@ -168,7 +174,12 @@ fun verifyLane(name: String, summary: String, vararg checks: Any) = tasks.regist
     dependsOn(*checks)
 }
 
-val verifyDocs = verifyLane("verifyDocs", "Check Markdown and the DESIGN.md contract", markdownCheck)
+val verifyDocs = verifyLane(
+    "verifyDocs",
+    "Check Markdown, the DESIGN.md contract and the skills lock",
+    markdownCheck,
+    checkSkillsLock,
+)
 
 val verifyScripts = verifyLane(
     "verifyScripts",

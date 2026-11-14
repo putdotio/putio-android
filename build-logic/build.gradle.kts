@@ -12,10 +12,14 @@ dependencies {
     testImplementation(gradleTestKit())
 }
 
-// The codegen tests read the repository's design contract, token graph and design, font and icon locks.
+// The codegen tests read the repository's design contract, token graph and design, font and icon locks,
+// and the skills tests read the skills lock and the skills it pins.
 tasks.test {
     inputs.files("../DESIGN.md", "../design/tokens.dtcg.json", "../design/brand-fonts.lock.json", "../design/phosphor-icons.lock.json", "../design/putio-design.lock.json")
         .withPropertyName("designSources")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files("../skills-lock.json", fileTree("../.agents/skills"))
+        .withPropertyName("skillSources")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 

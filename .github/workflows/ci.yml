@@ -43,7 +43,7 @@ jobs:
               - '!.github/workflows/{delivery-ref,emulator-smoke,play-data-safety,play-internal,play-release}.yml'
               - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
             markdown:
-              - '**/*.md'
+              - '{**/*.md,skills-lock.json,.agents/**,.claude/**}'
 
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
