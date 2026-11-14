@@ -27,6 +27,7 @@ import androidx.media3.session.CommandButton
 import androidx.media3.session.MediaSession
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
+import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import com.google.android.gms.cast.CastDevice as GmsCastDevice
@@ -583,7 +584,11 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
         // Adding a callback again only widens its flags, so the scan narrows by starting over.
         router.removeCallback(callback)
         when {
-            discovering -> router.addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN)
+            discovering -> router.addCallback(
+                selector.republishingReceivers(),
+                callback,
+                MediaRouter.CALLBACK_FLAG_PERFORM_ACTIVE_SCAN,
+            )
             watching -> router.addCallback(selector, callback, MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY)
         }
         refresh()
@@ -611,6 +616,9 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
             }
         onDevicesChanged()
     }
+
+    private fun MediaRouteSelector.republishingReceivers(): MediaRouteSelector =
+        MediaRouteSelector.Builder(this).addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK).build()
 
     override fun select(deviceId: String) {
         val router = MediaRouter.getInstance(context)
