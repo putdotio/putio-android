@@ -45,3 +45,16 @@ internal fun MobileIconButton(
         }
     }
 }
+
+@Composable
+internal fun MobileRowIconButton(
+    label: String,
+    @DrawableRes icon: Int,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
+) {
+    IconButton(onClick = onClick, enabled = enabled, colors = colors) {
+        Icon(painterResource(icon), contentDescription = label)
+    }
+}

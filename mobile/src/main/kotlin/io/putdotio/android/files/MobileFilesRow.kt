@@ -53,7 +53,7 @@ import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.label
 import io.putdotio.android.playbackContainer
 import io.putdotio.sdk.files.PutioFolderType
-import io.putdotio.android.MobileIconButton
+import io.putdotio.android.MobileRowIconButton
 
 internal const val MOBILE_FILES_WATCHED_TAG = "mobile-files-watched"
 internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
@@ -110,7 +110,7 @@ internal fun MobileFilesRow(
     val trailing: (@Composable () -> Unit)? = when {
         onActions != null -> {
             {
-                MobileIconButton(
+                MobileRowIconButton(
                     actionsLabel,
                     R.drawable.ic_ph_dots_three_vertical,
                     onActions,
