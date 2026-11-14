@@ -33,7 +33,6 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.SnapshotMutationPolicy
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -630,9 +629,6 @@ private fun TrashRestoreEffects(
     }
 }
 
-private fun filesSelectionShown(destination: MobileDestination, searchOpen: Boolean, active: Boolean): Boolean =
-    destination == MobileDestination.Files && !searchOpen && active
-
 private fun shareNavigationBlocked(filesState: FilesBrowserState, transfersState: TransfersState): Boolean =
     filesState.stack.any {
         it.operation.pendingDelete != null || it.operation.pendingMove != null
@@ -903,20 +899,6 @@ private fun TransferFileNavigationEffect(
                     onTransfersEvent(TransfersEvent.OpenFailed(resolvingTransfer.requestId, resolved.failure))
                 }
         }
-    }
-}
-
-private data class FilesBackGate(
-    val moveSettling: Boolean,
-    val canNavigateBack: Boolean,
-    val deletePending: Boolean,
-) {
-    companion object {
-        fun of(state: FilesBrowserState) = FilesBackGate(
-            moveSettling = state.stack.any { it.operation.pendingMove != null },
-            canNavigateBack = state.canNavigateBack,
-            deletePending = state.current.operation.pendingDelete != null,
-        )
     }
 }
 
@@ -1292,12 +1274,6 @@ private fun MobileFilesTopBar(
             backEnabled = gate.canNavigateBack && !gate.deletePending && !gate.moveSettling,
         )
     }
-}
-
-private object FolderChrome : SnapshotMutationPolicy<FilesFolderState> {
-    override fun equivalent(a: FilesFolderState, b: FilesFolderState): Boolean =
-        a.folder == b.folder && a.operation == b.operation && a.summary == b.summary &&
-            a.content::class == b.content::class
 }
 
 @Composable

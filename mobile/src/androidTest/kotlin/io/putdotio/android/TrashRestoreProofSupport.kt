@@ -66,7 +66,9 @@ internal fun TrashRestoreProofShell(
         Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
             color = MaterialTheme.colorScheme.background) {
             MobileShell(
-                filesStates = rememberUpdatedState(files), filesRepository = filesRepository, trashController = controller,
+                filesStates = rememberUpdatedState(files),
+                filesRepository = filesRepository,
+                trashController = controller,
                 accountSettingsState = accountSettingsState(AccountSettingsContent.Ready(settings),
                     AccountSettingsMutation.Idle, 1),
                 appConfigState = androidAppConfigState(AndroidAppConfigContent.Ready(config),
