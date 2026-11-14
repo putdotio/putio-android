@@ -196,9 +196,12 @@ internal fun Modifier.focusRequesterIf(condition: Boolean, requester: FocusReque
  * row that is not composed has no focus requester to answer.
  */
 internal suspend fun LazyListState.bringIntoComposition(key: Any, index: Int) {
-    if (layoutInfo.visibleItemsInfo.none { it.key == key }) scrollToItem(index)
-    snapshotFlow { layoutInfo.visibleItemsInfo.any { it.key == key } }.first { it }
+    if (!composes(key)) scrollToItem(index)
+    snapshotFlow { composes(key) }.first { it }
 }
+
+internal fun LazyListState.composes(key: Any?): Boolean =
+    key != null && layoutInfo.visibleItemsInfo.any { it.key == key }
 
 /**
  * Runs as a pane's `LaunchedEffect(dialogOpen)`. A closing dialog's window takes focus with it,

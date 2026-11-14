@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.history
 
+import android.content.res.Resources
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -9,8 +10,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
@@ -21,6 +20,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -36,6 +37,7 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.navigableFileId
+import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TV_LIST_ROW_META
 import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
@@ -45,9 +47,14 @@ import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.TvAutoPaging
+import io.putdotio.android.tv.TvFocusedItem
+import io.putdotio.android.tv.TvItemRequesters
+import io.putdotio.android.tv.composes
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
+import io.putdotio.android.tv.keepsHeldFocusInView
+import io.putdotio.android.tv.tracksFocusedItem
 import io.putdotio.android.tv.withFullLineBox
 import java.time.LocalDate
 import java.time.ZoneId
@@ -64,32 +71,46 @@ private sealed interface TvHistoryEntry {
         override val key: Any get() = "header-$day"
     }
 
-    data class Event(val item: HistoryItem) : TvHistoryEntry {
+    data class Event(val item: HistoryItem, val row: TvHistoryRowText) : TvHistoryEntry {
         override val key: Any get() = item.id.value
     }
 }
 
+private data class TvHistoryRowText(val title: String, val label: String, val kind: String?, val time: String)
+
 @Composable
 private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: ZoneId): List<TvHistoryEntry> {
-    val days = remember(items, zone) {
-        items.fold(mutableListOf<Pair<TvHistoryDay, MutableList<HistoryItem>>>()) { groups, item ->
-            val day = item.day(zone)
-            val last = groups.lastOrNull()
-            if (last?.first == day) last.second += item else groups += day to mutableListOf(item)
-            groups
-        }
-    }
-    val labels = days.map { (day, _) -> day.label(today) }
-    return remember(days, labels) {
+    val resources = LocalResources.current
+    val locale = LocalConfiguration.current.locales[0]
+    return remember(items, today, zone, resources, locale) {
+        val untitled = resources.getString(R.string.tv_history_no_title)
+        val days = items.groupConsecutiveBy { it.day(zone) }
         buildList {
             days.forEachIndexed { index, (day, events) ->
-                val label = labels[index]
+                val label = day.label(today, resources, locale)
                 add(if (index == 0) TvHistoryEntry.Section(label) else TvHistoryEntry.Header(label, day))
-                events.forEach { add(TvHistoryEntry.Event(it)) }
+                events.forEach { add(TvHistoryEntry.Event(it, it.rowText(zone, resources, untitled))) }
             }
         }
     }
 }
+
+private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K): List<Pair<K, List<HistoryItem>>> =
+    fold(mutableListOf<Pair<K, MutableList<HistoryItem>>>()) { groups, item ->
+        val key = keyOf(item)
+        val last = groups.lastOrNull()
+        if (last?.first == key) last.second += item else groups += key to mutableListOf(item)
+        groups
+    }
+
+private fun HistoryItem.rowText(zone: ZoneId, resources: Resources, untitled: String): TvHistoryRowText {
+    val title = named() ?: untitled
+    val label = if (kind.navigableFileId() == null) title else resources.getString(R.string.tv_history_open_file, title)
+    return TvHistoryRowText(title, label, kind.kindLabel()?.let(resources::getString), timeLabel(zone))
+}
+
+private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequesters): Modifier =
+    if (entry is TvHistoryEntry.Event) focusRequester(requesters.of(entry.key)) else this
 
 private val HistoryPaging.isPending: Boolean
     get() = this is HistoryPaging.Available || this is HistoryPaging.Loading
@@ -104,22 +125,18 @@ private fun List<TvHistoryEntry>.indexOfPick(id: Long?): Int =
         indexOfFirst { it is TvHistoryEntry.Event && it.item.id.value == id }
     }
 
-private fun LazyListState.composedIndices(entries: List<TvHistoryEntry>): Set<Int> {
-    val keys = layoutInfo.visibleItemsInfo.mapTo(HashSet()) { it.key }
-    return entries.indices.filterTo(HashSet()) { entries[it].key in keys }
-}
-
 private suspend fun LazyListState.awaitMountRow(
     entries: List<TvHistoryEntry>,
     restoreIndex: Int,
     anchorIndex: Int,
 ): Boolean {
     val restoreKey = entries.getOrNull(restoreIndex)?.key
-    if (restoreKey != null && layoutInfo.visibleItemsInfo.none { it.key == restoreKey }) {
-        scrollToItem(restoreIndex)
-    }
     val targetKey = restoreKey ?: entries.getOrNull(anchorIndex)?.key ?: return false
-    snapshotFlow { layoutInfo.visibleItemsInfo.any { it.key == targetKey } }.first { it }
+    if (restoreKey != null) {
+        bringIntoComposition(restoreKey, restoreIndex)
+    } else {
+        snapshotFlow { composes(targetKey) }.first { it }
+    }
     return true
 }
 
@@ -137,7 +154,8 @@ internal fun TvHistoryList(
     val listFocus = focus.list
     val paneHasFocus = focus.paneHasFocus
     val entries = historyEntries(content.items, today, zone)
-    val anchorRow = remember { FocusRequester() }
+    val titles = remember(entries) { entries.mapNotNull { (it as? TvHistoryEntry.Event)?.row?.title } }
+    val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val restoreRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
@@ -147,9 +165,7 @@ internal fun TvHistoryList(
         handOffToLastRow.value = true
     }
     val listState = rememberLazyListState()
-    val anchorIndex by remember(listState, entries) {
-        derivedStateOf { entries.firstRowFrom(listState.firstVisibleItemIndex) }
-    }
+    val focused = remember { TvFocusedItem() }
     val lastIndex = entries.lastIndex
     val restoreIndex = remember(entries) { entries.indexOfPick(restoreRowId) }
     val pendingEndIndex = lastIndex.takeIf { content.paging.isPending }
@@ -159,6 +175,7 @@ internal fun TvHistoryList(
         nearEnd = { listState.isNearEnd(lastIndex) },
     )
     LaunchedEffect(listState) {
+        val anchorIndex = entries.firstRowFrom(listState.firstVisibleItemIndex)
         if (!listState.awaitMountRow(entries, restoreIndex, anchorIndex)) return@LaunchedEffect
         withFrameNanos {}
         if (paneHasFocus.value) (if (restoreIndex >= 0) restoreRow else listFocus).requestFocus()
@@ -170,42 +187,47 @@ internal fun TvHistoryList(
         if (paneHasFocus.value) lastRow.requestFocus()
         handOffToLastRow.value = false
     }
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxWidth()
-            .focusRequester(listFocus)
-            .focusRestorer {
-                val composed = listState.composedIndices(entries)
-                when {
-                    focus.clearHadFocus.value -> focus.clear
-                    handOffToLastRow.value && lastIndex in composed -> lastRow
-                    restoreIndex in composed -> restoreRow
-                    else -> anchorRow
+    ProvideMiddleCuts(titles) {
+        LazyColumn(
+            state = listState,
+            modifier = modifier
+                .fillMaxWidth()
+                .focusRequester(listFocus)
+                .keepsHeldFocusInView(listState, focused)
+                .focusRestorer {
+                    when {
+                        focus.clearHadFocus.value -> focus.clear
+                        handOffToLastRow.value && listState.composes(entries.last().key) -> lastRow
+                        listState.composes(entries.getOrNull(restoreIndex)?.key) -> restoreRow
+                        else -> rowFocus.firstComposed(listState) { it is Long }
+                    }
                 }
+                .focusGroup()
+                .testTag(TV_HISTORY_LIST_TAG),
+        ) {
+            itemsIndexed(
+                entries,
+                key = { _, entry -> entry.key },
+                contentType = { _, entry -> entry.javaClass },
+            ) { index, entry ->
+                val requesters = Modifier
+                    .tracksFocusedItem(focused, entry.key)
+                    .rowFocus(entry, rowFocus)
+                    .focusRequesterIf(index == lastIndex, lastRow)
+                    .holdAtPendingEnd(index == pendingEndIndex)
+                    .focusRequesterIf(index == restoreIndex, restoreRow)
+                TvHistoryEntryItem(entry, focus, actions, modifier = requesters)
             }
-            .focusGroup()
-            .testTag(TV_HISTORY_LIST_TAG),
-    ) {
-        itemsIndexed(
-            entries,
-            key = { _, entry -> entry.key },
-            contentType = { _, entry -> entry.javaClass },
-        ) { index, entry ->
-            val requesters = Modifier
-                .focusRequesterIf(index == anchorIndex, anchorRow)
-                .focusRequesterIf(index == lastIndex, lastRow)
-                .holdAtPendingEnd(index == pendingEndIndex)
-                .focusRequesterIf(index == restoreIndex, restoreRow)
-            TvHistoryEntryItem(entry, zone, focus, actions, modifier = requesters)
-        }
-        if (content.paging != HistoryPaging.Complete) {
-            item(key = PAGING_KEY, contentType = "paging") {
-                TvHistoryPaging(
-                    paging = content.paging,
-                    onRetry = actions.onRetry,
-                    buttonModifier = Modifier.onFocusChanged { pagingHeldFocus.value = it.isFocused },
-                )
+            if (content.paging != HistoryPaging.Complete) {
+                item(key = PAGING_KEY, contentType = "paging") {
+                    TvHistoryPaging(
+                        paging = content.paging,
+                        onRetry = actions.onRetry,
+                        buttonModifier = Modifier
+                            .tracksFocusedItem(focused, PAGING_KEY)
+                            .onFocusChanged { pagingHeldFocus.value = it.isFocused },
+                    )
+                }
             }
         }
     }
@@ -214,7 +236,6 @@ internal fun TvHistoryList(
 @Composable
 private fun TvHistoryEntryItem(
     entry: TvHistoryEntry,
-    zone: ZoneId,
     focus: TvHistoryFocus,
     actions: TvHistoryListActions,
     modifier: Modifier = Modifier,
@@ -240,7 +261,7 @@ private fun TvHistoryEntryItem(
         )
         is TvHistoryEntry.Event -> TvHistoryRow(
             item = entry.item,
-            zone = zone,
+            text = entry.row,
             onOpen = actions.onOpen,
             modifier = modifier.onFocusChanged { if (it.isFocused) actions.onRowFocused(entry.item) },
         )
@@ -250,21 +271,19 @@ private fun TvHistoryEntryItem(
 @Composable
 private fun TvHistoryRow(
     item: HistoryItem,
-    zone: ZoneId,
+    text: TvHistoryRowText,
     onOpen: (HistoryFileId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val title = item.title()
     val fileId = item.kind.navigableFileId()
-    val label = if (fileId == null) title else stringResource(R.string.tv_history_open_file, title)
-    val kind = item.kind.kindLabel()?.let { stringResource(it) }
-    val time = item.timeLabel(zone)
+    val kind = text.kind
+    val time = text.time
     TvListRow(
         glyph = item.kind.glyph(),
-        title = title,
+        title = text.title,
         onClick = { if (fileId != null) onOpen(fileId) },
         modifier = modifier
-            .semantics { contentDescription = label }
+            .semantics { contentDescription = text.label }
             .testTag(TV_HISTORY_ROW_TAG),
         glyphSize = GLYPH,
         neutralGlyph = true,

@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.trash
 
+import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.getValue
@@ -92,6 +93,14 @@ class TvTrashScreenTest {
         compose.onNodeWithText("Restore started for smoke-two.txt.").assertIsDisplayed()
         compose.onAllNodes(isDialog()).assertCountEquals(0)
         compose.onNode(row).assertIsFocused()
+    }
+
+    @Test
+    fun aHeldDownWaitsForTheListToScrollTheFocusedRowIntoView() {
+        val names = (1..40L).map { "trashed-$it.txt" }
+        val items = names.mapIndexed { index, name -> item.copy(id = FilesItemId(100L + index), name = name) }
+        show { TrashState(content = loaded.copy(items = items, total = items.size)) }
+        compose.assertHeldDownWaitsForScroll(TV_TRASH_LIST_TAG, names.map { hasText(it) and hasClickAction() })
     }
 
     @Test

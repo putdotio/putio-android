@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Contract tests for generate-baseline-profile.sh over a fake adb, gradlew and
-# putio CLI: a run whose generator succeeds and signs out twice exits 0; a
+# putio CLI: a run whose generator succeeds after one approval exits 0; a
 # failed generator exits 1.
 # Touches no device.
 
@@ -46,8 +46,6 @@ line() { printf '11-14 10:00:%02d.000  4242  4242 I PutioBaselineProfile: %s\n' 
 line 1 "activation code ABC123"
 for _ in $(seq 300); do [[ -e "${FAKE_STATE}/approved" ]] && break; sleep 0.1; done
 [[ -e "${FAKE_STATE}/approved" ]] || { echo "the code was never approved"; exit 1; }
-line 2 "signed out"
-line 3 "signed out"
 echo "fake generator output"
 exit "$(cat "${FAKE_STATE}/gradle-exit" 2>/dev/null || echo 0)"
 EOF

@@ -41,6 +41,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -85,6 +86,7 @@ import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvEmptyState
 import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvFocus
+import io.putdotio.android.tv.TvFocusedItem
 import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvBriefShown
 import io.putdotio.android.tv.TvMiddleCutText
@@ -96,6 +98,8 @@ import io.putdotio.android.shown
 import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.focusRequesterIf
+import io.putdotio.android.tv.keepsHeldFocusInView
+import io.putdotio.android.tv.tracksFocusedItem
 import io.putdotio.android.tv.files.TvFilesAction
 import io.putdotio.android.tv.files.TvFilesActionsSheet
 import io.putdotio.android.tv.files.tvClock
@@ -158,6 +162,8 @@ private fun TvHomeContent(
     val pinnedCards = (pinned as? TvPinnedRow.Ready)?.cards
     val continueRow = rememberLazyListState()
     val pinnedRow = rememberLazyListState()
+    val continueFocused = remember { TvFocusedItem() }
+    val pinnedFocused = remember { TvFocusedItem() }
     val returnFocus = remember { FocusRequester() }
     val continueReturn = continueWatching.indexOfFirst { it.fileId == returnTo }
     val pinnedReturn = if (continueReturn >= 0) -1 else pinnedCards.orEmpty().indexOfFirst { it.item.id == returnTo }
@@ -217,13 +223,22 @@ private fun TvHomeContent(
     ) {
         if (continueWatching.isNotEmpty()) {
             TvHomeSection(stringResource(R.string.tv_home_continue_watching)) {
-                LazyRow(state = continueRow, horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
-                    itemsIndexed(continueWatching, key = { _, entry -> entry.fileId.value }) { index, entry ->
+                LazyRow(
+                    state = continueRow,
+                    modifier = Modifier.keepsHeldFocusInView(continueRow, continueFocused),
+                    horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
+                ) {
+                    itemsIndexed(
+                        continueWatching,
+                        key = { _, entry -> entry.fileId.value },
+                        contentType = { _, _ -> "continue" },
+                    ) { index, entry ->
                         TvContinueWatchingCard(
                             entry,
                             onClick = { actions.onResume(entry) },
                             onLongClick = { left -> continueSheet.open(entry.toFilesItem(), meta = left) },
                             modifier = Modifier
+                                .tracksFocusedItem(continueFocused, entry.fileId.value)
                                 .tracksCardFocus(entry.fileId, continueSheet, pinSheet)
                                 .focusRequesterIf(index == continueReturn, returnFocus)
                                 .focusRequesterIf(entry.fileId == continueSheet.cardId, continueSheet.card),
@@ -253,13 +268,22 @@ private fun TvHomeContent(
                 }
             } else {
                 TvHomeSection(stringResource(R.string.tv_home_pinned)) {
-                    LazyRow(state = pinnedRow, horizontalArrangement = Arrangement.spacedBy(CARD_GAP)) {
-                        itemsIndexed(pinned.cards, key = { _, card -> card.item.id.value }) { index, card ->
+                    LazyRow(
+                        state = pinnedRow,
+                        modifier = Modifier.keepsHeldFocusInView(pinnedRow, pinnedFocused),
+                        horizontalArrangement = Arrangement.spacedBy(CARD_GAP),
+                    ) {
+                        itemsIndexed(
+                            pinned.cards,
+                            key = { _, card -> card.item.id.value },
+                            contentType = { _, _ -> "pinned" },
+                        ) { index, card ->
                             TvPinnedFileCard(
                                 card,
                                 onClick = { actions.onOpen(card.item) },
                                 onLongClick = { pinSheet.open(card.item) },
                                 modifier = Modifier
+                                    .tracksFocusedItem(pinnedFocused, card.item.id.value)
                                     .tracksCardFocus(card.item.id, pinSheet, continueSheet)
                                     .focusRequesterIf(index == pinnedReturn, returnFocus)
                                     .focusRequesterIf(index == 0, retry.pinnedFocus)
@@ -604,6 +628,7 @@ private fun TvHomeCard(
         onClick = onClick,
         onLongClick = onLongClick,
         modifier = modifier
+            .graphicsLayer()
             .onKeyEvent { event ->
                 val menu = onLongClick != null && event.type == KeyEventType.KeyUp && event.key == Key.Menu
                 if (menu) onLongClick?.invoke()

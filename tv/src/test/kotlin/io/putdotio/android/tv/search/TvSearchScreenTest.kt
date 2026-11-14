@@ -2,6 +2,7 @@ package io.putdotio.android.tv.search
 
 import androidx.compose.runtime.getValue
 import io.putdotio.android.tv.setTvContent
+import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.SNACKBAR_MILLIS
 import io.putdotio.android.tv.TvBrief
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -143,6 +145,23 @@ class TvSearchScreenTest {
             pressCenter()
         }
         assertEquals(listOf("next", "open:Tears of Steel.webm"), log)
+    }
+
+    @Test
+    fun aHeldDownWaitsForTheListToScrollTheFocusedRowIntoView() {
+        val names = (1..40L).map { "result-$it.txt" }
+        val results = names.mapIndexed { index, name -> item(index + 1L, name, PutioFileType.TEXT) }
+        show(
+            state = {
+                searchState(SearchContent.Ready(SearchTerm("result"), results, SearchPaging.Complete), query = "result")
+            },
+        )
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
+        compose.assertHeldDownWaitsForScroll(TV_SEARCH_RESULTS_TAG, names.map { hasContentDescription("Open $it") })
     }
 
     @Test

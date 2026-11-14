@@ -1,11 +1,13 @@
 package io.putdotio.android.tv.history
 
+import android.content.res.Resources
 import android.text.format.DateFormat
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.history.HistoryEventKind
@@ -15,6 +17,7 @@ import io.putdotio.android.parsePutioTimestamp
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 internal fun HistoryItem.localDate(zone: ZoneId): LocalDate? =
     parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate()
@@ -26,18 +29,19 @@ internal fun HistoryItem.day(zone: ZoneId): TvHistoryDay =
 
 @Composable
 @ReadOnlyComposable
-internal fun TvHistoryDay.label(today: LocalDate): String {
-    val locale = LocalConfiguration.current.locales[0]
-    return when (date) {
+internal fun TvHistoryDay.label(today: LocalDate): String =
+    label(today, LocalResources.current, LocalConfiguration.current.locales[0])
+
+internal fun TvHistoryDay.label(today: LocalDate, resources: Resources, locale: Locale): String =
+    when (date) {
         null -> raw.orEmpty()
-        today -> stringResource(R.string.tv_history_today)
-        today.minusDays(1) -> stringResource(R.string.tv_history_yesterday)
+        today -> resources.getString(R.string.tv_history_today)
+        today.minusDays(1) -> resources.getString(R.string.tv_history_yesterday)
         else -> {
             val skeleton = if (date.year == today.year) "MMMd" else "MMMdyyyy"
             date.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale))
         }
     }
-}
 
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -46,13 +50,15 @@ internal fun HistoryItem.timeLabel(zone: ZoneId): String =
 
 @Composable
 @ReadOnlyComposable
-internal fun HistoryItem.title(): String =
+internal fun HistoryItem.title(): String = named() ?: stringResource(R.string.tv_history_no_title)
+
+internal fun HistoryItem.named(): String? =
     when (val value = kind) {
         is HistoryEventKind.File -> value.name
         is HistoryEventKind.Transfer -> value.name
         is HistoryEventKind.Notice -> value.subject
         is HistoryEventKind.Other -> null
-    } ?: stringResource(R.string.tv_history_no_title)
+    }
 
 @StringRes
 internal fun HistoryEventKind.kindLabel(): Int? =
