@@ -71,8 +71,8 @@ approve() {
 }
 
 adb_ logcat -c
-gradle_pid="" build_log="" sign_outs=""
-trap '[[ -z "${gradle_pid}" ]] || kill "${gradle_pid}" 2>/dev/null || true; rm -f ${build_log:+"${build_log}"} ${sign_outs:+"${sign_outs}"}' EXIT
+build_log="" sign_outs=""
+trap 'kill $(jobs -pr) 2>/dev/null || true; rm -f ${build_log:+"${build_log}"} ${sign_outs:+"${sign_outs}"}' EXIT
 build_log="$(mktemp)"
 sign_outs="$(mktemp)"
 ANDROID_SERIAL="${serial}" ./gradlew -q -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :tv:generateBaselineProfile >"${build_log}" 2>&1 &
@@ -95,10 +95,7 @@ while kill -0 "${gradle_pid}" 2>/dev/null; do
   sleep 2
 done
 
-gradle_status=0
-wait "${gradle_pid}" || gradle_status=$?
-gradle_pid=""
-if ((gradle_status != 0)); then
+if ! wait "${gradle_pid}"; then
   cat "${build_log}" >&2
   die "profile generation failed"
 fi
