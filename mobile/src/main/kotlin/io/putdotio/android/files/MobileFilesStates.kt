@@ -183,16 +183,18 @@ private fun MobilePinnedSection(items: List<FilesItem>, actions: MobilePinnedAct
             },
         )
         val shown = if (expanded || !capped) items else items.take(PINNED_VISIBLE_ITEMS)
-        shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, actions) } }
+        val rowText = rememberFilesRowText(items)
+        shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, rowText[item], actions) } }
     }
 }
 
 @Composable
-private fun MobilePinnedRow(item: FilesItem, actions: MobilePinnedActions) {
+private fun MobilePinnedRow(item: FilesItem, text: FilesRowText, actions: MobilePinnedActions) {
     var menu by remember(item.id) { mutableStateOf(false) }
     Box {
         MobileFilesRow(
             item = item,
+            text = text,
             onClick = { actions.onOpen(item) },
             onClickLabel = stringResource(
                 if (item.isPlayable) R.string.mobile_files_play_media else R.string.mobile_files_open_folder,

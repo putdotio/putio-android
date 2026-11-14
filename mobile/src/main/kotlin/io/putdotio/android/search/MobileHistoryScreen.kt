@@ -385,7 +385,15 @@ private fun rememberHistoryRowText(items: List<HistoryItem>): MobileRowText<Hist
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val hours24 = DateFormat.is24HourFormat(context)
-    return rememberRowText(items, context, locales, ZoneId.systemDefault(), hours24, key = { it.id.value }) { item ->
+    return rememberRowText(
+        items,
+        context,
+        locales,
+        ZoneId.systemDefault(),
+        hours24,
+        key = { it.id.value },
+        placeholder = HistoryRowText(title = "", kind = null, time = ""),
+    ) { item ->
         HistoryRowText(
             title = item.title(context),
             kind = item.kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
