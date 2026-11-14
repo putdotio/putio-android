@@ -44,18 +44,21 @@ import kotlin.math.roundToInt
 /**
  * A name on one line, or up to [maxLines], cut in the middle when it does not fit: it keeps its
  * start and the last [MIDDLE_CUT_TAIL] characters, so the extension and what comes just before it
- * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name.
+ * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name. It draws in
+ * [color], else the style's colour, else [contentColor].
  */
 @Composable
 public fun PutioMiddleCutText(
     text: String,
     style: TextStyle,
-    color: Color,
+    contentColor: Color,
     modifier: Modifier = Modifier,
+    color: Color = Color.Unspecified,
     maxLines: Int = 1,
 ) {
     val measurer = rememberTextMeasurer()
-    Spacer(modifier.then(MiddleCutTextElement(text, style, color, maxLines, measurer)))
+    val drawColor = color.takeOrElse { style.color.takeOrElse { contentColor } }
+    Spacer(modifier.then(MiddleCutTextElement(text, style, drawColor, maxLines, measurer)))
 }
 
 /** The text a cut name laid out, while accessibility reads the full name; for tests. */
@@ -229,33 +232,59 @@ private class MiddleCutTextNode(
 
 private fun MiddleCutTextElement.cutToFit(line: String, maxWidth: Int): String =
     if (maxLines == 1) {
-        middleCut(line, maxWidth) { measurer.width(it, style) }
+        val whole = measurer.line(line, style)
+        middleCutWhere(line, maxWidth, guess = { tailStart -> whole.startThatFits(tailStart, maxWidth, measurer, style) }) {
+            measurer.line(it, style).size.width <= maxWidth
+        }
     } else {
         middleCutWhere(line, maxWidth) { measurer.fitsLines(it, style, maxWidth, maxLines) }
     }
 
-/** [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. */
-private fun middleCutWhere(text: String, maxWidth: Int, fits: (String) -> Boolean): String {
+/**
+ * [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. [guess]
+ * estimates where the longest start ends for a tail, so the search usually checks two cuts.
+ */
+private fun middleCutWhere(
+    text: String,
+    maxWidth: Int,
+    guess: ((tailStart: Int) -> Int)? = null,
+    fits: (String) -> Boolean,
+): String {
     if (maxWidth !in 1 until Int.MAX_VALUE || fits(text)) return text
     val boundaries = BreakIterator.getCharacterInstance().apply { setText(text) }
         .let { breaks -> generateSequence(breaks.first()) { breaks.next().takeIf { it != BreakIterator.DONE } } }
         .toList()
     val tails = boundaries.filter { it in 1 until text.length && text.length - it <= MIDDLE_CUT_TAIL }
     val tailStart = tails.firstOrNull { fits(ELLIPSIS + text.substring(it)) }
-    return tailStart?.let { longestFit(text, boundaries.filter { start -> start < it }, it, fits) }
-        ?: text
+    return tailStart?.let {
+        val starts = boundaries.filter { start -> start < it }
+        val hint = guess?.invoke(it)?.let { end -> starts.indexOfLast { start -> start <= end } }
+        longestFit(text, starts, it, hint, fits)
+    } ?: text
 }
 
-/** The cut with the longest start that still fits, by binary search over the boundaries before the tail. */
+/**
+ * The cut with the longest start that still fits, by binary search over the boundaries before the
+ * tail. A [hint] index is tried first with the one after it, which settles the search when it is right.
+ */
 private fun longestFit(
     text: String,
     starts: List<Int>,
     tailStart: Int,
+    hint: Int?,
     fits: (String) -> Boolean,
 ): String {
     fun cut(startEnd: Int) = text.substring(0, startEnd).trimEnd() + ELLIPSIS + text.substring(tailStart)
     var low = 0
     var high = starts.lastIndex
+    if (hint != null && hint in 1..high) {
+        if (fits(cut(starts[hint]))) {
+            low = hint
+            if (hint < high && !fits(cut(starts[hint + 1]))) high = hint
+        } else {
+            high = hint - 1
+        }
+    }
     while (low < high) {
         val middle = (low + high + 1) / 2
         if (fits(cut(starts[middle]))) low = middle else high = middle - 1
@@ -263,8 +292,18 @@ private fun longestFit(
     return cut(starts[low])
 }
 
-private fun TextMeasurer.width(text: String, style: TextStyle): Int =
-    measure(text, style, maxLines = 1, softWrap = false).size.width
+private fun TextMeasurer.line(text: String, style: TextStyle): TextLayoutResult =
+    measure(text, style, maxLines = 1, softWrap = false)
+
+/**
+ * Where the longest start of this whole line ends when the rest of [maxWidth] holds an ellipsis
+ * and the tail from [tailStart]; read from the whole line's glyph positions, so it is an estimate.
+ */
+private fun TextLayoutResult.startThatFits(tailStart: Int, maxWidth: Int, measurer: TextMeasurer, style: TextStyle): Int {
+    val tail = size.width - getHorizontalPosition(tailStart, usePrimaryDirection = true)
+    val room = maxWidth - tail - measurer.line(ELLIPSIS, style).size.width
+    return (0..tailStart).lastOrNull { getHorizontalPosition(it, usePrimaryDirection = true) <= room } ?: 0
+}
 
 /** Whether [text] wraps into [maxLines] lines of [maxWidth] without losing any of it. */
 private fun TextMeasurer.fitsLines(text: String, style: TextStyle, maxWidth: Int, maxLines: Int): Boolean =

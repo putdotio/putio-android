@@ -1,10 +1,11 @@
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.file.Files
-import java.nio.file.LinkOption
 import java.security.MessageDigest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import org.gradle.api.GradleException
 
@@ -13,8 +14,30 @@ object SkillsLock {
     const val SKILLS_PATH = ".agents/skills"
     const val LINKS_PATH = ".claude/skills"
 
-    fun check(root: File) {
-        val problems = lockProblems(root) + linkProblems(root)
+    fun check(root: File, trackedFiles: List<String>) {
+        fail(lockProblems(root, trackedFiles))
+    }
+
+    fun checkLinks(root: File) {
+        fail(linkProblems(root))
+    }
+
+    fun folderHash(files: Map<String, ByteArray>): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        files.filterKeys { !isExcluded(it) }
+            .map { (path, content) -> path.toByteArray() to normalizeLineEndings(content) }
+            .sortedWith { a, b -> compareBytes(a.first, b.first) }
+            .forEach { (path, content) ->
+                digest.update(path)
+                digest.update(0)
+                digest.update(content.size.toString().toByteArray())
+                digest.update(0)
+                digest.update(content)
+            }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun fail(problems: List<String>) {
         if (problems.isNotEmpty()) {
             throw GradleException(
                 problems.joinToString("\n", prefix = "Skills do not match $LOCK_PATH:\n", postfix = "\n$FIX") { "- $it" },
@@ -22,40 +45,41 @@ object SkillsLock {
         }
     }
 
-    fun folderHash(dir: File): String {
-        val files = dir.walkTopDown()
-            .onEnter { it == dir || (it.name !in SKIPPED_DIRS && !Files.isSymbolicLink(it.toPath())) }
-            .filter { it.name !in SKIPPED_FILES && Files.isRegularFile(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
-            .map { it.relativeTo(dir).invariantSeparatorsPath to it }
-            .sortedWith { a, b -> localeCompare(a.first, b.first) }
-        val digest = MessageDigest.getInstance("SHA-256")
-        files.forEach { (path, file) ->
-            digest.update(path.toByteArray())
-            digest.update(file.readBytes())
+    private fun isExcluded(path: String): Boolean {
+        val parts = path.split('/')
+        return parts.any { it in EXCLUDED_FILES } || parts.dropLast(1).any { it in EXCLUDED_DIRS }
+    }
+
+    private fun normalizeLineEndings(content: ByteArray): ByteArray {
+        if (content.contains(0)) return content
+        val normalized = ByteArrayOutputStream(content.size)
+        content.forEachIndexed { index, byte ->
+            if (byte != CR || content.getOrNull(index + 1) != LF) normalized.write(byte.toInt())
         }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return normalized.toByteArray()
     }
 
-    internal fun localeCompare(a: String, b: String): Int {
-        a.zip(b).forEach { (x, y) -> primary(x).compareTo(primary(y)).takeIf { it != 0 }?.let { return it } }
-        if (a.length != b.length) return a.length.compareTo(b.length)
-        return a.zip(b).firstOrNull { (x, y) -> x != y }?.let { (x, y) -> x.isUpperCase().compareTo(y.isUpperCase()) } ?: 0
+    private fun compareBytes(a: ByteArray, b: ByteArray): Int {
+        a.zip(b).forEach { (x, y) -> (x.toInt() and 0xff).compareTo(y.toInt() and 0xff).takeIf { it != 0 }?.let { return it } }
+        return a.size.compareTo(b.size)
     }
 
-    private fun primary(char: Char): Int =
-        ROOT_ORDER.indexOf(char.lowercaseChar()).takeIf { it >= 0 } ?: (ROOT_ORDER.length + char.code)
-
-    private fun lockProblems(root: File): List<String> {
-        val skills = runCatching {
-            Json.parseToJsonElement(root.resolve(LOCK_PATH).readText()).jsonObject["skills"] as JsonObject
-        }.getOrElse { return listOf("$LOCK_PATH has no skills object: ${it.message}") }
+    private fun lockProblems(root: File, trackedFiles: List<String>): List<String> {
+        val lock = runCatching { Json.parseToJsonElement(root.resolve(LOCK_PATH).readText()).jsonObject }
+            .getOrElse { return listOf("$LOCK_PATH is not JSON: ${it.message}") }
+        val version = (lock["version"] as? JsonPrimitive)?.intOrNull
+        if (version != LOCK_VERSION) return listOf("$LOCK_PATH is version $version; this check reads version $LOCK_VERSION")
+        val skills = lock["skills"] as? JsonObject ?: return listOf("$LOCK_PATH has no skills object")
         return skills.mapNotNull { (name, entry) ->
             val locked = ((entry as? JsonObject)?.get("computedHash") as? JsonPrimitive)?.content
-            val dir = root.resolve("$SKILLS_PATH/$name")
+            val prefix = "$SKILLS_PATH/$name/"
+            val files = trackedFiles.filter { it.startsWith(prefix) }
+                .mapNotNull { path -> root.resolve(path).takeIf(File::isFile)?.let { path.removePrefix(prefix) to it.readBytes() } }
+                .toMap()
             when {
                 locked == null -> "$name has no computedHash"
-                !dir.isDirectory -> "$name is locked but $SKILLS_PATH/$name is missing"
-                folderHash(dir) != locked -> "$name differs from its locked computedHash"
+                files.isEmpty() -> "$name is locked but $SKILLS_PATH/$name has no tracked files"
+                folderHash(files) != locked -> "$name differs from its locked computedHash"
                 else -> null
             }
         }
@@ -63,7 +87,7 @@ object SkillsLock {
 
     private fun linkProblems(root: File): List<String> {
         val skills = root.resolve(SKILLS_PATH).listFiles(File::isDirectory).orEmpty().map { it.name }.toSet()
-        val links = root.resolve(LINKS_PATH).listFiles().orEmpty().filter { it.name !in SKIPPED_FILES }.associateBy { it.name }
+        val links = root.resolve(LINKS_PATH).listFiles().orEmpty().filter { it.name != FINDER_METADATA }.associateBy { it.name }
         val missing = (skills - links.keys).sorted().map { "$LINKS_PATH/$it is missing" }
         val wrong = links.toSortedMap().mapNotNull { (name, link) ->
             val expected = "../../$SKILLS_PATH/$name"
@@ -78,9 +102,11 @@ object SkillsLock {
         return missing + wrong
     }
 
-    private val SKIPPED_DIRS = setOf(".git", "node_modules")
-    private val SKIPPED_FILES = setOf(".DS_Store")
-    private const val ROOT_ORDER =
-        "\t\n\u000b\u000c\r _-,;:!?.'\"()[]{}@*/\\&#%`^+<=>|~$0123456789abcdefghijklmnopqrstuvwxyz"
+    private const val LOCK_VERSION = 2
+    private const val CR: Byte = 13
+    private const val LF: Byte = 10
+    private const val FINDER_METADATA = ".DS_Store"
+    private val EXCLUDED_FILES = setOf("metadata.json")
+    private val EXCLUDED_DIRS = setOf(".git", "__pycache__", "__pypackages__")
     private const val FIX = "Run `npx skills update -p` for a pinned skill, or link a repo skill from $LINKS_PATH."
 }

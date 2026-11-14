@@ -1,35 +1,35 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
     "adaptive": {
       "source": "android/skills",
       "sourceType": "github",
       "skillPath": "jetpack-compose/adaptive/SKILL.md",
-      "computedHash": "a528c78fb7ccad02aa671e91d76785b1495b725ba8d7a8030ec03fc444b39f63"
+      "computedHash": "65d3fd62d5c9b173b8567b638f54833db26d98c1d2fc5bbc21afea46eb6acdb2"
     },
     "anr-audit-and-fix": {
       "source": "android/skills",
       "sourceType": "github",
       "skillPath": "performance/anr-audit-and-fix/SKILL.md",
-      "computedHash": "5257b2740fe6109651266bd4b8fce45c6e6614262ec27c58739f584010679905"
+      "computedHash": "66c475fc5903f3ea98803d687d915dde76c522730985293e225a53184699efc2"
     },
     "jetpack-compose-performance": {
       "source": "android/skills",
       "sourceType": "github",
       "skillPath": "jetpack-compose/jetpack-compose-performance/SKILL.md",
-      "computedHash": "2338d8a2e6e5256dd6ed0cef60ae980531b53c89521381713d0befd4c6e56584"
+      "computedHash": "80b61358eca751c520492fca7d9571522ba3ed5af9258baa146cca9fd8fcedce"
     },
     "media3-cast-integration": {
       "source": "android/skills",
       "sourceType": "github",
       "skillPath": "media/media3-cast-integration/SKILL.md",
-      "computedHash": "387df7c27ca76a53785dac86583b4ccb2398d40d21409da6a9d9e83c7f9fd3a1"
+      "computedHash": "76a0a051c2c17a701fbec641a11545931caa87a7ad5474b8d917f4678aa0e98d"
     },
     "r8-analyzer": {
       "source": "android/skills",
       "sourceType": "github",
       "skillPath": "performance/r8-analyzer/SKILL.md",
-      "computedHash": "6b4ae24836e5b40bf783a926de659f0644fac78a1bc135655bb5fbca5dc07017"
+      "computedHash": "7139e6cfb74aca9174eedf11d04b203b6cb908031a3171485ce4ddceb2b73f95"
     }
   }
 }

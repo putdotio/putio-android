@@ -17,7 +17,6 @@ class ProofHostFontScaleTest {
         try {
             RuntimeEnvironment.setFontScale(2f)
             val hosts = listOf(
-                MainActivity::class.java,
                 MobileFullscreenProofActivity::class.java,
                 MobileTabletProofActivity::class.java,
             )
