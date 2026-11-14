@@ -318,6 +318,7 @@ class MobileFilesScreenTest {
         compose.onNodeWithText(folder.name).assertIsDisplayed().performClick()
         compose.onNodeWithText(video.name).assertIsDisplayed().performClick()
         compose.onNodeWithText(audio.name).assertIsDisplayed().performClick()
+        compose.awaitText("MB", substring = true)
         compose.onNodeWithText("MB", substring = true).assertIsDisplayed()
 
         assertEquals(FilesBrowserEvent.OpenFolder(folder.id), events.last())
@@ -407,7 +408,7 @@ class MobileFilesScreenTest {
         val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2020-04-21T10:00:00")
         val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
-        compose.waitUntil(5_000L) { compose.onAllNodes(hasText("Apr 21, 2020")).fetchSemanticsNodes().isNotEmpty() }
+        compose.awaitText("Apr 21, 2020")
         compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2020")).assertIsDisplayed()
         compose.onNode(hasText("Shows") and hasText("Apr 21, 2020")).assertIsDisplayed()
     }
@@ -425,7 +426,7 @@ class MobileFilesScreenTest {
         val items = listOf(partly, finished, unknown, fresh, plain)
         val state = browserState(FilesContent.Ready(items, FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
-        compose.waitUntil(5_000L) { compose.onAllNodes(hasText("128 B")).fetchSemanticsNodes().isNotEmpty() }
+        compose.awaitText("128 B")
         // Resumable shows no mark of its own, and never the finished eye.
         compose.onNode(hasText("partly.mkv") and hasText("128 B")).assertIsDisplayed()
         compose.onNode(hasText("partly.mkv") and hasContentDescription("25% watched")).assertDoesNotExist()

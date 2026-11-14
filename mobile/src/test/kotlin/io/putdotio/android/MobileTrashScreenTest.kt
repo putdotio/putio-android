@@ -210,6 +210,7 @@ class MobileTrashScreenTest {
             content = loaded.copy(items = listOf(item.copy(expirationDate = "invalid", deletedAt = null))),
         )
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.awaitText("12 B")
         compose.onNodeWithText("Gone", substring = true).assertDoesNotExist()
     }
 
@@ -218,6 +219,7 @@ class MobileTrashScreenTest {
         val tomorrow = LocalDate.now().plusDays(1).toString()
         val state = TrashState(content = loaded.copy(items = listOf(item.copy(expirationDate = tomorrow))))
         compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.awaitText("Gone tomorrow")
         compose.onNodeWithText("Gone tomorrow").assertIsDisplayed()
     }
 }

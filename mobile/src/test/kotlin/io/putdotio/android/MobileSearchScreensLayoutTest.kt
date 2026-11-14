@@ -179,12 +179,7 @@ class MobileSearchScreensLayoutTest {
                 }
             }
         }
-        if (history != null) {
-            compose.waitUntil(5_000L) {
-                compose.onAllNodesWithText(":", substring = true, useUnmergedTree = true)
-                    .fetchSemanticsNodes().isNotEmpty()
-            }
-        }
+        if (history != null) compose.awaitText(":", substring = true)
     }
 
     private companion object {
