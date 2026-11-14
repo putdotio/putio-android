@@ -100,6 +100,17 @@ internal fun MobileTrashScreen(
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     val listState = rememberLazyListState()
     val rowText = rememberTrashRowText((state.content as? TrashContent.Loaded)?.items.orEmpty())
+    val currentState by rememberUpdatedState(state)
+    val checked = selected.takeIf { inSelection }
+    val rowHandlers = remember(selection, checked, rowText) {
+        TrashRowHandlers(
+            checked = checked,
+            onActions = { sheetItemId = it.id.value },
+            onSelect = { selection.start(currentState, it.id) },
+            onToggle = { selection.toggle(it.id) },
+            text = rowText,
+        )
+    }
     ScrollToNewOutcome(state, listState)
     LoadNextPageNearEnd(
         listState = listState,
@@ -140,13 +151,7 @@ internal fun MobileTrashScreen(
                         content,
                         state,
                         onEvent,
-                        TrashRowHandlers(
-                            checked = selected.takeIf { inSelection },
-                            onActions = { sheetItemId = it.id.value },
-                            onSelect = { selection.start(state, it.id) },
-                            onToggle = { selection.toggle(it.id) },
-                            text = rowText,
-                        ),
+                        rowHandlers,
                     )
                 }
             }
