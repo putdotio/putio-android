@@ -82,6 +82,7 @@ import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.TvMiddleCutText
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TvFocusHandBack
 import io.putdotio.android.tv.handsBackFocus
@@ -480,22 +481,16 @@ internal fun TvFolderHeading(name: String, crumb: String) {
                 modifier = Modifier.size(11.dp),
             )
             Spacer(Modifier.width(3.dp))
-            Text(
+            TvMiddleCutText(
                 text = crumb,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.MiddleEllipsis,
             )
         }
-        Text(
+        TvMiddleCutText(
             text = name,
             style = MaterialTheme.typography.headlineLarge.copy(fontSize = 27.sp, lineHeight = 31.sp),
             color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.MiddleEllipsis,
             modifier = Modifier.padding(top = 3.dp),
         )
     }
@@ -1029,13 +1024,10 @@ private fun TvUnsupportedFileScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        Text(
+        TvMiddleCutText(
             text = item.name,
             style = MaterialTheme.typography.headlineLarge,
             color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.MiddleEllipsis,
         )
         TvEmptyState(
             glyph = PutioEmptyGlyph.NoResults,

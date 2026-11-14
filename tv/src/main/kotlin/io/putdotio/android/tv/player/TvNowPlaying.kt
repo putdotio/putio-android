@@ -39,6 +39,7 @@ import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackTarget
+import io.putdotio.android.tv.TvMiddleCutText
 import io.putdotio.sdk.files.PutioFileType
 
 internal const val TV_NOW_PLAYING_TAG = "tv-now-playing"
@@ -97,13 +98,10 @@ internal fun TvNowPlaying(
         ) {
             TvNowPlayingArtwork(rememberArtwork(player))
             Column(Modifier.weight(1f)) {
-                Text(
+                TvMiddleCutText(
                     text = state.title,
                     style = PutioTypeScale.tvTitle,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.MiddleEllipsis,
                 )
                 state.neighbours?.folderName?.let { folder ->
                     Text(

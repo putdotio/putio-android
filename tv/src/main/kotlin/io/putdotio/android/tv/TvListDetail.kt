@@ -74,7 +74,6 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import io.putdotio.android.design.PutioDesignTokens
-import io.putdotio.android.design.PutioMiddleCutText
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 import kotlinx.coroutines.launch
@@ -239,7 +238,7 @@ internal fun ColumnScope.TvDetailBody(
     ) {
         tile()
         Column(modifier = Modifier.weight(1f)) {
-            PutioMiddleCutText(
+            TvMiddleCutText(
                 text = title,
                 style = DETAIL_TITLE,
                 color = MaterialTheme.colorScheme.onSurface,

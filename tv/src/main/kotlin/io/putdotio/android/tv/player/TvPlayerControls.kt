@@ -60,6 +60,7 @@ import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.tv.TvFocus
+import io.putdotio.android.tv.TvMiddleCutText
 import io.putdotio.android.tv.tvSafeAreaPadding
 import kotlinx.coroutines.delay
 
@@ -173,13 +174,10 @@ internal fun TvPlayerTopBar(title: String, modifier: Modifier = Modifier) {
             tint = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.size(22.dp),
         )
-        Text(
+        TvMiddleCutText(
             text = title,
             style = PutioTypeScale.tvDetailTitle,
             color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.MiddleEllipsis,
         )
     }
 }
