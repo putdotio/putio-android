@@ -172,103 +172,8 @@ internal const val MOBILE_FILES_SEARCH_TAG = "mobile-files-search"
 
 @Composable
 internal fun MobileShell(
-    filesState: FilesBrowserState,
-    transfersState: TransfersState = emptyTransfersState(),
-    accountSettingsState: AccountSettingsState,
-    appConfigState: AndroidAppConfigState,
-    account: MobileAccount,
-    playbackRepository: PlaybackRepository,
-    sessionId: MobileAuthSessionId,
-    onFilesEvent: (FilesBrowserEvent) -> Boolean,
-    onAccountSettingsEvent: (AccountSettingsEvent) -> Unit,
-    onPlaybackAuthenticationRequired: suspend () -> Unit,
-    onSignOut: (removeDownloads: Boolean) -> Unit,
-    filesRepository: FilesRepository? = null,
-    trashController: TrashController? = null,
-    downloadsController: DownloadsController? = null,
-    publicLinksController: PublicLinksController? = null,
-    loggedInAppsController: LoggedInAppsController? = null,
-    searchHistoryState: MobileSearchHistoryState = remember { emptySearchHistoryState() },
-    transfersSessionId: MobileAuthSessionId? = null,
-    playbackPlayerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
-    loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
-        AccountSettingsRepositoryResult.Failure(
-            AccountSettingsFailure.Putio(
-                PutioFailure.Unexpected(IllegalStateException("Tunnel routes are unavailable")),
-            ),
-        )
-    },
-    onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
-    onFilesAuthenticationRequired: suspend () -> Unit = {},
-    searchHistoryActions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
-    onTransfersEvent: (TransfersEvent) -> Unit = {},
-    resolveTransferFile: suspend (TransferFileId) -> PutioResult<FilesItem> = {
-        PutioResult.Failure(PutioFailure.Unexpected(IllegalStateException("No transfer file resolver")))
-    },
-    onTransferAuthenticationRequired: suspend () -> Unit = {},
-    contentNavigation: Flow<FilesExternalOpen> = emptyFlow(),
-    nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
-    deepLinkRequests: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
-    onOpenFile: suspend (FilesItemId) -> Unit = {},
-    onShareItem: ((FilesItem) -> Unit)? = null,
-    navigationFailure: FilesFailure? = null,
-    onDismissNavigationFailure: () -> Unit = {},
-    transferDraft: MobileTransferDraft = remember { MobileTransferDraft() },
-    fileDragOut: MobileFileDragOut? = null,
-    folderCreator: FilesFolderCreator? = null,
-    continueWatching: ContinueWatching? = null,
-    pinnedFiles: MobilePinnedFiles? = null,
-    subtitleLanguages: FilesSubtitleLanguages? = null,
-    filesActions: MobileFilesActionsController? = null,
-) {
-    MobileShell(
-        filesStates = rememberUpdatedState(filesState),
-        transfersStates = rememberUpdatedState(transfersState),
-        filesRepository = filesRepository,
-        trashController = trashController,
-        downloadsController = downloadsController,
-        publicLinksController = publicLinksController,
-        loggedInAppsController = loggedInAppsController,
-        accountSettingsState = accountSettingsState,
-        appConfigState = appConfigState,
-        searchHistoryState = searchHistoryState,
-        transfersSessionId = transfersSessionId,
-        account = account,
-        playbackRepository = playbackRepository,
-        playbackPlayerFactory = playbackPlayerFactory,
-        sessionId = sessionId,
-        onFilesEvent = onFilesEvent,
-        onAccountSettingsEvent = onAccountSettingsEvent,
-        loadTunnelRoutes = loadTunnelRoutes,
-        onAppConfigEvent = onAppConfigEvent,
-        onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-        onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-        searchHistoryActions = searchHistoryActions,
-        onTransfersEvent = onTransfersEvent,
-        resolveTransferFile = resolveTransferFile,
-        onTransferAuthenticationRequired = onTransferAuthenticationRequired,
-        contentNavigation = contentNavigation,
-        nowPlayingRequests = nowPlayingRequests,
-        deepLinkRequests = deepLinkRequests,
-        onOpenFile = onOpenFile,
-        onShareItem = onShareItem,
-        navigationFailure = navigationFailure,
-        onDismissNavigationFailure = onDismissNavigationFailure,
-        onSignOut = onSignOut,
-        transferDraft = transferDraft,
-        fileDragOut = fileDragOut,
-        folderCreator = folderCreator,
-        continueWatching = continueWatching,
-        pinnedFiles = pinnedFiles,
-        subtitleLanguages = subtitleLanguages,
-        filesActions = filesActions,
-    )
-}
-
-@Composable
-internal fun MobileShell(
     filesStates: State<FilesBrowserState>,
-    transfersStates: State<TransfersState>,
+    transfersStates: State<TransfersState> = remember { mutableStateOf(emptyTransfersState()) },
     filesRepository: FilesRepository? = null,
     trashController: TrashController? = null,
     downloadsController: DownloadsController? = null,
@@ -393,7 +298,7 @@ internal fun MobileShell(
     val filesSelectionActive by remember(filesStates, filesSelection) {
         derivedStateOf { filesSelection.isActive(filesStates.value) }
     }
-    val filesSelecting = selectedDestination == MobileDestination.Files && !searchOpen && filesSelectionActive
+    val filesSelecting = filesSelectionShown(selectedDestination, searchOpen, filesSelectionActive)
     val trashStates = trashController?.state?.collectAsStateWithLifecycle()
     val trashMutating by remember(trashStates) { derivedStateOf { trashStates?.value?.hasPendingMutation == true } }
     val trashSelection = rememberTrashSelection(sessionId)
@@ -401,7 +306,7 @@ internal fun MobileShell(
     val stateNavigationBlocked by remember(filesStates, transfersStates) {
         derivedStateOf { shareNavigationBlocked(filesStates.value, transfersStates.value) }
     }
-    val shareNavigationBlocked = stateNavigationBlocked || trashMutating || nowPlayingPending
+    val shareNavigationBlocked = stateNavigationBlocked.or(trashMutating).or(nowPlayingPending)
     DeepLinkNavigationEffect(
         deepLinkRequests = deepLinkRequests,
         userId = account.userId,
@@ -467,8 +372,7 @@ internal fun MobileShell(
     )
 
     val filesBackGate by remember(filesStates) { derivedStateOf { FilesBackGate.of(filesStates.value) } }
-    val filesBack = filesBack(
-        gate = filesBackGate,
+    val filesBack = filesBackGate.back(
         filesState = filesStates::value,
         onFiles = selectedDestination == MobileDestination.Files,
         closeSearch = if (searchOpen) ({ leaveSearch(false) }) else null,
@@ -725,6 +629,9 @@ private fun TrashRestoreEffects(
         }
     }
 }
+
+private fun filesSelectionShown(destination: MobileDestination, searchOpen: Boolean, active: Boolean): Boolean =
+    destination == MobileDestination.Files && !searchOpen && active
 
 private fun shareNavigationBlocked(filesState: FilesBrowserState, transfersState: TransfersState): Boolean =
     filesState.stack.any {
@@ -1028,8 +935,7 @@ private class FilesBack(val ownsBack: Boolean, val previewable: Boolean, val onB
  * returns there. While a move settles anywhere, Files takes Back and refuses it, so there is
  * nothing to preview.
  */
-private fun filesBack(
-    gate: FilesBackGate,
+private fun FilesBackGate.back(
     filesState: () -> FilesBrowserState,
     onFiles: Boolean,
     closeSearch: (() -> Unit)?,
@@ -1039,9 +945,9 @@ private fun filesBack(
     // Closing Search leaves the folder alone, so it stays allowed while a move settles; Search would
     // otherwise hide the folder's Check status.
     val searchOwnsBack = closeSearch != null && onFiles
-    val ownsBack = searchOwnsBack || gate.moveSettling || onFiles && gate.canNavigateBack
+    val ownsBack = searchOwnsBack || moveSettling || onFiles && canNavigateBack
     // The reducer refuses to leave a folder while a move or its deletion settles: no preview then.
-    val refused = !searchOwnsBack && (gate.moveSettling || gate.deletePending)
+    val refused = !searchOwnsBack && (moveSettling || deletePending)
     return FilesBack(ownsBack, previewable = ownsBack && !refused) {
         if (searchOwnsBack) {
             closeSearch?.invoke()

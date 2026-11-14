@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -65,7 +66,7 @@ internal fun TrashRestoreProofShell(
         Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
             color = MaterialTheme.colorScheme.background) {
             MobileShell(
-                filesState = files, filesRepository = filesRepository, trashController = controller,
+                filesStates = rememberUpdatedState(files), filesRepository = filesRepository, trashController = controller,
                 accountSettingsState = accountSettingsState(AccountSettingsContent.Ready(settings),
                     AccountSettingsMutation.Idle, 1),
                 appConfigState = androidAppConfigState(AndroidAppConfigContent.Ready(config),

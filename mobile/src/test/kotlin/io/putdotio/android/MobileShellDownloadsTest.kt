@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -163,7 +164,7 @@ class MobileShellDownloadsTest {
         compose.setContent {
             PutioTheme {
                 MobileShell(
-                    filesState = filesState,
+                    filesStates = rememberUpdatedState(filesState),
                     filesRepository = repository,
                     downloadsController = controller,
                     deepLinkRequests = links,
@@ -172,7 +173,7 @@ class MobileShellDownloadsTest {
                         DefaultAccountSettingsPreferences.copy(showSubtitles = showSubtitles),
                     ),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),
                     playbackRepository = Converting,
                     sessionId = MobileAuthSessionId(1L),

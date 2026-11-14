@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.content.Context
 import android.view.View
 import androidx.activity.OnBackPressedDispatcherOwner
@@ -337,10 +338,10 @@ abstract class NavigationShellFixture(fontScale: Float) {
                 MobileShell(
                     nowPlayingRequests = nowPlayingRequests,
                     playbackPlayerFactory = playbackPlayerFactory,
-                    filesState = files,
+                    filesStates = rememberUpdatedState(files),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = MobileAccount(42, "Navigation proof", "proof@example.invalid"),
                     playbackRepository = NoNavigationPlayback,
                     sessionId = MobileAuthSessionId(1),

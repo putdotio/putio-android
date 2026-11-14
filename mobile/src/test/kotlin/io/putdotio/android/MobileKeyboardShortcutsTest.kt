@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.view.KeyEvent
 import android.view.KeyboardShortcutGroup
 import androidx.activity.ComponentActivity
@@ -230,7 +231,7 @@ class MobileKeyboardShortcutsTest {
                 Box(Modifier.requiredSize(width = 900.dp, height = 700.dp)) {
                     MobileShell(
                         playbackPlayerFactory = NoAudioSessionFactory,
-                        filesState = files,
+                        filesStates = rememberUpdatedState(files),
                         accountSettingsState = readyAccountSettingsState(
                             DefaultAccountSettingsPreferences.copy(trashEnabled = trashEnabled),
                         ),

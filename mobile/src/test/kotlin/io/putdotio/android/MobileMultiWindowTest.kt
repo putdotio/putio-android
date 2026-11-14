@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.content.res.Configuration
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
@@ -111,7 +112,7 @@ class MobileMultiWindowTest {
             Box(Modifier.requiredSize(width = width, height = 700.dp)) {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFiles(),
+                    filesStates = rememberUpdatedState(emptyFiles()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
                     account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),

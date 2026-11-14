@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -232,7 +233,7 @@ class MobileFilesMoveNavigationTest {
                     color = MaterialTheme.colorScheme.background) {
                     MobileShell(
                         playbackPlayerFactory = NoAudioSessionFactory,
-                        filesState = preview.files, trashController = trashController,
+                        filesStates = rememberUpdatedState(preview.files), trashController = trashController,
                         accountSettingsState = preview.settings,
                         appConfigState = preview.appConfig,
                         account = MobileAccount(42L, "Synthetic proof", "synthetic@example.invalid"),

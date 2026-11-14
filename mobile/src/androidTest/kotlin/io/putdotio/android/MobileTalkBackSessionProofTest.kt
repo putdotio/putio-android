@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.pm.ActivityInfo
@@ -74,7 +75,7 @@ class MobileTalkBackSessionProofTest {
                         PutioTheme {
                             Surface(Modifier.fillMaxSize()) {
                                 MobileShell(
-                                    filesState = accessibilityFiles(),
+                                    filesStates = rememberUpdatedState(accessibilityFiles()),
                                     accountSettingsState = accessibilitySettings(),
                                     appConfigState = accessibilityAppConfig(),
                                     transfersSessionId = MobileAuthSessionId(147),

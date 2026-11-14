@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.os.Build
 import android.view.KeyEvent
 import android.view.View
@@ -80,7 +81,7 @@ class MobileKeyboardNavigationProofTest {
             PutioTheme {
                 Surface(Modifier.fillMaxSize()) {
                     if (mounted.value) MobileShell(
-                        filesState = accessibilityFiles(),
+                        filesStates = rememberUpdatedState(accessibilityFiles()),
                         accountSettingsState = accessibilitySettings(),
                         appConfigState = accessibilityAppConfig(),
                         searchHistoryState = MobileSearchHistoryState(
@@ -88,7 +89,7 @@ class MobileKeyboardNavigationProofTest {
                             historyState(HistoryContent.Disabled), null,
                         ),
                         searchHistoryActions = MobileSearchHistoryActions(onQueryChanged = { query = it }),
-                        transfersState = transfersState(TransfersContent.Empty),
+                        transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                         transfersSessionId = MobileAuthSessionId(147),
                         account = MobileAccount(147, "Keyboard proof", "proof@example.invalid"),
                         playbackRepository = NoShellProofPlayback,

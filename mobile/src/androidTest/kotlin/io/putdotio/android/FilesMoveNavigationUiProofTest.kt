@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.app.Activity
 import android.app.KeyguardManager
 import android.os.PowerManager
@@ -133,7 +134,7 @@ class FilesMoveNavigationUiProofTest {
                 Surface(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
                     color = MaterialTheme.colorScheme.background) {
                     MobileShell(
-                        filesState = preview.files, accountSettingsState = preview.settings,
+                        filesStates = rememberUpdatedState(preview.files), accountSettingsState = preview.settings,
                         appConfigState = preview.appConfig,
                         account = MobileAccount(42L, "Synthetic proof", "synthetic@example.invalid"),
                         sessionId = MobileAuthSessionId(42), playbackRepository = NoMoveBackPlayback,

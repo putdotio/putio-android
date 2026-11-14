@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.rememberUpdatedState
 import android.content.Context
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
@@ -237,7 +238,7 @@ class MobileShellTest {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
                         playbackPlayerFactory = NoAudioSessionFactory,
-                        filesState = emptyFilesState(),
+                        filesStates = rememberUpdatedState(emptyFilesState()),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -278,7 +279,7 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -305,7 +306,7 @@ class MobileShellTest {
                 Box(modifier = Modifier.requiredSize(width = 360.dp, height = 640.dp)) {
                     MobileShell(
                         playbackPlayerFactory = NoAudioSessionFactory,
-                        filesState = readyFilesState(FilesSort.NAME_ASCENDING),
+                        filesStates = rememberUpdatedState(readyFilesState(FilesSort.NAME_ASCENDING)),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -369,7 +370,7 @@ class MobileShellTest {
                 Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
                     MobileShell(
                         playbackPlayerFactory = NoAudioSessionFactory,
-                        filesState = emptyFilesState(),
+                        filesStates = rememberUpdatedState(emptyFilesState()),
                         accountSettingsState = settingsState,
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -426,7 +427,7 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -472,7 +473,7 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = retained,
+                    filesStates = rememberUpdatedState(retained),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -514,7 +515,7 @@ class MobileShellTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
                     account = account,
@@ -574,10 +575,10 @@ class MobileShellTest {
                 MobileShell(
                     deepLinkRequests = requests,
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = settings,
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -620,10 +621,10 @@ class MobileShellTest {
                 MobileShell(
                     deepLinkRequests = requests,
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = loading,
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -662,10 +663,10 @@ class MobileShellTest {
                 MobileShell(
                     deepLinkRequests = requests,
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = settings,
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -767,10 +768,10 @@ class MobileShellShareTest {
                 MobileShell(
                     transferDraft = draft,
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = files,
+                    filesStates = rememberUpdatedState(files),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -863,10 +864,10 @@ class MobileShellShareTest {
                 MobileShell(
                     transferDraft = draft,
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers,
+                    transfersStates = rememberUpdatedState(transfers),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -899,10 +900,10 @@ class MobileShellShareTest {
                 MobileShell(
                     transferDraft = draft,
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers,
+                    transfersStates = rememberUpdatedState(transfers),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -1009,10 +1010,10 @@ class MobileShellShareTest {
                     transferDraft = draft,
                     nowPlayingRequests = requests,
                     playbackPlayerFactory = factory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -1062,10 +1063,10 @@ class MobileShellShareTest {
                     transferDraft = draft,
                     nowPlayingRequests = requests,
                     playbackPlayerFactory = factory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -1106,7 +1107,7 @@ class MobileShellFilesTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = videoFilesState(),
+                    filesStates = rememberUpdatedState(videoFilesState()),
                     accountSettingsState = settings,
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -1243,7 +1244,7 @@ class MobileShellFilesTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = filesState,
+                    filesStates = rememberUpdatedState(filesState),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -1286,7 +1287,7 @@ class MobileShellFilesTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = settingsState,
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -1349,7 +1350,7 @@ class MobileShellFilesTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = settingsState,
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -1407,10 +1408,10 @@ class MobileShellTransfersTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = resolvingTransfersState(),
+                    transfersStates = rememberUpdatedState(resolvingTransfersState()),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -1449,10 +1450,10 @@ class MobileShellTransfersTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState,
+                    transfersStates = rememberUpdatedState(transfersState),
                     transfersSessionId = sessionId,
                     account = Account,
                     playbackRepository = ConversionRepository,
@@ -1498,10 +1499,10 @@ class MobileShellTransfersTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState,
+                    transfersStates = rememberUpdatedState(transfersState),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -1534,10 +1535,10 @@ class MobileShellTransfersTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = resolvingTransfersState(),
+                    transfersStates = rememberUpdatedState(resolvingTransfersState()),
                     account = Account,
                     playbackRepository = ConversionRepository,
                     sessionId = Session,
@@ -1607,10 +1608,10 @@ class MobileShellTransfersTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = files.value,
+                    filesStates = rememberUpdatedState(files.value),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfers.value,
+                    transfersStates = rememberUpdatedState(transfers.value),
                     transfersSessionId = Session,
                     account = Account,
                     playbackRepository = ConversionRepository,
@@ -1643,10 +1644,10 @@ class MobileShellTransfersTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = emptyFilesState(),
+                    filesStates = rememberUpdatedState(emptyFilesState()),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
-                    transfersState = transfersState(TransfersContent.Empty),
+                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                     transfersSessionId = sessionId,
                     account = Account,
                     playbackRepository = ConversionRepository,
@@ -1786,7 +1787,7 @@ class MobileShellExternalOpenTest {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
-                    filesState = files,
+                    filesStates = rememberUpdatedState(files),
                     accountSettingsState = readyAccountSettingsState(),
                     appConfigState = readyAndroidAppConfigState(),
                     account = Account,
@@ -1943,7 +1944,7 @@ class MobileShellPlaybackTest {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(size)) {
                     MobileShell(
-                        filesState = videoFilesState(),
+                        filesStates = rememberUpdatedState(videoFilesState()),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -1990,7 +1991,7 @@ class MobileShellPlaybackTest {
                     MobileShell(
                         nowPlayingRequests = requests,
                         playbackPlayerFactory = factory,
-                        filesState = mediaFilesState(),
+                        filesStates = rememberUpdatedState(mediaFilesState()),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -2054,7 +2055,7 @@ class MobileShellPlaybackTest {
                 if (showShell) {
                     MobileShell(
                         playbackPlayerFactory = ShellSessionFactory(session) { closed += 1 },
-                        filesState = mediaFilesState(),
+                        filesStates = rememberUpdatedState(mediaFilesState()),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -2107,7 +2108,7 @@ class MobileShellPlaybackTest {
                 PutioTheme {
                     MobileShell(
                         playbackPlayerFactory = factory,
-                        filesState = mediaFilesState(),
+                        filesStates = rememberUpdatedState(mediaFilesState()),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -2161,7 +2162,7 @@ class MobileShellPlaybackTest {
                 if (showShell) {
                     MobileShell(
                         playbackPlayerFactory = lateFactory,
-                        filesState = mediaFilesState(),
+                        filesStates = rememberUpdatedState(mediaFilesState()),
                         accountSettingsState = readyAccountSettingsState(),
                         appConfigState = readyAndroidAppConfigState(),
                         account = Account,
@@ -2486,7 +2487,7 @@ class MobileShellPlaybackTest {
             PutioTheme {
                 MobileShell(
                     nowPlayingRequests = nowPlayingRequests,
-                    filesState = filesState,
+                    filesStates = rememberUpdatedState(filesState),
                     accountSettingsState = accountSettingsState,
                     appConfigState = appConfigState,
                     account = Account,
@@ -2538,10 +2539,10 @@ private fun ComposeContentTestRule.setShell(
                 deepLinkRequests = inputs.deepLinkRequests,
                 onOpenFile = inputs.onOpenFile,
                 playbackPlayerFactory = NoAudioSessionFactory,
-                filesState = filesState,
+                filesStates = rememberUpdatedState(filesState),
                 accountSettingsState = readyAccountSettingsState(),
                 appConfigState = readyAndroidAppConfigState(),
-                transfersState = transfersState(TransfersContent.Empty),
+                transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
                 account = Account,
                 playbackRepository = ConversionRepository,
                 sessionId = Session,
