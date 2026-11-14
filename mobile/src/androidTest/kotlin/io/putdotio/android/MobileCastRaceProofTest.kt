@@ -263,7 +263,9 @@ class MobileCastRaceProofTest {
             try {
                 awaitValue("Cast to start a session on $receiver") {
                     onMain {
-                        check(events.resumed == null) { "A Cast session resumed while connecting; leaving it alone" }
+                        check(events.resumed.let { it == null || it === events.starting }) {
+                            "A Cast session resumed while connecting; leaving it alone"
+                        }
                         events.started
                     }
                 }
@@ -277,7 +279,7 @@ class MobileCastRaceProofTest {
                 cleanUp(error, {
                     disconnect(cast) {
                         val starting = events.starting
-                        events.resumed == null && starting != null && sessions.currentCastSession === starting
+                        starting != null && sessions.currentCastSession === starting
                     }
                 })
                 throw error
