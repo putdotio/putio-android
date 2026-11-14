@@ -82,6 +82,8 @@ import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.tv.LocalTvOffline
 import io.putdotio.android.tv.ROW_BLEED
 import io.putdotio.android.tv.TvListDetail
+import io.putdotio.android.tv.heldDetail
+import io.putdotio.android.tv.rememberTvHeldDetail
 import io.putdotio.android.tv.TvMiddleCutText
 import io.putdotio.android.tv.TvPlayStart
 import io.putdotio.android.tv.TvFocusHandBack
@@ -229,8 +231,8 @@ internal fun TvFilesScreen(
     val emptyFocus = remember { FocusRequester() }
     entryTarget.value = content.paneEntryTarget(skeletonFocus, retryFocus, pagingFocus, emptyFocus, listEntry)
     val folderId = current.folder.id.value
-    var detailId by remember(sessionKey, folderId) { mutableStateOf(focusMemory[folderId]) }
-    val detailItem = content.detailItem(detailId, focusMemory[folderId])
+    val detailRow = rememberTvHeldDetail(sessionKey, folderId) { focusMemory[folderId] }
+    val detailItem = content.detailItem(detailRow.shown, focusMemory[folderId])
     val detailFocus = remember { TvFilesDetailFocus() }
     val listing = rememberTvFilesListing(current)
     val actionContext = TvFilesActionContext(
@@ -295,7 +297,7 @@ internal fun TvFilesScreen(
                 )
             } else {
                 TvListDetail(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f).heldDetail(detailRow),
                     header = { TvFilesFolderHeader(state) },
                     detailFocus = detailFocus.primary,
                     listFocus = listEntry.value,
@@ -324,6 +326,7 @@ internal fun TvFilesScreen(
                             detailOwnsFocus = detailFocus.owns,
                             skeletonFocus = skeletonFocus,
                             downToUndo = downToUndo,
+                            keyHeld = detailRow.held,
                             onEntryTarget = { listEntry.value = it },
                             rowsShowFocus = !centredDialogOpen,
                             modifier = Modifier.weight(1f),
@@ -331,7 +334,7 @@ internal fun TvFilesScreen(
                             onOpen = open,
                             onActions = openActions,
                             onRowFocused = {
-                                detailId = it.id.value
+                                detailRow.focus(it.id.value)
                                 detailFocus.onListFocusChanged(true)
                             },
                         )
@@ -554,6 +557,7 @@ private fun TvFilesRows(
     detailOwnsFocus: State<Boolean>,
     skeletonFocus: FocusRequester,
     downToUndo: FocusRequester?,
+    keyHeld: State<Boolean>,
     onEntryTarget: (FocusRequester) -> Unit,
     onEvent: (FilesBrowserEvent) -> Boolean,
     onOpen: (FilesItem) -> Unit,
@@ -573,6 +577,7 @@ private fun TvFilesRows(
             headerHasFocus = headerHasFocus,
             detailOwnsFocus = detailOwnsFocus,
             downFromLast = downToUndo,
+            keyHeld = keyHeld,
             onEntryTarget = onEntryTarget,
             modifier = modifier,
             onEvent = onEvent,

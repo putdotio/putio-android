@@ -91,10 +91,12 @@ internal fun LazyListState.isNearEnd(lastContentIndex: Int): Boolean {
     return lastVisible >= lastContentIndex - TV_PAGING_PREFETCH_ITEMS
 }
 
-internal fun KeyEvent.outrunsScroll(list: LazyListState, focusedRow: Long?, pagingHeld: Boolean): Boolean {
-    val heldUpOrDown = type == KeyEventType.KeyDown && nativeKeyEvent.repeatCount > 0 &&
+internal fun KeyEvent.isHeldUpOrDown(): Boolean =
+    type == KeyEventType.KeyDown && nativeKeyEvent.repeatCount > 0 &&
         (key == Key.DirectionDown || key == Key.DirectionUp)
-    if (focusedRow == null || pagingHeld || !heldUpOrDown) return false
+
+internal fun KeyEvent.outrunsScroll(list: LazyListState, focusedRow: Long?, pagingHeld: Boolean): Boolean {
+    if (focusedRow == null || pagingHeld || !isHeldUpOrDown()) return false
     val layout = list.layoutInfo
     val start = layout.viewportStartOffset
     val end = layout.viewportEndOffset

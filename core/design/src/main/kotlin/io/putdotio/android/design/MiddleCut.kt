@@ -34,11 +34,11 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.toSize
-import java.text.BreakIterator
 import kotlin.math.roundToInt
 
 /**
@@ -67,15 +67,6 @@ private var SemanticsPropertyReceiver.middleCutShown by MiddleCutShown
 
 /** Characters kept after the cut: the extension and a few before it. */
 public const val MIDDLE_CUT_TAIL: Int = 11
-
-/**
- * The longest start of [text] that fits [maxWidth] with an ellipsis and the last [MIDDLE_CUT_TAIL]
- * characters; [text] itself when it fits. A width too narrow for that tail keeps fewer of its last
- * characters; one too narrow for an ellipsis and a single character leaves the end cut to the
- * text's own ellipsis.
- */
-internal fun middleCut(text: String, maxWidth: Int, widthOf: (String) -> Int): String =
-    middleCutWhere(text, maxWidth) { widthOf(it) <= maxWidth }
 
 private data class MiddleCutTextElement(
     val text: String,
@@ -232,38 +223,16 @@ private class MiddleCutTextNode(
 
 private fun MiddleCutTextElement.cutToFit(line: String, maxWidth: Int): String =
     if (maxLines == 1) {
-        middleCut(line, maxWidth) { measurer.width(it, style) }
+        middleCut(line, maxWidth, measurer.lineLayout(line, style)) { measurer.width(it, style) }
     } else {
         middleCutWhere(line, maxWidth) { measurer.fitsLines(it, style, maxWidth, maxLines) }
     }
 
-/** [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. */
-private fun middleCutWhere(text: String, maxWidth: Int, fits: (String) -> Boolean): String {
-    if (maxWidth !in 1 until Int.MAX_VALUE || fits(text)) return text
-    val boundaries = BreakIterator.getCharacterInstance().apply { setText(text) }
-        .let { breaks -> generateSequence(breaks.first()) { breaks.next().takeIf { it != BreakIterator.DONE } } }
-        .toList()
-    val tails = boundaries.filter { it in 1 until text.length && text.length - it <= MIDDLE_CUT_TAIL }
-    val tailStart = tails.firstOrNull { fits(ELLIPSIS + text.substring(it)) }
-    return tailStart?.let { longestFit(text, boundaries.filter { start -> start < it }, it, fits) }
-        ?: text
-}
-
-/** The cut with the longest start that still fits, by binary search over the boundaries before the tail. */
-private fun longestFit(
-    text: String,
-    starts: List<Int>,
-    tailStart: Int,
-    fits: (String) -> Boolean,
-): String {
-    fun cut(startEnd: Int) = text.substring(0, startEnd).trimEnd() + ELLIPSIS + text.substring(tailStart)
-    var low = 0
-    var high = starts.lastIndex
-    while (low < high) {
-        val middle = (low + high + 1) / 2
-        if (fits(cut(starts[middle]))) low = middle else high = middle - 1
-    }
-    return cut(starts[low])
+private fun TextMeasurer.lineLayout(text: String, style: TextStyle): MiddleCutLayout {
+    val line = measure(text, style, maxLines = 1, softWrap = false)
+    val ellipsisWidth = { measure(ELLIPSIS, style, maxLines = 1, softWrap = false).size.width.toFloat() }
+    val leftToRight = line.getParagraphDirection(0) == ResolvedTextDirection.Ltr
+    return MiddleCutLayout(line.size.width, ellipsisWidth, leftToRight) { line.getHorizontalPosition(it, true) }
 }
 
 private fun TextMeasurer.width(text: String, style: TextStyle): Int =
@@ -281,6 +250,5 @@ private fun TextLayoutResult.shownText(): String {
 
 private fun String.oneLine(): String = replace(LINE_BREAKS, " ")
 
-private const val ELLIPSIS = "…"
 private const val NO_CUT_WIDTH = -1
 private val LINE_BREAKS = Regex("\\R")
