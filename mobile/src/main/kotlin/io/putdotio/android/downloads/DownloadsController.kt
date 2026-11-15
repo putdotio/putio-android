@@ -61,6 +61,7 @@ internal class DownloadsController(
     init {
         scope.launch { for (pending in starts) startInOrder(pending) }
         scope.launch {
+            var refusals = emptySet<FilesItemId>()
             store.entries.collect { entries ->
                 val running = entries.filter { it.status is DownloadStatus.Downloading }
                     .mapTo(mutableSetOf()) { it.fileId }
@@ -68,7 +69,9 @@ internal class DownloadsController(
                     val next = mutableState.value.withEntries(entries)
                     mutableState.value = next.copy(speeds = next.speeds.filterKeys { it in running })
                 }
-                entries.filter { it.redecidesDirectPlay() }.forEach { redecide(it.fileId) }
+                val refused = entries.filter { it.status == DIRECT_PLAY_REFUSAL }.mapTo(mutableSetOf()) { it.fileId }
+                entries.filter { it.fileId !in refusals && it.redecidesDirectPlay() }.forEach { redecide(it.fileId) }
+                refusals = refused
             }
         }
         enqueue {

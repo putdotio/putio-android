@@ -170,6 +170,19 @@ class DownloadMethodsTest {
     }
 
     @Test
+    fun aRefusedRowThatANotificationRetryMarksUnansweredIsNotAskedAgain() = runBlocking {
+        val refused = failed(DownloadArtifact.MP4, 0L).copy(status = DIRECT_PLAY_REFUSAL)
+        store.upsert(refused)
+        controller(StreamingMethod.File, mapOf(video.fileId to original())).use {
+            settle()
+            store.upsert(refused.copy(directPlayUnanswered = true))
+            settle()
+            assertTrue(asked.isEmpty())
+            assertTrue(engine.started.isEmpty())
+        }
+    }
+
+    @Test
     fun directPlayLookupsRunTogetherAndStartsKeepTapOrder() = runBlocking {
         val episodes = (20L..22L).map { video.copy(fileId = FilesItemId(it), name = "Episode $it.mkv") }
         val answers = episodes.associate { it.fileId to CompletableDeferred<DirectPlayDownload?>() }

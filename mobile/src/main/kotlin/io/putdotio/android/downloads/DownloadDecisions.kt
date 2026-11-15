@@ -53,7 +53,9 @@ internal val DownloadEntry.awaitsDirectPlay: Boolean
 
 internal fun DownloadEntry.redecidesDirectPlay(failure: DownloadStatus? = status): Boolean =
     directPlayUnanswered && !removing && artifact == DownloadArtifact.MP4 &&
-        failure == DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
+        failure == DIRECT_PLAY_REFUSAL
+
+internal val DIRECT_PLAY_REFUSAL = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
 
 internal class DownloadStart(val entry: DownloadEntry, val decides: Boolean) {
     val asksDirectPlay: Boolean get() = decides && entry.resolvesDirectPlay
