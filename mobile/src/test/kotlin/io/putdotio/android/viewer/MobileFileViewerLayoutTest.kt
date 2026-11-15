@@ -1,5 +1,6 @@
 package io.putdotio.android.viewer
 
+import io.putdotio.android.setBuiltContent
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
