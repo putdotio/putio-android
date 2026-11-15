@@ -227,9 +227,9 @@ private fun detailFocus(
 ): FocusRequester = if (history != null && fileId != null && actionable) open else FocusRequester.Cancel
 
 @Composable
-private fun TvHistoryListSkeleton(focus: Modifier) {
+private fun TvHistoryListSkeleton(modifier: Modifier) {
     TvSectionLine {}
-    TvListSkeleton(focus.focusable())
+    TvListSkeleton(modifier.focusable())
 }
 
 @Composable
