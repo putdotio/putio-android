@@ -122,7 +122,7 @@ class MobileAccountLargeTextTest {
         mount(settingsEvents = events)
         scrollTo("Move deleted files to trash")
         compose.onNodeWithText("Move deleted files to trash").performClick()
-        val consequence = "Deleted files will no longer be recoverable. Files already in trash stay for their 14 days."
+        val consequence = "Turning off trash empties it now. Files you delete after that can’t be restored."
         compose.onNodeWithText(consequence).assertIsDisplayed()
         assertCompleteText(consequence)
         compose.onNodeWithText("Cancel").assertIsDisplayed().performClick()
