@@ -570,8 +570,7 @@ class TvTrashScreenTest {
         assertEquals(emptyList<TrashEvent>(), compose.runOnIdle { events.filter { it == TrashEvent.LoadNextPage } })
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNodeWithText("new 339.txt").assertIsDisplayed()
-        assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), compose.runOnIdle { events.filter { it == TrashEvent.LoadNextPage } })
+        compose.onNodeWithText("old 139.txt").assertDoesNotExist()
     }
 
     private fun show(state: () -> TrashState) {

@@ -671,9 +671,12 @@ class TvSearchScreenTest {
         )
         showBuilding(build) { searchState(ready, query = "tears") }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput { pressKey(Key.DirectionDown) }
+        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
+            pressKey(Key.DirectionDown)
+            pressKey(Key.DirectionDown)
+        }
         compose.onNodeWithContentDescription("Play Tears of Steel.webm").assertDoesNotExist()
-        compose.onNode(isFocused()).assertExists()
+        compose.onNode(hasContentDescription("Loading") and isFocused()).assertExists()
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNodeWithContentDescription("Play Tears of Steel.webm").assertIsFocused()
