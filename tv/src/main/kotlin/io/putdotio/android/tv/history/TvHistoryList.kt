@@ -10,10 +10,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -62,7 +60,7 @@ private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequester
 private class TvLastRowHandOff {
     val pagingHeldFocus = mutableStateOf(false)
     val pending = mutableStateOf(false)
-    lateinit var waitingForBuild: State<Boolean>
+    var built = false
 
     fun latchWhenPagingLeaves(paging: HistoryPaging) {
         if (paging !is HistoryPaging.Failed && pagingHeldFocus.value) {
@@ -71,15 +69,15 @@ private class TvLastRowHandOff {
         }
     }
 
-    fun rowFocused() {
-        if (waitingForBuild.value) pending.value = false
+    fun focusTaken() {
+        if (!built) pending.value = false
     }
 }
 
 @Composable
 private fun rememberLastRowHandOff(built: Boolean, paging: HistoryPaging): TvLastRowHandOff {
     val handOff = remember { TvLastRowHandOff() }
-    handOff.waitingForBuild = rememberUpdatedState(!built)
+    handOff.built = built
     handOff.latchWhenPagingLeaves(paging)
     return handOff
 }
@@ -152,6 +150,20 @@ internal fun TvHistoryList(
     val restoreRow = remember { FocusRequester() }
     val built = history.isBuiltFrom(content.items)
     val handOff = rememberLastRowHandOff(built, content.paging)
+    val entryActions = TvHistoryListActions(
+        onOpen = actions.onOpen,
+        onClear = actions.onClear,
+        onRowFocused = {
+            handOff.focusTaken()
+            actions.onRowFocused(it)
+        },
+        onClearFocused = {
+            handOff.focusTaken()
+            actions.onClearFocused()
+        },
+        onNextPage = actions.onNextPage,
+        onRetry = actions.onRetry,
+    )
     val listState = rememberLazyListState()
     val focused = remember { TvFocusedItem() }
     val lastIndex = entries.lastIndex
@@ -193,13 +205,12 @@ internal fun TvHistoryList(
                 contentType = { _, entry -> entry.javaClass },
             ) { index, entry ->
                 val requesters = Modifier
-                    .onFocusChanged { if (it.isFocused) handOff.rowFocused() }
                     .tracksFocusedItem(focused, entry.key)
                     .rowFocus(entry, rowFocus)
                     .focusRequesterIf(index == lastIndex, lastRow)
                     .holdAtPendingEnd(index == pendingEndIndex)
                     .focusRequesterIf(index == restoreIndex, restoreRow)
-                TvHistoryEntryItem(entry, focus, actions, modifier = requesters)
+                TvHistoryEntryItem(entry, focus, entryActions, modifier = requesters)
             }
             if (content.paging != HistoryPaging.Complete) {
                 item(key = PAGING_KEY, contentType = "paging") {

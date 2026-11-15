@@ -220,11 +220,11 @@ private fun TvHistoryLoading(skeletonFocus: FocusRequester) {
 }
 
 private fun detailFocus(
-    built: Boolean,
+    hasHistory: Boolean,
     fileId: HistoryFileId?,
     actionable: Boolean,
     open: FocusRequester,
-): FocusRequester = if (built && fileId != null && actionable) open else FocusRequester.Cancel
+): FocusRequester = if (hasHistory && fileId != null && actionable) open else FocusRequester.Cancel
 
 @Composable
 private fun TvHistoryListSkeleton(modifier: Modifier) {
