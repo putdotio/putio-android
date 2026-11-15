@@ -41,7 +41,6 @@ import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
 import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.TvAutoPaging
-import io.putdotio.android.tv.TvRowMeta
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
@@ -177,14 +176,14 @@ internal fun TvFilesList(
     )
     val names = remember(content.items) { content.items.map { it.name } }
     val context = LocalContext.current
-    val rowMeta = rememberRowText(
+    val rowText = rememberRowText(
         content.items,
         context,
         key = { it.id.value },
-        placeholder = TvRowMeta.Pending,
+        placeholder = TvFilesRowText.Pending,
         everyMinute = true,
     ) {
-        it.rowMeta(context, TvFilesRowPlace.Listing, System.currentTimeMillis())
+        it.rowText(context, TvFilesRowPlace.Listing, System.currentTimeMillis())
     }
     RevealOnlyHiddenRows(names) {
         LazyColumn(
@@ -206,7 +205,7 @@ internal fun TvFilesList(
                 }
                 TvFilesRow(
                     item = item,
-                    meta = rowMeta[item],
+                    text = rowText[item],
                     onClick = { currentOnOpen(item) },
                     onActions = { currentOnActions(item) },
                     showsFocus = rowsShowFocus,

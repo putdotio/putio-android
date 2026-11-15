@@ -38,7 +38,13 @@ internal sealed interface TvFilesRowPlace {
     data class SearchResult(val folderName: String?) : TvFilesRowPlace
 }
 
-internal fun FilesItem.rowMeta(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvRowMeta {
+internal data class TvFilesRowText(val meta: TvRowMeta, val label: String) {
+    companion object {
+        val Pending: TvFilesRowText = TvFilesRowText(TvRowMeta.Pending, label = "")
+    }
+}
+
+internal fun FilesItem.rowText(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvFilesRowText {
     val where = when (place) {
         TvFilesRowPlace.Listing -> metaDate(context, nowMillis)
         is TvFilesRowPlace.SearchResult -> place.folderName
@@ -47,7 +53,7 @@ internal fun FilesItem.rowMeta(context: Context, place: TvFilesRowPlace, nowMill
         metaSize?.let { TvRowMetaPart(it, mono = true) },
         where?.let { TvRowMetaPart(it, shrinks = true) },
     )
-    return TvRowMeta(parts, endsWithDot = showsWatched && parts.isNotEmpty())
+    return TvFilesRowText(TvRowMeta(parts, endsWithDot = showsWatched && parts.isNotEmpty()), rowLabel(context, place))
 }
 
 private fun FilesItem.rowLabel(context: Context, place: TvFilesRowPlace): String =
@@ -61,7 +67,7 @@ private fun FilesItem.rowLabel(context: Context, place: TvFilesRowPlace): String
 @Composable
 internal fun TvFilesRow(
     item: FilesItem,
-    meta: TvRowMeta,
+    text: TvFilesRowText,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     /** Long-press Center or the Menu key; null when the row offers nothing beyond opening. */
@@ -70,7 +76,7 @@ internal fun TvFilesRow(
     place: TvFilesRowPlace = TvFilesRowPlace.Listing,
 ) {
     val context = LocalContext.current
-    val label = remember(item, place, context) { lazy { item.rowLabel(context, place) } }
+    val pendingLabel = remember(item, place, context) { lazy { item.rowLabel(context, place) } }
     TvListRow(
         glyph = fileTypeIconRes(item.type),
         title = item.name,
@@ -87,11 +93,11 @@ internal fun TvFilesRow(
                     false
                 }
             }
-            .semantics { contentDescription = label.value }
+            .semantics { contentDescription = text.label.ifEmpty { pendingLabel.value } }
             .testTag(TV_FILES_ROW_TAG),
     ) { secondary ->
-        TvListRowMeta(meta, secondary)
-        if (item.showsWatched && meta !== TvRowMeta.Pending) {
+        TvListRowMeta(text.meta, secondary)
+        if (item.showsWatched && text !== TvFilesRowText.Pending) {
             Icon(
                 painter = painterResource(R.drawable.ic_ph_eye),
                 contentDescription = stringResource(R.string.tv_files_watched),
