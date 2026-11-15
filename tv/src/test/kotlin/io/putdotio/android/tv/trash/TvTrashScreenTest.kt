@@ -4,6 +4,7 @@ import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.awaitText
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -27,10 +28,13 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.design.LocalBuildDispatcher
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.trash.TrashAction
@@ -47,6 +51,7 @@ import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.time.LocalDate
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -499,6 +504,74 @@ class TvTrashScreenTest {
     }
 
     private fun focusedInDialog(label: String) = hasText(label) and isFocused() and hasAnyAncestor(isDialog())
+
+    @Test
+    fun enteringThePaneWhileTheFirstRowsBuildLandsOnTheSkeleton() {
+        val build = StandardTestDispatcher()
+        val pane = FocusRequester()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvTrashScreen(
+                    state = TrashState(content = loaded),
+                    onEvent = { true },
+                    modifier = Modifier.focusRequester(pane),
+                )
+            }
+        }
+        compose.runOnIdle { pane.requestFocus() }
+        compose.onNode(row).assertDoesNotExist()
+        compose.onNode(isFocused()).assertExists()
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNode(row).assertIsFocused()
+    }
+
+    @Test
+    fun aRefreshThatDropsTheFocusedRowKeepsItsDetailUntilTheNewRowsShow() {
+        val build = StandardTestDispatcher()
+        var state by mutableStateOf(TrashState(content = loaded))
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvTrashScreen(state = state, onEvent = { true })
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        val detailTitle = hasText("smoke-two.txt") and !hasClickAction()
+        compose.onNode(row).assertIsFocused()
+        compose.onAllNodes(detailTitle).assertCountEquals(1)
+
+        compose.runOnIdle { state = TrashState(content = loaded.copy(items = listOf(folder), total = 1)) }
+        compose.onNode(row).assertIsDisplayed()
+        compose.onAllNodes(detailTitle).assertCountEquals(1)
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNode(row).assertDoesNotExist()
+        compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun aRefreshPagesOnlyOnceItsRowsShow() {
+        val build = StandardTestDispatcher()
+        fun page(name: String, first: Long, cursor: String) = TrashContent.Loaded(
+            (first until first + 40).map { item.copy(id = FilesItemId(it), name = "$name $it.txt") },
+            nextCursor = FilesCursor(cursor), total = 200, trashSizeBytes = 10,
+        )
+        var state by mutableStateOf(TrashState(content = page("old", 100, "c1")))
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvTrashScreen(state = state, onEvent = { events += it; true })
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.runOnIdle { events.clear() }
+
+        compose.runOnIdle { state = TrashState(content = page("new", 300, "c2")) }
+        compose.onNodeWithTag(TV_TRASH_LIST_TAG).performScrollToIndex(39)
+        assertEquals(emptyList<TrashEvent>(), compose.runOnIdle { events.filter { it == TrashEvent.LoadNextPage } })
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithText("old 139.txt").assertDoesNotExist()
+    }
 
     private fun show(state: () -> TrashState) {
         compose.setTvContent {

@@ -32,6 +32,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import io.putdotio.android.design.Identity
 import io.putdotio.android.design.RowText
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesBrowserEvent
@@ -98,18 +99,11 @@ internal fun TvFilesList(
     val remembered = focusMemory[folderId]
     val resumeOnPaging = remembered == PAGING_FOCUS_MARKER && content.paging is FilesPaging.Failed
     val rowFocus = remember(listState) { FocusRequester() }
-    // Follows whichever row holds focus, so re-entering the pane from the rail lands on
-    // the live owner rather than the row that was focused at mount.
     val focusedRowId = remember(listState) { mutableStateOf<Long?>(null) }
     val liveRowFocus = remember(listState) { FocusRequester() }
     val listPagingFocus = remember(listState) { FocusRequester() }
-    // Set when the paging control gains focus and cleared only when a row does, so the
-    // control losing focus by being disposed does not erase the fact that it had it.
     val pagingHeldFocus = remember(listState) { mutableStateOf(resumeOnPaging) }
-    // A sort or refresh swaps the rows without remounting the list; the row that held focus
-    // may have moved off screen or gone, so the live requester is only trusted while it is
-    // attached to a row that is still listed.
-    val listedIds = remember(content.items) { content.items.mapTo(HashSet()) { it.id.value } }
+    val listedIds = remember(Identity(content.items)) { content.items.mapTo(HashSet()) { it.id.value } }
     val rowStillFocused = { rowKeepsFocus(headerHasFocus, detailOwnsFocus, pagingHeldFocus) }
     val rowOwnedFocus = Snapshot.withoutReadObservation { focusedRowId.value != null && rowStillFocused() }
     val paging = content.paging
@@ -133,15 +127,9 @@ internal fun TvFilesList(
         handOffToLastRow.value = true
         pagingHeldFocus.value = false
     }
-    // On every mount the remembered row for this folder takes focus, or the first row the
-    // first time in. The row is scrolled into view first, since a lazy row that is not
-    // composed has no focus requester to answer.
     val focusTarget = content.mountFocusTarget(remembered)
     val rowFocusTarget = rememberUpdatedState(focusTarget)
-    // After the rows change under a mounted list, keep the row that had focus composed, or the
-    // fallback target when that row is gone: the panel's Left and the pane's enter redirect
-    // land on it. Focus itself moves only if a row held it.
-    LaunchedEffect(content.items) {
+    LaunchedEffect(Identity(content.items)) {
         withFrameNanos {}
         val requester = listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
         if (rowOwnedFocus) requester?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
@@ -152,17 +140,10 @@ internal fun TvFilesList(
         val lastId = content.items.last().id.value
         listState.scrollIntoView(lastId, content.items.lastIndex)
         listState.awaitVisible(lastId)
-        // The row is always scrolled into view so the rail's enter target is composed; the
-        // restorer answers the removed node first, so the request goes out after that frame,
-        // and only if the user has not left for the rail during the wait.
         liveRowFocus.requestFocusNextFrame(paneHasFocus) { !detailOwnsFocus.enteredSince(detailOwnedAtStart) }
         handOffToLastRow.value = false
     }
     LaunchedEffect(listState) {
-        // A list mounted while the user is on the rail (Loading → Ready after Left) keeps its
-        // entry target ready but does not take focus; the enter redirect delivers it later.
-        // Read after the layout waits, since the user may leave for the rail or enter the
-        // detail during them.
         val detailOwnedAtMount = detailOwnsFocus.value
         val detailEntered = { detailOwnsFocus.enteredSince(detailOwnedAtMount) }
         listState.scrollIntoView(focusTarget, content.items.indexOfFirst { it.id.value == focusTarget })
@@ -172,11 +153,8 @@ internal fun TvFilesList(
             listPagingFocus.requestFocusNextFrame(paneHasFocus) { !detailEntered() }
         } else {
             listState.awaitVisible(focusTarget)
-            // The shell's pane request lands one frame earlier; this one settles on the row.
             rowFocus.requestFocusNextFrame(paneHasFocus) { !detailEntered() }
         }
-        // Started after the programmatic scroll so the settled position it reports is the one
-        // on screen. Only the mount position is skipped: it came from the reducer already.
         listState.reportViewport(viewport, { currentKeyHeld.value.value }) {
             currentOnEvent(FilesBrowserEvent.ViewportChanged(it))
         }
@@ -190,7 +168,7 @@ internal fun TvFilesList(
         onLoadMore = { currentOnEvent(FilesBrowserEvent.LoadNextPage) },
         nearEnd = { listState.isNearEnd(content.items.lastIndex) },
     )
-    val names = remember(content.items) { content.items.map { it.name } }
+    val names = remember(Identity(content.items)) { content.items.map { it.name } }
     RevealOnlyHiddenRows(names) {
         LazyColumn(
             state = listState,
@@ -277,10 +255,6 @@ private fun FilesContent.Ready.mountFocusTarget(remembered: Long?): Long =
         else -> items.firstOrNull { it.id.value == remembered }?.id?.value ?: items.first().id.value
     }
 
-/**
- * Scrolls to the focused row, or to [fallbackId] once that row is no longer listed, and returns
- * the requester attached to it; null when no row has held focus.
- */
 private suspend fun LazyListState.revealFocusedRow(
     items: List<FilesItem>,
     focusedRowId: MutableState<Long?>,
@@ -342,7 +316,6 @@ private suspend fun LazyListState.reportViewport(
 
 private const val TV_FILES_PAGING_KEY = "tv-files-paging"
 
-/** Item ids are positive, so this marks "the paging control" in the per-folder focus memory. */
 private const val PAGING_FOCUS_MARKER = -1L
 
 @OptIn(ExperimentalFoundationApi::class)

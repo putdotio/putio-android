@@ -12,7 +12,6 @@ internal fun ComposeContentTestRule.awaitText(text: String, substring: Boolean =
         onAllNodesWithText(text, substring = substring, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     }
 
-/** [content] with row text built in step with composition, as the TV tests' `setTvContent` does. */
 internal fun ComposeContentTestRule.setBuiltContent(content: @Composable () -> Unit) {
     setContent { CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined, content = content) }
 }

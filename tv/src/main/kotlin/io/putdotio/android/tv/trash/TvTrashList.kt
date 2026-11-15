@@ -28,8 +28,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import io.putdotio.android.R
-import io.putdotio.android.design.fileTypeIconRes
+import io.putdotio.android.design.Identity
 import io.putdotio.android.design.RowText
+import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.trash.TrashContent
@@ -79,6 +80,7 @@ internal fun rememberTvTrashRowMeta(items: List<TrashItem>): RowText<TrashItem, 
 @Composable
 internal fun TvTrashList(
     content: TrashContent.Loaded,
+    pagingEnabled: Boolean,
     rowMeta: RowText<TrashItem, TvRowMeta>,
     restoreRowId: Long?,
     onChoose: (TrashItem) -> Unit,
@@ -89,7 +91,7 @@ internal fun TvTrashList(
     modifier: Modifier = Modifier,
 ) {
     val items = content.items
-    val names = remember(items) { items.map { it.name } }
+    val names = remember(Identity(items)) { items.map { it.name } }
     val rows = remember { TrashRowFocus() }
     val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
@@ -103,9 +105,9 @@ internal fun TvTrashList(
     val rowsHoldFocus = remember { mutableStateOf(false) }
     val focused = remember { TvFocusedItem() }
     listState.KeepTopWhenRowsArriveAbove(items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
-    val restoreIndex = remember(items) { items.indexOfFirst { it.id.value == restoreRowId } }
+    val restoreIndex = remember(Identity(items)) { items.indexOfFirst { it.id.value == restoreRowId } }
     TvAutoPaging(
-        page = content.takeIf { it.mayLoadNextPage && !focus.dialogShowing.value },
+        page = content.takeIf { pagingEnabled && it.mayLoadNextPage && !focus.dialogShowing.value },
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(items.lastIndex) },
     )
@@ -188,7 +190,7 @@ private fun TvTrashHeldRowLeaves(
     nextRow: FocusRequester,
 ) {
     val shown = remember { mutableStateOf(items) }
-    LaunchedEffect(items) {
+    LaunchedEffect(Identity(items)) {
         val before = shown.value
         shown.value = items
         val held = heldRowId.value ?: return@LaunchedEffect

@@ -234,13 +234,15 @@ private fun TvTrashListDetail(
     val heldDetail = rememberTvHeldDetail { Snapshot.withoutReadObservation { savedDetailId.value } }
     val detailId = heldDetail.shown
     SideEffect { savedDetailId.value = detailId }
-    val items = loaded?.items.orEmpty()
+    val rowMeta = rememberTvTrashRowMeta(loaded?.items.orEmpty())
+    val shown = rowMeta.shown(loaded, loaded?.items.orEmpty())
+    val items = shown?.items.orEmpty()
     val detailItem = items.firstOrNull { it.id.value == detailId }
         ?: items.firstOrNull { it.id.value == pickedRow.id }
         ?: items.firstOrNull()
-    val detailText = rememberTvTrashDetailText(items)
+    val detailText = rememberTvTrashDetailText(loaded?.items.orEmpty())
     val panelHeld = remember { mutableStateOf(false) }
-    TvTrashDetailLeaves(loaded, detailId, panelHeld, listFocus, focus.list)
+    TvTrashDetailLeaves(shown, detailId, panelHeld, listFocus, focus.list)
     TvListDetail(
         modifier = modifier.heldDetail(heldDetail),
         detailFocus = focus.restore,
@@ -256,13 +258,12 @@ private fun TvTrashListDetail(
                 refreshFocus = focus.refresh,
             )
             TvTrashNotices(state, onEvent, listFocus.owner)
-            val rowMeta = rememberTvTrashRowMeta(loaded?.items.orEmpty())
-            val shown = rowMeta.shown(loaded, loaded?.items.orEmpty())
             if (shown == null) {
-                TvListSkeleton()
+                TvListSkeleton(Modifier.focusRequester(focus.list).focusable())
             } else {
                 TvTrashList(
                     content = shown,
+                    pagingEnabled = shown === loaded,
                     rowMeta = rowMeta,
                     restoreRowId = restoreRowId,
                     onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.Restore(it.id)) },
@@ -282,7 +283,7 @@ private fun TvTrashListDetail(
         },
         detail = {
             when {
-                loaded == null -> TvDetailSkeleton()
+                shown == null -> TvDetailSkeleton()
                 detailItem != null -> TvTrashDetail(
                     item = detailItem,
                     text = detailText,

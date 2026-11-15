@@ -65,6 +65,7 @@ internal class TvPaneFocusOwner(
 
     /** Records that the section behind [requester] holds focus, making it the entry point. */
     fun enter(requester: FocusRequester, section: Long? = null) {
+        restorePending = false
         entryTarget.value = requester
         if (section != null) lastSection.value = section
         onEnter(requester)
@@ -72,14 +73,22 @@ internal class TvPaneFocusOwner(
 
     fun register(section: Long, requester: FocusRequester) {
         sections[section] = requester
+        if (restorePending && section == lastSection.value) {
+            restorePending = false
+            entryTarget.value = requester
+        }
     }
 
     fun unregister(section: Long, requester: FocusRequester) {
         if (sections[section] === requester) sections.remove(section)
     }
 
+    private var restorePending = false
+
     fun restoreLastSection() {
-        sections[lastSection.value]?.let { entryTarget.value = it }
+        val section = sections[lastSection.value]
+        if (section != null) entryTarget.value = section
+        restorePending = section == null && lastSection.value != null
     }
 
     /**

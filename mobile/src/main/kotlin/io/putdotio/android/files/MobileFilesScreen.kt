@@ -114,22 +114,16 @@ internal fun MobileFilesScreen(
     onCopyItem: ((FilesItem) -> Unit)? = null,
     onPublicLinkItem: ((FilesItem) -> Unit)? = null,
     fileDragOut: MobileFileDragOut? = null,
-    /** Started videos for the root's Continue watching row; other folders never show it. */
     continueWatching: List<ContinueWatchingEntry> = emptyList(),
     pinned: List<FilesItem> = emptyList(),
-    /** Opens the New folder dialog; null where this screen can't create one. */
     onNewFolder: (() -> Unit)? = null,
-    /** How a tap opens a file beyond playing media; null leaves only media playable. */
     fileOpening: MobileFilesOpening? = null,
     itemActions: MobileFilesItemActions = MobileFilesItemActions(),
-    /** The folder's selection, which the shell's top bar shares; null leaves Select out of the sheet. */
     selection: FilesSelection? = null,
-    /** Opens the Move picker for the selected items; null hides the toolbar's Move. */
     onMoveItems: ((List<FilesItem>) -> Unit)? = null,
 ) {
     val current = state.current
     val atRoot = current.folder.id == FilesFolder.Root.id
-    // A retry from the offline state keeps the downloads on screen until put.io answers.
     var offline by remember(state.stack.size, current.folder.id.value) { mutableStateOf(false) }
     val content = current.content
     LaunchedEffect(content) {
@@ -193,22 +187,15 @@ internal fun MobileFilesScreen(
     }
 }
 
-/**
- * How the list opens files beside a viewer or the tablet's detail pane: [onOpenFile] takes every
- * file tap; with [showsDetail] that tap selects the file into the pane, which [selectedFileId] names.
- * [actionsRequests] opens a listed file's sheet from outside the list, as the pane's overflow does.
- */
 internal class MobileFilesOpening(
     val onOpenFile: (FilesItem) -> Unit,
     val showsDetail: Boolean = false,
     val selectedFileId: FilesItemId? = null,
     val actionsRequests: Flow<MobileFilesActionsRequest> = emptyFlow(),
-    /** Opens a file once its folder has loaded and revealed it, as a tap on its row would. */
     val onOpenWhenRevealed: (FilesItemId) -> Unit = {},
 )
 
 internal data class MobileFilesActionsRequest(val id: FilesItemId, val inViewer: Boolean = false)
-/** On-device files while put.io is out of reach; each row's sheet offers what works offline. */
 @Composable
 private fun MobileFilesOfflineWithActions(
     onDevice: List<FilesItem>,
@@ -229,7 +216,6 @@ private fun MobileFilesOfflineWithActions(
     }
 }
 
-/** A copy outlives folder navigation, so its line stays while the folder loads or fails. */
 @Composable
 private fun MobileFilesStateWithCopy(
     state: FilesBrowserState,
@@ -243,7 +229,6 @@ private fun MobileFilesStateWithCopy(
             MobileFilesCopyLine(state, onEvent)
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
         }
-        // Item actions started from a listing can fail while the next folder loads.
         val snackbarHostState = remember { SnackbarHostState() }
         MobileFilesNotices(notices, snackbarHostState)
         MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
@@ -251,7 +236,6 @@ private fun MobileFilesStateWithCopy(
     }
 }
 
-/** A copy runs on put.io after the picker closes, so its card sits under the bar of every folder. */
 @Composable
 private fun MobileFilesCopyLine(state: FilesBrowserState, onEvent: (FilesBrowserEvent) -> Unit) {
     state.copyOutcome?.let {
@@ -300,7 +284,6 @@ private fun MobileRefreshableFilesContent(
     val sheetActions = itemActions.selectingIn(selection) { currentState }
     var selectedItemId by rememberSaveable { mutableStateOf<Long?>(null) }
     var viewerSheetId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // Delete on a focused row goes straight to the sheet's delete step, in the mode the setting had then.
     var keyDelete by rememberSaveable { mutableStateOf<FilesDeleteMode?>(null) }
     var focusedItemId by remember { mutableStateOf<Long?>(null) }
     val items = (content as? FilesContent.Ready)?.items.orEmpty()
@@ -311,7 +294,6 @@ private fun MobileRefreshableFilesContent(
             viewerSheetId = null
         }
     }
-    // While rows are selected, the detail pane and the viewer open no sheet.
     MobileFilesActionsRequests(fileOpening, items, enabled = !selecting) { request ->
         keyDelete = null
         viewerSheetId = request.id.value.takeIf { request.inViewer }
@@ -443,8 +425,6 @@ private fun MobileRefreshableFilesContent(
                             rowText,
                             pinnedText,
                         ) { shownContent, shownGeneration, shownHeaders ->
-                            // The depth tells a folder opened from Search apart from the same folder under it. A
-                            // header set that grew or shrank restarts the list from the row-relative viewport.
                             key(
                                 state.stack.size,
                                 state.current.folder.id.value,
@@ -464,7 +444,8 @@ private fun MobileRefreshableFilesContent(
                                         },
                                     ),
                                     revealItemId = state.current.revealItemId,
-                                    pagingEnabled = operation == FilesFolderOperation.Idle,
+                                    pagingEnabled = shownContent ===
+                                        content.takeIf { operation == FilesFolderOperation.Idle },
                                     onEvent = onEvent,
                                     onPlayMedia = onPlayMedia,
                                     onActions = { selectedItemId = it.id.value },
@@ -481,7 +462,6 @@ private fun MobileRefreshableFilesContent(
                                         focusedItemId = focusedItemId.afterFocusChange(id.value, focused)
                                     },
                                     fileDragOut = fileDragOut,
-                                    // A touch drag starts after the long press; it closes any sheet that press opened.
                                     onDragStarted = dismissSelection,
                                     fileOpening = fileOpening,
                                     selection = selection.listSelection(state, toolbarClearance),
@@ -521,11 +501,6 @@ private fun MobileRefreshableFilesContent(
     }
 }
 
-/**
- * F5 or Ctrl+R refreshes as pull-to-refresh does, and Delete acts on the focused row as its sheet's
- * delete row would; neither runs while a sheet is open or an operation is under way. Delete waits for
- * a known Trash setting by opening the sheet, which says why it cannot delete yet.
- */
 @Composable
 private fun MobileFilesKeyboardEffect(
     selectionOpen: Boolean,
@@ -581,10 +556,6 @@ private fun MobileFilesFolderStatus(
     }
 }
 
-/**
- * A permanent retry asks again, as every permanent delete does. A Trash retry is sent after the next
- * composition, against the latest Trash setting: once Trash is off, put.io applies it as permanent.
- */
 @Composable
 private fun MobileFilesDeleteRetryStatus(
     outcome: FilesDeleteOutcome,
@@ -616,16 +587,10 @@ private fun MobileFilesDeleteRetryStatus(
     }
 }
 
-/** The Trash request succeeded and the fresh read found the item gone; a failed request proves no Trash move. */
 private val FilesDeleteOutcome.isConfirmedTrash: Boolean
     get() = intent.mode == FilesDeleteMode.TRASH && failure == null &&
         status == FilesDeleteStatus.NO_LONGER_AVAILABLE
 
-/**
- * A Trash move the fresh read confirmed is announced once, as "Moved to Trash" with Undo, which
- * restores it from Trash. Shown in full or cut short, it is then marked announced; the outcome
- * stays, so a later page that still lists the item turns it into the still-present line.
- */
 @Composable
 private fun MobileFilesTrashedAnnouncement(
     current: FilesFolderState,
@@ -708,7 +673,6 @@ private fun rememberHideWithUndo(
 private fun shareOutsideViewer(share: ((FilesItem) -> Unit)?, inViewer: Boolean): ((FilesItem) -> Unit)? =
     if (inViewer) null else share
 
-/** Opens the sheet for a listed file the detail pane or the viewer asks for, while [enabled]. */
 @Composable
 private fun MobileFilesActionsRequests(
     fileOpening: MobileFilesOpening?,
@@ -727,7 +691,6 @@ private fun MobileFilesActionsRequests(
     }
 }
 
-/** The notices alone, for a screen without its own snackbar host, such as the player. */
 @Composable
 internal fun MobileFilesNoticeHost(notices: Flow<MobileFilesNotice>, modifier: Modifier = Modifier) {
     val hostState = remember { SnackbarHostState() }
@@ -735,7 +698,6 @@ internal fun MobileFilesNoticeHost(notices: Flow<MobileFilesNotice>, modifier: M
     MobileSnackbarHost(hostState, modifier)
 }
 
-/** Item actions that did not go through, one short line each. */
 @Composable
 private fun MobileFilesNotices(notices: Flow<MobileFilesNotice>, snackbarHostState: SnackbarHostState) {
     val context = LocalContext.current
@@ -753,10 +715,6 @@ private fun MobileFilesNotices(notices: Flow<MobileFilesNotice>, snackbarHostSta
     }
 }
 
-/**
- * The friend whose folder holds the current one, by that folder's name; null outside shared items.
- * A folder an outside open pushed starts a new path, so only folders from there on are its ancestry.
- */
 internal fun FilesBrowserState.sharedByName(): String? {
     val path = stack.drop(stack.indexOfLast { it.openedFrom != null }.coerceAtLeast(0))
     return path.zipWithNext().lastOrNull { (parent, child) ->
@@ -946,7 +904,6 @@ private fun MobileFilesDeleteStatus(outcome: FilesDeleteOutcome, onRetry: (() ->
     }
 }
 
-/** The settled delete's line: the item by name, or several by count. */
 @Composable
 private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
     val many = itemCount > 1
@@ -964,7 +921,6 @@ private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
             stringResource(R.string.mobile_files_delete_still_present, itemName)
         }
         FilesDeleteStatus.SKIPPED -> if (many) {
-            // put.io left the request incomplete; the read-back says which items stayed, if any did.
             if (remainingCount > 0) {
                 pluralStringResource(R.plurals.mobile_files_delete_skipped_many, remainingCount, remainingCount)
             } else {
@@ -998,13 +954,10 @@ private fun MobileFilesList(
     onDragStarted: () -> Unit,
     fileOpening: MobileFilesOpening?,
     selection: MobileFilesListSelection? = null,
-    /** Long-press starts selection with the row; null leaves long-press opening the row's actions. */
     onStartSelection: ((FilesItem) -> Unit)? = null,
 ) {
     val viewport = LocalMobileFilesViewports.current.latest(content) ?: content.viewport
-    // The viewport counts rows; headers sit above them and show again when the list is back at its top.
     val headerCount = headers.itemCount
-    // A revealed row, the first included, scrolls past the headers to sit at the top.
     val atTop = viewport == FilesViewportPosition() && revealItemId == null
     val listState = rememberLazyListState(
         initialFirstVisibleItemIndex = if (atTop) 0 else viewport.firstVisibleItemIndex + headerCount,
@@ -1017,8 +970,6 @@ private fun MobileFilesList(
     val actionsEnabled = operation.canStartOperation
 
     LaunchedEffect(listState) {
-        // Report only settled positions: per-frame offsets during a fling would
-        // rebuild FilesBrowserState on every frame.
         snapshotFlow {
             if (listState.isScrollInProgress) {
                 null
@@ -1047,8 +998,6 @@ private fun MobileFilesList(
         modifier = Modifier
             .fillMaxSize()
             .testTag(MOBILE_FILES_LIST_TAG),
-        // In selection the rows start 8dp under the bar, and the last one scrolls clear of the floating
-        // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
         mobileFilesHeaderItems(headers, pinnedRows, onPlayEntry, onRemoveEntry, hidden = selection != null)
@@ -1101,7 +1050,6 @@ private fun MobileFilesList(
     }
 }
 
-/** A folder opens; a file goes to [MobileFilesOpening] when there is one, else only media plays. */
 private fun rowClick(
     item: FilesItem,
     fileOpening: MobileFilesOpening?,
@@ -1155,12 +1103,6 @@ private fun rowClickLabel(item: FilesItem, fileOpening: MobileFilesOpening?): St
         else -> null
     }
 
-/**
- * Where keyboard focus goes in a listing. A folder reached from the keyboard focuses the row last
- * focused there, such as the video that just played, else its first visible row. When the row that
- * last held focus leaves the listing (moved to Trash, say) and no row holds focus, focus goes to the
- * row now in its place; focus the viewer moved elsewhere, to the navigation rail say, stays there.
- */
 @Stable
 internal class FilesKeyboardFocus(
     entryIndex: Int,
@@ -1189,7 +1131,6 @@ internal class FilesKeyboardFocus(
     fun afterListingChange(keyboardInput: Boolean, items: List<FilesItem>) {
         val index = lastFocusedIndex?.takeIf { keyboardInput && items.isNotEmpty() } ?: return
         val left = items.none { it.id.value == lastFocusedId.value }
-        // A removed row reports no focus change, so a focused row no longer listed has lost it too.
         val rowHoldsFocus = focusedRow?.let { row -> items.any { it.id == row } } == true
         if (left && !rowHoldsFocus) {
             focusedRow = null
@@ -1208,17 +1149,12 @@ private fun rememberFilesKeyboardFocus(items: List<FilesItem>, firstVisibleIndex
         FilesKeyboardFocus(entry, keyboardInput, lastFocusedId)
     }
     LaunchedEffect(items) {
-        // Focus moves and drops as rows leave during this frame; decide once it has settled.
         withFrameNanos {}
         focus.afterListingChange(keyboardInput, items)
     }
     return focus
 }
 
-/**
- * A row's keyboard and pointer extras: the focus a folder entered from the keyboard puts on it, focus
- * reporting for the Delete key, and dragging a file out of the app.
- */
 @Composable
 private fun MobileFilesListRow(
     item: FilesItem,
@@ -1245,8 +1181,6 @@ private fun MobileFilesListRow(
             MobileFileDragShadow(item.name, density.density, density.fontScale, shadowBackground, shadowForeground)
         if (fileDragOut?.start(view, item, shadow) == true) onDragStarted()
     }
-    // The drag source wraps the row: the long-press before a touch drag starts selection, which swaps the
-    // row for its selectable form, and the gesture has to outlive that swap.
     val draggable = fileDragOut != null && !item.isFolder && item.id.value > 0L
     Box(Modifier.mobileFileDragSource(draggable) { startDrag.value() }) {
         row(
@@ -1334,7 +1268,6 @@ private fun MobileFilesPaging(
     }
 }
 
-/** put.io's reason for a refused request, else this failure's copy. */
 @Composable
 internal fun FilesFailure.mobileMessage(): String =
     (this as? PutioFailure)?.apiReason ?: stringResource(mobileMessageResource())

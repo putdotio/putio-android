@@ -2,6 +2,7 @@ package io.putdotio.android.tv.search
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,10 +37,10 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.design.Identity
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.RowText
 import io.putdotio.android.design.rememberRowText
-import io.putdotio.android.design.shown
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -79,6 +81,13 @@ internal class TvSearchRowDetail(
 )
 
 internal fun TvSearchRows.place(item: FilesItem): TvFilesRowPlace.SearchResult =
+    searchPlace(item, folderNames, rootName)
+
+private fun searchPlace(
+    item: FilesItem,
+    folderNames: Map<FilesItemId, String>,
+    rootName: String,
+): TvFilesRowPlace.SearchResult =
     TvFilesRowPlace.SearchResult(
         item.parentId?.let { parent -> if (parent == FilesFolder.Root.id) rootName else folderNames[parent] },
     )
@@ -97,9 +106,31 @@ internal class TvSearchGroups(items: List<FilesItem>) {
 }
 
 @Composable
-internal fun TvSearchResultList(
+internal fun rememberTvSearchRowText(
     groups: TvSearchGroups,
+    folderNames: Map<FilesItemId, String>,
+    rootName: String,
+): RowText<FilesItem, TvFilesRowText> {
+    val context = LocalContext.current
+    val currentNames by rememberUpdatedState(folderNames)
+    val currentRoot by rememberUpdatedState(rootName)
+    return rememberRowText(
+        groups.ordered,
+        context,
+        key = { it.id.value },
+        placeholder = TvFilesRowText.Pending,
+        refresh = Identity(folderNames) to rootName,
+    ) {
+        it.rowText(context, searchPlace(it, currentNames, currentRoot), System.currentTimeMillis())
+    }
+}
+
+@Composable
+internal fun TvSearchResultList(
+    groups: TvSearchGroups?,
+    rowText: RowText<FilesItem, TvFilesRowText>,
     paging: SearchPaging,
+    pagingEnabled: Boolean,
     restoreRowId: Long?,
     rows: TvSearchRows,
     onNextPage: () -> Unit,
@@ -108,26 +139,17 @@ internal fun TvSearchResultList(
     listFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val currentRows by rememberUpdatedState(rows)
-    val folders = rows.folderNames to rows.rootName
-    val rowText = rememberRowText(
-        groups.ordered,
-        context,
-        key = { it.id.value },
-        placeholder = TvFilesRowText.Pending,
-        refresh = folders,
-    ) {
-        it.rowText(context, currentRows.place(it), System.currentTimeMillis())
-    }
-    val shown = rowText.shown(groups to paging, groups.ordered)
-    if (shown == null) {
-        TvListSkeleton(modifier)
+    if (groups == null) {
+        TvListSkeleton(
+            modifier
+                .focusRequester(listFocus)
+                .onFocusChanged { if (it.isFocused) owner.enter(listFocus) }
+                .focusable(),
+        )
         return
     }
-    val (shownGroups, shownPaging) = shown
     TvSearchResultRows(
-        shownGroups, rowText, shownPaging, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier,
+        groups, rowText, paging, pagingEnabled, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier,
     )
 }
 
@@ -137,6 +159,7 @@ private fun TvSearchResultRows(
     groups: TvSearchGroups,
     rowText: RowText<FilesItem, TvFilesRowText>,
     paging: SearchPaging,
+    pagingEnabled: Boolean,
     restoreRowId: Long?,
     rows: TvSearchRows,
     onNextPage: () -> Unit,
@@ -146,7 +169,7 @@ private fun TvSearchResultRows(
     modifier: Modifier,
 ) {
     val items = groups.ordered
-    val names = remember(items) { items.map { it.name } }
+    val names = remember(Identity(items)) { items.map { it.name } }
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
@@ -160,19 +183,11 @@ private fun TvSearchResultRows(
     val restoreRow = remember { FocusRequester() }
     val lastLazyIndex = remember(groups) { groups.lazyIndexOf(items.last().id.value) }
     TvAutoPaging(
-        page = paging as? SearchPaging.Available,
+        page = (paging as? SearchPaging.Available)?.takeIf { pagingEnabled },
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(lastLazyIndex) },
     )
-    LaunchedEffect(listState) {
-        val id = restoreRowId ?: return@LaunchedEffect
-        val index = groups.lazyIndexOf(id)
-        if (index < 0) return@LaunchedEffect
-        listState.bringIntoComposition(id, index)
-        owner.enter(listFocus)
-        withFrameNanos {}
-        if (owner.hasFocus) restoreRow.requestFocus()
-    }
+    LaunchedEffect(listState) { listState.placeFocusOnMount(groups, restoreRowId, owner, listFocus, restoreRow) }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val last = items.last().id.value
@@ -230,6 +245,25 @@ private fun TvSearchResultRows(
             }
         }
     }
+}
+
+private suspend fun LazyListState.placeFocusOnMount(
+    groups: TvSearchGroups,
+    restoreRowId: Long?,
+    owner: TvPaneFocusOwner,
+    listFocus: FocusRequester,
+    restoreRow: FocusRequester,
+) {
+    val index = restoreRowId?.let(groups::lazyIndexOf) ?: -1
+    if (restoreRowId == null || index < 0) {
+        withFrameNanos {}
+        if (owner.owns(listFocus)) listFocus.requestFocus()
+        return
+    }
+    bringIntoComposition(restoreRowId, index)
+    owner.enter(listFocus)
+    withFrameNanos {}
+    if (owner.hasFocus) restoreRow.requestFocus()
 }
 
 private class TvSearchRowRequesters(
