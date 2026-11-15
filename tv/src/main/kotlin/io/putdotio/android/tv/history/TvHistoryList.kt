@@ -92,7 +92,7 @@ private fun HandOffToLastRow(
     lastRow: FocusRequester,
     mayTakeFocus: () -> Boolean,
 ) {
-    LaunchedEffect(handOff.pending.value, built, entries) {
+    LaunchedEffect(handOff.pending.value, built, entries.size, entries.lastOrNull()?.key) {
         if (!handOff.pending.value || !built) return@LaunchedEffect
         listState.bringIntoComposition(entries.last().key, entries.lastIndex)
         withFrameNanos {}
