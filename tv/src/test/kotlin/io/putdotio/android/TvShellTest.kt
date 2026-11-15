@@ -46,6 +46,7 @@ import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.search.tvSearchDetail
 import io.putdotio.android.tv.search.tvSearchResults
 import androidx.compose.ui.test.onNodeWithTag
+import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
@@ -571,10 +572,9 @@ class TvShellTest {
     }
 
     @Test
-    fun historyEnteredWhileItsListBuildsRestoresASavedClearHistoryFocus() {
-        val history = historyState(
-            HistoryContent.Ready(listOf(historyEvent(1, "Sintel.mp4")), HistoryPaging.Complete),
-        )
+    fun aDialogClosedWhileHistoryBuildsReturnsToTheSavedClearHistoryFocus() {
+        val items = listOf(historyEvent(1, "Sintel.mp4"))
+        var history by mutableStateOf(historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
         val pickedRow = TvPickedRow().apply { pick(TV_HISTORY_CLEAR_PICK) }
         val build = StandardTestDispatcher()
         compose.setTvContent {
@@ -594,6 +594,13 @@ class TvShellTest {
             }
         }
         compose.openTab(TvDestination.History)
+        compose.runOnIdle {
+            history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete), HistoryClearing.AwaitingConfirmation)
+        }
+        compose.onNodeWithText("Clear history?").assertIsDisplayed()
+        compose.runOnIdle { history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)) }
+        compose.waitForIdle()
+
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNode(hasText("Clear history") and hasClickAction()).assertIsFocused()
     }
