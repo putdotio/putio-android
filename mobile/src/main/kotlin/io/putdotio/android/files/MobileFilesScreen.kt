@@ -469,7 +469,11 @@ private fun MobileRefreshableFilesContent(
                                     onPlayMedia = onPlayMedia,
                                     onActions = { selectedItemId = it.id.value },
                                     hasActions = {
-                                        it.hasMobileActions(onDownloadItem != null, onShareItem != null, onCopyItem != null)
+                                        it.hasMobileActions(
+                                            onDownloadItem != null,
+                                            onShareItem != null,
+                                            onCopyItem != null,
+                                        )
                                     },
                                     operation = operation,
                                     downloads = downloads,
