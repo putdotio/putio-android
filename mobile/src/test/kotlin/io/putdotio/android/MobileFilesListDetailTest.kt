@@ -48,6 +48,8 @@ import io.putdotio.android.files.MOBILE_FILES_DETAIL_TAG
 import io.putdotio.android.files.MOBILE_FILES_LIST_PANE_TAG
 import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.android.files.MobileFileOpener
+import io.putdotio.android.files.MobileFilesItemActions
+import io.putdotio.android.files.MobileFilesNotice
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.files.folderPath
@@ -64,6 +66,8 @@ import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_POSITION_TAG
 import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_TAG
 import io.putdotio.android.viewer.LocalMobileFileViewerIo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -166,6 +170,27 @@ class MobileFilesListDetailTest {
 
         compose.onNode(hasContentDescription("2 of 2 or more")).assertExists()
         compose.runOnIdle { assertEquals(listOf(FilesBrowserEvent.Retry), events) }
+    }
+
+    @Test
+    fun aPinRefusedFromTheViewerShowsItsNoticeOverTheViewer() {
+        val pinNotices = MutableSharedFlow<MobileFilesNotice>(extraBufferCapacity = 1)
+        setRoute(width = 400.dp, wide = false, itemActions = MobileFilesItemActions(pinNotices = pinNotices))
+        compose.onNodeWithText(SECOND_IMAGE.name).performClick()
+        compose.waitForIdle()
+
+        pinNotices.tryEmit(
+            MobileFilesNotice(
+                R.string.mobile_files_pin_failed,
+                SECOND_IMAGE.name,
+                PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")),
+            ),
+        )
+
+        compose.onNode(
+            hasText("Couldn’t update pins for “${SECOND_IMAGE.name}”", substring = true) and
+                hasAnyAncestor(hasTestTag(MOBILE_FILE_VIEWER_TAG)),
+        ).assertExists()
     }
 
     @Test
@@ -326,6 +351,7 @@ class MobileFilesListDetailTest {
         state: FilesBrowserState = blueLights(),
         events: MutableList<FilesBrowserEvent> = mutableListOf(),
         linkedFile: FilesItemId? = null,
+        itemActions: MobileFilesItemActions = MobileFilesItemActions(),
     ) {
         compose.setBuiltContent {
             PutioTheme {
@@ -343,6 +369,7 @@ class MobileFilesListDetailTest {
                             fileOpener = MobileFileOpener(userId = 42L),
                             linkedFile = linkedFile,
                             onLinkedFileLanded = { landedLinks++ },
+                            itemActions = itemActions,
                         )
                     }
                 }

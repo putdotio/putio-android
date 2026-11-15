@@ -59,10 +59,14 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.files.FilesViewerKind
+import io.putdotio.android.files.MobileFilesNotice
+import io.putdotio.android.files.MobileFilesNoticeHost
 import io.putdotio.android.files.viewerKind
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.withContext
 import io.putdotio.android.MobileIconButton
@@ -79,6 +83,7 @@ internal class MobileFileViewerActions(
     val onOpenWithAnotherApp: (FilesItem) -> Unit,
     val onShare: ((FilesItem) -> Unit)? = null,
     val onMore: ((FilesItem) -> Unit)? = null,
+    val notices: Flow<MobileFilesNotice> = emptyFlow(),
 )
 
 internal class MobileFileViewerPaging(
@@ -201,6 +206,12 @@ internal fun MobileFileViewerContent(
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
+        MobileFilesNoticeHost(
+            actions.notices,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)),
+        )
     }
 }
 

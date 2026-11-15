@@ -9,28 +9,36 @@ import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MobilePinnedFilesTest {
     private val reads = mutableListOf<FilesItemId>()
     private var offline = false
-    private val resolve: suspend (FilesItemId) -> PutioResult<FilesItem> = { id ->
-        reads += id
-        when {
-            offline -> PutioResult.Failure(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
-            else -> resolveOnline(id)
+    private var renamed = false
+    private var rejected = false
+    private val resolve = object : FilesItemResolver {
+        override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
+            reads += itemId
+            return when {
+                rejected -> PutioResult.Failure(PutioFailure.AuthenticationRequired(PutioConfigurationException("401")))
+                offline -> PutioResult.Failure(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
+                else -> resolveOnline(itemId)
+            }
         }
     }
     private fun resolveOnline(id: FilesItemId): PutioResult<FilesItem> =
         when (id) {
             Series -> PutioResult.Success(item(Series, "Series", PutioFileType.FOLDER))
-            Clip -> PutioResult.Success(item(Clip, "clip.mp4", PutioFileType.VIDEO))
+            Clip -> PutioResult.Success(item(Clip, if (renamed) "renamed.mp4" else "clip.mp4", PutioFileType.VIDEO))
             Offline -> PutioResult.Failure(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
             else -> PutioResult.Failure(notFound())
         }
@@ -104,6 +112,108 @@ class MobilePinnedFilesTest {
         assertEquals(R.string.mobile_files_pin_failed, notices.single().message)
         assertNull(pins.editFailure.value)
     }
+
+    @Test
+    fun aRenamedPinShowsItsNewNameWithoutAPullToRefresh() = runTest {
+        val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Series, Clip)), resolve, backgroundScope)
+        val browser = MutableStateFlow(root())
+        backgroundScope.launch { pinned.follow(browser) }
+        advanceUntilIdle()
+
+        renamed = true
+        browser.value = root(
+            renameCompletion = FilesRenameCompletion(
+                FilesRequestId(7L),
+                FilesFolderOperationIntent.Rename(Clip, "renamed.mp4"),
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf("Series", "renamed.mp4"), pinned.items.value.map { it.name })
+    }
+
+    @Test
+    fun aMovedPinIsReadAgain() = runTest {
+        val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Series, Clip)), resolve, backgroundScope)
+        val browser = MutableStateFlow(root())
+        backgroundScope.launch { pinned.follow(browser) }
+        advanceUntilIdle()
+        reads.clear()
+
+        val move = FilesFolderOperationIntent.Move(Clip, Series)
+        browser.value = root(moveOutcome = FilesMoveOutcome(FilesRequestId(8L), move, "clip.mp4"))
+        advanceUntilIdle()
+        assertEquals("A move still being checked reads nothing", emptyList<FilesItemId>(), reads)
+
+        browser.value = root(
+            moveOutcome = FilesMoveOutcome(FilesRequestId(8L), move, "clip.mp4", status = FilesMoveStatus.MOVED),
+        )
+        advanceUntilIdle()
+        assertEquals(listOf(Series, Clip), reads)
+    }
+
+    @Test
+    fun aTrashedPinLeavesPinnedAndUndoBringsItBack() = runTest {
+        val pins = FakePinnedFiles(listOf(Series, Clip))
+        val pinned = MobilePinnedFiles(pins, resolve, backgroundScope)
+        val browser = MutableStateFlow(root())
+        backgroundScope.launch { pinned.follow(browser) }
+        advanceUntilIdle()
+
+        val trash = FilesDeleteOutcome(
+            requestId = FilesRequestId(9L),
+            intent = FilesFolderOperationIntent.Delete(Clip, FilesDeleteMode.TRASH),
+            itemName = "clip.mp4",
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+        browser.value = root(deleteOutcome = trash)
+        advanceUntilIdle()
+        assertEquals(listOf("Series"), pinned.items.value.map { it.name })
+        assertEquals(listOf(Series, Clip), pins.pins.value)
+
+        pinned.trashUndone(trash)
+        advanceUntilIdle()
+        assertEquals(listOf("Series", "clip.mp4"), pinned.items.value.map { it.name })
+    }
+
+    @Test
+    fun aSessionRevokedWhilePinsLoadIsReportedForSignOut() = runTest {
+        rejected = true
+        val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Clip)), resolve, backgroundScope)
+        assertNull(pinned.sessionRejected.value)
+
+        advanceUntilIdle()
+
+        assertTrue(pinned.sessionRejected.value is PutioFailure.AuthenticationRequired)
+    }
+
+    @Test
+    fun aRevokedSessionReadingThePinListIsReportedForSignOut() = runTest {
+        val pins = FakePinnedFiles(initial = null)
+        val pinned = MobilePinnedFiles(pins, resolve, backgroundScope)
+        pins.failure.value = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
+
+        advanceUntilIdle()
+
+        assertTrue(pinned.sessionRejected.value is PutioFailure.AuthenticationRequired)
+    }
+
+    private fun root(
+        renameCompletion: FilesRenameCompletion? = null,
+        moveOutcome: FilesMoveOutcome? = null,
+        deleteOutcome: FilesDeleteOutcome? = null,
+    ) = filesBrowserState(
+        stack = listOf(
+            FilesFolderState(
+                FilesFolder.Root,
+                FilesContent.Ready(emptyList(), FilesPaging.Complete),
+                renameCompletion = renameCompletion,
+                moveOutcome = moveOutcome,
+                deleteOutcome = deleteOutcome,
+            ),
+        ),
+        nextRequestValue = 10L,
+    )
 
     private fun item(id: FilesItemId, name: String, type: PutioFileType) = FilesItem(
         id = id,

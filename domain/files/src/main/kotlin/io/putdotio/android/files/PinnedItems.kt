@@ -1,12 +1,7 @@
-package io.putdotio.android.tv.home
+package io.putdotio.android.files
 
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
-import io.putdotio.android.files.FilesFolderCounts
-import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.FilesItemId
-import io.putdotio.android.files.FilesItemResolver
-import io.putdotio.android.files.PinnedFiles
 import io.putdotio.android.isNotFound
 import io.putdotio.sdk.files.PutioFolderType
 import kotlin.time.Duration.Companion.minutes
@@ -23,17 +18,17 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-internal sealed interface TvPinnedRow {
-    data object Loading : TvPinnedRow
+public sealed interface PinnedRow {
+    public data object Loading : PinnedRow
 
-    data class Ready(val cards: List<TvPinnedCard>) : TvPinnedRow
+    public data class Ready(val cards: List<PinnedCard>) : PinnedRow
 
-    data class Failed(val failure: PutioFailure) : TvPinnedRow
+    public data class Failed(val failure: PutioFailure) : PinnedRow
 }
 
-internal data class TvPinnedCard(val item: FilesItem, val itemCount: Int?, val folderCount: Int? = null)
+public data class PinnedCard(val item: FilesItem, val itemCount: Int?, val folderCount: Int? = null)
 
-internal class TvHomePins(
+public class PinnedItems(
     private val pins: PinnedFiles,
     private val resolver: FilesItemResolver,
     private val folderCounts: FilesFolderCounts?,
@@ -41,16 +36,16 @@ internal class TvHomePins(
     private val clock: TimeSource = TimeSource.Monotonic,
 ) {
     private var lastRead = clock.markNow()
-    private val cards = mutableMapOf<FilesItemId, TvPinnedCard>()
+    private val cards = mutableMapOf<FilesItemId, PinnedCard>()
     private val gone = mutableSetOf<FilesItemId>()
     private val removed = mutableSetOf<FilesItemId>()
     private val refreshes = MutableStateFlow(0)
     private var resolvedRefresh = 0
-    private val mutableRow = MutableStateFlow<TvPinnedRow>(TvPinnedRow.Loading)
+    private val mutableRow = MutableStateFlow<PinnedRow>(PinnedRow.Loading)
     private val mutableRejected = MutableStateFlow<PutioFailure.AuthenticationRequired?>(null)
 
-    val row: StateFlow<TvPinnedRow> = mutableRow.asStateFlow()
-    val rejected: StateFlow<PutioFailure.AuthenticationRequired?> = mutableRejected.asStateFlow()
+    public val row: StateFlow<PinnedRow> = mutableRow.asStateFlow()
+    public val rejected: StateFlow<PutioFailure.AuthenticationRequired?> = mutableRejected.asStateFlow()
 
     init {
         scope.launch {
@@ -61,43 +56,49 @@ internal class TvHomePins(
                             mutableRow.value = rowFor(ids, fresh = refresh != resolvedRefresh)
                             resolvedRefresh = refresh
                         }
-                        failure != null -> mutableRow.value = TvPinnedRow.Failed(failure)
+                        failure != null -> mutableRow.value = PinnedRow.Failed(failure)
                     }
                 }
         }
     }
 
-    fun refresh() {
+    public fun refresh() {
         when {
             pins.pins.value != null -> if (lastRead.elapsedNow() >= REFRESH_AFTER) retry()
             pins.failure.value != null -> pins.reload()
         }
     }
 
-    fun retry() {
+    public fun retry() {
         removed.clear()
         lastRead = clock.markNow()
         pins.reload()
         if (pins.pins.value != null) refreshes.update { it + 1 }
     }
 
-    fun itemEdited(id: FilesItemId) {
+    public fun pinned(item: FilesItem) {
+        gone.remove(item.id)
+        removed.remove(item.id)
+        cards[item.id] = cards[item.id]?.copy(item = item) ?: PinnedCard(item, itemCount = null)
+    }
+
+    public fun itemEdited(id: FilesItemId) {
         if (pins.pins.value?.contains(id) == true) retry()
     }
 
-    fun itemRemoved(id: FilesItemId) {
+    public fun itemRemoved(id: FilesItemId) {
         if (pins.pins.value?.contains(id) == true && removed.add(id)) refreshes.update { it + 1 }
     }
 
-    fun itemRestored(id: FilesItemId) {
+    public fun itemRestored(id: FilesItemId) {
         if (removed.remove(id)) refreshes.update { it + 1 }
     }
 
-    private suspend fun rowFor(ids: List<FilesItemId>, fresh: Boolean): TvPinnedRow = coroutineScope {
+    private suspend fun rowFor(ids: List<FilesItemId>, fresh: Boolean): PinnedRow = coroutineScope {
         val resolved = ids.map { id -> async { resolve(id, fresh) } }.awaitAll()
         val shown = resolved.filterIsInstance<Resolved.Card>().map { it.card }
         val failure = resolved.filterIsInstance<Resolved.Failed>().firstOrNull()?.failure
-        if (shown.isEmpty() && failure != null) TvPinnedRow.Failed(failure) else TvPinnedRow.Ready(shown)
+        if (shown.isEmpty() && failure != null) PinnedRow.Failed(failure) else PinnedRow.Ready(shown)
     }
 
     private suspend fun resolve(id: FilesItemId, fresh: Boolean): Resolved {
@@ -130,11 +131,11 @@ internal class TvHomePins(
             }
         }
 
-    private suspend fun cardFor(item: FilesItem): TvPinnedCard = coroutineScope {
-        if (!item.isFolder) return@coroutineScope TvPinnedCard(item, itemCount = null)
+    private suspend fun cardFor(item: FilesItem): PinnedCard = coroutineScope {
+        if (!item.isFolder) return@coroutineScope PinnedCard(item, itemCount = null)
         val items = async { count { itemCount(item.id) } }
         val folders = if (item.folderType == PutioFolderType.REGULAR) async { count { folderCount(item.id) } } else null
-        TvPinnedCard(item, items.await(), folders?.await())
+        PinnedCard(item, items.await(), folders?.await())
     }
 
     private suspend fun count(read: suspend FilesFolderCounts.() -> PutioResult<Int?>): Int? =
@@ -148,7 +149,7 @@ internal class TvHomePins(
         }
 
     private sealed interface Resolved {
-        data class Card(val card: TvPinnedCard) : Resolved
+        data class Card(val card: PinnedCard) : Resolved
 
         data object Gone : Resolved
 

@@ -79,6 +79,8 @@ import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.PinnedCard
+import io.putdotio.android.files.PinnedRow
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.tv.TvButton
@@ -125,7 +127,7 @@ internal class TvHomeActions(
 @Composable
 internal fun TvHomeScreen(
     continueWatching: List<ContinueWatchingEntry>,
-    pinned: TvPinnedRow,
+    pinned: PinnedRow,
     actions: TvHomeActions,
     paneFocus: FocusRequester,
     onShown: () -> Unit,
@@ -149,7 +151,7 @@ internal fun TvHomeScreen(
 @Composable
 private fun TvHomeContent(
     continueWatching: List<ContinueWatchingEntry>,
-    pinned: TvPinnedRow,
+    pinned: PinnedRow,
     actions: TvHomeActions,
     paneFocus: FocusRequester,
     onShown: () -> Unit,
@@ -159,7 +161,7 @@ private fun TvHomeContent(
     onReturned: () -> Unit = {},
 ) {
     LaunchedEffect(Unit) { onShown() }
-    val pinnedCards = (pinned as? TvPinnedRow.Ready)?.cards
+    val pinnedCards = (pinned as? PinnedRow.Ready)?.cards
     val continueRow = rememberLazyListState()
     val pinnedRow = rememberLazyListState()
     val continueFocused = remember { TvFocusedItem() }
@@ -248,8 +250,8 @@ private fun TvHomeContent(
             }
         }
         when (pinned) {
-            TvPinnedRow.Loading -> Unit
-            is TvPinnedRow.Failed -> TvHomeSection(stringResource(R.string.tv_home_pinned), cardsGap = EMPTY_GAP) {
+            PinnedRow.Loading -> Unit
+            is PinnedRow.Failed -> TvHomeSection(stringResource(R.string.tv_home_pinned), cardsGap = EMPTY_GAP) {
                 TvHomeInlineState(
                     glyph = PutioEmptyGlyph.CouldNotLoad.text,
                     headline = stringResource(R.string.tv_home_pinned_error_title),
@@ -258,7 +260,7 @@ private fun TvHomeContent(
                     retryFocus = retry.retryFocus,
                 )
             }
-            is TvPinnedRow.Ready -> if (pinned.cards.isEmpty()) {
+            is PinnedRow.Ready -> if (pinned.cards.isEmpty()) {
                 TvHomeSection(stringResource(R.string.tv_home_pinned), cardsGap = EMPTY_GAP) {
                     TvHomeInlineState(
                         glyph = PutioEmptyGlyph.NothingYet.text,
@@ -301,7 +303,7 @@ private fun TvHomeContent(
 private fun TvHomeSheets(
     pinSheet: TvHomeCardSheet,
     continueSheet: TvHomeCardSheet,
-    pinnedCards: List<TvPinnedCard>,
+    pinnedCards: List<PinnedCard>,
     continueWatching: List<ContinueWatchingEntry>,
     actions: TvHomeActions,
     paneFocus: FocusRequester,
@@ -446,7 +448,7 @@ private class TvPinnedRetry(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun rememberTvPinnedRetry(pinned: TvPinnedRow, paneFocus: FocusRequester): TvPinnedRetry {
+private fun rememberTvPinnedRetry(pinned: PinnedRow, paneFocus: FocusRequester): TvPinnedRetry {
     val paneHasFocus = rememberTvPaneHasFocus()
     val pressed = remember { mutableStateOf(false) }
     val retry = remember(paneHasFocus) {
@@ -464,7 +466,7 @@ private fun rememberTvPinnedRetry(pinned: TvPinnedRow, paneFocus: FocusRequester
         )
     }
     LaunchedEffect(pinned) {
-        if (!pressed.value || pinned == TvPinnedRow.Loading) return@LaunchedEffect
+        if (!pressed.value || pinned == PinnedRow.Loading) return@LaunchedEffect
         withFrameNanos {}
         if (paneHasFocus.value) pinned.focusAfterRetry(retry, paneFocus).requestFocus()
         pressed.value = false
@@ -472,10 +474,10 @@ private fun rememberTvPinnedRetry(pinned: TvPinnedRow, paneFocus: FocusRequester
     return retry
 }
 
-private fun TvPinnedRow.focusAfterRetry(retry: TvPinnedRetry, paneFocus: FocusRequester): FocusRequester =
+private fun PinnedRow.focusAfterRetry(retry: TvPinnedRetry, paneFocus: FocusRequester): FocusRequester =
     when {
-        this is TvPinnedRow.Failed -> retry.retryFocus
-        this is TvPinnedRow.Ready && cards.isNotEmpty() -> retry.pinnedFocus
+        this is PinnedRow.Failed -> retry.retryFocus
+        this is PinnedRow.Ready && cards.isNotEmpty() -> retry.pinnedFocus
         else -> paneFocus
     }
 
@@ -565,7 +567,7 @@ private fun TvContinueWatchingCard(
 }
 
 @Composable
-private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier) {
+private fun TvPinnedFileCard(card: PinnedCard, onClick: () -> Unit, onLongClick: () -> Unit, modifier: Modifier) {
     val meta = pinnedMeta(card)
     TvHomeCard(
         icon = if (card.item.isSharedRoot) R.drawable.ic_ph_users_three_fill else fileTypeIconRes(card.item.type),
@@ -580,7 +582,7 @@ private fun TvPinnedFileCard(card: TvPinnedCard, onClick: () -> Unit, onLongClic
 }
 
 @Composable
-private fun pinnedMeta(card: TvPinnedCard): AnnotatedString {
+private fun pinnedMeta(card: PinnedCard): AnnotatedString {
     val items = card.itemCount
     return when {
         items != null && card.item.isSharedRoot ->

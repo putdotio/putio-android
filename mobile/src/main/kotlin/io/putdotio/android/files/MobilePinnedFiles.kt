@@ -1,52 +1,46 @@
 package io.putdotio.android.files
 
-import io.putdotio.android.PutioResult
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.isNotFound
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 internal class MobilePinnedFiles(
     private val pins: PinnedFiles,
-    private val resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
+    resolver: FilesItemResolver,
     private val scope: CoroutineScope,
 ) : Closeable {
-    private val known = mutableMapOf<FilesItemId, FilesItem>()
-    private val gone = mutableSetOf<FilesItemId>()
-    private val refreshes = MutableStateFlow(0)
-    private val mutableItems = MutableStateFlow<List<FilesItem>>(emptyList())
+    private val resolved = PinnedItems(pins, resolver, folderCounts = null, scope)
     private val mutableNotices =
         MutableSharedFlow<MobileFilesNotice>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private val handledEdits = mutableSetOf<FilesRequestId>()
     private var editedName = ""
-    private var resolvedRefresh = 0
 
     val ids: StateFlow<List<FilesItemId>?> = pins.pins
-    val items: StateFlow<List<FilesItem>> = mutableItems.asStateFlow()
+    val items: StateFlow<List<FilesItem>> = resolved.row
+        .map { row -> (row as? PinnedRow.Ready)?.cards?.map(PinnedCard::item).orEmpty() }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
     val notices: SharedFlow<MobileFilesNotice> = mutableNotices.asSharedFlow()
+    val sessionRejected: StateFlow<PutioFailure.AuthenticationRequired?> =
+        combine(resolved.rejected, pins.failure) { item, config ->
+            item ?: config as? PutioFailure.AuthenticationRequired
+        }.stateIn(scope, SharingStarted.Eagerly, null)
 
     init {
-        scope.launch {
-            combine(pins.pins, refreshes, ::Pair).collectLatest { (ids, refresh) ->
-                mutableItems.value = ids?.let { resolveAll(it, fresh = refresh != resolvedRefresh) }.orEmpty()
-                resolvedRefresh = refresh
-            }
-        }
         scope.launch {
             pins.editFailure.filterNotNull().collect { failure ->
                 mutableNotices.tryEmit(MobileFilesNotice(R.string.mobile_files_pin_failed, editedName, failure))
@@ -58,8 +52,7 @@ internal class MobilePinnedFiles(
     fun setPinned(item: FilesItem, pinned: Boolean) {
         editedName = item.name
         if (pinned) {
-            known[item.id] = item
-            gone.remove(item.id)
+            resolved.pinned(item)
             pins.pin(item.id)
         } else {
             pins.unpin(item.id)
@@ -67,31 +60,43 @@ internal class MobilePinnedFiles(
     }
 
     fun refresh() {
-        gone.clear()
-        pins.reload()
-        refreshes.update { it + 1 }
+        resolved.retry()
+    }
+
+    suspend fun follow(browser: Flow<FilesBrowserState>) {
+        browser
+            .map { state -> state.stack.flatMap(FilesFolderState::pinEdits) }
+            .distinctUntilChanged()
+            .collect { edits ->
+                edits.filter { handledEdits.add(it.requestId) }.forEach { edit ->
+                    edit.edited.forEach(resolved::itemEdited)
+                    edit.removed.forEach(resolved::itemRemoved)
+                }
+            }
+    }
+
+    fun trashUndone(outcome: FilesDeleteOutcome) {
+        outcome.intent.itemIds.forEach(resolved::itemRestored)
     }
 
     override fun close() {
         pins.close()
         scope.cancel()
     }
-
-    private suspend fun resolveAll(ids: List<FilesItemId>, fresh: Boolean): List<FilesItem> = coroutineScope {
-        ids.map { id -> async { known[id]?.takeUnless { fresh } ?: read(id) } }.awaitAll().filterNotNull()
-    }
-
-    private suspend fun read(id: FilesItemId): FilesItem? {
-        if (id in gone) return null
-        return when (val result = resolve(id)) {
-            is PutioResult.Success -> result.value.also { known[id] = it }
-            is PutioResult.Failure -> if (result.failure.isNotFound) {
-                known.remove(id)
-                if (gone.add(id)) pins.unpinGone(id)
-                null
-            } else {
-                known[id]
-            }
-        }
-    }
 }
+
+private data class PinEdit(
+    val requestId: FilesRequestId,
+    val edited: List<FilesItemId> = emptyList(),
+    val removed: List<FilesItemId> = emptyList(),
+)
+
+private fun FilesFolderState.pinEdits(): List<PinEdit> = listOfNotNull(
+    renameCompletion?.let { PinEdit(it.requestId, edited = listOf(it.intent.itemId)) },
+    moveOutcome?.takeIf { it.status == FilesMoveStatus.MOVED }?.let { move ->
+        PinEdit(move.requestId, edited = move.intent.itemIds)
+    },
+    deleteOutcome?.let { outcome ->
+        outcome.confirmedGone().takeIf { it.isNotEmpty() }?.let { PinEdit(outcome.requestId, removed = it) }
+    },
+)
