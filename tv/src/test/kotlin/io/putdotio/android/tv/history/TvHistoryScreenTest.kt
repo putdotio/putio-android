@@ -439,7 +439,12 @@ class TvHistoryScreenTest {
                     state = state,
                     onEvent = { true },
                     clock = clock,
-                    files = TvHistoryFiles(resolver(FilesItemId(3) to file(3, "sintel.mp4", FilesFolder.Root.id))),
+                    files = TvHistoryFiles(
+                        resolver(
+                            FilesItemId(1) to file(1, "Big Buck Bunny", FilesFolder.Root.id),
+                            FilesItemId(3) to file(3, "sintel.mp4", FilesFolder.Root.id),
+                        ),
+                    ),
                     itemActions = historyActions(),
                 )
             }
@@ -454,6 +459,7 @@ class TvHistoryScreenTest {
             state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
         }
         val play = hasText("Play") and hasClickAction()
+        compose.waitUntil(5_000) { compose.onAllNodes(play).fetchSemanticsNodes().isNotEmpty() }
         compose.onNode(play).performSemanticsAction(SemanticsActions.RequestFocus)
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNode(play).assertIsFocused()
