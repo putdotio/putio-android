@@ -6,6 +6,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
@@ -89,6 +90,7 @@ internal fun <T : Any, V> rememberRowText(
     LaunchedEffect(text, items, refresh) {
         text.recomposeStaleRows()
         withContext(Dispatchers.Default) { text.prepare(items, refresh) }
+        withFrameNanos {}
         text.recomposeStaleRows()
     }
     return text
