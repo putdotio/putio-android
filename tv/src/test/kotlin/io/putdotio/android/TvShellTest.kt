@@ -20,6 +20,7 @@ import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -69,12 +70,14 @@ import io.putdotio.android.history.historyState
 import io.putdotio.android.history.HistoryController
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
+import io.putdotio.android.design.LocalBuildDispatcher
 import kotlinx.coroutines.CompletableDeferred
 import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TestTimeSource
 
@@ -528,6 +531,37 @@ class TvShellTest {
         }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf<HistoryEvent>(HistoryEvent.OpenFile(HistoryFileId(5))), events)
+    }
+
+    @Test
+    fun historyEnteredWhileItsListBuildsFocusesTheFirstRowOnceBuilt() {
+        val history = historyState(
+            HistoryContent.Ready(
+                listOf(
+                    HistoryItem(
+                        HistoryEventId(1),
+                        "2026-09-10T10:00:00",
+                        HistoryEventKind.File(HistoryFileId(5), "Sintel.mp4"),
+                    ),
+                ),
+                HistoryPaging.Complete,
+            ),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus ->
+                        TvHistoryScreen(state = history, onEvent = { true }, modifier = Modifier.focusRequester(paneFocus))
+                    },
+                )
+            }
+        }
+        compose.openTab(TvDestination.History)
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused()
     }
 
     @Test
