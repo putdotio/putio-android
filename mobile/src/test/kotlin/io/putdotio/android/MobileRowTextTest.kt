@@ -27,6 +27,7 @@ class MobileRowTextTest {
         var invalidated = false
         val observer = Snapshot.registerApplyObserver { changed, _ -> invalidated = changed.any { it in reads } }
         text.prepare(listOf(Row(1, "a"), Row(2, "b")), refresh = null)
+        text.recomposeStaleRows()
         Snapshot.sendApplyNotifications()
         observer.dispose()
 

@@ -7,6 +7,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -35,6 +36,8 @@ internal class MobileRowText<T : Any, V>(
 
     private val generation = AtomicLong()
 
+    private val stale = AtomicBoolean()
+
     operator fun get(item: T): V {
         prepared.intValue
         val key = key(item)
@@ -59,14 +62,17 @@ internal class MobileRowText<T : Any, V>(
                 ?: Entry(item, build(item), refresh)
         }
         val context = currentCoroutineContext()
-        val publish = synchronized(generation) {
+        synchronized(generation) {
             if (run != generation.get() || !context.isActive) return
             entries = built
             val newRefresh = refresh != this.refresh
             this.refresh = refresh
-            waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || newRefresh
+            if (waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || newRefresh) stale.set(true)
         }
-        if (publish) prepared.intValue++
+    }
+
+    fun recomposeStaleRows() {
+        if (stale.getAndSet(false)) prepared.intValue++
     }
 }
 
@@ -80,7 +86,11 @@ internal fun <T : Any, V> rememberRowText(
     build: (T) -> V,
 ): MobileRowText<T, V> {
     val text = remember(*inputs) { MobileRowText(key, placeholder, build) }
-    LaunchedEffect(text, items, refresh) { withContext(Dispatchers.Default) { text.prepare(items, refresh) } }
+    LaunchedEffect(text, items, refresh) {
+        text.recomposeStaleRows()
+        withContext(Dispatchers.Default) { text.prepare(items, refresh) }
+        text.recomposeStaleRows()
+    }
     return text
 }
 
