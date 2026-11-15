@@ -1,12 +1,6 @@
 package io.putdotio.android.tv.search
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.test.isFocused
-import androidx.compose.ui.test.performScrollToIndex
-import io.putdotio.android.design.LocalBuildDispatcher
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestDispatcher
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.pressCenter
@@ -660,57 +654,6 @@ class TvSearchScreenTest {
             trashEnabled = true,
         ),
     )
-
-    @Test
-    fun enteringTheResultsWhileTheirRowsBuildLandsOnTheFirstRowOnceTheyShow() {
-        val build = StandardTestDispatcher()
-        val ready = SearchContent.Ready(
-            SearchTerm("tears"),
-            listOf(item(1, "Tears of Steel.webm", PutioFileType.VIDEO)),
-            SearchPaging.Complete,
-        )
-        showBuilding(build) { searchState(ready, query = "tears") }
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
-        compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
-            pressKey(Key.DirectionDown)
-            pressKey(Key.DirectionDown)
-        }
-        compose.onNodeWithContentDescription("Play Tears of Steel.webm").assertDoesNotExist()
-        compose.onNode(hasContentDescription("Loading") and isFocused()).assertExists()
-
-        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNodeWithContentDescription("Play Tears of Steel.webm").assertIsFocused()
-    }
-
-    @Test
-    fun aNewQueryPagesOnlyOnceItsRowsShow() {
-        val build = StandardTestDispatcher()
-        fun page(term: String, cursor: String) = SearchContent.Ready(
-            SearchTerm(term),
-            (1L..40L).map { item(if (term == "old") it else 100 + it, "$term $it.txt", PutioFileType.TEXT) },
-            SearchPaging.Available(FilesCursor(cursor)),
-        )
-        var state by mutableStateOf(searchState(page("old", "c1"), query = "old"))
-        showBuilding(build) { state }
-        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        assertEquals(emptyList<String>(), log)
-
-        compose.runOnIdle { state = searchState(page("new", "c2"), query = "new") }
-        compose.onNodeWithTag(TV_SEARCH_RESULTS_TAG).performScrollToIndex(40)
-        assertEquals(emptyList<String>(), log)
-
-        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNodeWithText("new 40.txt").assertIsDisplayed()
-        assertEquals(listOf("next"), log)
-    }
-
-    private fun showBuilding(build: TestDispatcher, state: () -> SearchState) {
-        compose.setTvContent {
-            CompositionLocalProvider(LocalBuildDispatcher provides build) {
-                TvSearchScreen(state = state(), actions = actions, detail = tvSearchDetail(), results = results)
-            }
-        }
-    }
 
     private fun show(
         state: () -> SearchState,

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -186,19 +187,7 @@ private fun TvSearchResultRows(
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(lastLazyIndex) },
     )
-    LaunchedEffect(listState) {
-        val id = restoreRowId
-        val index = id?.let(groups::lazyIndexOf) ?: -1
-        if (id == null || index < 0) {
-            withFrameNanos {}
-            if (owner.owns(listFocus)) listFocus.requestFocus()
-            return@LaunchedEffect
-        }
-        listState.bringIntoComposition(id, index)
-        owner.enter(listFocus)
-        withFrameNanos {}
-        if (owner.hasFocus) restoreRow.requestFocus()
-    }
+    LaunchedEffect(listState) { listState.placeFocusOnMount(groups, restoreRowId, owner, listFocus, restoreRow) }
     LaunchedEffect(handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         val last = items.last().id.value
@@ -256,6 +245,25 @@ private fun TvSearchResultRows(
             }
         }
     }
+}
+
+private suspend fun LazyListState.placeFocusOnMount(
+    groups: TvSearchGroups,
+    restoreRowId: Long?,
+    owner: TvPaneFocusOwner,
+    listFocus: FocusRequester,
+    restoreRow: FocusRequester,
+) {
+    val index = restoreRowId?.let(groups::lazyIndexOf) ?: -1
+    if (restoreRowId == null || index < 0) {
+        withFrameNanos {}
+        if (owner.owns(listFocus)) listFocus.requestFocus()
+        return
+    }
+    bringIntoComposition(restoreRowId, index)
+    owner.enter(listFocus)
+    withFrameNanos {}
+    if (owner.hasFocus) restoreRow.requestFocus()
 }
 
 private class TvSearchRowRequesters(
