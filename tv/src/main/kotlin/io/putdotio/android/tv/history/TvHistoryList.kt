@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
@@ -77,7 +78,7 @@ private class TvLastRowHandOff {
 @Composable
 private fun rememberLastRowHandOff(built: Boolean, paging: HistoryPaging): TvLastRowHandOff {
     val handOff = remember { TvLastRowHandOff() }
-    handOff.built = built
+    SideEffect { handOff.built = built }
     handOff.latchWhenPagingLeaves(paging)
     return handOff
 }
@@ -91,7 +92,7 @@ private fun HandOffToLastRow(
     lastRow: FocusRequester,
     mayTakeFocus: () -> Boolean,
 ) {
-    LaunchedEffect(handOff.pending.value, built) {
+    LaunchedEffect(handOff.pending.value, built, entries) {
         if (!handOff.pending.value || !built) return@LaunchedEffect
         listState.bringIntoComposition(entries.last().key, entries.lastIndex)
         withFrameNanos {}
@@ -150,20 +151,22 @@ internal fun TvHistoryList(
     val restoreRow = remember { FocusRequester() }
     val built = history.isBuiltFrom(content.items)
     val handOff = rememberLastRowHandOff(built, content.paging)
-    val entryActions = TvHistoryListActions(
-        onOpen = actions.onOpen,
-        onClear = actions.onClear,
-        onRowFocused = {
-            handOff.focusTaken()
-            actions.onRowFocused(it)
-        },
-        onClearFocused = {
-            handOff.focusTaken()
-            actions.onClearFocused()
-        },
-        onNextPage = actions.onNextPage,
-        onRetry = actions.onRetry,
-    )
+    val entryActions = remember(actions, handOff) {
+        TvHistoryListActions(
+            onOpen = actions.onOpen,
+            onClear = actions.onClear,
+            onRowFocused = {
+                handOff.focusTaken()
+                actions.onRowFocused(it)
+            },
+            onClearFocused = {
+                handOff.focusTaken()
+                actions.onClearFocused()
+            },
+            onNextPage = actions.onNextPage,
+            onRetry = actions.onRetry,
+        )
+    }
     val listState = rememberLazyListState()
     val focused = remember { TvFocusedItem() }
     val lastIndex = entries.lastIndex

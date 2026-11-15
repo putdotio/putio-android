@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
@@ -64,7 +65,7 @@ internal fun <S : Any, V : Any> Flow<S>.buildLatest(build: suspend (S, V?) -> V)
                     job = launch {
                         val value = build(next, finished?.value)
                         lock.withLock {
-                            if (building !== next) return@launch
+                            if (job !== coroutineContext.job) return@launch
                             val built = Built(next, value, covers)
                             done = built
                             building = null
