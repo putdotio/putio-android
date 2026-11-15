@@ -6,6 +6,7 @@ import androidx.compose.ui.test.isFocused
 import androidx.compose.ui.test.performScrollToIndex
 import io.putdotio.android.design.LocalBuildDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.pressCenter
@@ -700,7 +701,7 @@ class TvSearchScreenTest {
         assertEquals(listOf("next"), log)
     }
 
-    private fun showBuilding(build: StandardTestDispatcher, state: () -> SearchState) {
+    private fun showBuilding(build: TestDispatcher, state: () -> SearchState) {
         compose.setTvContent {
             CompositionLocalProvider(LocalBuildDispatcher provides build) {
                 TvSearchScreen(state = state(), actions = actions, detail = tvSearchDetail(), results = results)
