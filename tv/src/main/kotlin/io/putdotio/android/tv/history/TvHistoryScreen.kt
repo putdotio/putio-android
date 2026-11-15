@@ -219,6 +219,13 @@ private fun TvHistoryLoading(skeletonFocus: FocusRequester) {
     }
 }
 
+private fun detailFocus(
+    history: TvHistoryEntries?,
+    fileId: HistoryFileId?,
+    actionable: Boolean,
+    open: FocusRequester,
+): FocusRequester = if (history != null && fileId != null && actionable) open else FocusRequester.Cancel
+
 @Composable
 private fun TvHistoryListSkeleton(focus: Modifier) {
     TvSectionLine {}
@@ -257,11 +264,7 @@ private fun TvHistoryListDetail(
         TvListDetail(
             modifier = Modifier.weight(1f).heldDetail(detailRow),
             header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
-            detailFocus = if (history != null && detailFileId != null && detailActionable) {
-                openFocus
-            } else {
-                FocusRequester.Cancel
-            },
+            detailFocus = detailFocus(history, detailFileId, detailActionable, openFocus),
             listFocus = focus.list,
             onDetailFocusChanged = { if (it) detailHadFocus = true },
             list = {

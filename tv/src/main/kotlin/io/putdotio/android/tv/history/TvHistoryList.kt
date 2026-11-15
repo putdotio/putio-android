@@ -164,6 +164,12 @@ private fun HistoryItem.rowLabel(title: String, resources: Resources): String =
 private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequesters): Modifier =
     if (entry is TvHistoryEntry.Event) focusRequester(requesters.of(entry.key)) else this
 
+private fun pagingLanded(built: Boolean, paging: HistoryPaging, pagingHeldFocus: Boolean): Boolean =
+    built && paging !is HistoryPaging.Failed && pagingHeldFocus
+
+private fun HistoryPaging.nextPageWhen(built: Boolean): HistoryPaging.Available? =
+    (this as? HistoryPaging.Available)?.takeIf { built }
+
 private val HistoryPaging.isPending: Boolean
     get() = this is HistoryPaging.Available || this is HistoryPaging.Loading
 
@@ -214,7 +220,7 @@ internal fun TvHistoryList(
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
     val built = history.items == content.items
-    if (built && content.paging !is HistoryPaging.Failed && pagingHeldFocus.value) {
+    if (pagingLanded(built, content.paging, pagingHeldFocus.value)) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
     }
@@ -224,7 +230,7 @@ internal fun TvHistoryList(
     val restoreIndex = remember(entries) { entries.indexOfPick(restoreRowId) }
     val pendingEndIndex = lastIndex.takeIf { content.paging.isPending }
     TvAutoPaging(
-        page = (content.paging as? HistoryPaging.Available).takeIf { built },
+        page = content.paging.nextPageWhen(built),
         onLoadMore = actions.onNextPage,
         nearEnd = { listState.isNearEnd(lastIndex) },
     )
