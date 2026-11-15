@@ -72,9 +72,7 @@ public class PinnedItems(
     public fun retry() {
         removed.clear()
         gone.clear()
-        lastRead = clock.markNow()
-        pins.reload()
-        if (pins.pins.value != null) refreshes.update { it + 1 }
+        readAgain()
     }
 
     public fun pinned(item: FilesItem) {
@@ -84,7 +82,7 @@ public class PinnedItems(
     }
 
     public fun itemEdited(id: FilesItemId) {
-        if (pins.pins.value?.contains(id) == true) retry()
+        if (pins.pins.value?.contains(id) == true) readAgain()
     }
 
     public fun itemRemoved(id: FilesItemId) {
@@ -93,6 +91,12 @@ public class PinnedItems(
 
     public fun itemRestored(id: FilesItemId) {
         if (removed.remove(id)) refreshes.update { it + 1 }
+    }
+
+    private fun readAgain() {
+        lastRead = clock.markNow()
+        pins.reload()
+        if (pins.pins.value != null) refreshes.update { it + 1 }
     }
 
     private suspend fun rowFor(ids: List<FilesItemId>, fresh: Boolean): PinnedRow = coroutineScope {
@@ -111,7 +115,7 @@ public class PinnedItems(
     private suspend fun read(id: FilesItemId): Resolved =
         when (val result = resolver.resolveItem(id)) {
             is PutioResult.Success -> {
-                val card = cardFor(result.value)
+                val card = cardFor(result.value, folderCounts) { mutableRejected.value = it }
                 gone.remove(id)
                 Resolved.Card(card.also { cards[id] = it })
             }
@@ -132,23 +136,6 @@ public class PinnedItems(
             }
         }
 
-    private suspend fun cardFor(item: FilesItem): PinnedCard = coroutineScope {
-        if (!item.isFolder) return@coroutineScope PinnedCard(item, itemCount = null)
-        val items = async { count { itemCount(item.id) } }
-        val folders = if (item.folderType == PutioFolderType.REGULAR) async { count { folderCount(item.id) } } else null
-        PinnedCard(item, items.await(), folders?.await())
-    }
-
-    private suspend fun count(read: suspend FilesFolderCounts.() -> PutioResult<Int?>): Int? =
-        when (val result = folderCounts?.read()) {
-            is PutioResult.Success -> result.value
-            is PutioResult.Failure -> {
-                (result.failure as? PutioFailure.AuthenticationRequired)?.let { mutableRejected.value = it }
-                null
-            }
-            null -> null
-        }
-
     private sealed interface Resolved {
         data class Card(val card: PinnedCard) : Resolved
 
@@ -157,5 +144,33 @@ public class PinnedItems(
         data class Failed(val failure: PutioFailure) : Resolved
     }
 }
+
+private suspend fun cardFor(
+    item: FilesItem,
+    folderCounts: FilesFolderCounts?,
+    rejected: (PutioFailure.AuthenticationRequired) -> Unit,
+): PinnedCard = coroutineScope {
+    if (!item.isFolder) return@coroutineScope PinnedCard(item, itemCount = null)
+    val items = async { folderCounts.count(rejected) { itemCount(item.id) } }
+    val folders = if (item.folderType == PutioFolderType.REGULAR) {
+        async { folderCounts.count(rejected) { folderCount(item.id) } }
+    } else {
+        null
+    }
+    PinnedCard(item, items.await(), folders?.await())
+}
+
+private suspend fun FilesFolderCounts?.count(
+    rejected: (PutioFailure.AuthenticationRequired) -> Unit,
+    read: suspend FilesFolderCounts.() -> PutioResult<Int?>,
+): Int? =
+    when (val result = this?.read()) {
+        is PutioResult.Success -> result.value
+        is PutioResult.Failure -> {
+            (result.failure as? PutioFailure.AuthenticationRequired)?.let(rejected)
+            null
+        }
+        null -> null
+    }
 
 private val REFRESH_AFTER = 1.minutes

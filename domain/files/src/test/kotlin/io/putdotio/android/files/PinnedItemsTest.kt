@@ -85,6 +85,26 @@ class PinnedItemsTest {
     }
 
     @Test
+    fun editingAnotherPinWhileOneIsInTrashKeepsTheTrashedPinForUndo() = runTest(UnconfinedTestDispatcher()) {
+        val clip = FilesItemId(Clip.value)
+        var trashed = false
+        val trash = object : FilesItemResolver {
+            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+                if (trashed && itemId == clip) PutioResult.Failure(notFound()) else resolver.resolveItem(itemId)
+        }
+        val home = PinnedItems(pins, trash, counts, backgroundScope, clock)
+
+        home.itemRemoved(clip)
+        trashed = true
+        home.itemEdited(FilesItemId(Series.value))
+        assertEquals(listOf(Series, Clip), pins.pins.value)
+
+        trashed = false
+        home.itemRestored(clip)
+        assertEquals(listOf("Series", "clip.mp4"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
+    }
+
+    @Test
     fun aFolderCardCountsItsFoldersAndTheSharedRootCountsOnlyFriends() = runTest(UnconfinedTestDispatcher()) {
         val shared = FilesItemId(4L)
         val folderReads = mutableListOf<FilesItemId>()
