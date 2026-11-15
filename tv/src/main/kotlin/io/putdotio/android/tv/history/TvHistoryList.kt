@@ -102,8 +102,9 @@ private fun List<HistoryItem>.historyEntries(
 ): TvHistoryEntries {
     val untitled = resources.getString(R.string.tv_history_no_title)
     val stamps = HashMap<Long, TvHistoryStamp>(size)
+    val days = groupConsecutiveBy { it.day(zone) }
     val list = buildList {
-        groupConsecutiveBy { it.day(zone) }.forEachIndexed { index, (day, events) ->
+        days.forEachIndexed { index, (day, events) ->
             val label = day.label(today, resources, locale)
             add(if (index == 0) TvHistoryEntry.Section(label) else TvHistoryEntry.Header(label, day))
             events.forEach {
