@@ -211,6 +211,7 @@ private fun DownloadEntry.toJson(): JSONObject =
             if (pauseRequested) json.put("pauseRequested", true)
             if (subtitles.isNotEmpty()) json.put("subtitles", subtitles.toJson())
             if (directPlayChosen) json.put("directPlayChosen", true)
+            if (directPlayUnanswered) json.put("directPlayUnanswered", true)
         }
 
 private fun DownloadStatus.toJson(): JSONObject =
@@ -260,6 +261,7 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
             pauseRequested = pauseRequested,
             subtitles = optJSONArray("subtitles").toDownloadSubtitles(),
             directPlayChosen = optBoolean("directPlayChosen", false),
+            directPlayUnanswered = optBoolean("directPlayUnanswered", false),
         )
     }
 }

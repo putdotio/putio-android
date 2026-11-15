@@ -129,6 +129,47 @@ class DownloadMethodsTest {
     }
 
     @Test
+    fun aConvertedStandInRefusedBeforeItsFirstByteAsksAgainAndDownloadsTheOriginal() = runBlocking {
+        val answers = mutableListOf<DirectPlayDownload?>(null, original(ENGLISH), null)
+        val sources = DownloadSources({ StreamingMethod.File }) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            answers.removeAt(0)
+        }
+        DownloadsController(store, engine, this, sources = sources).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.await { it.started.size == 1 }
+            assertEquals(DownloadArtifact.MP4, engine.started.single().artifact)
+
+            store.report(video.fileId, DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L))
+            engine.await { it.started.size == 2 }
+            val resumed = engine.started.last()
+            assertEquals(DownloadArtifact.ORIGINAL, resumed.artifact)
+            assertEquals(listOf("en-key"), resumed.subtitles.map { it.key })
+            assertTrue(engine.failed.isEmpty())
+
+            store.report(video.fileId, DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L))
+            settle()
+            assertEquals(2, engine.started.size)
+        }
+    }
+
+    @Test
+    fun aConvertedStandInRefusedAgainWithoutAnAnswerStaysFailed() = runBlocking {
+        controller(StreamingMethod.File, emptyMap()).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.await { it.started.size == 1 }
+            val refused = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
+            store.report(video.fileId, refused)
+
+            engine.await { it.failed.size == 1 }
+            settle()
+            assertEquals(1, engine.started.size)
+            assertEquals(refused, store.find(video.fileId)?.status)
+            assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
+        }
+    }
+
+    @Test
     fun directPlayLookupsRunTogetherAndStartsKeepTapOrder() = runBlocking {
         val episodes = (20L..22L).map { video.copy(fileId = FilesItemId(it), name = "Episode $it.mkv") }
         val answers = episodes.associate { it.fileId to CompletableDeferred<DirectPlayDownload?>() }

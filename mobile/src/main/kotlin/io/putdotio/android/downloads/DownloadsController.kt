@@ -68,6 +68,7 @@ internal class DownloadsController(
                     val next = mutableState.value.withEntries(entries)
                     mutableState.value = next.copy(speeds = next.speeds.filterKeys { it in running })
                 }
+                entries.filter { it.redecidesDirectPlay() }.forEach { redecide(it.fileId) }
             }
         }
         enqueue {
@@ -144,11 +145,22 @@ internal class DownloadsController(
         return true
     }
 
+    private fun redecide(fileId: FilesItemId) {
+        enqueue {
+            val refused = store.find(fileId)?.takeIf { it.redecidesDirectPlay() && accepts(fileId, retry = true) }
+                ?: return@enqueue
+            val queued = refused.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
+            store.upsert(queued)
+            queueStart(queued, decide = true, replaced = refused.copy(directPlayUnanswered = false), redecides = true)
+        }
+    }
+
     private fun queueStart(
         entry: DownloadEntry,
         decide: Boolean,
         replaced: DownloadEntry? = null,
         startup: Boolean = false,
+        redecides: Boolean = false,
     ) {
         val directPlay = if (decide && entry.resolvesDirectPlay) {
             scope.async {
@@ -159,7 +171,7 @@ internal class DownloadsController(
         } else {
             null
         }
-        val pending = PendingStart(entry, directPlay, replaced, startup)
+        val pending = PendingStart(entry, directPlay, replaced, startup, redecides)
         latestStarts[entry.fileId] = pending
         starts.trySend(pending)
     }
@@ -174,9 +186,10 @@ internal class DownloadsController(
                     synchronized(lock) { it.fileId !in mutableState.value.removing } &&
                     (!pending.startup || it.awaitsDirectPlay && !engine.hasRecord(it.fileId))
             } ?: return
-            val chosen = pending.replaced?.takeIf { directPlay.unavailable } ?: current.decidedBy(directPlay)
+            val refused = directPlay.unavailable || pending.redecides && directPlay == null
+            val chosen = pending.replaced?.takeIf { refused } ?: current.decidedBy(directPlay)
             if (chosen != current) store.upsert(chosen)
-            if (directPlay.unavailable) {
+            if (refused) {
                 engine.notifyFailed(chosen, DownloadFailureReason.UNAVAILABLE)
             } else {
                 engine.start(chosen)
@@ -314,6 +327,7 @@ private class PendingStart(
     val directPlay: Deferred<DirectPlayDownload?>?,
     val replaced: DownloadEntry?,
     val startup: Boolean,
+    val redecides: Boolean,
 )
 
 /** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */

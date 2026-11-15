@@ -51,6 +51,10 @@ internal val DownloadEntry.awaitsDirectPlay: Boolean
     get() = status == DownloadStatus.Queued && !accepted && !removing && type == PutioFileType.VIDEO &&
         artifact == DownloadArtifact.MP4
 
+internal fun DownloadEntry.redecidesDirectPlay(failure: DownloadStatus? = status): Boolean =
+    directPlayUnanswered && !removing && artifact == DownloadArtifact.MP4 &&
+        failure == DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
+
 internal class DownloadStart(val entry: DownloadEntry, val decides: Boolean) {
     val asksDirectPlay: Boolean get() = decides && entry.resolvesDirectPlay
 }
@@ -65,8 +69,15 @@ internal fun DownloadEntry.retryStart(): DownloadStart =
 internal fun DownloadEntry.decidedBy(directPlay: DirectPlayDownload?): DownloadEntry {
     val artifact = directPlay?.artifact
     return when {
-        directPlay == null -> this
-        artifact == null -> copy(status = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L))
-        else -> copy(artifact = artifact, subtitles = directPlay.subtitles.mapNotNull { it.toDownloadSubtitle() })
+        directPlay == null -> copy(directPlayUnanswered = true)
+        artifact == null -> copy(
+            status = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L),
+            directPlayUnanswered = false,
+        )
+        else -> copy(
+            artifact = artifact,
+            subtitles = directPlay.subtitles.mapNotNull { it.toDownloadSubtitle() },
+            directPlayUnanswered = false,
+        )
     }
 }
