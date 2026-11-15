@@ -40,9 +40,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
-import io.putdotio.android.MobileRowText
-import io.putdotio.android.rememberMinute
-import io.putdotio.android.rememberRowText
+import io.putdotio.android.design.RowText
+import io.putdotio.android.design.rememberMinute
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.monoValue
@@ -201,7 +201,7 @@ private fun FilesItem.rowText(context: Context, dated: Boolean): FilesRowText =
 internal fun rememberFilesRowText(
     items: List<FilesItem>,
     dated: Boolean = true,
-): MobileRowText<FilesItem, FilesRowText> {
+): RowText<FilesItem, FilesRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val minute = if (dated) rememberMinute() else null

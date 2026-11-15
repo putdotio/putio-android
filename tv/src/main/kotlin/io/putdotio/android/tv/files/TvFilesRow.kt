@@ -38,7 +38,11 @@ internal sealed interface TvFilesRowPlace {
     data class SearchResult(val folderName: String?) : TvFilesRowPlace
 }
 
-internal data class TvFilesRowText(val meta: TvRowMeta, val label: String)
+internal data class TvFilesRowText(val meta: TvRowMeta, val label: String) {
+    companion object {
+        val Pending: TvFilesRowText = TvFilesRowText(TvRowMeta.Pending, label = "")
+    }
+}
 
 internal fun FilesItem.rowText(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvFilesRowText {
     val where = when (place) {
@@ -84,7 +88,7 @@ internal fun TvFilesRow(
                     false
                 }
             }
-            .semantics { contentDescription = text.label }
+            .semantics { contentDescription = text.label.ifEmpty { item.name } }
             .testTag(TV_FILES_ROW_TAG),
     ) { secondary ->
         TvListRowMeta(text.meta, secondary)

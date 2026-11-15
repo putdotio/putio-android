@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.design
 
 import androidx.compose.runtime.snapshots.Snapshot
 import kotlinx.coroutines.test.runTest
@@ -6,11 +6,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class MobileRowTextTest {
+class RowTextTest {
     private data class Row(val id: Int, val name: String)
 
     private val built = mutableListOf<Row>()
-    private val text = MobileRowText<Row, String>(key = { it.id }, placeholder = "") { row ->
+    private val text = RowText<Row, String>(key = { it.id }, placeholder = "") { row ->
         built += row
         "${row.name} text"
     }

@@ -64,7 +64,7 @@ import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRow
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
-import io.putdotio.android.rememberRowText
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.neutralTextButtonColors

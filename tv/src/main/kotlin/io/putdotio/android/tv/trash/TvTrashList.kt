@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import io.putdotio.android.R
 import io.putdotio.android.design.fileTypeIconRes
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashItem
@@ -50,7 +51,6 @@ import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.keepsHeldFocusInView
 import io.putdotio.android.tv.paneSection
-import io.putdotio.android.tv.rememberTvRowText
 import io.putdotio.android.tv.tracksFocusedItem
 import java.time.LocalDate
 import kotlinx.coroutines.flow.first
@@ -75,7 +75,13 @@ internal fun TvTrashList(
     val resources = LocalResources.current
     val today = LocalTrashToday.current
     val currentToday by rememberUpdatedState(today)
-    val rowMeta = rememberTvRowText(items, resources, key = { it.id.value }, refresh = today) {
+    val rowMeta = rememberRowText(
+        items,
+        resources,
+        key = { it.id.value },
+        placeholder = TvRowMeta.Pending,
+        refresh = today,
+    ) {
         it.rowMeta(resources, currentToday)
     }
     val rows = remember { TrashRowFocus() }

@@ -34,7 +34,15 @@ import androidx.compose.ui.unit.constrainWidth
 import kotlin.math.roundToInt
 
 @Immutable
-internal data class TvRowMeta(val parts: List<TvRowMetaPart>, val endsWithDot: Boolean = false)
+internal data class TvRowMeta(
+    val parts: List<TvRowMetaPart>,
+    val endsWithDot: Boolean = false,
+    val holdsLine: Boolean = false,
+) {
+    companion object {
+        val Pending: TvRowMeta = TvRowMeta(emptyList(), holdsLine = true)
+    }
+}
 
 @Immutable
 internal data class TvRowMetaPart(val text: AnnotatedString, val mono: Boolean = false, val shrinks: Boolean = false) {
@@ -44,7 +52,7 @@ internal data class TvRowMetaPart(val text: AnnotatedString, val mono: Boolean =
 
 @Composable
 internal fun RowScope.TvListRowMeta(meta: TvRowMeta, color: Color) {
-    if (meta.parts.isEmpty()) return
+    if (meta.parts.isEmpty() && !meta.holdsLine) return
     val measurer = rememberTextMeasurer(cacheSize = 0)
     Spacer(Modifier.weight(1f, fill = false).then(TvRowMetaElement(meta, color, measurer)))
 }
@@ -132,7 +140,7 @@ private class TvRowMetaNode(
             }
             if (meta.endsWithDot) add(TvRowMetaRun(dot))
         }
-        height = ordered.maxOfOrNull { it.layout.size.height } ?: 0
+        height = ordered.maxOfOrNull { it.layout.size.height } ?: if (meta.holdsLine) dot.size.height else 0
         var x = 0
         ordered.forEach { run ->
             run.x = x

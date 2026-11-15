@@ -1,4 +1,4 @@
-package io.putdotio.android
+package io.putdotio.android.design
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -18,7 +18,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 @Stable
-internal class MobileRowText<T : Any, V>(
+public class RowText<T : Any, V>(
     private val key: (T) -> Any,
     private val placeholder: V,
     private val build: (T) -> V,
@@ -39,7 +39,7 @@ internal class MobileRowText<T : Any, V>(
 
     private val stale = AtomicBoolean()
 
-    operator fun get(item: T): V {
+    public operator fun get(item: T): V {
         prepared.intValue
         val key = key(item)
         val entry = entries[key]?.takeIf { it.item == item } ?: await(key, item)
@@ -53,7 +53,7 @@ internal class MobileRowText<T : Any, V>(
         return entry
     }
 
-    suspend fun prepare(items: List<T>, refresh: Any?) {
+    public suspend fun prepare(items: List<T>, refresh: Any?) {
         val run = generation.incrementAndGet()
         val known = entries
         val built = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
@@ -72,21 +72,21 @@ internal class MobileRowText<T : Any, V>(
         }
     }
 
-    fun recomposeStaleRows() {
+    public fun recomposeStaleRows() {
         if (stale.getAndSet(false)) prepared.intValue++
     }
 }
 
 @Composable
-internal fun <T : Any, V> rememberRowText(
+public fun <T : Any, V> rememberRowText(
     items: List<T>,
     vararg inputs: Any?,
     key: (T) -> Any,
     placeholder: V,
     refresh: Any? = null,
     build: (T) -> V,
-): MobileRowText<T, V> {
-    val text = remember(*inputs) { MobileRowText(key, placeholder, build) }
+): RowText<T, V> {
+    val text = remember(*inputs) { RowText(key, placeholder, build) }
     LaunchedEffect(text, items, refresh) {
         text.recomposeStaleRows()
         withContext(Dispatchers.Default) { text.prepare(items, refresh) }
@@ -97,7 +97,7 @@ internal fun <T : Any, V> rememberRowText(
 }
 
 @Composable
-internal fun rememberMinute(): Long {
+public fun rememberMinute(): Long {
     val minute = remember { mutableLongStateOf(System.currentTimeMillis() / MINUTE_MILLIS) }
     LaunchedEffect(minute) {
         withContext(Dispatchers.Default) {
