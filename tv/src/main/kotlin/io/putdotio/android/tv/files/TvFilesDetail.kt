@@ -29,6 +29,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.LocalBuildDispatcher
 import io.putdotio.android.design.RowText
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesContent
@@ -53,7 +54,7 @@ import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.sdk.files.PutioFileType
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
@@ -78,29 +79,38 @@ internal class TvFilesDetailSources(
 
     fun subtitlesSettled(id: FilesItemId, listing: Any): Boolean = subtitleListings[id.value] === listing
 
-    suspend fun count(id: FilesItemId, listing: Any, label: (Int) -> String): String? =
+    suspend fun count(id: FilesItemId, listing: Any, labels: CoroutineDispatcher, label: (Int) -> String): String? =
         if (countSettled(id, listing)) {
             counts[id.value]
         } else {
-            folderCounts?.takeIf { id.value >= 0L }?.itemCount(id)?.settle({ it?.let(label) }) {
+            folderCounts?.takeIf { id.value >= 0L }?.itemCount(id)?.settle(labels, { it?.let(label) }) {
                 counts[id.value] = it
                 countListings[id.value] = listing
             }
         }
 
-    suspend fun subtitles(id: FilesItemId, listing: Any, label: (FilesSubtitles) -> String?): String? =
+    suspend fun subtitles(
+        id: FilesItemId,
+        listing: Any,
+        labels: CoroutineDispatcher,
+        label: (FilesSubtitles) -> String?,
+    ): String? =
         if (subtitlesSettled(id, listing)) {
             subtitles[id.value]
         } else {
-            subtitleLanguages?.takeIf { id.value > 0L }?.subtitleLanguages(id)?.settle(label) {
+            subtitleLanguages?.takeIf { id.value > 0L }?.subtitleLanguages(id)?.settle(labels, label) {
                 subtitles[id.value] = it
                 subtitleListings[id.value] = listing
             }
         }
 
-    private suspend fun <T> PutioResult<T>.settle(label: (T) -> String?, keep: (String?) -> Unit): String? =
+    private suspend fun <T> PutioResult<T>.settle(
+        labels: CoroutineDispatcher,
+        label: (T) -> String?,
+        keep: (String?) -> Unit,
+    ): String? =
         when (this) {
-            is PutioResult.Success -> withContext(Dispatchers.Default) { label(value) }.also(keep)
+            is PutioResult.Success -> withContext(labels) { label(value) }.also(keep)
             is PutioResult.Failure -> {
                 if (failure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
                 null
@@ -237,11 +247,12 @@ internal fun ColumnScope.TvFilesDetail(
     val built = text[item]
     val resources = LocalResources.current
     val unknownLanguage = stringResource(PlaybackR.string.playback_subtitle_unknown)
+    val labels = LocalBuildDispatcher.current
     val itemCount by produceState(sources.knownCount(item.id), item.id, sources, listing) {
         value = sources.knownCount(item.id)
         if (item.isFolder && !sources.countSettled(item.id, listing)) {
             delay(LOOKUP_DELAY_MILLIS)
-            value = sources.count(item.id, listing) {
+            value = sources.count(item.id, listing, labels) {
                 resources.getQuantityString(R.plurals.tv_files_item_count, it, it.toString())
             }
         }
@@ -250,7 +261,7 @@ internal fun ColumnScope.TvFilesDetail(
         value = sources.knownSubtitles(item.id)
         if (item.type == PutioFileType.VIDEO && !sources.subtitlesSettled(item.id, listing)) {
             delay(LOOKUP_DELAY_MILLIS)
-            value = sources.subtitles(item.id, listing) { it.label(resources, unknownLanguage) }
+            value = sources.subtitles(item.id, listing, labels) { it.label(resources, unknownLanguage) }
         }
     }
     val current by rememberUpdatedState(item)

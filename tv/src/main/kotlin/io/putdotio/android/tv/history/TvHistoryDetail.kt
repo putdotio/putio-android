@@ -58,24 +58,7 @@ internal fun rememberTvHistoryLookup(
     return lookup
 }
 
-internal class TvHistoryFileText(val size: String, val resume: AnnotatedString?)
-
-internal class TvHistoryShown(val lookup: TvHistoryLookup?, val text: TvHistoryFileText?)
-
-@Composable
-internal fun rememberTvHistoryShown(lookup: TvHistoryLookup?): TvHistoryShown {
-    val resources = LocalResources.current
-    val file = (lookup as? TvHistoryLookup.Found)?.file
-    val built = rememberRowText<TvHistoryFile, TvHistoryFileText?>(
-        listOfNotNull(file),
-        resources,
-        key = { it.item.id },
-        placeholder = null,
-    ) { it.text(resources) }
-    val text = file?.let { built[it] }
-    val waits = lookup is TvHistoryLookup.Found && text == null
-    return TvHistoryShown(if (waits) TvHistoryLookup.Pending else lookup, text)
-}
+private class TvHistoryFileText(val size: String, val resume: AnnotatedString?)
 
 private fun TvHistoryFile.text(resources: Resources): TvHistoryFileText =
     TvHistoryFileText(
@@ -86,15 +69,20 @@ private fun TvHistoryFile.text(resources: Resources): TvHistoryFileText =
 @Composable
 internal fun ColumnScope.TvHistoryDetail(
     item: HistoryItem,
-    shown: TvHistoryShown,
+    lookup: TvHistoryLookup?,
     stamp: TvHistoryStamp?,
     openFocus: FocusRequester,
     actions: TvHistoryDetailActions,
 ) {
     val fileId = item.kind.navigableFileId()
-    val lookup = shown.lookup
-    val fileText = shown.text
     val found = (lookup as? TvHistoryLookup.Found)?.file
+    val resources = LocalResources.current
+    val fileText = rememberRowText<TvHistoryFile, TvHistoryFileText?>(
+        listOfNotNull(found),
+        resources,
+        key = { it.item.id },
+        placeholder = null,
+    ) { it.text(resources) }.let { text -> found?.let { text[it] } }
     TvDetailBody(
         tile = {
             when {

@@ -253,8 +253,7 @@ private fun TvHistoryListDetail(
     val detailRow = rememberTvHeldDetail { restoreRowId }
     val detailItem = shownItems.firstOrNull { it.id.value == detailRow.shown } ?: shownItems.first()
     val detailFileId = detailItem.kind.navigableFileId()
-    val shown = rememberTvHistoryShown(rememberTvHistoryLookup(detailFileId, files, onAuthenticationRequired))
-    val lookup = shown.lookup
+    val lookup = rememberTvHistoryLookup(detailFileId, files, onAuthenticationRequired)
     val detailActionable = lookup is TvHistoryLookup.Found || lookup == TvHistoryLookup.Unknown
     var detailHadFocus by remember { mutableStateOf(false) }
     val edit = remember { TvItemEditTarget() }
@@ -306,7 +305,7 @@ private fun TvHistoryListDetail(
                 }
                 TvHistoryDetail(
                     item = detailItem,
-                    shown = shown,
+                    lookup = lookup,
                     stamp = history.stampOf(detailItem),
                     openFocus = openFocus,
                     actions = TvHistoryDetailActions(
