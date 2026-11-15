@@ -184,7 +184,7 @@ private fun MobileHistoryList(
     val history = rememberHistoryDays(content.items, today) ?: return
     LoadNextPageNearEnd(
         listState = listState,
-        nextPage = (content.paging as? HistoryPaging.Available).takeIf { history.items === content.items },
+        nextPage = (content.paging as? HistoryPaging.Available).takeIf { history.items == content.items },
         onLoadNextPage = { onEvent(HistoryEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {

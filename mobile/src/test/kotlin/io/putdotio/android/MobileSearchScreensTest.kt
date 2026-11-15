@@ -411,6 +411,15 @@ class MobileSearchScreensTest {
 
             compose.runOnIdle { build.scheduler.advanceUntilIdle() }
             compose.onNodeWithText("Yesterday").assertIsDisplayed()
+            compose.runOnIdle { assertEquals(2, events.count { it == HistoryEvent.LoadNextPage }) }
+
+            history = historyState(
+                HistoryContent.Ready(
+                    listOf(event(1, "2026-10-25T09:00:00"), event(2, "2026-10-24T09:00:00")),
+                    HistoryPaging.Available(HistoryEventId(3)),
+                ),
+            )
+            compose.runOnIdle { assertEquals(3, events.count { it == HistoryEvent.LoadNextPage }) }
         } finally {
             TimeZone.setDefault(previous)
         }

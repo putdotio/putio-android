@@ -213,20 +213,16 @@ private fun TvHistoryLoading(skeletonFocus: FocusRequester) {
             modifier = Modifier.weight(1f),
             header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
             detailFocus = FocusRequester.Cancel,
-            list = { TvHistoryListSkeleton(skeletonFocus) },
+            list = { TvHistoryListSkeleton(Modifier.focusRequester(skeletonFocus)) },
             detail = { TvDetailSkeleton() },
         )
     }
 }
 
 @Composable
-private fun TvHistoryListSkeleton(focus: FocusRequester) {
+private fun TvHistoryListSkeleton(focus: Modifier) {
     TvSectionLine {}
-    TvListSkeleton(
-        Modifier
-            .focusRequester(focus)
-            .focusable(),
-    )
+    TvListSkeleton(focus.focusable())
 }
 
 @Composable
@@ -271,7 +267,7 @@ private fun TvHistoryListDetail(
             list = {
                 if (notice != null) TvHistoryNotice(notice)
                 if (history == null) {
-                    TvHistoryListSkeleton(focus.list)
+                    TvHistoryListSkeleton(Modifier.focusRequester(focus.list).focusRequester(focus.clear))
                     return@TvListDetail
                 }
                 TvHistoryList(
