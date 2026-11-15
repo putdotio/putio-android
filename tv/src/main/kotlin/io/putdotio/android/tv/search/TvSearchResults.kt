@@ -125,7 +125,10 @@ internal fun TvSearchResultList(
         TvListSkeleton(modifier)
         return
     }
-    TvSearchResultRows(shown.first, rowText, shown.second, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier)
+    val (shownGroups, shownPaging) = shown
+    TvSearchResultRows(
+        shownGroups, rowText, shownPaging, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier,
+    )
 }
 
 @OptIn(ExperimentalComposeUiApi::class)

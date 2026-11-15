@@ -395,7 +395,8 @@ private fun MobileSearchResults(
     modifier: Modifier = Modifier,
 ) {
     val rowText = rememberFilesRowText(content.items, dated = false)
-    MobileSearchResultList(rowText.shown(content, content.items) ?: return, rowText, rows, onNextPage, onRetry, modifier)
+    val shown = rowText.shown(content, content.items) ?: return
+    MobileSearchResultList(shown, rowText, rows, onNextPage, onRetry, modifier)
 }
 
 @Composable

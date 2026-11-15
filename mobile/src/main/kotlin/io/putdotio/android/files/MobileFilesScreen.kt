@@ -260,6 +260,18 @@ private fun MobileFilesCopyLine(state: FilesBrowserState, onEvent: (FilesBrowser
 }
 
 @Composable
+private fun BuiltFilesPage(
+    page: Pair<FilesContent.Ready, Long>,
+    headers: MobileFilesHeaders,
+    rowText: RowText<FilesItem, FilesRowText>,
+    pinnedText: RowText<FilesItem, FilesRowText>,
+    content: @Composable (FilesContent.Ready, Long, MobileFilesHeaders) -> Unit,
+) {
+    val (shownPage, shownGeneration) = rowText.shown(page, page.first.items) ?: return
+    content(shownPage, shownGeneration, pinnedText.shown(headers, headers.pinned) ?: return)
+}
+
+@Composable
 private fun MobileRefreshableFilesContent(
     state: FilesBrowserState,
     content: FilesContent,
@@ -425,50 +437,53 @@ private fun MobileRefreshableFilesContent(
                     is FilesContent.Ready -> {
                         val rowText = rememberFilesRowText(content.items)
                         val pinnedText = rememberFilesRowText(headers.pinned)
-                        val (shownContent, shownGeneration) =
-                            rowText.shown(content to state.current.viewportGeneration, content.items)
-                                ?: return@PullToRefreshBox
-                        val shownHeaders = pinnedText.shown(headers, headers.pinned) ?: return@PullToRefreshBox
-                        // The depth tells a folder opened from Search apart from the same folder under it. A
-                        // header set that grew or shrank restarts the list from the row-relative viewport.
-                        key(
-                            state.stack.size,
-                            state.current.folder.id.value,
-                            shownGeneration,
-                            shownHeaders.itemCount,
-                        ) {
-                            MobileFilesList(
-                                content = shownContent,
-                                headers = shownHeaders,
-                                onPlayEntry = { onPlayMedia(it.toFilesItem()) },
-                                onRemoveEntry = hideStarted,
-                                rowText = rowText,
-                                pinnedRows = MobilePinnedRows(
-                                    pinnedText,
-                                    itemActions.pinnedActions { item ->
-                                        openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
+                        BuiltFilesPage(
+                            content to state.current.viewportGeneration,
+                            headers,
+                            rowText,
+                            pinnedText,
+                        ) { shownContent, shownGeneration, shownHeaders ->
+                            // The depth tells a folder opened from Search apart from the same folder under it. A
+                            // header set that grew or shrank restarts the list from the row-relative viewport.
+                            key(
+                                state.stack.size,
+                                state.current.folder.id.value,
+                                shownGeneration,
+                                shownHeaders.itemCount,
+                            ) {
+                                MobileFilesList(
+                                    content = shownContent,
+                                    headers = shownHeaders,
+                                    onPlayEntry = { onPlayMedia(it.toFilesItem()) },
+                                    onRemoveEntry = hideStarted,
+                                    rowText = rowText,
+                                    pinnedRows = MobilePinnedRows(
+                                        pinnedText,
+                                        itemActions.pinnedActions { item ->
+                                            openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
+                                        },
+                                    ),
+                                    revealItemId = state.current.revealItemId,
+                                    pagingEnabled = operation == FilesFolderOperation.Idle,
+                                    onEvent = onEvent,
+                                    onPlayMedia = onPlayMedia,
+                                    onActions = { selectedItemId = it.id.value },
+                                    hasActions = {
+                                        it.hasMobileActions(onDownloadItem != null, onShareItem != null, onCopyItem != null)
                                     },
-                                ),
-                                revealItemId = state.current.revealItemId,
-                                pagingEnabled = operation == FilesFolderOperation.Idle,
-                                onEvent = onEvent,
-                                onPlayMedia = onPlayMedia,
-                                onActions = { selectedItemId = it.id.value },
-                                hasActions = {
-                                    it.hasMobileActions(onDownloadItem != null, onShareItem != null, onCopyItem != null)
-                                },
-                                operation = operation,
-                                downloads = downloads,
-                                onItemFocusChanged = { id, focused ->
-                                    focusedItemId = focusedItemId.afterFocusChange(id.value, focused)
-                                },
-                                fileDragOut = fileDragOut,
-                                // A touch drag starts after the long press; it closes any sheet that press opened.
-                                onDragStarted = dismissSelection,
-                                fileOpening = fileOpening,
-                                selection = selection.listSelection(state, toolbarClearance),
-                                onStartSelection = selection.starter { currentState },
-                            )
+                                    operation = operation,
+                                    downloads = downloads,
+                                    onItemFocusChanged = { id, focused ->
+                                        focusedItemId = focusedItemId.afterFocusChange(id.value, focused)
+                                    },
+                                    fileDragOut = fileDragOut,
+                                    // A touch drag starts after the long press; it closes any sheet that press opened.
+                                    onDragStarted = dismissSelection,
+                                    fileOpening = fileOpening,
+                                    selection = selection.listSelection(state, toolbarClearance),
+                                    onStartSelection = selection.starter { currentState },
+                                )
+                            }
                         }
                     }
 
