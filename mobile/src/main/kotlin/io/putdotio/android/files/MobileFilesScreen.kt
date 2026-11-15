@@ -425,14 +425,16 @@ private fun MobileRefreshableFilesContent(
                     is FilesContent.Ready -> {
                         val rowText = rememberFilesRowText(content.items)
                         val pinnedText = rememberFilesRowText(headers.pinned)
-                        val shownContent = rowText.shown(content, content.items) ?: return@PullToRefreshBox
+                        val (shownContent, shownGeneration) =
+                            rowText.shown(content to state.current.viewportGeneration, content.items)
+                                ?: return@PullToRefreshBox
                         val shownHeaders = pinnedText.shown(headers, headers.pinned) ?: return@PullToRefreshBox
                         // The depth tells a folder opened from Search apart from the same folder under it. A
                         // header set that grew or shrank restarts the list from the row-relative viewport.
                         key(
                             state.stack.size,
                             state.current.folder.id.value,
-                            state.current.viewportGeneration,
+                            shownGeneration,
                             shownHeaders.itemCount,
                         ) {
                             MobileFilesList(
