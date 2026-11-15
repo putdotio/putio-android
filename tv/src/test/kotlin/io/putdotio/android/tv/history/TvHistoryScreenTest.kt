@@ -66,6 +66,8 @@ import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.performSemanticsAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -374,7 +376,7 @@ class TvHistoryScreenTest {
             historyState(
                 HistoryContent.Ready(
                     items(),
-                    HistoryPaging.Failed(HistoryEventId(3), PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                    pageFailed(),
                 ),
             ),
         )
@@ -403,7 +405,7 @@ class TvHistoryScreenTest {
             historyState(
                 HistoryContent.Ready(
                     items(),
-                    HistoryPaging.Failed(HistoryEventId(3), PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                    pageFailed(),
                 ),
             ),
         )
@@ -428,10 +430,39 @@ class TvHistoryScreenTest {
     }
 
     @Test
+    fun focusMovedToTheDetailWhileTheLandedPageBuildsStaysThere() {
+        var state by mutableStateOf(historyState(HistoryContent.Ready(items(), pageFailed())))
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
+            repeat(5) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithText("Try again").assertIsFocused()
+
+        compose.runOnIdle {
+            state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
+        }
+        val open = hasText("Open") and hasClickAction()
+        compose.onNode(open).performSemanticsAction(SemanticsActions.RequestFocus)
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNode(open).assertIsFocused()
+    }
+
+    @Test
     fun anUnchangedRefreshComparesItsEventsOnlyOffTheMainThread() {
         val comparisons = CountingHistoryItems.Comparisons()
         var state by mutableStateOf(
-            historyState(HistoryContent.Ready(CountingHistoryItems(items(), comparisons), HistoryPaging.Available(HistoryEventId(3)))),
+            historyState(
+                HistoryContent.Ready(
+                    CountingHistoryItems(items(), comparisons),
+                    HistoryPaging.Available(HistoryEventId(3)),
+                ),
+            ),
             neverEqualPolicy(),
         )
         val build = StandardTestDispatcher()
@@ -453,7 +484,10 @@ class TvHistoryScreenTest {
         compose.runOnIdle {
             comparisons.count = 0
             state = historyState(
-                HistoryContent.Ready(CountingHistoryItems(items(), comparisons), HistoryPaging.Available(HistoryEventId(4))),
+                HistoryContent.Ready(
+                    CountingHistoryItems(items(), comparisons),
+                    HistoryPaging.Available(HistoryEventId(4)),
+                ),
             )
         }
         compose.runOnIdle { assertEquals(0, comparisons.count) }
@@ -467,7 +501,7 @@ class TvHistoryScreenTest {
         var state by mutableStateOf(
             historyState(
                 HistoryContent.Ready(
-                    listOf(HistoryItem(HistoryEventId(1), "2026-09-12T05:22:00", HistoryEventKind.File(HistoryFileId(1), "first.mkv"))),
+                    listOf(fileEvent("2026-09-12T05:22:00", "first.mkv")),
                     HistoryPaging.Complete,
                 ),
             ),
@@ -484,7 +518,7 @@ class TvHistoryScreenTest {
         compose.runOnIdle {
             state = historyState(
                 HistoryContent.Ready(
-                    listOf(HistoryItem(HistoryEventId(1), "2026-09-12T09:30:00", HistoryEventKind.File(HistoryFileId(1), "second.mkv"))),
+                    listOf(fileEvent("2026-09-12T09:30:00", "second.mkv")),
                     HistoryPaging.Complete,
                 ),
             )
@@ -519,6 +553,12 @@ class TvHistoryScreenTest {
     }
 
     private fun show(state: HistoryState) = show { state }
+
+    private fun pageFailed() =
+        HistoryPaging.Failed(HistoryEventId(3), PutioFailure.NetworkUnavailable(PutioConfigurationException("x")))
+
+    private fun fileEvent(createdAt: String, name: String) =
+        HistoryItem(HistoryEventId(1), createdAt, HistoryEventKind.File(HistoryFileId(1), name))
 
     private fun historyActions(
         onPlay: (FilesItem) -> Unit = {},

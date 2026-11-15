@@ -256,6 +256,7 @@ private fun TvHistoryListDetail(
     val lookup = rememberTvHistoryLookup(detailFileId, files, onAuthenticationRequired)
     val detailActionable = lookup is TvHistoryLookup.Found || lookup == TvHistoryLookup.Unknown
     var detailHadFocus by remember { mutableStateOf(false) }
+    var detailHasFocus by remember { mutableStateOf(false) }
     val edit = remember { TvItemEditTarget() }
     val editing = itemActions?.editing?.edits.rememberBusy()
     TvHistoryFileGoneFocus(lookup == TvHistoryLookup.Gone, { detailHadFocus }, focus)
@@ -266,7 +267,10 @@ private fun TvHistoryListDetail(
             header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
             detailFocus = detailFocus(history != null, detailFileId, detailActionable, openFocus),
             listFocus = focus.list,
-            onDetailFocusChanged = { if (it) detailHadFocus = true },
+            onDetailFocusChanged = {
+                detailHasFocus = it
+                if (it) detailHadFocus = true
+            },
             list = {
                 if (notice != null) TvHistoryNotice(notice)
                 if (history == null) {
@@ -277,6 +281,7 @@ private fun TvHistoryListDetail(
                     content = content,
                     history = history,
                     restoreRowId = restoreRowId,
+                    detailHasFocus = { detailHasFocus },
                     focus = focus,
                     actions = TvHistoryListActions(
                         onOpen = { onEvent(HistoryEvent.OpenFile(it)) },

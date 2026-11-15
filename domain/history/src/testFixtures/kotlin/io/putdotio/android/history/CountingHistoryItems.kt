@@ -1,6 +1,5 @@
 package io.putdotio.android.history
 
-/** History items that count each list comparison they take part in, for tests outside this module. */
 public class CountingHistoryItems(
     private val items: List<HistoryItem>,
     private val comparisons: Comparisons,

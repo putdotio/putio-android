@@ -435,7 +435,8 @@ class MobileSearchScreensTest {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
         try {
             val comparisons = CountingHistoryItems.Comparisons()
-            val firstPage = CountingHistoryItems(listOf(historyEvent(1, "2026-10-25T09:00:00", "file-1.mkv")), comparisons)
+            val event = historyEvent(1, "2026-10-25T09:00:00", "file-1.mkv")
+            val firstPage = CountingHistoryItems(listOf(event), comparisons)
             var history by mutableStateOf(
                 historyState(HistoryContent.Ready(firstPage, HistoryPaging.Available(HistoryEventId(1)))),
                 neverEqualPolicy(),
@@ -452,7 +453,7 @@ class MobileSearchScreensTest {
             compose.runOnIdle { build.scheduler.advanceUntilIdle() }
             compose.runOnIdle { assertEquals(1, events.count { it == HistoryEvent.LoadNextPage }) }
 
-            val refreshed = CountingHistoryItems(listOf(historyEvent(1, "2026-10-25T09:00:00", "file-1.mkv")), comparisons)
+            val refreshed = CountingHistoryItems(listOf(event.copy()), comparisons)
             compose.runOnIdle {
                 comparisons.count = 0
                 history = historyState(HistoryContent.Ready(refreshed, HistoryPaging.Available(HistoryEventId(2))))

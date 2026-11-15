@@ -44,7 +44,10 @@ class BuiltOffMainTest {
     fun anEqualSourceKeepsTheBuiltValueAndCoversTheNewSource() = runTest {
         var builds = 0
         val collecting = launch(UnconfinedTestDispatcher(testScheduler)) {
-            sources.buildLatest<List<Int>, String> { source, _ -> builds++; source.joinToString() }.collect { results += it }
+            sources.buildLatest<List<Int>, String> { source, _ ->
+                builds++
+                source.joinToString()
+            }.collect { results += it }
         }
         val first = listOf(1, 2)
         val refreshed = ArrayList(first)
@@ -72,6 +75,29 @@ class BuiltOffMainTest {
         sources.emit(listOf(1, 2))
 
         assertEquals(listOf(null, "1"), previousValues)
+        collecting.cancel()
+    }
+
+    @Test
+    fun anEqualSourceArrivingMidBuildKeepsThatBuildAndCoversTheNewSource() = runTest {
+        val first = listOf(1, 2)
+        val refreshed = ArrayList(first)
+        val gate = CompletableDeferred<Unit>()
+        var builds = 0
+        val collecting = launch(UnconfinedTestDispatcher(testScheduler)) {
+            sources.buildLatest<List<Int>, String> { source, _ ->
+                builds++
+                gate.await()
+                source.joinToString()
+            }.collect { results += it }
+        }
+        sources.emit(first)
+        sources.emit(refreshed)
+        gate.complete(Unit)
+
+        assertEquals(1, builds)
+        assertEquals(listOf("1, 2"), results.map { it.value })
+        assertTrue(results.single().isBuiltFrom(refreshed))
         collecting.cancel()
     }
 }

@@ -34,6 +34,7 @@ import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.Built
+import io.putdotio.android.design.buildReusing
 import io.putdotio.android.design.rememberBuiltOffMain
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryFileId
@@ -63,8 +64,6 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 
 internal sealed interface TvHistoryEntry {
@@ -94,14 +93,25 @@ internal class TvHistoryEntries(
     fun stampOf(item: HistoryItem): TvHistoryStamp? = stamps[item.id.value]
 }
 
-internal class TvHistoryRowParts(val day: TvHistoryDay, val time: String, val title: String, val text: TvHistoryRowText)
+internal class TvHistoryRowParts(
+    val item: HistoryItem,
+    val day: TvHistoryDay,
+    val time: String,
+    val title: String,
+    val text: TvHistoryRowText,
+)
 
 @Composable
-internal fun rememberHistoryEntries(items: List<HistoryItem>, clock: Clock): Built<List<HistoryItem>, TvHistoryEntries>? {
+internal fun rememberHistoryEntries(
+    items: List<HistoryItem>,
+    clock: Clock,
+): Built<List<HistoryItem>, TvHistoryEntries>? {
     val resources = LocalResources.current
     val locale = LocalConfiguration.current.locales[0]
-    return rememberBuiltOffMain(items, clock, resources, locale) { next, previous ->
-        next.historyEntries(LocalDate.now(clock), clock.zone, resources, locale, previous?.rows.orEmpty())
+    val today = LocalDate.now(clock)
+    val zone = clock.zone
+    return rememberBuiltOffMain(items, today, zone, resources, locale) { next, previous ->
+        next.historyEntries(today, zone, resources, locale, previous?.rows.orEmpty())
     }
 }
 
@@ -113,37 +123,32 @@ private suspend fun List<HistoryItem>.historyEntries(
     built: Map<HistoryItem, TvHistoryRowParts>,
 ): TvHistoryEntries {
     val untitled = resources.getString(R.string.tv_history_no_title)
-    val rows = HashMap<HistoryItem, TvHistoryRowParts>(size)
-    forEach { item ->
-        currentCoroutineContext().ensureActive()
-        rows[item] = built[item] ?: item.rowParts(zone, resources, untitled)
-    }
+    val rows = buildReusing(built) { it.rowParts(zone, resources, untitled) }
     val stamps = HashMap<Long, TvHistoryStamp>(size)
     val titles = ArrayList<String>(size)
-    val days = groupConsecutiveBy { rows.getValue(it).day }
+    val days = rows.rows.groupConsecutiveBy { it.day }
     val list = buildList {
         days.forEachIndexed { index, (day, events) ->
             val label = day.label(today, resources, locale)
             add(if (index == 0) TvHistoryEntry.Section(label) else TvHistoryEntry.Header(label, day))
-            events.forEach {
-                val row = rows.getValue(it)
-                stamps[it.id.value] = TvHistoryStamp(label, row.time.takeIf { day.date != null })
+            events.forEach { row ->
+                stamps[row.item.id.value] = TvHistoryStamp(label, row.time.takeIf { day.date != null })
                 titles += row.title
-                add(TvHistoryEntry.Event(it, row.title, row.text))
+                add(TvHistoryEntry.Event(row.item, row.title, row.text))
             }
         }
     }
-    return TvHistoryEntries(list, titles, stamps, rows)
+    return TvHistoryEntries(list, titles, stamps, rows.byItem)
 }
 
 private fun HistoryItem.rowParts(zone: ZoneId, resources: Resources, untitled: String): TvHistoryRowParts {
     val time = timeLabel(zone)
     val title = named() ?: untitled
-    return TvHistoryRowParts(day(zone), time, title, rowText(time, title, resources))
+    return TvHistoryRowParts(this, day(zone), time, title, rowText(time, title, resources))
 }
 
-private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K): List<Pair<K, List<HistoryItem>>> =
-    fold(mutableListOf<Pair<K, MutableList<HistoryItem>>>()) { groups, item ->
+private fun <T, K> List<T>.groupConsecutiveBy(keyOf: (T) -> K): List<Pair<K, List<T>>> =
+    fold(mutableListOf<Pair<K, MutableList<T>>>()) { groups, item ->
         val key = keyOf(item)
         val last = groups.lastOrNull()
         if (last?.first == key) last.second += item else groups += key to mutableListOf(item)
@@ -209,6 +214,7 @@ internal fun TvHistoryList(
     content: HistoryContent.Ready,
     history: Built<List<HistoryItem>, TvHistoryEntries>,
     restoreRowId: Long?,
+    detailHasFocus: () -> Boolean,
     focus: TvHistoryFocus,
     actions: TvHistoryListActions,
     modifier: Modifier = Modifier,
@@ -247,7 +253,7 @@ internal fun TvHistoryList(
         if (!handOffToLastRow.value || !built) return@LaunchedEffect
         listState.bringIntoComposition(entries.last().key, lastIndex)
         withFrameNanos {}
-        if (paneHasFocus.value) lastRow.requestFocus()
+        if (paneHasFocus.value && !detailHasFocus()) lastRow.requestFocus()
         handOffToLastRow.value = false
     }
     ProvideMiddleCuts(history.value.titles) {

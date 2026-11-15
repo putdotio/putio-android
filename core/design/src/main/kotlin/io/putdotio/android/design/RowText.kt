@@ -17,18 +17,19 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.withContext
 
 @Stable
@@ -127,20 +128,61 @@ public class Built<S : Any, V : Any> internal constructor(
     internal fun superseded(): Built<S, V> = Built(source, value, covers = null)
 }
 
-@OptIn(ExperimentalCoroutinesApi::class)
-internal fun <S : Any, V : Any> Flow<S>.buildLatest(build: suspend (S, V?) -> V): Flow<Built<S, V>> = flow {
-    var last: Built<S, V>? = null
-    emitAll(
-        mapLatest { next ->
-            val previous = last
-            val built = if (previous != null && previous.source == next) {
-                Built(previous.source, previous.value, next)
-            } else {
-                Built(next, build(next, previous?.value), next)
+internal fun <S : Any, V : Any> Flow<S>.buildLatest(build: suspend (S, V?) -> V): Flow<Built<S, V>> = channelFlow {
+    val lock = Mutex()
+    var done: Built<S, V>? = null
+    var building: S? = null
+    var covers: S? = null
+    var job: Job? = null
+    collect { next ->
+        val reused = lock.withLock {
+            val finished = done
+            when {
+                job != null && building == next -> {
+                    covers = next
+                    null
+                }
+                finished != null && finished.source == next -> {
+                    job?.cancel()
+                    job = null
+                    building = null
+                    Built(finished.source, finished.value, next).also { done = it }
+                }
+                else -> {
+                    job?.cancel()
+                    building = next
+                    covers = next
+                    job = launch {
+                        val value = build(next, finished?.value)
+                        lock.withLock {
+                            if (building !== next) return@launch
+                            val built = Built(next, value, covers)
+                            done = built
+                            building = null
+                            job = null
+                            send(built)
+                        }
+                    }
+                    null
+                }
             }
-            built.also { last = it }
-        },
-    )
+        }
+        if (reused != null) send(reused)
+    }
+}
+
+public class Reused<T : Any, R : Any> internal constructor(public val rows: List<R>, public val byItem: Map<T, R>)
+
+public suspend fun <T : Any, R : Any> List<T>.buildReusing(built: Map<T, R>, build: (T) -> R): Reused<T, R> {
+    val rows = ArrayList<R>(size)
+    val byItem = HashMap<T, R>(size)
+    forEach { item ->
+        currentCoroutineContext().ensureActive()
+        val row = built[item] ?: build(item)
+        rows += row
+        byItem[item] = row
+    }
+    return Reused(rows, byItem)
 }
 
 private class Submitted<S>(val source: S)

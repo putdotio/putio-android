@@ -59,6 +59,7 @@ import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.Built
+import io.putdotio.android.design.buildReusing
 import io.putdotio.android.design.rememberBuiltOffMain
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage
@@ -76,9 +77,7 @@ import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.neutralTextButtonColors
 import java.time.LocalDate
 import java.time.ZoneId
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.ensureActive
 import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_HISTORY_LIST_TAG = "mobile-history-list"
@@ -344,14 +343,23 @@ private fun MobileHistoryDialog(
     }
 }
 
-private class HistoryRow(val item: HistoryItem, val day: Any, val text: HistoryRowText)
+private sealed interface HistoryDayKey {
+    data class Date(val date: LocalDate) : HistoryDayKey
+
+    data class Raw(val createdAt: String) : HistoryDayKey
+}
+
+private class HistoryRow(val item: HistoryItem, val day: HistoryDayKey, val text: HistoryRowText)
 
 private class HistoryDay(val key: String, val label: String, val events: List<HistoryRow>)
 
 private class HistoryDays(val days: List<HistoryDay>, val rows: Map<HistoryItem, HistoryRow>)
 
 @Composable
-private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): Built<List<HistoryItem>, HistoryDays>? {
+private fun rememberHistoryDays(
+    items: List<HistoryItem>,
+    today: LocalDate,
+): Built<List<HistoryItem>, HistoryDays>? {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val hours24 = DateFormat.is24HourFormat(context)
@@ -367,21 +375,19 @@ private suspend fun List<HistoryItem>.historyDays(
     zone: ZoneId,
     built: Map<HistoryItem, HistoryRow>,
 ): HistoryDays {
-    val rows = HashMap<HistoryItem, HistoryRow>(size)
-    forEach { item ->
-        currentCoroutineContext().ensureActive()
-        rows[item] = built[item] ?: HistoryRow(item, item.day(zone), item.rowText(context))
-    }
-    val days = map { rows.getValue(it) }.groupBy { it.day }.map { (day, events) ->
+    val rows = buildReusing(built) { HistoryRow(it, it.day(zone), it.rowText(context)) }
+    val days = rows.rows.groupBy { it.day }.map { (day, events) ->
         when (day) {
-            is LocalDate -> HistoryDay("date-$day", day.label(context, today, zone), events)
-            else -> HistoryDay("raw-$day", day.toString(), events)
+            is HistoryDayKey.Date -> HistoryDay("date-${day.date}", day.date.label(context, today, zone), events)
+            is HistoryDayKey.Raw -> HistoryDay("raw-${day.createdAt}", day.createdAt, events)
         }
     }
-    return HistoryDays(days, rows)
+    return HistoryDays(days, rows.byItem)
 }
 
-private fun HistoryItem.day(zone: ZoneId): Any = parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate() ?: createdAt
+private fun HistoryItem.day(zone: ZoneId): HistoryDayKey =
+    parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate()?.let { HistoryDayKey.Date(it) }
+        ?: HistoryDayKey.Raw(createdAt)
 
 /** Today, Yesterday, then the date in words, with the year only when it is not this one. */
 private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): String =

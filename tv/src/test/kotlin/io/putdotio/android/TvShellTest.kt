@@ -595,7 +595,10 @@ class TvShellTest {
         }
         compose.openTab(TvDestination.History)
         compose.runOnIdle {
-            history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete), HistoryClearing.AwaitingConfirmation)
+            history = historyState(
+                HistoryContent.Ready(items, HistoryPaging.Complete),
+                HistoryClearing.AwaitingConfirmation,
+            )
         }
         compose.onNodeWithText("Clear history?").assertIsDisplayed()
         compose.runOnIdle { history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)) }
