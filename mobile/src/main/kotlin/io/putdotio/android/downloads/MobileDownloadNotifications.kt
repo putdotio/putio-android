@@ -37,6 +37,7 @@ internal sealed interface DownloadOutcome {
 internal class MobileDownloadNotifications(
     private val context: Context,
     private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
+    private val redeciding: (Long) -> Boolean = DirectPlayRedeciders.shared::holds,
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
     override fun onDownloadChanged(
@@ -58,7 +59,9 @@ internal class MobileDownloadNotifications(
             stores(owner).find(fileId)?.takeUnless { it.removing }?.let { fallBack(downloadManager, owner, it) }
         } else if (owner == signedInUser()) {
             MobileDownloadStore.peek(context, owner, fileId)
-                ?.takeUnless { it.removing || it.redecidesDirectPlay(download.failedStatus(outcome)) }
+                ?.takeUnless {
+                    it.removing || redeciding(owner) && it.redecidesDirectPlay(download.failedStatus(outcome))
+                }
                 ?.let { post(context, owner, it, outcome) }
         }
     }

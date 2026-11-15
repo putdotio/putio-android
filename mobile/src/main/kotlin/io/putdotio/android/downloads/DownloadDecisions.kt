@@ -11,6 +11,7 @@ import io.putdotio.android.playback.OriginalVideoPolicy
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.PutioFileType
+import java.io.Closeable
 
 internal fun mobileDirectPlayDownloads(context: Context, client: PutioClient): DirectPlayDownloads =
     DirectPlayDownloads(
@@ -56,6 +57,29 @@ internal fun DownloadEntry.redecidesDirectPlay(failure: DownloadStatus? = status
         failure == DIRECT_PLAY_REFUSAL
 
 internal val DIRECT_PLAY_REFUSAL = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
+
+internal class DirectPlayRedeciders {
+    private val holders = mutableMapOf<Long, Int>()
+
+    fun hold(userId: Long): Closeable {
+        synchronized(holders) { holders[userId] = (holders[userId] ?: 0) + 1 }
+        var released = false
+        return Closeable {
+            synchronized(holders) {
+                if (released) return@Closeable
+                released = true
+                val left = holders.getValue(userId) - 1
+                if (left == 0) holders.remove(userId) else holders[userId] = left
+            }
+        }
+    }
+
+    fun holds(userId: Long): Boolean = synchronized(holders) { userId in holders }
+
+    companion object {
+        val shared = DirectPlayRedeciders()
+    }
+}
 
 internal class DownloadStart(val entry: DownloadEntry, val decides: Boolean) {
     val asksDirectPlay: Boolean get() = decides && entry.resolvesDirectPlay

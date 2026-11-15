@@ -303,6 +303,27 @@ class MobileDownloadNotificationsTest {
         assertTrue(removing.actions.isNullOrEmpty())
     }
 
+    @Test
+    fun aStandInRefusedBeforeItsFirstByteIsHeldBackOnlyWhileAControllerAsksAgain() = runBlocking {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        MobileDownloadStore(context, USER).upsert(
+            row(13L, "Stand-in.mkv").copy(artifact = DownloadArtifact.MP4, directPlayUnanswered = true),
+        )
+        val redeciders = DirectPlayRedeciders()
+        val listener = MobileDownloadNotifications(context, redeciding = redeciders::holds) { signedIn }
+        val refused = download(13L, Download.STATE_FAILED)
+        val notFound = rejected(HTTP_NOT_FOUND)
+
+        val controller = redeciders.hold(USER)
+        listener.changed(refused, notFound)
+        assertTrue(shadowOf(manager).allNotifications.isEmpty())
+
+        controller.close()
+        listener.changed(refused, notFound)
+        val posted = shadowOf(manager).allNotifications.single()
+        assertEquals("Download failed", posted.extras.getString(Notification.EXTRA_TITLE))
+    }
+
     private fun assertOpensMainActivityFromThisAppOnly(intent: Intent) {
         val entry = context.packageManager.getActivityInfo(checkNotNull(intent.component), 0)
         assertEquals(MainActivity::class.java.name, entry.targetActivity)
@@ -368,6 +389,7 @@ class MobileDownloadNotificationsTest {
 
     private companion object {
         const val HTTP_BAD_REQUEST = 400
+        const val HTTP_NOT_FOUND = 404
         const val USER = 7L
         const val OTHER = 8L
     }
