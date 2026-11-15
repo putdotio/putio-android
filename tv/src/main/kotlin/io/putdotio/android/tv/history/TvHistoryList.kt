@@ -13,6 +13,7 @@ import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -21,9 +22,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
@@ -224,6 +222,7 @@ internal fun TvHistoryList(
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
     val built = history.isBuiltFrom(content.items)
+    val waitingForBuild = rememberUpdatedState(!built)
     if (pagingLanded(content.paging, pagingHeldFocus.value)) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
@@ -258,10 +257,6 @@ internal fun TvHistoryList(
                 .fillMaxWidth()
                 .focusRequester(listFocus)
                 .keepsHeldFocusInView(listState, focused)
-                .onPreviewKeyEvent {
-                    if (it.type == KeyEventType.KeyDown) handOffToLastRow.value = false
-                    false
-                }
                 .focusRestorer {
                     when {
                         focus.clearHadFocus.value -> focus.clear
@@ -279,6 +274,7 @@ internal fun TvHistoryList(
                 contentType = { _, entry -> entry.javaClass },
             ) { index, entry ->
                 val requesters = Modifier
+                    .onFocusChanged { if (it.isFocused && waitingForBuild.value) handOffToLastRow.value = false }
                     .tracksFocusedItem(focused, entry.key)
                     .rowFocus(entry, rowFocus)
                     .focusRequesterIf(index == lastIndex, lastRow)
