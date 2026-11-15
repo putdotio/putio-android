@@ -131,7 +131,9 @@ class TvHistoryProofTest {
         compose.openTvTab("History")
         waitFor(hasText("Your files"))
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
-        waitFor(hasText("Open folder") and isFocused())
+        waitFor(hasText("Open") and isFocused())
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        waitFor(hasText("Go to folder") and isFocused())
         screenshot("tv-history-open-folder-focused")
 
         press(KeyEvent.KEYCODE_DPAD_CENTER)
