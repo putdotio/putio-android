@@ -376,7 +376,8 @@ private fun TvSearchReady(
     val groups = remember(Identity(content.items)) { TvSearchGroups(content.items) }
     val rootName = stringResource(R.string.tv_files_title)
     val rowText = rememberTvSearchRowText(groups, detail.folderNames, rootName)
-    val shown = rowText.shown(groups to content.paging, groups.ordered)
+    val source = groups to content.paging
+    val shown = rowText.shown(source, groups.ordered)
     val shownGroups = shown?.first
     val heldDetail = rememberTvHeldDetail { restoreRowId }
     val detailId = heldDetail.shown
@@ -426,6 +427,7 @@ private fun TvSearchReady(
                 groups = shownGroups,
                 rowText = rowText,
                 paging = shown?.second ?: content.paging,
+                pagingEnabled = shown === source,
                 restoreRowId = restoreRowId,
                 rows = rows,
                 onNextPage = actions.onNextPage,

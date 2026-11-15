@@ -28,6 +28,8 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -545,6 +547,31 @@ class TvTrashScreenTest {
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNode(row).assertDoesNotExist()
         compose.onNode(hasText("Old downloads") and hasClickAction()).assertIsFocused()
+    }
+
+    @Test
+    fun aRefreshPagesOnlyOnceItsRowsShow() {
+        val build = StandardTestDispatcher()
+        fun page(name: String, first: Long, cursor: String) = TrashContent.Loaded(
+            (first until first + 40).map { item.copy(id = FilesItemId(it), name = "$name $it.txt") },
+            nextCursor = FilesCursor(cursor), total = 200, trashSizeBytes = 10,
+        )
+        var state by mutableStateOf(TrashState(content = page("old", 100, "c1")))
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvTrashScreen(state = state, onEvent = { events += it; true })
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.runOnIdle { events.clear() }
+
+        compose.runOnIdle { state = TrashState(content = page("new", 300, "c2")) }
+        compose.onNodeWithTag(TV_TRASH_LIST_TAG).performScrollToIndex(39)
+        assertEquals(emptyList<TrashEvent>(), compose.runOnIdle { events.filter { it == TrashEvent.LoadNextPage } })
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithText("new 339.txt").assertIsDisplayed()
+        assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), compose.runOnIdle { events.filter { it == TrashEvent.LoadNextPage } })
     }
 
     private fun show(state: () -> TrashState) {

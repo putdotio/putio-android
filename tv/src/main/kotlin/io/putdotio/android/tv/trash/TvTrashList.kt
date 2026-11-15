@@ -80,6 +80,7 @@ internal fun rememberTvTrashRowMeta(items: List<TrashItem>): RowText<TrashItem, 
 @Composable
 internal fun TvTrashList(
     content: TrashContent.Loaded,
+    pagingEnabled: Boolean,
     rowMeta: RowText<TrashItem, TvRowMeta>,
     restoreRowId: Long?,
     onChoose: (TrashItem) -> Unit,
@@ -106,7 +107,7 @@ internal fun TvTrashList(
     listState.KeepTopWhenRowsArriveAbove(items.firstOrNull()?.id?.value) { rowsHoldFocus.value }
     val restoreIndex = remember(Identity(items)) { items.indexOfFirst { it.id.value == restoreRowId } }
     TvAutoPaging(
-        page = content.takeIf { it.mayLoadNextPage && !focus.dialogShowing.value },
+        page = content.takeIf { pagingEnabled && it.mayLoadNextPage && !focus.dialogShowing.value },
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(items.lastIndex) },
     )

@@ -263,6 +263,7 @@ private fun TvTrashListDetail(
             } else {
                 TvTrashList(
                     content = shown,
+                    pagingEnabled = shown === loaded,
                     rowMeta = rowMeta,
                     restoreRowId = restoreRowId,
                     onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.Restore(it.id)) },

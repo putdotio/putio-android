@@ -129,6 +129,7 @@ internal fun TvSearchResultList(
     groups: TvSearchGroups?,
     rowText: RowText<FilesItem, TvFilesRowText>,
     paging: SearchPaging,
+    pagingEnabled: Boolean,
     restoreRowId: Long?,
     rows: TvSearchRows,
     onNextPage: () -> Unit,
@@ -138,11 +139,16 @@ internal fun TvSearchResultList(
     modifier: Modifier = Modifier,
 ) {
     if (groups == null) {
-        TvListSkeleton(modifier.focusRequester(listFocus).focusable())
+        TvListSkeleton(
+            modifier
+                .focusRequester(listFocus)
+                .onFocusChanged { if (it.isFocused) owner.enter(listFocus) }
+                .focusable(),
+        )
         return
     }
     TvSearchResultRows(
-        groups, rowText, paging, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier,
+        groups, rowText, paging, pagingEnabled, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier,
     )
 }
 
@@ -152,6 +158,7 @@ private fun TvSearchResultRows(
     groups: TvSearchGroups,
     rowText: RowText<FilesItem, TvFilesRowText>,
     paging: SearchPaging,
+    pagingEnabled: Boolean,
     restoreRowId: Long?,
     rows: TvSearchRows,
     onNextPage: () -> Unit,
@@ -175,14 +182,18 @@ private fun TvSearchResultRows(
     val restoreRow = remember { FocusRequester() }
     val lastLazyIndex = remember(groups) { groups.lazyIndexOf(items.last().id.value) }
     TvAutoPaging(
-        page = paging as? SearchPaging.Available,
+        page = (paging as? SearchPaging.Available)?.takeIf { pagingEnabled },
         onLoadMore = onNextPage,
         nearEnd = { listState.isNearEnd(lastLazyIndex) },
     )
     LaunchedEffect(listState) {
-        val id = restoreRowId ?: return@LaunchedEffect
-        val index = groups.lazyIndexOf(id)
-        if (index < 0) return@LaunchedEffect
+        val id = restoreRowId
+        val index = id?.let(groups::lazyIndexOf) ?: -1
+        if (id == null || index < 0) {
+            withFrameNanos {}
+            if (owner.owns(listFocus)) listFocus.requestFocus()
+            return@LaunchedEffect
+        }
         listState.bringIntoComposition(id, index)
         owner.enter(listFocus)
         withFrameNanos {}
