@@ -1,10 +1,9 @@
-package io.putdotio.android
+package io.putdotio.android.design
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import java.util.concurrent.ConcurrentHashMap
@@ -12,13 +11,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 @Stable
-internal class MobileRowText<T : Any, V>(
+public class RowText<T : Any, V> internal constructor(
     private val key: (T) -> Any,
     private val placeholder: V,
     private val build: (T) -> V,
@@ -28,9 +27,6 @@ internal class MobileRowText<T : Any, V>(
     @Volatile
     private var entries = ConcurrentHashMap<Any, Entry<T, V>>()
 
-    @Volatile
-    private var refresh: Any? = null
-
     private val waiting = ConcurrentHashMap<Any, T>()
 
     private val prepared = mutableIntStateOf(0)
@@ -39,7 +35,7 @@ internal class MobileRowText<T : Any, V>(
 
     private val stale = AtomicBoolean()
 
-    operator fun get(item: T): V {
+    public operator fun get(item: T): V {
         prepared.intValue
         val key = key(item)
         val entry = entries[key]?.takeIf { it.item == item } ?: await(key, item)
@@ -53,61 +49,55 @@ internal class MobileRowText<T : Any, V>(
         return entry
     }
 
-    suspend fun prepare(items: List<T>, refresh: Any?) {
+    internal suspend fun prepare(items: List<T>, refresh: Any?) {
         val run = generation.incrementAndGet()
         val known = entries
         val built = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
+        var changed = false
         items.forEach { item ->
             currentCoroutineContext().ensureActive()
-            built[key(item)] = known[key(item)]?.takeIf { it.item == item && it.refresh == refresh }
-                ?: Entry(item, build(item), refresh)
+            val old = known[key(item)]?.takeIf { it.item == item }
+            built[key(item)] = old?.takeIf { it.refresh == refresh }
+                ?: Entry(item, build(item), refresh).also { if (old != null && old.value != it.value) changed = true }
         }
         val context = currentCoroutineContext()
         synchronized(generation) {
             if (run != generation.get() || !context.isActive) return
             entries = built
-            val newRefresh = refresh != this.refresh
-            this.refresh = refresh
-            if (waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || newRefresh) stale.set(true)
+            if (waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || changed) stale.set(true)
         }
     }
 
-    fun recomposeStaleRows() {
+    internal fun recomposeStaleRows() {
         if (stale.getAndSet(false)) prepared.intValue++
     }
 }
 
 @Composable
-internal fun <T : Any, V> rememberRowText(
+public fun <T : Any, V> rememberRowText(
     items: List<T>,
     vararg inputs: Any?,
     key: (T) -> Any,
     placeholder: V,
     refresh: Any? = null,
+    everyMinute: Boolean = false,
     build: (T) -> V,
-): MobileRowText<T, V> {
-    val text = remember(*inputs) { MobileRowText(key, placeholder, build) }
-    LaunchedEffect(text, items, refresh) {
+): RowText<T, V> {
+    val text = remember(*inputs) { RowText(key, placeholder, build) }
+    LaunchedEffect(text, items, refresh, everyMinute) {
         text.recomposeStaleRows()
-        withContext(Dispatchers.Default) { text.prepare(items, refresh) }
-        withFrameNanos {}
-        text.recomposeStaleRows()
+        while (isActive) {
+            val minute = currentMinute()
+            withContext(Dispatchers.Default) { text.prepare(items, if (everyMinute) refresh to minute else refresh) }
+            withFrameNanos {}
+            text.recomposeStaleRows()
+            if (!everyMinute) break
+            if (currentMinute() == minute) delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
+        }
     }
     return text
 }
 
-@Composable
-internal fun rememberMinute(): Long {
-    val minute = remember { mutableLongStateOf(System.currentTimeMillis() / MINUTE_MILLIS) }
-    LaunchedEffect(minute) {
-        withContext(Dispatchers.Default) {
-            while (isActive) {
-                delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
-                minute.longValue = System.currentTimeMillis() / MINUTE_MILLIS
-            }
-        }
-    }
-    return minute.longValue
-}
+private fun currentMinute(): Long = System.currentTimeMillis() / MINUTE_MILLIS
 
 private const val MINUTE_MILLIS = 60_000L

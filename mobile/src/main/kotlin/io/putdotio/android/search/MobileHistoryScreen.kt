@@ -54,12 +54,12 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobilePullToRefresh
 import io.putdotio.android.MobileRow
-import io.putdotio.android.MobileRowText
-import io.putdotio.android.rememberRowText
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.RowText
 import io.putdotio.android.design.putioMono
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
@@ -381,7 +381,7 @@ private fun rememberDayLabels(today: LocalDate, zone: ZoneId): HistoryDayLabels 
 private data class HistoryRowText(val kind: String?, val time: String)
 
 @Composable
-private fun rememberHistoryRowText(items: List<HistoryItem>): MobileRowText<HistoryItem, HistoryRowText> {
+private fun rememberHistoryRowText(items: List<HistoryItem>): RowText<HistoryItem, HistoryRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val hours24 = DateFormat.is24HourFormat(context)

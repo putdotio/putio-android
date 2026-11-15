@@ -7,6 +7,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.tv.awaitText
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioFolderType
 import java.time.Duration
@@ -38,6 +39,7 @@ class TvFilesRowMetaTest {
             },
         )
 
+        compose.awaitText("4 days ago")
         fun row(name: String, meta: String) = compose.onAllNodes(
             hasTestTag(TV_FILES_ROW_TAG) and hasAnyDescendant(hasText(name)) and hasAnyDescendant(hasText(meta)),
             useUnmergedTree = true,

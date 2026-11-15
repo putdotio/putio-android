@@ -69,10 +69,10 @@ import io.putdotio.android.LoadNextPageNearEnd
 import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileInlineError
 import io.putdotio.android.RetryWhenOnline
+import io.putdotio.android.design.RowText
 import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileKeyCommand
-import io.putdotio.android.MobileRowText
 import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.MobileUnhandledKeyEffect
 import io.putdotio.android.PutioFailure
@@ -959,7 +959,7 @@ private fun MobileFilesList(
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
     onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
-    rowText: MobileRowText<FilesItem, FilesRowText>,
+    rowText: RowText<FilesItem, FilesRowText>,
     pinnedRows: MobilePinnedRows,
     revealItemId: FilesItemId?,
     pagingEnabled: Boolean,

@@ -36,6 +36,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -57,7 +58,6 @@ import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.TvFilesRowPlace
 import io.putdotio.android.tv.files.TvFilesRowText
 import io.putdotio.android.tv.files.rowText
-import io.putdotio.android.tv.rememberTvRowText
 
 internal const val TV_SEARCH_RESULTS_TAG = "tv-search-results"
 
@@ -111,7 +111,13 @@ internal fun TvSearchResultList(
     val context = LocalContext.current
     val currentRows by rememberUpdatedState(rows)
     val folders = rows.folderNames to rows.rootName
-    val rowText = rememberTvRowText(items, context, key = { it.id.value }, refresh = folders) {
+    val rowText = rememberRowText(
+        items,
+        context,
+        key = { it.id.value },
+        placeholder = TvFilesRowText.Pending,
+        refresh = folders,
+    ) {
         it.rowText(context, currentRows.place(it), System.currentTimeMillis())
     }
     val rowFocus = remember { TvItemRequesters() }
@@ -222,6 +228,7 @@ private fun TvSearchResultRow(
         item = item,
         text = text,
         onClick = { rows.onResult(item) },
+        place = rows.place(item),
         onActions = rows.onActions?.let { open -> { open(item) } },
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }

@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.trash
 
 import io.putdotio.android.tv.assertHeldDownWaitsForScroll
+import io.putdotio.android.tv.awaitText
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.runtime.getValue
@@ -79,6 +80,7 @@ class TvTrashScreenTest {
         show { state }
 
         compose.onNodeWithText("Items stay in Trash for 14 days.").assertIsDisplayed()
+        compose.awaitText("1 day left")
         compose.onNodeWithText("12 days left").assertIsDisplayed()
         compose.onNodeWithText("1 day left").assertIsDisplayed()
         compose.onNodeWithText("1.2 GB").assertIsDisplayed()

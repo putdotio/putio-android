@@ -31,6 +31,8 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.RowText
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
@@ -70,12 +72,10 @@ private sealed interface TvHistoryEntry {
         override val key: Any get() = "header-$day"
     }
 
-    data class Event(val item: HistoryItem, val row: TvHistoryRowText) : TvHistoryEntry {
+    data class Event(val item: HistoryItem, val title: String) : TvHistoryEntry {
         override val key: Any get() = item.id.value
     }
 }
-
-private data class TvHistoryRowText(val title: String, val label: String, val meta: TvRowMeta)
 
 @Composable
 private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: ZoneId): List<TvHistoryEntry> {
@@ -88,7 +88,7 @@ private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: Zon
             days.forEachIndexed { index, (day, events) ->
                 val label = day.label(today, resources, locale)
                 add(if (index == 0) TvHistoryEntry.Section(label) else TvHistoryEntry.Header(label, day))
-                events.forEach { add(TvHistoryEntry.Event(it, it.rowText(zone, resources, untitled))) }
+                events.forEach { add(TvHistoryEntry.Event(it, it.named() ?: untitled)) }
             }
         }
     }
@@ -102,17 +102,38 @@ private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K):
         groups
     }
 
+private data class TvHistoryRowText(val meta: TvRowMeta, val label: String)
+
+private val PENDING_ROW_TEXT = TvHistoryRowText(TvRowMeta.Pending, label = "")
+
+@Composable
+private fun rememberHistoryRowText(items: List<HistoryItem>, zone: ZoneId): RowText<HistoryItem, TvHistoryRowText> {
+    val resources = LocalResources.current
+    val locale = LocalConfiguration.current.locales[0]
+    val untitled = stringResource(R.string.tv_history_no_title)
+    return rememberRowText(
+        items,
+        zone,
+        resources,
+        locale,
+        untitled,
+        key = { it.id.value },
+        placeholder = PENDING_ROW_TEXT,
+    ) { it.rowText(zone, resources, untitled) }
+}
+
 private fun HistoryItem.rowText(zone: ZoneId, resources: Resources, untitled: String): TvHistoryRowText {
-    val title = named() ?: untitled
-    val label = if (kind.navigableFileId() == null) title else resources.getString(R.string.tv_history_open_file, title)
     val meta = TvRowMeta(
         listOfNotNull(
             kind.kindLabel()?.let { TvRowMetaPart(resources.getString(it), shrinks = true) },
             TvRowMetaPart(timeLabel(zone), mono = true),
         ),
     )
-    return TvHistoryRowText(title, label, meta)
+    return TvHistoryRowText(meta, rowLabel(named() ?: untitled, resources))
 }
+
+private fun HistoryItem.rowLabel(title: String, resources: Resources): String =
+    if (kind.navigableFileId() == null) title else resources.getString(R.string.tv_history_open_file, title)
 
 private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequesters): Modifier =
     if (entry is TvHistoryEntry.Event) focusRequester(requesters.of(entry.key)) else this
@@ -159,7 +180,8 @@ internal fun TvHistoryList(
     val listFocus = focus.list
     val paneHasFocus = focus.paneHasFocus
     val entries = historyEntries(content.items, today, zone)
-    val titles = remember(entries) { entries.mapNotNull { (it as? TvHistoryEntry.Event)?.row?.title } }
+    val titles = remember(entries) { entries.mapNotNull { (it as? TvHistoryEntry.Event)?.title } }
+    val rowText = rememberHistoryRowText(content.items, zone)
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val restoreRow = remember { FocusRequester() }
@@ -221,7 +243,7 @@ internal fun TvHistoryList(
                     .focusRequesterIf(index == lastIndex, lastRow)
                     .holdAtPendingEnd(index == pendingEndIndex)
                     .focusRequesterIf(index == restoreIndex, restoreRow)
-                TvHistoryEntryItem(entry, focus, actions, modifier = requesters)
+                TvHistoryEntryItem(entry, rowText, focus, actions, modifier = requesters)
             }
             if (content.paging != HistoryPaging.Complete) {
                 item(key = PAGING_KEY, contentType = "paging") {
@@ -241,6 +263,7 @@ internal fun TvHistoryList(
 @Composable
 private fun TvHistoryEntryItem(
     entry: TvHistoryEntry,
+    rowText: RowText<HistoryItem, TvHistoryRowText>,
     focus: TvHistoryFocus,
     actions: TvHistoryListActions,
     modifier: Modifier = Modifier,
@@ -266,7 +289,8 @@ private fun TvHistoryEntryItem(
         )
         is TvHistoryEntry.Event -> TvHistoryRow(
             item = entry.item,
-            text = entry.row,
+            title = entry.title,
+            text = rowText[entry.item],
             onOpen = actions.onOpen,
             modifier = modifier.onFocusChanged { if (it.isFocused) actions.onRowFocused(entry.item) },
         )
@@ -276,17 +300,20 @@ private fun TvHistoryEntryItem(
 @Composable
 private fun TvHistoryRow(
     item: HistoryItem,
+    title: String,
     text: TvHistoryRowText,
     onOpen: (HistoryFileId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val fileId = item.kind.navigableFileId()
+    val resources = LocalResources.current
+    val pendingLabel = remember(item, title, resources) { lazy { item.rowLabel(title, resources) } }
     TvListRow(
         glyph = item.kind.glyph(),
-        title = text.title,
+        title = title,
         onClick = { if (fileId != null) onOpen(fileId) },
         modifier = modifier
-            .semantics { contentDescription = text.label }
+            .semantics { contentDescription = text.label.ifEmpty { pendingLabel.value } }
             .testTag(TV_HISTORY_ROW_TAG),
         glyphSize = GLYPH,
         neutralGlyph = true,

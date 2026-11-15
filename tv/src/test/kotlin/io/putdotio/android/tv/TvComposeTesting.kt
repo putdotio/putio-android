@@ -9,11 +9,17 @@ import androidx.compose.ui.test.KeyInjectionScope
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performKeyPress
 import androidx.compose.ui.test.pressKey
 import io.putdotio.android.design.PutioTvTheme
+
+internal fun ComposeContentTestRule.awaitText(text: String, substring: Boolean = false) =
+    waitUntil(30_000L) {
+        onAllNodesWithText(text, substring = substring, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+    }
 
 /** [content] in the app's Compose for TV theme. */
 internal fun ComposeContentTestRule.setTvContent(content: @Composable () -> Unit) {

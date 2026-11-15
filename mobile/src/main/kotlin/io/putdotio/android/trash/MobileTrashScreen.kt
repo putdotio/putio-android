@@ -19,6 +19,8 @@ import androidx.compose.ui.semantics.onLongClick
 import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.MobileSelectionToolbarClearance
+import io.putdotio.android.design.RowText
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesItemId
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -70,9 +72,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.formatFileSize
-import io.putdotio.android.MobileRowText
 import io.putdotio.android.monoValue
-import io.putdotio.android.rememberRowText
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage
@@ -193,7 +193,7 @@ private class TrashRowHandlers(
     val onActions: (TrashItem) -> Unit,
     val onSelect: (TrashItem) -> Unit,
     val onToggle: (TrashItem) -> Unit,
-    val text: MobileRowText<TrashItem, TrashRowText>,
+    val text: RowText<TrashItem, TrashRowText>,
     val states: State<TrashState>,
 )
 
@@ -342,7 +342,7 @@ private fun TrashItem.rowText(context: Context, today: LocalDate): TrashRowText 
     )
 
 @Composable
-private fun rememberTrashRowText(items: List<TrashItem>): MobileRowText<TrashItem, TrashRowText> {
+private fun rememberTrashRowText(items: List<TrashItem>): RowText<TrashItem, TrashRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     return rememberRowText(
