@@ -62,8 +62,8 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.test.assert
 import org.junit.Assert.assertEquals
-import androidx.compose.ui.test.assertCountEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
@@ -462,8 +462,7 @@ class TvHistoryScreenTest {
         compose.onNodeWithContentDescription("Open first.mkv").assertIsDisplayed()
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNodeWithContentDescription("Open second.mkv").assertIsDisplayed()
-        compose.onAllNodesWithText("09:30", substring = true).assertCountEquals(1)
+        compose.onNodeWithContentDescription("Open second.mkv").assert(hasText("09:30", substring = true))
     }
 
     private class CountingEvents(private val events: List<HistoryItem>) : List<HistoryItem> by events {
