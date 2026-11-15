@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,6 +44,7 @@ class MobileFilesActionsControllerTest {
     private val trash = RecordingTrash()
     private val opened = mutableListOf<Pair<String, String>>()
     private var vlcInstalled = true
+    private var installs = 0
     private var rejected = 0
     private var stream: FilesStreamUrlResult = FilesStreamUrlResult.Ready(STREAM)
     private var streamGate: CompletableDeferred<Unit>? = null
@@ -130,7 +132,7 @@ class MobileFilesActionsControllerTest {
         assertEquals(videos.map { it.id }, watched.positions.map { it.first })
 
         watched.failing = emptySet()
-        checkNotNull(notices.single().retry).invoke()
+        checkNotNull(notices.single().action).invoke()
         advanceUntilIdle()
         assertEquals(videos.map { it.id } + videos[2].id, watched.positions.map { it.first })
         assertEquals(
@@ -148,7 +150,7 @@ class MobileFilesActionsControllerTest {
         watched.failing = setOf(video.id)
         controller.setWatched(video, watched = true)
         advanceUntilIdle()
-        assertEquals(null, notices.single().retry)
+        assertEquals(null, notices.single().action)
     }
 
     @Test
@@ -210,6 +212,11 @@ class MobileFilesActionsControllerTest {
             listOf(R.string.mobile_files_vlc_missing, R.string.mobile_files_vlc_unavailable),
             notices.map { it.message },
         )
+        val missing = notices.first()
+        assertEquals(R.string.mobile_files_get_vlc, missing.actionLabel)
+        checkNotNull(missing.action).invoke()
+        assertEquals(1, installs)
+        assertNull(notices.last().action)
     }
 
     @Test
@@ -340,7 +347,14 @@ class MobileFilesActionsControllerTest {
         onFilesEvent = { events += it; true },
         onPositionSaved = row::positionSaved,
         onAuthenticationRequired = { rejected++ },
-        handoff = { url, name -> vlcInstalled.also { if (it) opened += url to name } },
+        handoff = object : MobileVlcHandoff {
+            override fun open(streamUrl: String, name: String) =
+                vlcInstalled.also { if (it) opened += streamUrl to name }
+
+            override fun install() {
+                installs++
+            }
+        },
     )
 
     private fun entry() = ContinueWatchingEntry(video.id, video.name, 600.0, 3_000.0, watchedAt = 1L)

@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import androidx.annotation.StringRes
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
@@ -14,6 +15,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
+import io.putdotio.android.auth.openStoreListing
 import io.putdotio.android.apiReason
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.trash.undoTrashMove
@@ -35,14 +37,16 @@ import kotlinx.coroutines.launch
 
 /**
  * A line the Files snackbar shows: an item action that did not go through, or a copied link. With
- * a [count], [message] is a plural that names how many items instead of [name].
+ * a [count], [message] is a plural that names how many items instead of [name]. An [action] shows
+ * as [actionLabel].
  */
 internal class MobileFilesNotice(
     val message: Int,
     val name: String,
     val failure: PutioFailure? = null,
     val count: Int? = null,
-    val retry: (() -> Unit)? = null,
+    val action: (() -> Unit)? = null,
+    @param:StringRes val actionLabel: Int = R.string.mobile_action_retry,
 ) {
     fun text(context: Context): String {
         val reason = failure?.let { it.apiReason ?: context.getString(it.mobileMessageResource()) }.orEmpty()
@@ -176,7 +180,14 @@ internal class MobileFilesActionsController(
             ensureActive()
             when (stream) {
                 is FilesStreamUrlResult.Ready -> if (!handoff.open(stream.url, name)) {
-                    mutableNotices.tryEmit(MobileFilesNotice(R.string.mobile_files_vlc_missing, name))
+                    mutableNotices.tryEmit(
+                        MobileFilesNotice(
+                            R.string.mobile_files_vlc_missing,
+                            name,
+                            action = handoff::install,
+                            actionLabel = R.string.mobile_files_get_vlc,
+                        ),
+                    )
                 }
                 FilesStreamUrlResult.DownloadTokenUnavailable ->
                     mutableNotices.tryEmit(MobileFilesNotice(R.string.mobile_files_vlc_unavailable, name))
@@ -234,15 +245,17 @@ private fun watchedRefusal(
     retry: (() -> Unit)?,
 ) = when {
     count == 1 && watched ->
-        MobileFilesNotice(R.string.mobile_files_mark_watched_failed, item.name, failure, retry = retry)
-    count == 1 -> MobileFilesNotice(R.string.mobile_files_mark_unwatched_failed, item.name, failure, retry = retry)
+        MobileFilesNotice(R.string.mobile_files_mark_watched_failed, item.name, failure, action = retry)
+    count == 1 -> MobileFilesNotice(R.string.mobile_files_mark_unwatched_failed, item.name, failure, action = retry)
     watched -> MobileFilesNotice(R.plurals.mobile_files_mark_watched_failed_many, "", failure, count, retry)
     else -> MobileFilesNotice(R.plurals.mobile_files_mark_unwatched_failed_many, "", failure, count, retry)
 }
 
-/** Opens a stream in VLC; false when VLC is not installed. */
-internal fun interface MobileVlcHandoff {
+/** Opens a stream in VLC, false when VLC is not installed, or VLC's store page. */
+internal interface MobileVlcHandoff {
     fun open(streamUrl: String, name: String): Boolean
+
+    fun install()
 }
 
 /** VLC by package, with the file's name as its title; the URL goes only into the intent, never a log. */
@@ -261,6 +274,10 @@ internal class MobileVlcIntentHandoff(private val context: Context) : MobileVlcH
         } catch (_: ActivityNotFoundException) {
             false
         }
+
+    override fun install() {
+        openStoreListing(context, VLC_PACKAGE)
+    }
 }
 
 /** Open in VLC reads the original video, which put.io serves to any player. */

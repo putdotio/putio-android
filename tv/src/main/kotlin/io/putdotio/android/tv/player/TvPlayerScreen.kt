@@ -97,6 +97,13 @@ import io.putdotio.android.playback.withReportingLease
 import io.putdotio.android.playback.captionLanguages
 import io.putdotio.android.playback.inFileSubtitleLanguage
 import io.putdotio.android.playback.withSubtitleSelection
+import io.putdotio.android.playback.PlaybackAudioSwitch
+import io.putdotio.android.playback.PlaybackTrackRecovery
+import io.putdotio.android.playback.PlaybackTrackRecoveryStep
+import io.putdotio.android.playback.manifestSubtitleUris
+import io.putdotio.android.playback.sidecarSubtitleUris
+import io.putdotio.android.playback.toTrackFailure
+import io.putdotio.android.playback.withAudioOf
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitle
@@ -318,7 +325,7 @@ private fun TvReadyPlayer(
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
     val recovery = remember(player) {
-        TvTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris)
+        PlaybackTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris)
     }
     val subtitlesFailed by rememberUpdatedState(stringResource(R.string.tv_player_subtitles_failed))
     val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))
@@ -365,7 +372,7 @@ private fun TvReadyPlayer(
     var firstFrameShown by remember(player) { mutableStateOf(false) }
     val currentSubtitlePolicy by rememberUpdatedState(subtitleStartupPolicy)
     DisposableEffect(player) {
-        val dropSubtitles = { step: TvTrackRecoveryStep.DropSubtitles ->
+        val dropSubtitles = { step: PlaybackTrackRecoveryStep.DropSubtitles ->
             options = options.copy(subtitles = SubtitleSelection.Off)
             cueHistory.clear()
             player.continueWithout(step, snackbar, subtitlesFailed)
@@ -398,12 +405,12 @@ private fun TvReadyPlayer(
 
             override fun onPlayerError(error: PlaybackException) {
                 val position = player.currentPosition.coerceAtLeast(0L)
-                when (val step = recovery.recover(error.toTvPlayerFailure(), SystemClock.elapsedRealtime())) {
-                    is TvTrackRecoveryStep.DropSubtitles -> {
+                when (val step = recovery.recover(error.toTrackFailure(), SystemClock.elapsedRealtime())) {
+                    is PlaybackTrackRecoveryStep.DropSubtitles -> {
                         dropSubtitles(step)
                         return
                     }
-                    is TvTrackRecoveryStep.RestoreAudio -> {
+                    is PlaybackTrackRecoveryStep.RestoreAudio -> {
                         options = options.copy(audio = step.switch.selection)
                         player.trackSelectionParameters =
                             player.trackSelectionParameters.withAudioOf(step.switch.parameters)
@@ -663,7 +670,7 @@ private fun TvReadyPlayer(
         actions = TvPlayerSheetActions(
             onAudio = { track ->
                 recovery.audioSwitching(
-                    TvAudioSwitch(player.trackSelectionParameters, options.audio),
+                    PlaybackAudioSwitch(player.trackSelectionParameters, options.audio),
                     SystemClock.elapsedRealtime(),
                 )
                 options = options.copy(audio = AudioSelection.Track(track.identity))

@@ -62,6 +62,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -96,7 +97,18 @@ import io.putdotio.android.files.hasVlc
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import java.io.Closeable
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.receiveAsFlow
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
+import io.putdotio.android.MobileSnackbarHost
+import io.putdotio.sdk.files.PlaybackSubtitles
+import java.io.IOException
+import androidx.compose.material3.SnackbarHostState
 import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_PLAYER_TAG = "mobile-player"
@@ -246,7 +258,7 @@ internal fun MobilePlayerScreen(
 
                 is PlaybackContent.Failed ->
                     MobilePlaybackFailureState(
-                        title = stringResource(content.failure.errorTitle(state.target.mediaType)),
+                        title = stringResource(content.errorTitle(state.target.mediaType)),
                         failure = content.failure,
                         onRetry = onRetry,
                         video = isVideo,
@@ -581,6 +593,7 @@ private fun MobileReadyPlayer(
         onSourceRequired = onSourceRequired,
     )
     SubtitleStartupEffect(playerState, fileId, retainedSubtitleSelection, subtitleStartupPolicy)
+    SubtitlesUnavailableNotice(playerState, source.takeUnless { isAudio })
 
     val touchExplorationEnabled = rememberTouchExplorationEnabled()
     ControlsVisibilityEffects(
@@ -737,6 +750,44 @@ private class ReadyPlayerState(
 
     /** The video frame's full-screen bounds in the window, which picture-in-picture animates from. */
     var videoFrame by mutableStateOf<Rect?>(null)
+
+    val recovery = PlaybackTrackRecovery(
+        sidecarUris = { player.currentMediaItem?.sidecarSubtitleUris().orEmpty() },
+        manifestSubtitleUris = player::manifestSubtitleUris,
+    )
+
+    /** The player's own snackbar lines, as string resources; each waits for the screen to show it. */
+    val notices = Channel<Int>(Channel.BUFFERED)
+
+    fun audioSwitching(preferences: RetainedPlayerPreferences) {
+        recovery.audioSwitching(
+            PlaybackAudioSwitch(player.trackSelectionParameters, preferences.audioSelection),
+            SystemClock.elapsedRealtime(),
+        )
+    }
+
+    fun dropSubtitles(step: PlaybackTrackRecoveryStep.DropSubtitles, preferences: RetainedPlayerPreferences) {
+        preferences.subtitleSelection = SubtitleSelection.Off
+        cueHistory.clear()
+        player.continueWithout(step)
+        if (step.notify) notices.trySend(R.string.mobile_playback_subtitles_failed)
+    }
+
+    fun recoverTrack(error: PlaybackException, preferences: RetainedPlayerPreferences): Boolean =
+        when (val step = recovery.recover(error.toTrackFailure(), SystemClock.elapsedRealtime())) {
+            is PlaybackTrackRecoveryStep.DropSubtitles -> {
+                dropSubtitles(step, preferences)
+                true
+            }
+            is PlaybackTrackRecoveryStep.RestoreAudio -> {
+                preferences.audioSelection = step.switch.selection
+                player.trackSelectionParameters = player.trackSelectionParameters.withAudioOf(step.switch.parameters)
+                player.prepare()
+                notices.trySend(R.string.mobile_playback_audio_failed)
+                true
+            }
+            null -> false
+        }
 
     fun refreshKeepScreenOn(isAudio: Boolean) {
         keepScreenOn = !stalled && player.keepsVideoScreenOn(isAudio)
@@ -1093,6 +1144,7 @@ private fun PlayerListenerEffect(
             object : Media3Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     if (playerState.playerReleased) return
+                    if (playerState.recoverTrack(error, currentPreferences.value)) return
                     if (!playerState.ownsPlayer) currentPreferences.value.adoptPlaybackOptions(player)
                     val errorPositionMillis = player.currentPosition.coerceAtLeast(0L)
                     retainedPosition.longValue = errorPositionMillis
@@ -1213,9 +1265,12 @@ private fun PlayerListenerEffect(
                 }
             }
         player.addListener(listener)
+        val loads = playerState.trackLoadListener(currentPreferences)
+        (player as? ExoPlayer)?.addAnalyticsListener(loads)
         resolveRetainedSubtitleSelection(player.currentTracks.playbackSubtitleTracks())
         onDispose {
             player.removeListener(listener)
+            (player as? ExoPlayer)?.removeAnalyticsListener(loads)
             if (playerState.playerReleased) return@onDispose
             retainedPosition.longValue =
                 retainedPositionOnDispose(
@@ -1234,6 +1289,55 @@ private fun PlayerListenerEffect(
             }
         }
     }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun ReadyPlayerState.trackLoadListener(preferences: State<RetainedPlayerPreferences>): AnalyticsListener =
+    object : AnalyticsListener {
+        override fun onLoadError(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+            error: IOException,
+            wasCanceled: Boolean,
+        ) {
+            recovery.loadFailed(
+                trackType = mediaLoadData.trackType,
+                uri = loadEventInfo.dataSpec.uri.toString(),
+                gaveUp = wasCanceled,
+                atMillis = SystemClock.elapsedRealtime(),
+            )?.let { dropSubtitles(it, preferences.value) }
+        }
+
+        override fun onLoadCompleted(
+            eventTime: AnalyticsListener.EventTime,
+            loadEventInfo: LoadEventInfo,
+            mediaLoadData: MediaLoadData,
+        ) {
+            recovery.loadCompleted(loadEventInfo.dataSpec.uri.toString())
+        }
+
+        override fun onAudioPositionAdvancing(eventTime: AnalyticsListener.EventTime, playoutStartSystemTimeMs: Long) {
+            recovery.audioPlaying()
+        }
+    }
+
+@Composable
+private fun SubtitlesUnavailableNotice(playerState: ReadyPlayerState, video: PlaybackSource?) {
+    val unavailable = video?.subtitles is PlaybackSubtitles.Unavailable
+    LaunchedEffect(playerState, video, unavailable) {
+        if (unavailable) playerState.notices.send(R.string.mobile_playback_subtitles_failed)
+    }
+}
+
+@Composable
+private fun MobilePlayerNotices(notices: Channel<Int>, modifier: Modifier) {
+    val resources = LocalResources.current
+    val hostState = remember { SnackbarHostState() }
+    LaunchedEffect(notices) {
+        notices.receiveAsFlow().collectLatest { hostState.showSnackbar(resources.getString(it)) }
+    }
+    MobileSnackbarHost(hostState, modifier)
 }
 
 @UnstableApi
@@ -1306,6 +1410,10 @@ private fun MobileReadyPlayerContent(
     LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
 
     val options = rememberPlayerOptionsSnapshot(player)
+    val onAudioSelectionChanged = { selection: AudioSelection ->
+        playerState.audioSwitching(preferences)
+        preferences.audioSelection = selection
+    }
     var footerHeight by remember { mutableStateOf(0.dp) }
     val appearance = rememberSubtitleAppearanceStore()
     // The window shows only the video, so a sheet open when it starts goes with the controls.
@@ -1386,7 +1494,7 @@ private fun MobileReadyPlayerContent(
                 onSeek = ::seek,
                 onScrub = { pendingSeek.value = null },
                 onPlay = onPlay,
-                onAudioSelectionChanged = { preferences.audioSelection = it },
+                onAudioSelectionChanged = onAudioSelectionChanged,
                 castButton = castButton,
                 modifier = Modifier.zIndex(2f).observeControlNavigation(onPointerNavigation, onKeyboardNavigation),
             )
@@ -1446,11 +1554,19 @@ private fun MobileReadyPlayerContent(
                 appearance = appearance,
                 preferences = preferences,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                onAudioSelectionChanged = onAudioSelectionChanged,
                 stream = stream,
                 modifier = Modifier.zIndex(2.5f),
                 panelModifier = optionModifier,
             )
         }
+        MobilePlayerNotices(
+            playerState.notices,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(3.5f)
+                .padding(bottom = shownFooterHeight),
+        )
         MobilePlaybackStallLayer(
             stall = stall,
             pictureInPicture = pictureInPicture,

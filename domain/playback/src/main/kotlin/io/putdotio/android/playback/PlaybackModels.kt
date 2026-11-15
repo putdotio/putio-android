@@ -95,8 +95,10 @@ public sealed interface PlaybackContent {
         val fileType: PutioFileType,
     ) : PlaybackContent
 
+    /** [conversionStart] marks a refused request to start converting, not a failure to play. */
     public data class Failed(
         val failure: PlaybackFailure,
+        val conversionStart: Boolean = false,
     ) : PlaybackContent
 }
 
@@ -463,12 +465,12 @@ private fun PlaybackState.resolveFailed(event: PlaybackEvent.ResolveFailed): Pla
     if (!isLoading(event.requestId)) {
         return PlaybackTransition(this, consumed = false)
     }
-    val conversion = (content as? PlaybackContent.Conversion)
-        ?.takeIf { it.readsStatus && event.failure.lostConnection }
+    val conversion = content as? PlaybackContent.Conversion
+    val statusRead = conversion?.takeIf { it.readsStatus && event.failure.lostConnection }
     return PlaybackTransition(
         copy(
-            content = conversion?.copy(refreshRequestId = null, statusCheckFailed = true)
-                ?: PlaybackContent.Failed(event.failure),
+            content = statusRead?.copy(refreshRequestId = null, statusCheckFailed = true)
+                ?: PlaybackContent.Failed(event.failure, conversionStart = conversion?.readsStatus == false),
         ),
     )
 }
