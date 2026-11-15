@@ -36,6 +36,7 @@ import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
+import io.putdotio.android.history.CountingHistoryItems
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
@@ -63,6 +64,8 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.onNodeWithTag
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -395,9 +398,40 @@ class TvHistoryScreenTest {
     }
 
     @Test
-    fun anUnchangedRefreshComparesItsEventsOnlyOffTheMainThread() {
+    fun aKeyPressedWhileTheLandedPageBuildsCancelsTheHandOffToItsLastRow() {
         var state by mutableStateOf(
-            historyState(HistoryContent.Ready(CountingEvents(items()), HistoryPaging.Available(HistoryEventId(3)))),
+            historyState(
+                HistoryContent.Ready(
+                    items(),
+                    HistoryPaging.Failed(HistoryEventId(3), PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                ),
+            ),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
+            repeat(5) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithText("Try again").assertIsFocused()
+
+        compose.runOnIdle {
+            state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
+        }
+        compose.onNodeWithTag(TV_HISTORY_LIST_TAG).performKeyInput { pressKey(Key.DirectionUp) }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open older.mkv").assertIsNotFocused()
+    }
+
+    @Test
+    fun anUnchangedRefreshComparesItsEventsOnlyOffTheMainThread() {
+        val comparisons = CountingHistoryItems.Comparisons()
+        var state by mutableStateOf(
+            historyState(HistoryContent.Ready(CountingHistoryItems(items(), comparisons), HistoryPaging.Available(HistoryEventId(3)))),
             neverEqualPolicy(),
         )
         val build = StandardTestDispatcher()
@@ -417,10 +451,12 @@ class TvHistoryScreenTest {
         compose.runOnIdle { assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log) }
 
         compose.runOnIdle {
-            CountingEvents.comparisons = 0
-            state = historyState(HistoryContent.Ready(CountingEvents(items()), HistoryPaging.Available(HistoryEventId(4))))
+            comparisons.count = 0
+            state = historyState(
+                HistoryContent.Ready(CountingHistoryItems(items(), comparisons), HistoryPaging.Available(HistoryEventId(4))),
+            )
         }
-        compose.runOnIdle { assertEquals(0, CountingEvents.comparisons) }
+        compose.runOnIdle { assertEquals(0, comparisons.count) }
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.runOnIdle { assertEquals(listOf(HistoryEvent.LoadNextPage, HistoryEvent.LoadNextPage), log) }
@@ -463,19 +499,6 @@ class TvHistoryScreenTest {
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNodeWithContentDescription("Open second.mkv").assert(hasText("09:30", substring = true))
-    }
-
-    private class CountingEvents(private val events: List<HistoryItem>) : List<HistoryItem> by events {
-        override fun equals(other: Any?): Boolean {
-            comparisons++
-            return events == ((other as? CountingEvents)?.events ?: other)
-        }
-
-        override fun hashCode(): Int = events.hashCode()
-
-        companion object {
-            var comparisons = 0
-        }
     }
 
     @Test

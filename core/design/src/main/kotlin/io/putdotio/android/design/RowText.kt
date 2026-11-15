@@ -3,6 +3,7 @@ package io.putdotio.android.design
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +24,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
@@ -117,23 +120,27 @@ public val LocalBuildDispatcher: ProvidableCompositionLocal<CoroutineDispatcher>
 public class Built<S : Any, V : Any> internal constructor(
     public val source: S,
     public val value: V,
-    private val covers: S,
+    private val covers: S?,
 ) {
     public fun isBuiltFrom(source: S): Boolean = covers === source
+
+    internal fun superseded(): Built<S, V> = Built(source, value, covers = null)
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-internal fun <S : Any, V : Any> Flow<S>.buildLatest(build: suspend (S) -> V): Flow<Built<S, V>> {
+internal fun <S : Any, V : Any> Flow<S>.buildLatest(build: suspend (S, V?) -> V): Flow<Built<S, V>> = flow {
     var last: Built<S, V>? = null
-    return mapLatest { next ->
-        val previous = last
-        val built = if (previous != null && previous.source == next) {
-            Built(previous.source, previous.value, next)
-        } else {
-            Built(next, build(next), next)
-        }
-        built.also { last = it }
-    }
+    emitAll(
+        mapLatest { next ->
+            val previous = last
+            val built = if (previous != null && previous.source == next) {
+                Built(previous.source, previous.value, next)
+            } else {
+                Built(next, build(next, previous?.value), next)
+            }
+            built.also { last = it }
+        },
+    )
 }
 
 private class Submitted<S>(val source: S)
@@ -142,17 +149,18 @@ private class Submitted<S>(val source: S)
 public fun <S : Any, V : Any> rememberBuiltOffMain(
     source: S,
     vararg inputs: Any?,
-    build: suspend (S) -> V,
+    build: suspend (source: S, previous: V?) -> V,
 ): Built<S, V>? {
     val latest = remember { mutableStateOf(source, referentialEqualityPolicy()) }
-    latest.value = source
+    SideEffect { latest.value = source }
     val built = remember { mutableStateOf<Built<S, V>?>(null, referentialEqualityPolicy()) }
     val dispatcher = LocalBuildDispatcher.current
     val currentBuild = rememberUpdatedState(build)
     LaunchedEffect(dispatcher, *inputs) {
+        built.value = built.value?.superseded()
         snapshotFlow { Submitted(latest.value) }
             .map { it.source }
-            .buildLatest { currentBuild.value(it) }
+            .buildLatest { next, previous -> currentBuild.value(next, previous) }
             .flowOn(dispatcher)
             .collect { built.value = it }
     }

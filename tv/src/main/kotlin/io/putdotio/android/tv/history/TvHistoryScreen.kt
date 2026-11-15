@@ -248,7 +248,7 @@ private fun TvHistoryListDetail(
 ) {
     val restoreRowId = remember { pickedRow.id }
     val history = rememberHistoryEntries(content.items, clock)
-    val shownItems = history?.value?.items ?: content.items
+    val shownItems = history?.source ?: content.items
     val openFocus = remember { FocusRequester() }
     val detailRow = rememberTvHeldDetail { restoreRowId }
     val detailItem = shownItems.firstOrNull { it.id.value == detailRow.shown } ?: shownItems.first()

@@ -21,7 +21,7 @@ class BuiltOffMainTest {
         val first = listOf(1)
         val cancelled = CompletableDeferred<List<Int>>()
         val collecting = launch(UnconfinedTestDispatcher(testScheduler)) {
-            sources.buildLatest { source ->
+            sources.buildLatest { source, _ ->
                 if (source == first) {
                     try {
                         awaitCancellation()
@@ -44,7 +44,7 @@ class BuiltOffMainTest {
     fun anEqualSourceKeepsTheBuiltValueAndCoversTheNewSource() = runTest {
         var builds = 0
         val collecting = launch(UnconfinedTestDispatcher(testScheduler)) {
-            sources.buildLatest { source -> builds++; source.joinToString() }.collect { results += it }
+            sources.buildLatest { source, _ -> builds++; source.joinToString() }.collect { results += it }
         }
         val first = listOf(1, 2)
         val refreshed = ArrayList(first)
@@ -56,6 +56,22 @@ class BuiltOffMainTest {
         assertSame(first, results[1].source)
         assertTrue(results[1].isBuiltFrom(refreshed))
         assertFalse(results[1].isBuiltFrom(first))
+        collecting.cancel()
+    }
+
+    @Test
+    fun aChangedSourceBuildsFromThePreviousValue() = runTest {
+        val previousValues = mutableListOf<String?>()
+        val collecting = launch(UnconfinedTestDispatcher(testScheduler)) {
+            sources.buildLatest { source, previous ->
+                previousValues += previous
+                source.joinToString()
+            }.collect { results += it }
+        }
+        sources.emit(listOf(1))
+        sources.emit(listOf(1, 2))
+
+        assertEquals(listOf(null, "1"), previousValues)
         collecting.cancel()
     }
 }

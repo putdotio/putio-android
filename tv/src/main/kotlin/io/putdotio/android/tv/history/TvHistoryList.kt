@@ -21,6 +21,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
@@ -85,20 +88,22 @@ internal sealed interface TvHistoryEntry {
 internal class TvHistoryStamp(val day: String, val time: String?)
 
 internal class TvHistoryEntries(
-    val items: List<HistoryItem>,
     val list: List<TvHistoryEntry>,
     val titles: List<String>,
     private val stamps: Map<Long, TvHistoryStamp>,
+    val rows: Map<HistoryItem, TvHistoryRowParts>,
 ) {
     fun stampOf(item: HistoryItem): TvHistoryStamp? = stamps[item.id.value]
 }
+
+internal class TvHistoryRowParts(val day: TvHistoryDay, val time: String, val title: String, val text: TvHistoryRowText)
 
 @Composable
 internal fun rememberHistoryEntries(items: List<HistoryItem>, clock: Clock): Built<List<HistoryItem>, TvHistoryEntries>? {
     val resources = LocalResources.current
     val locale = LocalConfiguration.current.locales[0]
-    return rememberBuiltOffMain(items, clock, resources, locale) {
-        it.historyEntries(LocalDate.now(clock), clock.zone, resources, locale)
+    return rememberBuiltOffMain(items, clock, resources, locale) { next, previous ->
+        next.historyEntries(LocalDate.now(clock), clock.zone, resources, locale, previous?.rows.orEmpty())
     }
 }
 
@@ -107,26 +112,36 @@ private suspend fun List<HistoryItem>.historyEntries(
     zone: ZoneId,
     resources: Resources,
     locale: Locale,
+    built: Map<HistoryItem, TvHistoryRowParts>,
 ): TvHistoryEntries {
     val untitled = resources.getString(R.string.tv_history_no_title)
+    val rows = HashMap<HistoryItem, TvHistoryRowParts>(size)
+    forEach { item ->
+        currentCoroutineContext().ensureActive()
+        rows[item] = built[item] ?: item.rowParts(zone, resources, untitled)
+    }
     val stamps = HashMap<Long, TvHistoryStamp>(size)
     val titles = ArrayList<String>(size)
-    val days = groupConsecutiveBy { it.day(zone) }
+    val days = groupConsecutiveBy { rows.getValue(it).day }
     val list = buildList {
         days.forEachIndexed { index, (day, events) ->
             val label = day.label(today, resources, locale)
             add(if (index == 0) TvHistoryEntry.Section(label) else TvHistoryEntry.Header(label, day))
             events.forEach {
-                currentCoroutineContext().ensureActive()
-                val time = it.timeLabel(zone)
-                val title = it.named() ?: untitled
-                stamps[it.id.value] = TvHistoryStamp(label, time.takeIf { day.date != null })
-                titles += title
-                add(TvHistoryEntry.Event(it, title, it.rowText(time, title, resources)))
+                val row = rows.getValue(it)
+                stamps[it.id.value] = TvHistoryStamp(label, row.time.takeIf { day.date != null })
+                titles += row.title
+                add(TvHistoryEntry.Event(it, row.title, row.text))
             }
         }
     }
-    return TvHistoryEntries(this, list, titles, stamps)
+    return TvHistoryEntries(list, titles, stamps, rows)
+}
+
+private fun HistoryItem.rowParts(zone: ZoneId, resources: Resources, untitled: String): TvHistoryRowParts {
+    val time = timeLabel(zone)
+    val title = named() ?: untitled
+    return TvHistoryRowParts(day(zone), time, title, rowText(time, title, resources))
 }
 
 private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K): List<Pair<K, List<HistoryItem>>> =
@@ -243,6 +258,10 @@ internal fun TvHistoryList(
                 .fillMaxWidth()
                 .focusRequester(listFocus)
                 .keepsHeldFocusInView(listState, focused)
+                .onPreviewKeyEvent {
+                    if (it.type == KeyEventType.KeyDown) handOffToLastRow.value = false
+                    false
+                }
                 .focusRestorer {
                     when {
                         focus.clearHadFocus.value -> focus.clear

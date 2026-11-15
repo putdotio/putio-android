@@ -190,7 +190,7 @@ private fun MobileHistoryList(
         onLoadNextPage = { onEvent(HistoryEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {
-        history.value.forEachIndexed { index, day ->
+        history.value.days.forEachIndexed { index, day ->
             item(key = day.key, contentType = "day") {
                 MobileSectionLabel(day.label, first = index == 0)
             }
@@ -344,33 +344,44 @@ private fun MobileHistoryDialog(
     }
 }
 
-private class HistoryRow(val item: HistoryItem, val text: HistoryRowText)
+private class HistoryRow(val item: HistoryItem, val day: Any, val text: HistoryRowText)
 
 private class HistoryDay(val key: String, val label: String, val events: List<HistoryRow>)
 
+private class HistoryDays(val days: List<HistoryDay>, val rows: Map<HistoryItem, HistoryRow>)
+
 @Composable
-private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): Built<List<HistoryItem>, List<HistoryDay>>? {
+private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): Built<List<HistoryItem>, HistoryDays>? {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val hours24 = DateFormat.is24HourFormat(context)
     val zone = ZoneId.systemDefault()
-    return rememberBuiltOffMain(items, today, zone, context, locales, hours24) {
-        it.historyDays(context, today, zone)
+    return rememberBuiltOffMain(items, today, zone, context, locales, hours24) { next, previous ->
+        next.historyDays(context, today, zone, previous?.rows.orEmpty())
     }
 }
 
-private suspend fun List<HistoryItem>.historyDays(context: Context, today: LocalDate, zone: ZoneId): List<HistoryDay> =
-    groupBy { item -> parsePutioTimestamp(item.createdAt)?.atZone(zone)?.toLocalDate() ?: item.createdAt }
-        .map { (day, events) ->
-            val rows = events.map {
-                currentCoroutineContext().ensureActive()
-                HistoryRow(it, it.rowText(context))
-            }
-            when (day) {
-                is LocalDate -> HistoryDay("date-$day", day.label(context, today, zone), rows)
-                else -> HistoryDay("raw-$day", day.toString(), rows)
-            }
+private suspend fun List<HistoryItem>.historyDays(
+    context: Context,
+    today: LocalDate,
+    zone: ZoneId,
+    built: Map<HistoryItem, HistoryRow>,
+): HistoryDays {
+    val rows = HashMap<HistoryItem, HistoryRow>(size)
+    forEach { item ->
+        currentCoroutineContext().ensureActive()
+        rows[item] = built[item] ?: HistoryRow(item, item.day(zone), item.rowText(context))
+    }
+    val days = map { rows.getValue(it) }.groupBy { it.day }.map { (day, events) ->
+        when (day) {
+            is LocalDate -> HistoryDay("date-$day", day.label(context, today, zone), events)
+            else -> HistoryDay("raw-$day", day.toString(), events)
         }
+    }
+    return HistoryDays(days, rows)
+}
+
+private fun HistoryItem.day(zone: ZoneId): Any = parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate() ?: createdAt
 
 /** Today, Yesterday, then the date in words, with the year only when it is not this one. */
 private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): String =
