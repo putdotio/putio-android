@@ -554,7 +554,11 @@ class TvShellTest {
                     account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
                     onSignOut = {},
                     historyPane = { paneFocus ->
-                        TvHistoryScreen(state = history, onEvent = { true }, modifier = Modifier.focusRequester(paneFocus))
+                        TvHistoryScreen(
+                            state = history,
+                            onEvent = { true },
+                            modifier = Modifier.focusRequester(paneFocus),
+                        )
                     },
                 )
             }

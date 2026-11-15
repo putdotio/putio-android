@@ -27,7 +27,9 @@ internal fun ComposeContentTestRule.awaitText(text: String, substring: Boolean =
 /** [content] in the app's Compose for TV theme. */
 internal fun ComposeContentTestRule.setTvContent(content: @Composable () -> Unit) {
     setContent {
-        CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined) { PutioTvTheme(content = content) }
+        CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined) {
+            PutioTvTheme(content = content)
+        }
     }
 }
 
