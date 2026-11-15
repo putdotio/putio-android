@@ -34,7 +34,7 @@ class MobileResumePlaybackDialogTest {
     fun bothChoicesRemainReachableAtLargeFontInShortLandscape() {
         var resumed = 0
         var restarted = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileResumePlaybackDialog(
                     startFromSeconds = 3723.0,

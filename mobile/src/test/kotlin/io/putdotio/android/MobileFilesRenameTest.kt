@@ -97,7 +97,7 @@ class MobileFilesRenameTest {
     }
 
     private fun showWithSortMenu(flow: RenameFlow) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Column {
                     MobileFilesSortMenu(
@@ -160,7 +160,7 @@ class MobileFilesRenameTest {
     fun aQueuedRefreshCannotReplaceThePageWhileEditing() {
         var state by mutableStateOf(loadedRoot())
         val effects = mutableListOf<FilesBrowserEffect>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, onEvent = {
                     val transition = FilesBrowserReducer.reduce(state, it)
@@ -199,7 +199,7 @@ class MobileFilesRenameTest {
         var state by mutableStateOf(loadedRoot())
         var renameAccepted = true
         val effects = mutableListOf<FilesBrowserEffect>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, onEvent = { event ->
                     val transition = FilesBrowserReducer.reduce(state, event)
@@ -235,7 +235,7 @@ class MobileFilesRenameTest {
     @Test
     fun cancellingAFailedRenameRemovesItsRetry() {
         var state by mutableStateOf(failedRename())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(
                     state,
@@ -257,7 +257,7 @@ class MobileFilesRenameTest {
     @Test
     fun savingTheOriginalNameAfterFailureRemovesTheAbandonedRetry() {
         var state by mutableStateOf(failedRename())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(
                     state,

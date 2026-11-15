@@ -2,14 +2,14 @@ package io.putdotio.android.design
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.snapshots.Snapshot
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -22,37 +22,46 @@ public class RowText<T : Any, V> internal constructor(
     private val placeholder: V,
     private val build: (T) -> V,
 ) {
-    private class Entry<T, V>(val item: T, val value: V, val refresh: Any?)
+    internal class Entry<T, V>(val item: T, val value: V, val refresh: Any?)
 
-    @Volatile
-    private var entries = ConcurrentHashMap<Any, Entry<T, V>>()
+    private class Prepared<T, V>(
+        val items: List<T>,
+        val entries: Map<Any, Entry<T, V>>,
+        val previous: Map<Any, Entry<T, V>>,
+    )
+
+    internal class Batch<T, V> internal constructor(
+        internal val items: List<T>,
+        internal val entries: Map<Any, Entry<T, V>>,
+        internal val changed: Boolean,
+    )
+
+    private val prepared = mutableStateOf<Prepared<T, V>?>(null, referentialEqualityPolicy())
 
     private val waiting = ConcurrentHashMap<Any, T>()
 
-    private val prepared = mutableIntStateOf(0)
-
-    private val generation = AtomicLong()
-
-    private val stale = AtomicBoolean()
+    private val stale = mutableIntStateOf(0)
 
     public operator fun get(item: T): V {
-        prepared.intValue
+        stale.intValue
         val key = key(item)
-        val entry = entries[key]?.takeIf { it.item == item } ?: await(key, item)
-        return entry?.value ?: placeholder
+        val shown = Snapshot.withoutReadObservation { prepared.value }
+        val entry = shown?.entries?.get(key)?.takeIf { it.item == item }
+            ?: shown?.previous?.get(key)?.takeIf { it.item == item }
+            ?: return wait(key, item, shown)
+        return entry.value
     }
 
-    private fun await(key: Any, item: T): Entry<T, V>? {
+    private fun wait(key: Any, item: T, shown: Prepared<T, V>?): V {
         waiting[key] = item
-        val entry = entries[key]
-        if (entry?.item == item) waiting.remove(key, item)
-        return entry
+        return shown?.entries?.get(key)?.value ?: placeholder
     }
 
-    internal suspend fun prepare(items: List<T>, refresh: Any?) {
-        val run = generation.incrementAndGet()
-        val known = entries
-        val built = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
+    public fun isBuiltFor(items: List<T>): Boolean = prepared.value?.items === items
+
+    internal suspend fun prepare(items: List<T>, refresh: Any?): Batch<T, V> {
+        val known = Snapshot.withoutReadObservation { prepared.value }?.entries.orEmpty()
+        val built = HashMap<Any, Entry<T, V>>(items.size)
         var changed = false
         items.forEach { item ->
             currentCoroutineContext().ensureActive()
@@ -60,17 +69,35 @@ public class RowText<T : Any, V> internal constructor(
             built[key(item)] = old?.takeIf { it.refresh == refresh }
                 ?: Entry(item, build(item), refresh).also { if (old != null && old.value != it.value) changed = true }
         }
-        val context = currentCoroutineContext()
-        synchronized(generation) {
-            if (run != generation.get() || !context.isActive) return
-            entries = built
-            if (waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || changed) stale.set(true)
-        }
+        return Batch(items, built, changed)
     }
 
-    internal fun recomposeStaleRows() {
-        if (stale.getAndSet(false)) prepared.intValue++
+    internal fun show(batch: Batch<T, V>) {
+        val previous = prepared.value?.entries.orEmpty()
+        prepared.value = Prepared(batch.items, batch.entries, previous)
+        val arrived = waiting.entries.removeIf { (key, item) -> batch.entries[key]?.item == item }
+        if (arrived || batch.changed) stale.intValue++
     }
+}
+
+private class Shown<S>(var source: S?)
+
+@Composable
+public fun <T : Any, S : Any> RowText<T, *>.shown(source: S?, items: List<T>, vararg keys: Any?): S? {
+    val last = remember(*keys) { Shown<S>(null) }
+    val shown = when {
+        source == null -> null
+        isBuiltFor(items) -> source
+        else -> last.source
+    }
+    SideEffect { last.source = shown }
+    return shown
+}
+
+private class Identity(val value: Any) {
+    override fun equals(other: Any?): Boolean = other is Identity && other.value === value
+
+    override fun hashCode(): Int = System.identityHashCode(value)
 }
 
 @Composable
@@ -84,13 +111,12 @@ public fun <T : Any, V> rememberRowText(
     build: (T) -> V,
 ): RowText<T, V> {
     val text = remember(*inputs) { RowText(key, placeholder, build) }
-    LaunchedEffect(text, items, refresh, everyMinute) {
-        text.recomposeStaleRows()
+    val dispatcher = LocalBuildDispatcher.current
+    LaunchedEffect(text, Identity(items), refresh, everyMinute, dispatcher) {
         while (isActive) {
             val minute = currentMinute()
-            withContext(Dispatchers.Default) { text.prepare(items, if (everyMinute) refresh to minute else refresh) }
-            withFrameNanos {}
-            text.recomposeStaleRows()
+            val batch = withContext(dispatcher) { text.prepare(items, if (everyMinute) refresh to minute else refresh) }
+            text.show(batch)
             if (!everyMinute) break
             if (currentMinute() == minute) delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
         }

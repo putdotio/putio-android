@@ -49,6 +49,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.design.shown
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.RowText
 import io.putdotio.android.files.FilesBrowserEvent
@@ -570,10 +571,15 @@ private fun TvFilesRows(
     modifier: Modifier = Modifier,
 ) {
     val folderId = current.folder.id.value
-    when (val content = current.content) {
-        is FilesContent.Ready -> TvFilesList(
+    val content = current.content
+    val ready = content as? FilesContent.Ready
+    val rowText = rememberTvFilesRowText(ready?.items.orEmpty())
+    val shown = rowText.shown(ready, ready?.items.orEmpty(), folderId)
+    when {
+        shown != null -> TvFilesList(
             folderId = folderId,
-            content = content,
+            content = shown,
+            rowText = rowText,
             pagingEnabled = current.operation.canStartOperation,
             focusMemory = focusMemory,
             paneHasFocus = paneHasFocus,
@@ -589,11 +595,12 @@ private fun TvFilesRows(
             onRowFocused = onRowFocused,
             rowsShowFocus = rowsShowFocus,
         )
-        is FilesContent.Loading -> {
+        ready != null || content is FilesContent.Loading -> {
+            if (ready != null) SideEffect { onEntryTarget(skeletonFocus) }
             LaunchedEffect(folderId) { if (paneHasFocus.value) skeletonFocus.requestFocus() }
             TvListSkeleton(modifier.focusRequester(skeletonFocus).focusable())
         }
-        is FilesContent.Empty, is FilesContent.Failed -> Unit
+        else -> Unit
     }
 }
 

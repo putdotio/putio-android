@@ -120,7 +120,7 @@ class MobileSubtitleControlsTest {
     fun emptySubtitleSheetExplainsItselfAndRetainsOff() {
         val player = RecordingPlayer()
         var selection: SubtitleSelection? = null
-        compose.setContent {
+        compose.setBuiltContent {
             SubtitleSheet(player, TrackSelectionParameters.Builder().build(), emptyList()) { selection = it }
         }
 
@@ -146,7 +146,7 @@ class MobileSubtitleControlsTest {
         var selection: SubtitleSelection? = null
         val defaults = TrackSelectionParameters.Builder().setPreferredAudioLanguage("de").build()
         compose.runOnIdle { player.trackSelectionParameters = defaults }
-        compose.setContent { SubtitleSheet(player, defaults, sidecar) { selection = it } }
+        compose.setBuiltContent { SubtitleSheet(player, defaults, sidecar) { selection = it } }
         compose.onNodeWithText("No captions available").assertIsDisplayed()
         // Tracks arrive after the sheet is up.
         val group = sourcedSubtitleGroup()
@@ -200,7 +200,7 @@ class MobileSubtitleControlsTest {
                 startupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
             )
         }
-        compose.setContent { SubtitleSheet(player, defaults, emptyList()) {} }
+        compose.setBuiltContent { SubtitleSheet(player, defaults, emptyList()) {} }
         compose.onNodeWithContentDescription("Subtitles: Off").assertIsDisplayed()
         compose.onNode(hasText("Off") and isSelectable()).assertIsSelected()
     }
@@ -209,7 +209,7 @@ class MobileSubtitleControlsTest {
     fun sizeAndTimingStepsByATenthAndResets() {
         var size by mutableStateOf(SubtitleTextSize.Medium)
         var offset by mutableStateOf(500L)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Column {
                     MobileSubtitleAppearanceContent(size, offset, { size = it }, { offset = it })
@@ -297,7 +297,7 @@ class MobileSubtitleControlsTest {
     fun subtitleCuesWaitForVideoDimensionsAfterPlayerReplacement() {
         var aspectRatio by mutableStateOf<Float?>(null)
         val cues = listOf(Cue.Builder().setText("A retained subtitle").build())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 SubtitleCueOverlay(
                     cues = cues,
@@ -330,7 +330,7 @@ class MobileSubtitleControlsTest {
         )
         var bottomPadding by mutableStateOf(SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION)
         var cues by mutableStateOf(emptyList<Cue>())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 SubtitleCueOverlay(
                     cues = cues,
@@ -370,7 +370,7 @@ class MobileSubtitleControlsTest {
                 .setSize(0.5f)
                 .setBitmapHeight(0.1f)
                 .build()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 SubtitleCueOverlay(
                     cues = listOf(cue),
@@ -391,7 +391,7 @@ class MobileSubtitleControlsTest {
     fun subtitleCueLayerDoesNotBlockUnderlyingPlayerTouches() {
         var taps = 0
         var interactions = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(
                     Modifier
@@ -429,7 +429,7 @@ class MobileSubtitleControlsTest {
         var pointerEvents = 0
         var keyEvents = 0
         lateinit var inputModeManager: InputModeManager
-        compose.setContent {
+        compose.setBuiltContent {
             inputModeManager = LocalInputModeManager.current
             PutioTheme {
                 MobileSideSheetOption(

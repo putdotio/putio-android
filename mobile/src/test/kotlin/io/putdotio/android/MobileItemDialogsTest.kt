@@ -69,7 +69,7 @@ class MobileItemDialogsTest {
             override suspend fun createFolder(parentId: FilesItemId, name: String): PutioResult<FilesItem> =
                 PutioResult.Success(created.copy(parentId = parentId, name = name))
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesMoveDestination(
                     state = state,
@@ -99,7 +99,7 @@ class MobileItemDialogsTest {
         MobileShareProgress.progress(
             MobileShareProgressState("Tears.of.Steel.2012.1080p.mkv", 456_000_000L, 1_200_000_000L),
         )
-        compose.setContent { PutioTheme { MobileShareProgressDialog(onCancel = { cancelled++ }) } }
+        compose.setBuiltContent { PutioTheme { MobileShareProgressDialog(onCancel = { cancelled++ }) } }
         compose.onNodeWithText("Preparing to share").assertIsDisplayed()
         compose.onNodeWithText("Tears.of.Steel.2012.1080p.mkv downloads first, then the share sheet opens.")
             .assertIsDisplayed()
@@ -122,7 +122,7 @@ class MobileItemDialogsTest {
         val item = trashItem()
         val events = mutableListOf<TrashEvent>()
         val state = TrashState(content = TrashContent.Loaded(listOf(item), null, 1, item.sizeBytes))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, { events += it; true }) } }
         compose.onNodeWithContentDescription("Restore ${item.name}").performClick()
         compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Restore(item.id)), events) }
     }

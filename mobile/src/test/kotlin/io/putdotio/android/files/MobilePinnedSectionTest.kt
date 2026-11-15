@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.setBuiltContent
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -59,7 +60,7 @@ class MobilePinnedSectionTest {
     fun theSheetOffersPinOrUnpinByWhetherTheItemIsPinned() {
         val item = pins.first()
         val chosen = mutableListOf<Boolean>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     item = item,
@@ -83,7 +84,7 @@ class MobilePinnedSectionTest {
 
     @Test
     fun theSheetLeavesPinOutWhileThePinsAreUnknown() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     item = pins.first(),
@@ -101,7 +102,7 @@ class MobilePinnedSectionTest {
     }
 
     private fun setSection() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val rowText = rememberFilesRowText(pins)
                 LazyColumn {

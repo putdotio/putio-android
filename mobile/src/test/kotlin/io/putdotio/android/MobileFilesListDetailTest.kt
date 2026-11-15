@@ -237,7 +237,7 @@ class MobileFilesListDetailTest {
     @Test
     fun theShellTurnsFilesIntoListAndDetailAt840dpWithTheFolderBarOverTheList() {
         var width by mutableStateOf(839.dp)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.requiredSize(width = width, height = 800.dp)) {
                     MobileShell(
@@ -268,7 +268,7 @@ class MobileFilesListDetailTest {
     @Test
     fun crossingTheBreakpointKeepsAnOpenActionsSheet() {
         var wide by mutableStateOf(false)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.requiredSize(width = if (wide) 1184.dp else 600.dp, height = 700.dp)) {
                     MobileFilesRoute(
@@ -327,7 +327,7 @@ class MobileFilesListDetailTest {
         events: MutableList<FilesBrowserEvent> = mutableListOf(),
         linkedFile: FilesItemId? = null,
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 CompositionLocalProvider(LocalMobileFileViewerIo provides Dispatchers.Unconfined) {
                     Box(Modifier.requiredSize(width = width, height = 700.dp)) {

@@ -1,5 +1,6 @@
 package io.putdotio.android.viewer
 
+import io.putdotio.android.setBuiltContent
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -67,7 +68,7 @@ class MobileFileViewerPagingTest {
     ): () -> Int {
         var files by mutableStateOf(initial)
         var read by mutableIntStateOf(0)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFileViewerContent(
                     files = files,

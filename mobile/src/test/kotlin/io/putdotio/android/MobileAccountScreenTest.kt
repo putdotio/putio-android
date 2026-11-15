@@ -844,7 +844,7 @@ class MobileAccountAboutTest {
 
     @Test
     fun appInfoCopiesSupportTextToTheClipboard() {
-        compose.setContent { PutioTheme { MobileAppInfoScreen(diagnostics(readyAndroidAppConfigState())) } }
+        compose.setBuiltContent { PutioTheme { MobileAppInfoScreen(diagnostics(readyAndroidAppConfigState())) } }
         compose.onNodeWithTag(MOBILE_APP_INFO_TAG).assertIsDisplayed()
         compose.onNodeWithText("Android API level").assertIsDisplayed()
         compose.onNodeWithText("Phone").assertIsDisplayed()
@@ -873,7 +873,7 @@ class MobileAccountAboutTest {
     @Test
     fun copiedConfirmationResetsWhenTheSupportTextChanges() {
         var appConfigState by mutableStateOf(readyAndroidAppConfigState())
-        compose.setContent { PutioTheme { MobileAppInfoScreen(diagnostics(appConfigState)) } }
+        compose.setBuiltContent { PutioTheme { MobileAppInfoScreen(diagnostics(appConfigState)) } }
         val clipboard = ApplicationProvider.getApplicationContext<Context>()
             .getSystemService(android.content.ClipboardManager::class.java)
         clipboard.clearPrimaryClip()
@@ -913,7 +913,7 @@ class MobileAccountAboutTest {
 
     @Test
     fun appInfoReportsTheDeviceClassTheShellPassesIn() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileAppInfoScreen(diagnostics(readyAndroidAppConfigState(), AppDiagnostics.DeviceClass.Tablet))
             }

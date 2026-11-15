@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import io.putdotio.android.setBuiltContent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -23,7 +24,7 @@ class MobileConversionVlcTest {
     @Test
     fun aRunningConversionOffersVlcBesideItsProgress() {
         var opened = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileConversionState(
                     PlaybackContent.Conversion(PlaybackConversionState.Converting(40.0)),
@@ -42,7 +43,7 @@ class MobileConversionVlcTest {
 
     @Test
     fun withoutVlcTheConversionOffersNoHandoff() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileConversionState(
                     PlaybackContent.Conversion(PlaybackConversionState.Converting(40.0)),

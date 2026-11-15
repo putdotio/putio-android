@@ -45,6 +45,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.design.shown
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.trash.TrashContent
@@ -255,11 +256,14 @@ private fun TvTrashListDetail(
                 refreshFocus = focus.refresh,
             )
             TvTrashNotices(state, onEvent, listFocus.owner)
-            if (loaded == null) {
+            val rowMeta = rememberTvTrashRowMeta(loaded?.items.orEmpty())
+            val shown = rowMeta.shown(loaded, loaded?.items.orEmpty())
+            if (shown == null) {
                 TvListSkeleton()
             } else {
                 TvTrashList(
-                    content = loaded,
+                    content = shown,
+                    rowMeta = rowMeta,
                     restoreRowId = restoreRowId,
                     onChoose = { if (state.canRestore(it.id)) onEvent(TrashEvent.Restore(it.id)) },
                     onRowFocusChanged = { item, focused ->

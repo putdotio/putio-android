@@ -77,7 +77,7 @@ class MobileFilesMoveLayoutTest {
         val events = mutableListOf<FilesMoveDestinationEvent>()
         var cancellations = 0
         var confirmations = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesMoveDestination(state, events::add,
                     onCancel = { cancellations += 1 }, onConfirm = { confirmations += 1 })

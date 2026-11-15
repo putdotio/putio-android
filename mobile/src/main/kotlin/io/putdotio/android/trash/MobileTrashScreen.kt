@@ -21,6 +21,7 @@ import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.MobileSelectionToolbarClearance
 import io.putdotio.android.design.RowText
 import io.putdotio.android.design.rememberRowText
+import io.putdotio.android.design.shown
 import io.putdotio.android.files.FilesItemId
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -101,7 +102,10 @@ internal fun MobileTrashScreen(
     TrashSelectionEffects(state, selection)
     val sheetItem = (state.content as? TrashContent.Loaded)?.items?.firstOrNull { it.id.value == sheetItemId }
     val listState = rememberLazyListState()
-    val rowText = rememberTrashRowText((state.content as? TrashContent.Loaded)?.items.orEmpty())
+    val loaded = state.content as? TrashContent.Loaded
+    val loadedItems = loaded?.items.orEmpty()
+    val rowText = rememberTrashRowText(loadedItems)
+    val shown = rowText.shown(loaded, loadedItems)
     val states = rememberUpdatedState(state)
     val checked = selected.takeIf { inSelection }
     val rowHandlers = remember(selection, checked, rowText) {
@@ -117,7 +121,7 @@ internal fun MobileTrashScreen(
     ScrollToNewOutcome(state, listState)
     LoadNextPageNearEnd(
         listState = listState,
-        nextPage = state.nextPageCursor,
+        nextPage = state.nextPageCursor.takeIf { shown === loaded },
         onLoadNextPage = { onEvent(TrashEvent.LoadNextPage) },
         threshold = TRASH_PAGING_THRESHOLD,
     )
@@ -144,17 +148,14 @@ internal fun MobileTrashScreen(
                     }
                 }
                 when (val content = state.content) {
-                    TrashContent.Loading -> item(key = "loading") {
-                        MobileLoadingState(stringResource(R.string.mobile_trash_loading))
-                    }
                     is TrashContent.Error -> item(key = "error") {
                         TrashReadFailure(content.failure) { onEvent(TrashEvent.Retry) }
                     }
-                    is TrashContent.Loaded -> loadedTrashItems(
-                        content,
-                        onEvent,
-                        rowHandlers,
-                    )
+                    TrashContent.Loading, is TrashContent.Loaded -> shown?.let {
+                        loadedTrashItems(it, onEvent, rowHandlers)
+                    } ?: item(key = "loading") {
+                        MobileLoadingState(stringResource(R.string.mobile_trash_loading))
+                    }
                 }
             }
         }

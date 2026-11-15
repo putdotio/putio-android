@@ -1,5 +1,8 @@
 package io.putdotio.android
 
+import kotlinx.coroutines.Dispatchers
+import io.putdotio.android.design.LocalBuildDispatcher
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -558,21 +561,23 @@ class TvShellBackTest {
         compose.setContent {
             // Registered first, so it stands in for the system leaving the app.
             BackHandler(onBack = onExit)
-            PutioTvTheme {
-                TvShell(
-                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
-                    onSignOut = {},
-                    onFilesBack = onFilesBack.takeIf { files().canNavigateBack },
-                    filesPane = { paneFocus ->
-                        TvFilesScreen(
-                            state = files(),
-                            onEvent = { true },
-                            onPlayMedia = {},
-                            modifier = Modifier.focusRequester(paneFocus),
-                            focusMemory = memory,
-                        )
-                    },
-                )
+            CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined) {
+                PutioTvTheme {
+                    TvShell(
+                        account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                        onSignOut = {},
+                        onFilesBack = onFilesBack.takeIf { files().canNavigateBack },
+                        filesPane = { paneFocus ->
+                            TvFilesScreen(
+                                state = files(),
+                                onEvent = { true },
+                                onPlayMedia = {},
+                                modifier = Modifier.focusRequester(paneFocus),
+                                focusMemory = memory,
+                            )
+                        },
+                    )
+                }
             }
         }
     }

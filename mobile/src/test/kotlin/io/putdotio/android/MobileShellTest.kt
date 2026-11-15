@@ -193,7 +193,7 @@ class MobileShellTest {
             nextRequestValue = 2L,
         )
 
-        compose.setContent {
+        compose.setBuiltContent {
             AuthoritativeSessionFailureEffect(
                 shouldReject = settingsRequireSessionRejection(
                     accountSettingsState = readyAccountSettingsState(),
@@ -233,7 +233,7 @@ class MobileShellTest {
 
     @Test
     fun tabletWidthUsesNavigationRail() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 700.dp, height = 500.dp)) {
                     MobileShell(
@@ -275,7 +275,7 @@ class MobileShellTest {
     }
 
     private fun showAppInfo() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -301,7 +301,7 @@ class MobileShellTest {
     @Test
     fun phoneBarOffersShareOnFileRows() {
         val shared = mutableListOf<FilesItem>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 360.dp, height = 640.dp)) {
                     MobileShell(
@@ -365,7 +365,7 @@ class MobileShellTest {
     @Test
     fun compactPhoneShellBringsRecoverableFailureIntoView() {
         var settingsState by mutableStateOf(readyAccountSettingsState())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = 360.dp, height = 240.dp)) {
                     MobileShell(
@@ -423,7 +423,7 @@ class MobileShellTest {
         val currentEvents = mutableListOf<FilesBrowserEvent>()
         var useCurrentCallback by mutableStateOf(false)
         val item = shellResolvedFolder()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -469,7 +469,7 @@ class MobileShellTest {
         val retained = pendingShellDeleteState()
         val events = mutableListOf<FilesBrowserEvent>()
         val resolved = shellResolvedFolder()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -511,7 +511,7 @@ class MobileShellTest {
     @Test
     fun inactiveAccountNoticeStaysAboveEveryDestinationAndActiveAccountsShowNone() {
         var account by mutableStateOf(Account.copy(inactiveNotice = InactiveAccountNotice.Deactivated(null)))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -570,7 +570,7 @@ class MobileShellTest {
     fun historyOffHidesItsTabAndSendsHistoryToFiles() {
         val requests = MobileDeepLinkRequests.None
         var settings by mutableStateOf(readyAccountSettingsState())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     deepLinkRequests = requests,
@@ -616,7 +616,7 @@ class MobileShellTest {
             mutation = AccountSettingsMutation.Idle,
             nextRequestValue = 2L,
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     deepLinkRequests = requests,
@@ -658,7 +658,7 @@ class MobileShellTest {
                 nextRequestValue = 2L,
             ),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     deepLinkRequests = requests,
@@ -763,7 +763,7 @@ class MobileShellShareTest {
         draft.receive(parseMobileSharedTransfer("https://example.invalid/shared"))
         var files by mutableStateOf(pendingShellDeleteState())
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     transferDraft = draft,
@@ -859,7 +859,7 @@ class MobileShellShareTest {
         events: MutableList<TransfersEvent>,
     ) {
         var transfers by mutableStateOf(resolvingTransfersState())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     transferDraft = draft,
@@ -895,7 +895,7 @@ class MobileShellShareTest {
             ),
         ))
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     transferDraft = draft,
@@ -1004,7 +1004,7 @@ class MobileShellShareTest {
             override suspend fun activeAudio(context: Context): ActiveAudio? = resolved.await()
         }
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     transferDraft = draft,
@@ -1057,7 +1057,7 @@ class MobileShellShareTest {
             override suspend fun activeAudio(context: Context) =
                 ActiveAudio(FilesItemId(9L), "song.mp3")
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     transferDraft = draft,
@@ -1103,7 +1103,7 @@ class MobileShellFilesTest {
         val change = AccountSettingsChange(AccountSettingsKey.Trash, enabled = false)
         var settings by mutableStateOf(readyAccountSettingsState(preferences = original))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1240,7 +1240,7 @@ class MobileShellFilesTest {
     fun openFilesSortMenuClosesWhenLoadingStarts() {
         var filesState by mutableStateOf(readyFilesState(FilesSort.NAME_ASCENDING))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1283,7 +1283,7 @@ class MobileShellFilesTest {
         val events = mutableListOf<FilesBrowserEvent>()
         // Starts as a server value this app does not know; saving a known sort must still invalidate.
         var settingsState by mutableStateOf(readyAccountSettingsState(preferences = DefaultAccountSettingsPreferences))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1346,7 +1346,7 @@ class MobileShellFilesTest {
         val loaded = AccountSettingsEvent.LoadSucceeded(AccountSettingsRequestId(1L), DefaultAccountSettingsPreferences)
         var settingsState by mutableStateOf(reducer.reduce(reducer.start().state, loaded).state)
         val offline = AccountSettingsFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline")))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1404,7 +1404,7 @@ class MobileShellTransfersTest {
     fun transferFileAuthenticationFailureRejectsTheSession() {
         val events = mutableListOf<TransfersEvent>()
         var rejections = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1445,7 +1445,7 @@ class MobileShellTransfersTest {
         val resolutionStarted = CompletableDeferred<Unit>()
         val releaseResolution = CompletableDeferred<Unit>()
         val resolvedItem = shellResolvedFolder()
-        compose.setContent {
+        compose.setBuiltContent {
             val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
             PutioTheme {
                 MobileShell(
@@ -1495,7 +1495,7 @@ class MobileShellTransfersTest {
                 notice = TransferNotice.FilePreparing(TransferId(7L), TransfersRequestId(3L)),
             ),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1531,7 +1531,7 @@ class MobileShellTransfersTest {
         val events = mutableListOf<TransfersEvent>()
         val filesEvents = mutableListOf<FilesBrowserEvent>()
         val resolvedItem = shellResolvedFolder()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1604,7 +1604,7 @@ class MobileShellTransfersTest {
         transfers: MutableState<TransfersState>,
         events: MutableList<TransfersEvent>,
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1639,7 +1639,7 @@ class MobileShellTransfersTest {
         val firstEvents = mutableListOf<TransfersEvent>()
         val secondEvents = mutableListOf<TransfersEvent>()
         var sessionId by mutableStateOf(MobileAuthSessionId(1L))
-        compose.setContent {
+        compose.setBuiltContent {
             val events = if (sessionId == MobileAuthSessionId(1L)) firstEvents else secondEvents
             PutioTheme {
                 MobileShell(
@@ -1679,7 +1679,7 @@ class MobileShellTransfersTest {
     fun transferVisibilityStopsAndRestartsWithTheHostLifecycle() {
         val events = mutableListOf<TransfersEvent>()
         val lifecycleOwner = ShellLifecycleOwner()
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 TransfersVisibilityEffect(
                     sessionId = MobileAuthSessionId(1L),
@@ -1783,7 +1783,7 @@ class MobileShellExternalOpenTest {
     }
 
     private fun showSearch() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     playbackPlayerFactory = NoAudioSessionFactory,
@@ -1940,7 +1940,7 @@ class MobileShellPlaybackTest {
             }
         }
         var size by mutableStateOf(DpSize(411.dp, 914.dp))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(size)) {
                     MobileShell(
@@ -1985,7 +1985,7 @@ class MobileShellPlaybackTest {
             override suspend fun activeAudio(context: Context) =
                 ActiveAudio(FilesItemId(9L), "song.mp3")
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(modifier = Modifier.requiredSize(width = width, height = height)) {
                     MobileShell(
@@ -2050,7 +2050,7 @@ class MobileShellPlaybackTest {
         val session = ListenerCountingPlayer(RecordingPlayer())
         var closed = 0
         var showShell by mutableStateOf(true)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 if (showShell) {
                     MobileShell(
@@ -2101,7 +2101,7 @@ class MobileShellPlaybackTest {
                 return Closeable { closes += 1 }
             }
         }
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(
                 LocalLifecycleOwner provides lifecycleOwner,
             ) {
@@ -2157,7 +2157,7 @@ class MobileShellPlaybackTest {
                 return Closeable { closed += 1 }
             }
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 if (showShell) {
                     MobileShell(
@@ -2483,7 +2483,7 @@ class MobileShellPlaybackTest {
         filesState: FilesBrowserState = videoFilesState(),
         nowPlayingRequests: NowPlayingRequests = NowPlayingRequests.None,
     ) {
-        setContent {
+        setBuiltContent {
             PutioTheme {
                 MobileShell(
                     nowPlayingRequests = nowPlayingRequests,
@@ -2531,7 +2531,7 @@ private fun ComposeContentTestRule.setShell(
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit = {},
     inputs: ShellInputs = ShellInputs(),
 ) {
-    setContent {
+    setBuiltContent {
         PutioTheme {
             MobileShell(
                 transferDraft = inputs.transferDraft,

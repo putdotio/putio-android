@@ -67,7 +67,7 @@ class MobileDownloadsScreenTest {
     fun progressIsWatchedOnlyWhileTheScreenIsShown() {
         val events = mutableListOf<DownloadsEvent>()
         var shown by mutableStateOf(true)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 if (shown) {
                     MobileDownloadsScreen(DownloadsState(), onEvent = { events += it; true }, onPlay = {})
@@ -84,7 +84,7 @@ class MobileDownloadsScreenTest {
 
     @Test
     fun emptyDownloadsNamesTheDownloadFileAction() {
-        compose.setContent { PutioTheme { DownloadsTab(DownloadsState(), { true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(DownloadsState(), { true }) } }
 
         compose.onNodeWithText("Nothing downloaded yet").assertIsDisplayed()
         compose.onNodeWithText("Open a video or audio file’s actions and choose Download.").assertIsDisplayed()
@@ -102,7 +102,7 @@ class MobileDownloadsScreenTest {
             row(14L, "Lost", DownloadStatus.Missing, queuedAt = 5L),
         ))
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Downloading").assertIsDisplayed()
         // An original's size is known; HLS shows its segment percentage, or bytes before its playlists are read.
@@ -141,7 +141,7 @@ class MobileDownloadsScreenTest {
             row(12L, "Waiting.mkv", DownloadStatus.Queued, queuedAt = 3L),
         ))
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Paused · 26%").assertIsDisplayed()
         compose.onNodeWithContentDescription("Pause download").performClick()
@@ -164,7 +164,7 @@ class MobileDownloadsScreenTest {
             row(10L, "Tears.mkv", DownloadStatus.Paused(DownloadPauseReason.NETWORK, 310L, null, 1_200L)),
         ))
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Waiting for network · 310 B of 1.2 kB").assertIsDisplayed()
         assertTrue(compose.onAllNodesWithContentDescription("Resume download").fetchSemanticsNodes().isEmpty())
@@ -179,7 +179,7 @@ class MobileDownloadsScreenTest {
             row(11L, "Gone.mkv", DownloadStatus.Missing),
         ))
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Failed · Not enough storage").assertIsDisplayed()
         compose.onNodeWithContentDescription("Retry download").performClick()
@@ -194,7 +194,7 @@ class MobileDownloadsScreenTest {
     fun notificationsOffShowsAWayToTurnThemOnAndOnShowsNothing() {
         var turnedOn = 0
         var enabled by mutableStateOf(false)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileDownloadsScreen(
                     DownloadsState(),
@@ -220,7 +220,7 @@ class MobileDownloadsScreenTest {
             row(12L, "Leaving.mkv", DownloadStatus.Completed(1L)),
         ))
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Sintel.mkv").performTouchInput { longClick() }
         compose.onNodeWithText("Tears.mkv").performClick()
@@ -242,7 +242,7 @@ class MobileDownloadsScreenTest {
             row(11L, "Tears.mkv", DownloadStatus.Completed(1L)),
         ))
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).performClick()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECT_TAG).performClick()
@@ -263,7 +263,7 @@ class MobileDownloadsScreenTest {
     fun aSelectionWhoseRowsAllLeaveEndsAndDoesNotReturnWithThem() {
         val sintel = row(10L, "Sintel.mkv", DownloadStatus.Completed(1L))
         var state by mutableStateOf(DownloadsState().withEntries(listOf(sintel)))
-        compose.setContent { PutioTheme { DownloadsTab(state, { true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { true }) } }
 
         compose.onNodeWithText("Sintel.mkv").performTouchInput { longClick() }
         compose.onNodeWithText("1 selected").assertIsDisplayed()
@@ -279,7 +279,7 @@ class MobileDownloadsScreenTest {
     fun aSheetWhoseRowLeavesDoesNotReopenWhenTheFileReturns() {
         val sintel = row(10L, "Sintel.mkv", DownloadStatus.Queued)
         var state by mutableStateOf(DownloadsState(focus = FilesItemId(10L)).withEntries(listOf(sintel)))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 DownloadsTab(state) { event ->
                     if (event == DownloadsEvent.FocusHandled) state = state.copy(focus = null)
@@ -300,7 +300,7 @@ class MobileDownloadsScreenTest {
     fun aFocusDuringSelectionEndsTheSelectionAndOpensTheSheet() {
         val sintel = row(10L, "Sintel.mkv", DownloadStatus.Completed(1L))
         var state by mutableStateOf(DownloadsState().withEntries(listOf(sintel)))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 DownloadsTab(state) { event ->
                     if (event == DownloadsEvent.FocusHandled) state = state.copy(focus = null)
@@ -326,7 +326,7 @@ class MobileDownloadsScreenTest {
         var state by mutableStateOf(DownloadsState(focus = FilesItemId(10L)).withEntries(entries))
         val events = mutableListOf<DownloadsEvent>()
         val played = mutableListOf<FilesItemId>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileDownloadsScreen(
                     state,
@@ -374,7 +374,7 @@ class MobileDownloadsScreenTest {
             row(12L, "Done.mkv", DownloadStatus.Completed(1L), queuedAt = 3L),
         ))
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Done.mkv").performTouchInput { longClick() }
         compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECTION_PAUSE_TAG).assertDoesNotExist()
@@ -402,7 +402,7 @@ class MobileDownloadsScreenTest {
             DownloadsState().withEntries(listOf(running, waiting, paused, done, offline, deleting)),
         )
         val events = mutableListOf<DownloadsEvent>()
-        compose.setContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
+        compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).performClick()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_PAUSE_OR_RESUME_ALL_TAG).assertTextContains("Pause all").performClick()

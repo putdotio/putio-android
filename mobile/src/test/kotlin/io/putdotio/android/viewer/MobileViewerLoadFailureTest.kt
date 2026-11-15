@@ -1,5 +1,6 @@
 package io.putdotio.android.viewer
 
+import io.putdotio.android.setBuiltContent
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
@@ -33,7 +34,7 @@ class MobileViewerLoadFailureTest {
             if (opens.getAndIncrement() == 0) DroppedStream() else "first line".byteInputStream()
         }
         var openedElsewhere = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTextPage(uri, onOpenWithAnotherApp = { openedElsewhere++ }) }
         }
 

@@ -57,7 +57,7 @@ class MobileRetryWhenOnlineTest {
     }
 
     private fun showRetry() {
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides owner) {
                 RetryWhenOnline(failure = "offline") { retries++ }
             }

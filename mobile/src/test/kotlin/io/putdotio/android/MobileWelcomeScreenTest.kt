@@ -39,7 +39,7 @@ class MobileWelcomeScreenTest {
     private var actions = 0
 
     private fun setSignedOut(canSignIn: Boolean = true, reason: () -> MobileSignedOutReason? = { null }) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Surface {
                     MobileSignedOutScreen(reason = reason(), canSignIn = canSignIn, onSignIn = { actions += 1 })
@@ -77,7 +77,7 @@ class MobileWelcomeScreenTest {
     @Test
     fun secureStorageFailureOffersTryAgainAboveResetAndSignIn() {
         var retries = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Surface {
                     MobileSignedOutScreen(
@@ -111,7 +111,7 @@ class MobileWelcomeScreenTest {
     @Test
     fun missingAuthTabBrowserOffersChromeInsteadOfRetry() {
         var chromeRequests = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Surface {
                     MobileSignedOutScreen(
@@ -136,7 +136,7 @@ class MobileWelcomeScreenTest {
     @Test
     fun deviceWithoutGooglePlayExplainsAndOffersOnlyTryAgain() {
         var chromeRequests = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Surface {
                     MobileSignedOutScreen(
@@ -168,7 +168,7 @@ class MobileWelcomeScreenTest {
 
     @Test
     fun browserStepOffersOnlyCancel() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Surface {
                     MobileWelcomeScreen(content = MobileBrowserWelcomeContent, onAction = { actions += 1 })

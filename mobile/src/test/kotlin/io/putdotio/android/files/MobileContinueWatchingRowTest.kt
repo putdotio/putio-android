@@ -1,5 +1,6 @@
 package io.putdotio.android.files
 
+import io.putdotio.android.setBuiltContent
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -50,7 +51,7 @@ class MobileContinueWatchingRowTest {
     }
 
     private fun setRow() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val pinnedRows = MobilePinnedRows(rememberFilesRowText(emptyList()), MobilePinnedActions(onOpen = {}))
                 LazyColumn {

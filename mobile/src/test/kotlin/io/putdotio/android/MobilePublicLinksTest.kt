@@ -84,7 +84,7 @@ class MobilePublicLinksTest {
     @Test
     fun onlyTheViewersOwnItemsOfferExclusiveAccess() {
         val items = listOf(video, folder, friendsFile, sharedRoot)
-        compose.setContent { FilesWithLinks(FakePublicLinksRepository(), items) }
+        compose.setBuiltContent { FilesWithLinks(FakePublicLinksRepository(), items) }
 
         compose.onNodeWithContentDescription("Actions for ${friendsFile.name}").performClick()
         compose.onNodeWithTag(MOBILE_FILES_PUBLIC_LINK_ACTION_TAG).assertDoesNotExist()
@@ -102,7 +102,7 @@ class MobilePublicLinksTest {
         val existing = publicLink(id = 3L, fileId = video.id.value, token = "existing")
         val otherItem = publicLink(id = 4L, fileId = folder.id.value, token = "other")
         val repository = FakePublicLinksRepository(listOf(existing, otherItem))
-        compose.setContent { FilesWithLinks(repository, listOf(video, folder)) }
+        compose.setBuiltContent { FilesWithLinks(repository, listOf(video, folder)) }
 
         openSheet(video)
         compose.onNodeWithTag(mobilePublicLinkCopyTag(existing.id)).assertIsDisplayed()
@@ -130,7 +130,7 @@ class MobilePublicLinksTest {
         val revoked = publicLink(id = 3L, fileId = video.id.value)
         val kept = publicLink(id = 2L, fileId = video.id.value)
         val repository = FakePublicLinksRepository(listOf(kept, revoked))
-        compose.setContent { FilesWithLinks(repository, listOf(video)) }
+        compose.setBuiltContent { FilesWithLinks(repository, listOf(video)) }
         openSheet(video)
 
         compose.onNodeWithTag(mobilePublicLinkRevokeTag(revoked.id)).performClick()
@@ -154,7 +154,7 @@ class MobilePublicLinksTest {
         repository.onCreate = {
             PutioResult.Failure(refusal(403, "PUBLIC_SHARE_DAILY_TOTAL_LINK_COUNT_EXCEEDED", "Daily limit"))
         }
-        compose.setContent { FilesWithLinks(repository, listOf(video)) }
+        compose.setBuiltContent { FilesWithLinks(repository, listOf(video)) }
         openSheet(video)
 
         compose.onNodeWithTag(MOBILE_PUBLIC_LINK_CREATE_TAG).performClick()
@@ -171,7 +171,7 @@ class MobilePublicLinksTest {
         val existing = publicLink(id = 3L, fileId = video.id.value, token = "existing")
         val repository = FakePublicLinksRepository(listOf(existing))
         var announced = 0
-        compose.setContent {
+        compose.setBuiltContent {
             FilesWithLinks(repository, listOf(video), MobileFilesItemActions(onLinkCopied = { announced++ }))
         }
 
@@ -189,7 +189,7 @@ class MobilePublicLinksTest {
     fun createWaitsForTheItemsLinksToLoad() {
         val repository = FakePublicLinksRepository()
         repository.onList = { PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline"))) }
-        compose.setContent { FilesWithLinks(repository, listOf(video)) }
+        compose.setBuiltContent { FilesWithLinks(repository, listOf(video)) }
         openSheet(video)
 
         compose.onNodeWithText("Check your connection and try again.").assertIsDisplayed()
@@ -206,7 +206,7 @@ class MobilePublicLinksTest {
         val first = publicLink(id = 3L, fileId = video.id.value, name = video.name)
         val second = publicLink(id = 4L, fileId = folder.id.value, name = folder.name, type = PutioFileType.FOLDER)
         val repository = FakePublicLinksRepository(listOf(first, second))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { WithLinks(repository) { MobilePublicLinksScreen(it) } }
         }
 
@@ -227,7 +227,7 @@ class MobilePublicLinksTest {
     @Test
     fun accountOpensExclusiveAccessAsASubpageThatBackLeaves() {
         val repository = FakePublicLinksRepository(listOf(publicLink(id = 3L, name = video.name)))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val scope = rememberCoroutineScope()
                 MobileShell(

@@ -73,7 +73,7 @@ class MobilePlayerChromeTest {
     fun accessibilityProgressActionSeeksOnceAndReportsTheNewPosition() {
         val player = readyPlayer()
         var scrubs = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileProgressSlider(player, onScrub = { scrubs += 1 }) }
         }
         compose.onNodeWithTag(TIMELINE_TAG).performSemanticsAction(SemanticsActions.SetProgress) { setProgress ->
@@ -91,7 +91,7 @@ class MobilePlayerChromeTest {
     fun shortVideoWindowKeepsAllControlsReachableAtDoubleFontScale() {
         val player = readyPlayer().apply { updateTracks(englishAudio()) }
         var pixelsPerDp = 1f
-        compose.setContent {
+        compose.setBuiltContent {
             val density = LocalDensity.current.density
             pixelsPerDp = density
             CompositionLocalProvider(LocalDensity provides Density(density, fontScale = 2f)) {
@@ -149,7 +149,7 @@ class MobilePlayerChromeTest {
         val player = readyPlayer()
         val fold = 230.dp
         val fits = mutableListOf<Boolean>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.size(width = 320.dp, height = 460.dp)) {
                     MobilePlayerChrome(
@@ -184,7 +184,7 @@ class MobilePlayerChromeTest {
     fun aFoldTooLowForTheControlsSaysTheyDoNotFitIt() {
         val player = readyPlayer()
         val fits = mutableListOf<Boolean>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.size(width = 320.dp, height = 460.dp)) {
                     MobilePlayerChrome(
@@ -212,7 +212,7 @@ class MobilePlayerChromeTest {
         var scrubs = 0
         lateinit var host: View
         lateinit var inputMode: InputModeManager
-        compose.setContent {
+        compose.setBuiltContent {
             host = LocalView.current
             inputMode = LocalInputModeManager.current
             PutioTheme { MobileProgressSlider(player, onScrub = { scrubs += 1 }) }
@@ -245,7 +245,7 @@ class MobilePlayerChromeTest {
         val player = readyPlayer()
         var scrubs = 0
         lateinit var inputMode: InputModeManager
-        compose.setContent {
+        compose.setBuiltContent {
             inputMode = LocalInputModeManager.current
             PutioTheme { MobileProgressSlider(player, onScrub = { scrubs += 1 }) }
         }
@@ -269,7 +269,7 @@ class MobilePlayerChromeTest {
         val player = readyPlayer()
         lateinit var inputMode: InputModeManager
         lateinit var focusManager: FocusManager
-        compose.setContent {
+        compose.setBuiltContent {
             inputMode = LocalInputModeManager.current
             focusManager = LocalFocusManager.current
             PutioTheme { MobileProgressSlider(player) }
@@ -296,7 +296,7 @@ class MobilePlayerChromeTest {
         val player = readyPlayer()
         var scrubs = 0
         lateinit var inputMode: InputModeManager
-        compose.setContent {
+        compose.setBuiltContent {
             inputMode = LocalInputModeManager.current
             PutioTheme { MobileProgressSlider(player, onScrub = { scrubs += 1 }) }
         }
@@ -330,7 +330,7 @@ class MobilePlayerChromeTest {
     fun unknownDurationDisablesScrubbingAndDoesNotReportAnInteraction() {
         val player = readyPlayer(durationMillis = 0L)
         var scrubs = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileProgressSlider(player, onScrub = { scrubs += 1 }) }
         }
 

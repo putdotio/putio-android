@@ -124,7 +124,7 @@ class MobileTransferDropTest {
     }
 
     private fun setZone() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransferDropZone(
                     enabled = true,

@@ -102,7 +102,7 @@ class MobilePlaybackOptionsTest {
     @Test
     fun videoSpeedSheetStepsThroughThePresetsAndItsChipFollows() {
         val player = OptionsPlayer()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val options = rememberPlayerOptionsSnapshot(player)
                 Column {
@@ -133,7 +133,7 @@ class MobilePlaybackOptionsTest {
     @Test
     fun castSpeedSheetOffersOnlyTheSpeedsTheReceiverPlays() {
         val player = OptionsPlayer(remote = true)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Column { MobileSpeedSheetContent(player, rememberPlayerOptionsSnapshot(player)) }
             }
@@ -158,7 +158,7 @@ class MobilePlaybackOptionsTest {
         val player = OptionsPlayer()
         val selections = mutableListOf<AudioSelection>()
         var done = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val options = rememberPlayerOptionsSnapshot(player)
                 Column {
@@ -184,7 +184,7 @@ class MobilePlaybackOptionsTest {
     @Test
     fun nowPlayingSpeedChipOpensTheSameSpeedPresetsAsVideo() {
         val player = OptionsPlayer()
-        compose.setContent { PutioTheme { NowPlaying(player) } }
+        compose.setBuiltContent { PutioTheme { NowPlaying(player) } }
 
         compose.onNodeWithContentDescription("Playback speed 1×").performScrollTo().performClick()
         compose.onNodeWithTag(MOBILE_NOW_PLAYING_SHEET_TAG).assertIsDisplayed()
@@ -200,7 +200,7 @@ class MobilePlaybackOptionsTest {
     fun nowPlayingOffersAudioTracksUnderMoreOnlyWhenThereIsAChoice() {
         var player by mutableStateOf(OptionsPlayer(singleAudioTrack = true))
         val selections = mutableListOf<AudioSelection>()
-        compose.setContent { PutioTheme { NowPlaying(player, onAudioSelectionChanged = { selections += it }) } }
+        compose.setBuiltContent { PutioTheme { NowPlaying(player, onAudioSelectionChanged = { selections += it }) } }
 
         compose.onNodeWithContentDescription("More options").assertDoesNotExist()
         compose.onNodeWithContentDescription("Playback speed 1×").performScrollTo().assertIsEnabled()
@@ -223,7 +223,7 @@ class MobilePlaybackOptionsTest {
     @Test
     fun sleepTimerChipStartsShowsAndCancelsTheTimer() {
         val timer = MobileSleepTimer(clock = { 0L })
-        compose.setContent { PutioTheme { NowPlaying(OptionsPlayer(), sleepTimer = timer) } }
+        compose.setBuiltContent { PutioTheme { NowPlaying(OptionsPlayer(), sleepTimer = timer) } }
 
         compose.onNodeWithText("Sleep timer").performScrollTo().performClick()
         compose.onNode(hasText("Off") and isSelectable()).assertIsSelected()
@@ -243,7 +243,7 @@ class MobilePlaybackOptionsTest {
         val next = PlaybackTarget(FilesItemId(43L), "FFTT Tree Rings October 30, 2026.mp3", AUDIO)
         var neighbours by mutableStateOf(PlaybackNeighbours())
         val played = mutableListOf<PlaybackTarget>()
-        compose.setContent { PutioTheme { NowPlaying(OptionsPlayer(), neighbours, onPlay = { played += it }) } }
+        compose.setBuiltContent { PutioTheme { NowPlaying(OptionsPlayer(), neighbours, onPlay = { played += it }) } }
 
         compose.onNodeWithTag(MOBILE_AUDIO_PREVIOUS_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(MOBILE_AUDIO_NEXT_TAG).assertIsNotEnabled()
@@ -268,7 +268,7 @@ class MobilePlaybackOptionsTest {
         val player = OptionsPlayer(
             audioGroup = TrackGroup(format("a", "English"), format("b", "English"), format("c", "English (track 1)")),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val options = rememberPlayerOptionsSnapshot(player)
                 MobileAudioSheetContent(player, options, {}, {})
@@ -289,7 +289,7 @@ class MobilePlaybackOptionsTest {
         val second = format("second")
         val player = OptionsPlayer(audioGroup = TrackGroup(first, second, format("third")))
         var selection: AudioSelection = AudioSelection.Automatic
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val options = rememberPlayerOptionsSnapshot(player)
                 MobileAudioSheetContent(player, options, { selection = it }, {})
@@ -326,7 +326,7 @@ class MobilePlaybackOptionsTest {
             .build()
         val player = OptionsPlayer(audioGroup = TrackGroup(format, format))
         var selection: AudioSelection = AudioSelection.Automatic
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val options = rememberPlayerOptionsSnapshot(player)
                 MobileAudioSheetContent(player, options, { selection = it }, {})
@@ -353,7 +353,7 @@ class MobilePlaybackOptionsTest {
     @Test
     fun unavailableCommandsDisableSpeedAndAudioChoices() {
         val player = OptionsPlayer(canChangeOptions = false)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val options = rememberPlayerOptionsSnapshot(player)
                 Column {
@@ -396,7 +396,7 @@ class MobilePlaybackOptionsTest {
         val player = OptionsPlayer()
         var keyboardEvents = 0
         lateinit var inputMode: InputModeManager
-        compose.setContent {
+        compose.setBuiltContent {
             inputMode = LocalInputModeManager.current
             PutioTheme {
                 PlaybackOption(

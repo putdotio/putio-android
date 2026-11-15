@@ -124,7 +124,7 @@ class MobileSearchScreensTest {
     fun aTypeChipSearchesThatTypeAndNothingFoundAtAllDropsTheChips() {
         val chosen = mutableListOf<SearchFilter>()
         var search by mutableStateOf(searchState(SearchContent.Idle))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileSearchScreen(
                     searchState = search,
@@ -162,7 +162,7 @@ class MobileSearchScreensTest {
     fun theBarSendsTypingUpTakesAQuerySetElsewhereAndClears() {
         val sent = mutableListOf<String>()
         var replacement by mutableStateOf<MobileSearchFieldText?>(null)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileSearchBar(
                     query = "",
@@ -309,7 +309,7 @@ class MobileSearchScreensTest {
     fun clearHistorySitsInTheOverflowAndWaitsWhileAClearRuns() {
         val events = mutableListOf<HistoryEvent>()
         var clearing by mutableStateOf<HistoryClearing>(HistoryClearing.Idle)
-        compose.setContent { PutioTheme { MobileHistoryOverflow(clearing, events::add) } }
+        compose.setBuiltContent { PutioTheme { MobileHistoryOverflow(clearing, events::add) } }
 
         compose.onNodeWithContentDescription("More options").performClick()
         compose.onNodeWithText("Clear history").performClick()
@@ -392,7 +392,7 @@ class MobileSearchScreensTest {
             )
             val events = mutableListOf<HistoryEvent>()
             val build = StandardTestDispatcher()
-            compose.setContent {
+            compose.setBuiltContent {
                 CompositionLocalProvider(LocalBuildDispatcher provides build) {
                     PutioTheme {
                         MobileHistoryScreen(historyState = history, onHistoryEvent = events::add, today = TODAY)
@@ -443,7 +443,7 @@ class MobileSearchScreensTest {
             )
             val events = mutableListOf<HistoryEvent>()
             val build = StandardTestDispatcher()
-            compose.setContent {
+            compose.setBuiltContent {
                 CompositionLocalProvider(LocalBuildDispatcher provides build) {
                     PutioTheme {
                         MobileHistoryScreen(historyState = history, onHistoryEvent = events::add, today = TODAY)
@@ -548,7 +548,7 @@ class MobileSearchScreensTest {
         history: HistoryState,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileHistoryScreen(historyState = history, onHistoryEvent = actions.onHistoryEvent, today = TODAY)
             }
@@ -562,7 +562,7 @@ class MobileSearchScreensTest {
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),
         folderNames: Map<FilesItemId, String> = emptyMap(),
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileSearchScreen(
                     searchState = search,

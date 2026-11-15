@@ -79,7 +79,7 @@ class MobileFilesCopyTest {
     @Test
     fun sharedItemsOfferMakeACopyIntoAFolderPickedFromRoot() {
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val state = loaded(listOf(sharedVideo, sharedFolder, friend, owned))
                 MobileFilesRoute(state, repository, events::add, {}, true, {})
@@ -122,7 +122,7 @@ class MobileFilesCopyTest {
     fun makeACopyOpensAtTheRememberedFolderUntilRememberIsTurnedOff() {
         val remembered = listOf(FilesFolder(destination.id, destination.name))
         val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true, lastTarget = remembered))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesRoute(loaded(listOf(sharedVideo)), repository, { true }, {}, true, {},
                     moveTargetStore = store)
@@ -147,7 +147,7 @@ class MobileFilesCopyTest {
     @Test
     fun copyHereWithRememberOnRecordsTheFolderTheNextPickerOpensAt() {
         val store = InMemoryMoveTargetStore(FilesMoveTargetMemory(remember = true))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesRoute(loaded(listOf(sharedVideo)), repository, { true }, {}, true, {},
                     moveTargetStore = store)
@@ -181,7 +181,7 @@ class MobileFilesCopyTest {
         )
         var state by mutableStateOf(copying.state)
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(
                     state,
@@ -217,7 +217,7 @@ class MobileFilesCopyTest {
         ).state
         val opening = FilesBrowserReducer.reduce(running, FilesBrowserEvent.OpenFolder(sharedFolder.id))
         var state by mutableStateOf(opening.state)
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
+        compose.setBuiltContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
 
         compose.onNodeWithText("Copying “Harbor film.mp4” to Files…").assertIsDisplayed()
 
@@ -239,7 +239,7 @@ class MobileFilesCopyTest {
             loaded(listOf(sharedVideo, sharedFolder)),
             FilesBrowserEvent.Copy(FilesFolder.Root.id, sharedVideo.id, FilesFolder.Root),
         ).state
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(running, onEvent = {}, onPlayMedia = {}, onCopyItem = {}) }
         }
 
@@ -261,7 +261,7 @@ class MobileFilesCopyTest {
             ),
         ).state
         var state by mutableStateOf(limited)
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
+        compose.setBuiltContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
 
         compose.onNodeWithText("Couldn’t copy “Harbor film.mp4” to Sample folder.").assertIsDisplayed()
         compose.onNodeWithText(

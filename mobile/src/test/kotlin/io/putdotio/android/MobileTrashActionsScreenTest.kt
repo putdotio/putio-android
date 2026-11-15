@@ -70,7 +70,7 @@ class MobileTrashActionsScreenTest {
     fun rowSheetOffersRestoreAndPermanentDeleteAndDeleteNeedsItsOwnConfirmation() {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded))
-        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.setBuiltContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithContentDescription("Actions for ${item.name}").performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_DELETE_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.SelectDelete(item.id)), events) }
@@ -94,7 +94,7 @@ class MobileTrashActionsScreenTest {
     fun restoreAllStartsAtOnceEmptyConfirmsAndBothStayDisabledOnKnownEmptyTrash() {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded))
-        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.setBuiltContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.trashMenuItem(MOBILE_TRASH_RESTORE_ALL_TAG).performClick()
         compose.trashMenuItem(MOBILE_TRASH_EMPTY_TAG).performClick()
         compose.runOnIdle { assertEquals(listOf(TrashEvent.RestoreAll, TrashEvent.SelectEmpty), events) }
@@ -114,7 +114,7 @@ class MobileTrashActionsScreenTest {
         val events = mutableListOf<TrashEvent>()
         val state = TrashState(content = loaded, actionOutcome = TrashActionOutcome(
             TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.FAILED))
-        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.setBuiltContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
         compose.onNodeWithText("“${item.name}” is still in trash.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_ACTION_CHECK_TAG).assertDoesNotExist()
@@ -132,7 +132,7 @@ class MobileTrashActionsScreenTest {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded, actionOutcome = TrashActionOutcome(
             TrashAction.DeleteItem(item), TrashActionSubmission.UNCERTAIN, TrashActionCheck.INCONCLUSIVE)))
-        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.setBuiltContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasTestTag(MOBILE_TRASH_ACTION_OUTCOME_TAG))
         compose.onNodeWithText("“${item.name}” was not in the first page. Check trash again in a moment.")
             .assertIsDisplayed()
@@ -165,7 +165,7 @@ class MobileTrashActionsScreenTest {
         val third = item.copy(id = FilesItemId(10), name = "third.txt")
         val rows = TrashContent.Loaded(listOf(item, second, third), null, 3, 36)
         var state by mutableStateOf(TrashState(content = rows))
-        compose.setContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
+        compose.setBuiltContent { PutioTheme { TrashWithOverflow(state) { events += it; true } } }
         compose.onNodeWithContentDescription("Restore ${second.name}").performTouchInput { longClick() }
         compose.onNodeWithTag(MOBILE_TRASH_SELECTION_BAR_TAG).assertDoesNotExist()
         compose.runOnIdle { events.clear() }

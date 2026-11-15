@@ -29,7 +29,7 @@ class MobileMiddleCutTextLinesTest {
     fun twoLinesWrapANameAndCutOnlyWhatStillDoesNotFit() {
         val fits = "FFTT Tree Rings October 23, 2026.mp3"
         val tooLong = "FFTT Tree Rings October 23, 2026, the long uncut interview with everyone who was there.mp3"
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Column(Modifier.width(240.dp)) {
                     MobileMiddleCutText(fits)

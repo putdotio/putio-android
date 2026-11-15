@@ -58,6 +58,8 @@ import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.design.RowText
+import io.putdotio.android.design.shown
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioEmptyState
 import io.putdotio.android.design.putioMono
@@ -392,9 +394,22 @@ private fun MobileSearchResults(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val rowText = rememberFilesRowText(content.items, dated = false)
+    val shown = rowText.shown(content, content.items) ?: return
+    MobileSearchResultList(shown, rowText, rows, onNextPage, onRetry, modifier)
+}
+
+@Composable
+private fun MobileSearchResultList(
+    content: SearchContent.Ready,
+    rowText: RowText<FilesItem, FilesRowText>,
+    rows: MobileSearchRows,
+    onNextPage: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier,
+) {
     val (folders, files) = remember(content.items) { content.items.partition(FilesItem::isFolder) }
     val rootName = stringResource(R.string.mobile_destination_files)
-    val rowText = rememberFilesRowText(content.items, dated = false)
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(listState, nextPage = content.paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {

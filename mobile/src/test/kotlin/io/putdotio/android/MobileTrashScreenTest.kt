@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.design.LocalBuildDispatcher
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItem
@@ -38,6 +40,7 @@ import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.time.LocalDate
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -56,11 +59,26 @@ class MobileTrashScreenTest {
     private val loaded = TrashContent.Loaded(listOf(item), null, 1, 12)
 
     @Test
+    fun aLoadedPageComposesNoRowBeforeItsTextIsBuilt() {
+        val build = StandardTestDispatcher()
+        compose.setBuiltContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                PutioTheme { MobileTrashScreen(TrashState(content = loaded), { true }) }
+            }
+        }
+        compose.onNodeWithText(item.name).assertDoesNotExist()
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
+        compose.onNodeWithText(item.name).assertIsDisplayed()
+    }
+
+    @Test
     fun queuedAndUnknownResultsOfferOnlyReadRecoveryAndDisableTheStaleRow() {
         val events = mutableListOf<TrashEvent>()
         var state by mutableStateOf(TrashState(content = loaded, restoreOutcome = TrashRestoreOutcome(item,
             TrashRestoreSubmission.ACKNOWLEDGED, TrashRestoreCheck.UNAVAILABLE)))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, events::add) } }
         compose.onNodeWithText("Restore started.").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).performClick()
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
@@ -81,7 +99,7 @@ class MobileTrashScreenTest {
             """"status":"ERROR","status_code":400}"""
         val state = TrashState(content = loaded, restoreOutcome = TrashRestoreOutcome(item,
             TrashRestoreSubmission.REJECTED, submissionFailure = putioRefusal(400, body).toPutioFailure()))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.onNodeWithText("This item is still moving to trash. You can try restoring it later.")
             .assertIsDisplayed()
         compose.onNodeWithText("Item is still being trashed").assertDoesNotExist()
@@ -93,7 +111,7 @@ class MobileTrashScreenTest {
             TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12)
         }
         var state by mutableStateOf(TrashState(content = TrashContent.Loaded(items, null, items.size, 144)))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-12.txt"))
         compose.onNodeWithText("Trash uses", substring = true).assertIsNotDisplayed()
         compose.runOnIdle {
@@ -119,7 +137,7 @@ class MobileTrashScreenTest {
         var state by mutableStateOf(TrashState(content = TrashContent.Loaded(items, null, items.size, 144),
             restoreOutcome = TrashRestoreOutcome(items[0], TrashRestoreSubmission.ACKNOWLEDGED,
                 TrashRestoreCheck.AVAILABLE, resolvedItem = restored), restoredItemIds = setOf(items[0].id)))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-12.txt"))
         compose.runOnIdle {
             state = state.copy(actionOutcome = TrashActionOutcome(TrashAction.DeleteItem(items[1]),
@@ -136,7 +154,7 @@ class MobileTrashScreenTest {
             restoreOutcome = TrashRestoreOutcome(item, TrashRestoreSubmission.ACKNOWLEDGED,
                 TrashRestoreCheck.AVAILABLE, resolvedItem = current), restoredItemIds = setOf(item.id))
         val events = mutableListOf<TrashEvent>()
-        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, events::add) } }
         compose.onNodeWithText("Available again: ${current.name}").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TRASH_CHECK_TAG).assertDoesNotExist()
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("Try again"))
@@ -148,7 +166,7 @@ class MobileTrashScreenTest {
     fun emptyIntermediatePageAsksForTheNextWithoutClaimingEmptyTrash() {
         val events = mutableListOf<TrashEvent>()
         val state = TrashState(content = TrashContent.Loaded(emptyList(), FilesCursor("next"), 7, 1234))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, events::add) } }
         compose.onNodeWithText("Your trash is empty").assertDoesNotExist()
         compose.onNodeWithText("Files you move to trash stay here for 14 days.").assertDoesNotExist()
         compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.LoadNextPage), events) }
@@ -161,7 +179,7 @@ class MobileTrashScreenTest {
             TrashItem(FilesItemId(it.toLong()), FilesItemId(0), "item-$it.txt", PutioFileType.TEXT, 12)
         }
         val state = TrashState(content = TrashContent.Loaded(items, FilesCursor("next"), 80, 960))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, events::add) } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-20.txt"))
         compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText("item-36.txt"))
@@ -175,7 +193,7 @@ class MobileTrashScreenTest {
         var state by mutableStateOf(
             TrashState(content = loaded.copy(nextCursor = FilesCursor("next")), actionOutcome = submitting),
         )
-        compose.setContent { PutioTheme { MobileTrashScreen(state, events::add) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, events::add) } }
         compose.runOnIdle { assertEquals(emptyList<TrashEvent>(), events) }
         compose.runOnIdle {
             state = state.copy(actionOutcome = submitting.copy(submission = TrashActionSubmission.ACKNOWLEDGED))
@@ -186,7 +204,7 @@ class MobileTrashScreenTest {
     @Test
     fun pullingTheListDownRefreshesTrash() {
         val events = mutableListOf<TrashEvent>()
-        compose.setContent { PutioTheme { MobileTrashScreen(TrashState(content = loaded), events::add) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(TrashState(content = loaded), events::add) } }
         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performTouchInput { swipeDown() }
         compose.runOnIdle { assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events) }
     }
@@ -194,7 +212,7 @@ class MobileTrashScreenTest {
     @Test
     fun trashStatesItsFourteenDayRetentionOnce() {
         var state by mutableStateOf(TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0)))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.onNodeWithText("deleted items stay 14 days").assertDoesNotExist()
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
         compose.onNodeWithText("Files you move to trash stay here for 14 days.").assertIsDisplayed()
@@ -209,7 +227,7 @@ class MobileTrashScreenTest {
         val state = TrashState(
             content = loaded.copy(items = listOf(item.copy(expirationDate = "invalid", deletedAt = null))),
         )
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.awaitText("12 B")
         compose.onNodeWithText("Gone", substring = true).assertDoesNotExist()
     }
@@ -218,7 +236,7 @@ class MobileTrashScreenTest {
     fun anItemExpiringTomorrowSaysGoneTomorrow() {
         val tomorrow = LocalDate.now().plusDays(1).toString()
         val state = TrashState(content = loaded.copy(items = listOf(item.copy(expirationDate = tomorrow))))
-        compose.setContent { PutioTheme { MobileTrashScreen(state, { true }) } }
+        compose.setBuiltContent { PutioTheme { MobileTrashScreen(state, { true }) } }
         compose.awaitText("Gone tomorrow")
         compose.onNodeWithText("Gone tomorrow").assertIsDisplayed()
     }

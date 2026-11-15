@@ -68,7 +68,7 @@ class MobileTransfersLayoutTest {
     @Test
     @Config(sdk = [35], qualifiers = "en-rUS-w1280dp-h800dp-land")
     fun anExpandedWindowSetsCardsSideBySide() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransfersScreen(
                     transfersState(
@@ -92,7 +92,7 @@ class MobileTransfersLayoutTest {
 
     @Test
     fun largeFontOverflowKeepsItsActionsWhole() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransfersOverflow(
                     transfersState(
@@ -142,7 +142,7 @@ class MobileTransfersLayoutTest {
     @Config(sdk = [35], qualifiers = "en-rUS-w640dp-h320dp-land")
     fun shortLargeFontSheetCanScrollFromInputToSubmit() {
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersScreen(transfersState(content = TransfersContent.Empty), events::add) }
         }
         compose.onNodeWithText("Add transfer").performScrollTo().performClick()
@@ -156,7 +156,7 @@ class MobileTransfersLayoutTest {
         fontScale: Float = 2f,
         onEvent: (TransfersEvent) -> Unit = {},
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                 PutioTheme {
                     Box(modifier = Modifier.fillMaxSize().testTag("transfers-viewport")) {

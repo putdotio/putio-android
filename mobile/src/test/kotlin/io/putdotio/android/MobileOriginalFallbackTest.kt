@@ -128,7 +128,7 @@ class MobileOriginalFallbackTest {
     }
 
     private fun setScreen() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state,

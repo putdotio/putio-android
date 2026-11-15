@@ -1,5 +1,6 @@
 package io.putdotio.android.viewer
 
+import io.putdotio.android.setBuiltContent
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,7 +29,7 @@ class MobileFileViewerLayoutTest {
     fun thePagesKeepTheirHeightWhenThePositionLineComesAndGoes() {
         val first = image(1L)
         var files by mutableStateOf(listOf(first, image(2L)))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFileViewerContent(
                     files = files,

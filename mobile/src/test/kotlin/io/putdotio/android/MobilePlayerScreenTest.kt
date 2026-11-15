@@ -215,7 +215,7 @@ class MobilePlayerScreenTest {
     fun theWindowTurnsToLandscapeOnlyForALandscapeVideo() {
         val player = RecordingPlayer()
         var activity: Activity? = null
-        compose.setContent {
+        compose.setBuiltContent {
             activity = LocalActivity.current
             PutioTheme {
                 MobilePlayerScreen(
@@ -250,7 +250,7 @@ class MobilePlayerScreenTest {
         var visible by mutableStateOf(true)
         var cancellations = 0
         var creations = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 if (visible) MobilePlayerScreen(
                     state = pending,
@@ -277,7 +277,7 @@ class MobilePlayerScreenTest {
             content = PlaybackContent.AwaitingResume((original.content as PlaybackContent.Ready).source),
         ))
         val players = mutableListOf<RecordingPlayer>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state,
@@ -311,7 +311,7 @@ class MobilePlayerScreenTest {
                 return 10_000L
             }
         }
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -341,7 +341,7 @@ class MobilePlayerScreenTest {
         )
         accessibility.setTouchExplorationEnabled(false)
         lateinit var playerContext: Context
-        compose.setContent {
+        compose.setBuiltContent {
             playerContext = androidx.compose.ui.platform.LocalContext.current
             PutioTheme {
                 MobilePlayerScreen(
@@ -376,7 +376,7 @@ class MobilePlayerScreenTest {
         var refreshes = 0
         var backs = 0
         compose.mainClock.autoAdvance = false
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.0))),
@@ -402,7 +402,7 @@ class MobilePlayerScreenTest {
     fun aQueuedConversionSaysItIsWaitingAndCancelGoesBack() {
         var content by mutableStateOf(PlaybackContent.Conversion(PlaybackConversionState.Queued))
         var backs = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(content),
@@ -430,7 +430,7 @@ class MobilePlayerScreenTest {
         var refreshes = 0
         var retries = 0
         compose.mainClock.autoAdvance = false
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(
@@ -462,7 +462,7 @@ class MobilePlayerScreenTest {
             PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L)),
         )
         var starts = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(content),
@@ -497,7 +497,7 @@ class MobilePlayerScreenTest {
         var content by mutableStateOf(rows.first().content)
         var retries = 0
         var backs = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(content),
@@ -674,7 +674,7 @@ class MobilePlayerLifecycleTest {
         val playerFactory = MobilePlayerFactory { _, _ ->
             RecordingPlayer().also(players::add)
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(content.value).copyForTest(resumePositionMillis = 12_345L),
@@ -705,7 +705,7 @@ class MobilePlayerLifecycleTest {
                 null,
                 PlaybackException.ERROR_CODE_TIMEOUT,
             )
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -760,7 +760,7 @@ class MobilePlayerLifecycleTest {
     fun playerRecreatesAfterCoalescedStopAndStartWithoutResume() {
         val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
         val players = mutableListOf<RecordingPlayer>()
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -796,7 +796,7 @@ class MobilePlayerLifecycleTest {
         lateinit var player: RecordingPlayer
         var autoplayEnabled by mutableStateOf(true)
         var endedCalls = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(
@@ -929,7 +929,7 @@ class MobilePlayerLifecycleTest {
         autoplay: () -> Boolean = { true },
         onPlayer: (RecordingPlayer) -> Unit,
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(PlaybackContent.Ready(videoSource())),
@@ -952,7 +952,7 @@ class MobilePlayerLifecycleTest {
     fun pausingVideoLetsTheScreenSleep() {
         lateinit var player: RecordingPlayer
         var hostView: View? = null
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 hostView = LocalView.current
                 MobilePlayerScreen(
@@ -988,7 +988,7 @@ class MobilePlayerSubtitleTest {
     fun accountSubtitlePolicyAppliesWhenSettingsBecomeReady() {
         val player = RecordingPlayer()
         var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(PlaybackContent.Ready(videoSource())),
@@ -1056,7 +1056,7 @@ class MobilePlayerSubtitleTest {
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .setPreferredTextLanguage("en").build()
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(PlaybackContent.Ready(videoSource())),
@@ -1166,7 +1166,7 @@ class MobilePlayerSubtitleTest {
     fun hidingThatArrivesAfterAPickTurnsSubtitlesOffAndRemovesTheCaptionsPicker() {
         val player = RecordingPlayer()
         var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(PlaybackContent.Ready(videoSource())),
@@ -1330,7 +1330,7 @@ class MobilePlayerDoubleTapTest {
     @Test
     fun compactVideoScrollPreservesTapsAndConsumesControlGestures() {
         lateinit var player: RecordingPlayer
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
                 PutioTheme {
                     Box(Modifier.requiredSize(320.dp, 180.dp)) {
@@ -1440,7 +1440,7 @@ class MobilePlayerDoubleTapTest {
         val player = RecordingPlayer(seekable = false)
         var timelineEventDelivered = false
         var updatedBeforeDoubleTap = false
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.fillMaxSize().pointerInput(Unit) {
                     var releases = 0
@@ -1492,7 +1492,7 @@ class MobilePlayerDoubleTapTest {
         lateinit var host: View
         var leftInset = 0
         var rightInset = 0
-        compose.setContent {
+        compose.setBuiltContent {
             host = LocalView.current
             val density = androidx.compose.ui.platform.LocalDensity.current
             leftInset = WindowInsets.safeGestures.getLeft(density, LayoutDirection.Ltr)
@@ -1539,7 +1539,7 @@ class MobilePlayerDoubleTapTest {
     @Test
     fun rtlSeekFeedbackStaysOnThePhysicalTappedSide() {
         val player = RecordingPlayer()
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -1638,7 +1638,7 @@ class MobilePlayerSeekTest {
     @Test
     fun fractionalSeekFeedbackAnnouncesTheBoundaryMovement() {
         var movement by mutableStateOf(500L)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileSeekFeedback(
                     PendingSeek(
@@ -1876,7 +1876,7 @@ class MobilePlayerSeekTest {
                 return 5_000L
             }
         }
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalAccessibilityManager provides accessibility) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -1937,7 +1937,7 @@ class MobilePlayerSourceFreeSessionTest {
         )
         session.trackSelectionParameters = selected
         var sourceRequests = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(PlaybackContent.Session, AudioTarget),
@@ -2040,7 +2040,7 @@ class MobilePlayerSourceFreeSessionTest {
         val initialMediaItems = session.mediaItemUpdates
         var content by mutableStateOf<PlaybackContent>(PlaybackContent.Session)
         val positions = mutableListOf<Long?>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(content, AudioTarget),
@@ -2073,7 +2073,7 @@ class MobilePlayerSourceFreeSessionTest {
         val failures = mutableListOf<Pair<PlaybackFailure, Long>>()
         var sourceRequests = 0
         var retries = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(content, AudioTarget),
@@ -2190,7 +2190,7 @@ class MobilePlayerAudioTest {
         val prepareCallsBefore = session.prepareCalls
         var closed = 0
         var showPlayer by mutableStateOf(true)
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     if (showPlayer) {
@@ -2237,7 +2237,7 @@ class MobilePlayerAudioTest {
     fun sessionAudioStartsEvenWhileTheScreenIsPausedBehindADialog() {
         val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.STARTED) }
         val session = RecordingPlayer()
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -2284,7 +2284,7 @@ class MobilePlayerAudioTest {
         session.setMediaItem(audioSource().toMediaItem("song.mp3", PlaybackMediaType.AUDIO), 10_000L)
         session.prepare()
         session.play()
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -2446,7 +2446,7 @@ class MobilePlayerAudioTest {
     fun audioPlaybackNeverHoldsTheScreenAwake() {
         lateinit var player: RecordingPlayer
         var hostView: View? = null
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 hostView = LocalView.current
                 MobilePlayerScreen(
@@ -2470,7 +2470,7 @@ class MobilePlayerAudioTest {
     @Test
     fun audioLoadingAndFailureStatesUseAudioCopy() {
         var content by mutableStateOf<PlaybackContent>(PlaybackContent.Loading(PlaybackRequestId(1L)))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePlayerScreen(
                     state = state(content, AudioTarget),
@@ -2552,7 +2552,7 @@ class MobilePlayerKeyboardTest {
         val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
         val players = mutableListOf<RecordingPlayer>()
         shadowOf(compose.activity).setInMultiWindowMode(true)
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     MobilePlayerScreen(
@@ -2588,7 +2588,7 @@ class MobilePlayerKeyboardTest {
         val lifecycleOwner = PlayerLifecycleOwner().apply { moveTo(Lifecycle.State.RESUMED) }
         val players = mutableListOf<RecordingPlayer>()
         shadowOf(compose.activity).setInMultiWindowMode(true)
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
                 PutioTheme {
                     MobilePlayerScreen(

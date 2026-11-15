@@ -217,7 +217,7 @@ class MobileFilesMoveNavigationTest {
     }
 
     private fun mount(preview: RootMoveBackPreview, trashController: TrashController? = null) {
-        compose.setContent {
+        compose.setBuiltContent {
             val owner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
             DisposableEffect(owner) {
                 backOwner = owner

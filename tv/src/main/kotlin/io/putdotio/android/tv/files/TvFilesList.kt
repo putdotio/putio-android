@@ -32,6 +32,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import io.putdotio.android.design.RowText
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
@@ -50,9 +51,24 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 
 @Composable
+internal fun rememberTvFilesRowText(items: List<FilesItem>): RowText<FilesItem, TvFilesRowText> {
+    val context = LocalContext.current
+    return rememberRowText(
+        items,
+        context,
+        key = { it.id.value },
+        placeholder = TvFilesRowText.Pending,
+        everyMinute = true,
+    ) {
+        it.rowText(context, TvFilesRowPlace.Listing, System.currentTimeMillis())
+    }
+}
+
+@Composable
 internal fun TvFilesList(
     folderId: Long,
     content: FilesContent.Ready,
+    rowText: RowText<FilesItem, TvFilesRowText>,
     pagingEnabled: Boolean,
     focusMemory: MutableMap<Long, Long>,
     paneHasFocus: State<Boolean>,
@@ -175,16 +191,6 @@ internal fun TvFilesList(
         nearEnd = { listState.isNearEnd(content.items.lastIndex) },
     )
     val names = remember(content.items) { content.items.map { it.name } }
-    val context = LocalContext.current
-    val rowText = rememberRowText(
-        content.items,
-        context,
-        key = { it.id.value },
-        placeholder = TvFilesRowText.Pending,
-        everyMinute = true,
-    ) {
-        it.rowText(context, TvFilesRowPlace.Listing, System.currentTimeMillis())
-    }
     RevealOnlyHiddenRows(names) {
         LazyColumn(
             state = listState,
