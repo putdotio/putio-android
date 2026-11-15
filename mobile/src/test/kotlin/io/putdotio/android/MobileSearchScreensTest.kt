@@ -391,7 +391,9 @@ class MobileSearchScreensTest {
             val build = StandardTestDispatcher()
             compose.setContent {
                 CompositionLocalProvider(LocalBuildDispatcher provides build) {
-                    PutioTheme { MobileHistoryScreen(historyState = history, onHistoryEvent = events::add, today = TODAY) }
+                    PutioTheme {
+                        MobileHistoryScreen(historyState = history, onHistoryEvent = events::add, today = TODAY)
+                    }
                 }
             }
             compose.runOnIdle { build.scheduler.advanceUntilIdle() }
