@@ -71,6 +71,7 @@ public class PinnedItems(
 
     public fun retry() {
         removed.clear()
+        gone.clear()
         lastRead = clock.markNow()
         pins.reload()
         if (pins.pins.value != null) refreshes.update { it + 1 }

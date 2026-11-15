@@ -133,6 +133,22 @@ class PinnedItemsTest {
     }
 
     @Test
+    fun tryAgainRetriesUnpinningAGoneFileAfterTheWriteRolledBack() = runTest(UnconfinedTestDispatcher()) {
+        val refused = object : PinnedFiles by pins {
+            var unpins = 0
+
+            override fun unpinGone(id: FilesItemId) {
+                unpins++
+            }
+        }
+        val home = PinnedItems(refused, resolver, counts, backgroundScope)
+
+        home.retry()
+
+        assertEquals(2, refused.unpins)
+    }
+
+    @Test
     fun aFailedFileReadKeepsTheCardItHadAndShowsTheFailureWithoutOne() = runTest(UnconfinedTestDispatcher()) {
         val offline = PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))
         var reachable = true

@@ -177,6 +177,29 @@ class MobilePinnedFilesTest {
     }
 
     @Test
+    fun aTrashTheFolderReloadContradictsBringsThePinBack() = runTest {
+        val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Series, Clip)), resolve, backgroundScope)
+        val browser = MutableStateFlow(root())
+        backgroundScope.launch { pinned.follow(browser) }
+        runCurrent()
+
+        val trash = FilesDeleteOutcome(
+            requestId = FilesRequestId(9L),
+            intent = FilesFolderOperationIntent.Delete(Clip, FilesDeleteMode.TRASH),
+            itemName = "clip.mp4",
+            status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
+        )
+        browser.value = root(deleteOutcome = trash)
+        runCurrent()
+        assertEquals(listOf("Series"), pinned.items.value.map { it.name })
+
+        val listedAgain = trash.copy(status = FilesDeleteStatus.STILL_PRESENT, remainingIds = setOf(Clip))
+        browser.value = root(deleteOutcome = listedAgain)
+        runCurrent()
+        assertEquals(listOf("Series", "clip.mp4"), pinned.items.value.map { it.name })
+    }
+
+    @Test
     fun aSessionRevokedWhilePinsLoadIsReportedForSignOut() = runTest {
         rejected = true
         val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Clip)), resolve, backgroundScope)

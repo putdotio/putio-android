@@ -27,7 +27,7 @@ internal class MobilePinnedFiles(
     private val resolved = PinnedItems(pins, resolver, folderCounts = null, scope)
     private val mutableNotices =
         MutableSharedFlow<MobileFilesNotice>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    private val handledEdits = mutableSetOf<FilesRequestId>()
+    private val handledEdits = mutableMapOf<FilesRequestId, PinEdit>()
     private var editedName = ""
 
     val ids: StateFlow<List<FilesItemId>?> = pins.pins
@@ -67,12 +67,18 @@ internal class MobilePinnedFiles(
         browser
             .map { state -> state.stack.flatMap(FilesFolderState::pinEdits) }
             .distinctUntilChanged()
-            .collect { edits ->
-                edits.filter { handledEdits.add(it.requestId) }.forEach { edit ->
-                    edit.edited.forEach(resolved::itemEdited)
-                    edit.removed.forEach(resolved::itemRemoved)
-                }
-            }
+            .collect { edits -> edits.forEach(::apply) }
+    }
+
+    private fun apply(edit: PinEdit) {
+        val previous = handledEdits.put(edit.requestId, edit)
+        if (previous == null) {
+            edit.edited.forEach(resolved::itemEdited)
+            edit.removed.forEach(resolved::itemRemoved)
+        } else {
+            (previous.removed - edit.removed.toSet()).forEach(resolved::itemRestored)
+            (edit.removed - previous.removed.toSet()).forEach(resolved::itemRemoved)
+        }
     }
 
     fun trashUndone(outcome: FilesDeleteOutcome) {
@@ -96,7 +102,5 @@ private fun FilesFolderState.pinEdits(): List<PinEdit> = listOfNotNull(
     moveOutcome?.takeIf { it.status == FilesMoveStatus.MOVED }?.let { move ->
         PinEdit(move.requestId, edited = move.intent.itemIds)
     },
-    deleteOutcome?.let { outcome ->
-        outcome.confirmedGone().takeIf { it.isNotEmpty() }?.let { PinEdit(outcome.requestId, removed = it) }
-    },
+    deleteOutcome?.let { PinEdit(it.requestId, removed = it.confirmedGone()) },
 )
