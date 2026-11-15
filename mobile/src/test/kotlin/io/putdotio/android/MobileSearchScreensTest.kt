@@ -384,20 +384,28 @@ class MobileSearchScreensTest {
             fun event(id: Long, stamp: String) =
                 HistoryItem(HistoryEventId(id), stamp, HistoryEventKind.File(HistoryFileId(id), "file-$id.mkv"))
             val firstPage = listOf(event(1, "2026-10-25T09:00:00"))
-            var history by mutableStateOf(historyState(HistoryContent.Ready(firstPage, HistoryPaging.Complete)))
+            var history by mutableStateOf(
+                historyState(HistoryContent.Ready(firstPage, HistoryPaging.Available(HistoryEventId(1)))),
+            )
+            val events = mutableListOf<HistoryEvent>()
             val build = StandardTestDispatcher()
             compose.setContent {
                 CompositionLocalProvider(LocalBuildDispatcher provides build) {
-                    PutioTheme { MobileHistoryScreen(historyState = history, onHistoryEvent = {}, today = TODAY) }
+                    PutioTheme { MobileHistoryScreen(historyState = history, onHistoryEvent = events::add, today = TODAY) }
                 }
             }
             compose.runOnIdle { build.scheduler.advanceUntilIdle() }
             compose.onNodeWithText("Today").assertIsDisplayed()
+            compose.runOnIdle { assertEquals(1, events.count { it == HistoryEvent.LoadNextPage }) }
 
             history = historyState(
-                HistoryContent.Ready(firstPage + event(2, "2026-10-24T09:00:00"), HistoryPaging.Complete),
+                HistoryContent.Ready(
+                    firstPage + event(2, "2026-10-24T09:00:00"),
+                    HistoryPaging.Available(HistoryEventId(2)),
+                ),
             )
             compose.onAllNodesWithText("Yesterday").assertCountEquals(0)
+            compose.runOnIdle { assertEquals(1, events.count { it == HistoryEvent.LoadNextPage }) }
 
             compose.runOnIdle { build.scheduler.advanceUntilIdle() }
             compose.onNodeWithText("Yesterday").assertIsDisplayed()

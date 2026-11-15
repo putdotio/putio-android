@@ -81,7 +81,11 @@ internal sealed interface TvHistoryEntry {
 
 internal class TvHistoryStamp(val day: String, val time: String?)
 
-internal class TvHistoryEntries(val list: List<TvHistoryEntry>, private val stamps: Map<Long, TvHistoryStamp>) {
+internal class TvHistoryEntries(
+    val items: List<HistoryItem>,
+    val list: List<TvHistoryEntry>,
+    private val stamps: Map<Long, TvHistoryStamp>,
+) {
     fun stampOf(item: HistoryItem): TvHistoryStamp? = stamps[item.id.value]
 }
 
@@ -113,7 +117,7 @@ private fun List<HistoryItem>.historyEntries(
             }
         }
     }
-    return TvHistoryEntries(list, stamps)
+    return TvHistoryEntries(this, list, stamps)
 }
 
 private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K): List<Pair<K, List<HistoryItem>>> =
@@ -219,7 +223,7 @@ internal fun TvHistoryList(
     val restoreIndex = remember(entries) { entries.indexOfPick(restoreRowId) }
     val pendingEndIndex = lastIndex.takeIf { content.paging.isPending }
     TvAutoPaging(
-        page = content.paging as? HistoryPaging.Available,
+        page = (content.paging as? HistoryPaging.Available).takeIf { history.items === content.items },
         onLoadMore = actions.onNextPage,
         nearEnd = { listState.isNearEnd(lastIndex) },
     )

@@ -181,14 +181,14 @@ private fun MobileHistoryList(
 ) {
     val rowText = rememberHistoryRowText(content.items)
     val listState = rememberLazyListState()
-    val days = rememberHistoryDays(content.items, today) ?: return
+    val history = rememberHistoryDays(content.items, today) ?: return
     LoadNextPageNearEnd(
         listState = listState,
-        nextPage = content.paging as? HistoryPaging.Available,
+        nextPage = (content.paging as? HistoryPaging.Available).takeIf { history.items === content.items },
         onLoadNextPage = { onEvent(HistoryEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {
-        days.forEachIndexed { index, day ->
+        history.days.forEachIndexed { index, day ->
             item(key = day.key, contentType = "day") {
                 MobileSectionLabel(day.label, first = index == 0)
             }
@@ -344,12 +344,16 @@ private fun MobileHistoryDialog(
 
 private class HistoryDay(val key: String, val label: String, val events: List<HistoryItem>)
 
+private class HistoryDays(val items: List<HistoryItem>, val days: List<HistoryDay>)
+
 @Composable
-private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): List<HistoryDay>? {
+private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): HistoryDays? {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val zone = ZoneId.systemDefault()
-    return rememberBuiltOffMain(items, today, zone, context, locales) { items.historyDays(context, today, zone) }
+    return rememberBuiltOffMain(items, today, zone, context, locales) {
+        HistoryDays(items, items.historyDays(context, today, zone))
+    }
 }
 
 /** A stamp the parser cannot read keeps a group of its own, under itself. */
