@@ -1,7 +1,9 @@
 package io.putdotio.android.tv.history
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -34,6 +36,7 @@ import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
+import io.putdotio.android.history.CountingHistoryItems
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
@@ -50,6 +53,8 @@ import io.putdotio.android.tv.files.tvActions
 import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
+import io.putdotio.android.design.LocalBuildDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
@@ -58,7 +63,11 @@ import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsNotFocused
+import androidx.compose.ui.test.onNodeWithTag
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -360,6 +369,147 @@ class TvHistoryScreenTest {
     }
 
     @Test
+    fun focusOnTryAgainMovesToTheLandedPagesLastRowOnlyOnceItsRowsAreBuilt() {
+        var state by mutableStateOf(
+            historyState(
+                HistoryContent.Ready(
+                    items(),
+                    pageFailed(),
+                ),
+            ),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
+            repeat(5) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithText("Try again").assertIsFocused()
+
+        compose.runOnIdle {
+            state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open older.mkv").assertIsFocused()
+    }
+
+    @Test
+    fun aKeyPressedWhileTheLandedPageBuildsCancelsTheHandOffToItsLastRow() {
+        var state by mutableStateOf(
+            historyState(
+                HistoryContent.Ready(
+                    items(),
+                    pageFailed(),
+                ),
+            ),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
+            repeat(5) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithText("Try again").assertIsFocused()
+
+        compose.runOnIdle {
+            state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
+        }
+        compose.onNodeWithTag(TV_HISTORY_LIST_TAG).performKeyInput { pressKey(Key.DirectionUp) }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open older.mkv").assertIsNotFocused()
+    }
+
+    @Test
+    fun anUnchangedRefreshComparesItsEventsOnlyOffTheMainThread() {
+        val comparisons = CountingHistoryItems.Comparisons()
+        var state by mutableStateOf(
+            historyState(
+                HistoryContent.Ready(
+                    CountingHistoryItems(items(), comparisons),
+                    HistoryPaging.Available(HistoryEventId(3)),
+                ),
+            ),
+            neverEqualPolicy(),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(
+                    state = state,
+                    onEvent = {
+                        if (it != HistoryEvent.Refresh) log += it
+                        true
+                    },
+                    clock = clock,
+                )
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.runOnIdle { assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log) }
+
+        compose.runOnIdle {
+            comparisons.count = 0
+            state = historyState(
+                HistoryContent.Ready(
+                    CountingHistoryItems(items(), comparisons),
+                    HistoryPaging.Available(HistoryEventId(4)),
+                ),
+            )
+        }
+        compose.runOnIdle { assertEquals(0, comparisons.count) }
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.runOnIdle { assertEquals(listOf(HistoryEvent.LoadNextPage, HistoryEvent.LoadNextPage), log) }
+    }
+
+    @Test
+    fun aRowKeepsItsOwnTextWhileTheRefreshedListBuilds() {
+        var state by mutableStateOf(
+            historyState(
+                HistoryContent.Ready(
+                    listOf(fileEvent("2026-09-12T05:22:00", "first.mkv")),
+                    HistoryPaging.Complete,
+                ),
+            ),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open first.mkv").assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = historyState(
+                HistoryContent.Ready(
+                    listOf(fileEvent("2026-09-12T09:30:00", "second.mkv")),
+                    HistoryPaging.Complete,
+                ),
+            )
+        }
+        val mixed = runCatching {
+            compose.waitUntil(1_000) {
+                compose.onAllNodesWithText("09:30", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }.isSuccess
+        assertFalse("first.mkv shows the time of the refreshed event", mixed)
+        compose.onNodeWithContentDescription("Open first.mkv").assertIsDisplayed()
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open second.mkv").assert(hasText("09:30", substring = true))
+    }
+
+    @Test
     fun aBlockedOpenIsExplainedAboveTheList() {
         val notices = listOf<Pair<FilesFailure, String>>(
             PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")) to
@@ -377,6 +527,12 @@ class TvHistoryScreenTest {
     }
 
     private fun show(state: HistoryState) = show { state }
+
+    private fun pageFailed() =
+        HistoryPaging.Failed(HistoryEventId(3), PutioFailure.NetworkUnavailable(PutioConfigurationException("x")))
+
+    private fun fileEvent(createdAt: String, name: String) =
+        HistoryItem(HistoryEventId(1), createdAt, HistoryEventKind.File(HistoryFileId(1), name))
 
     private fun historyActions(
         onPlay: (FilesItem) -> Unit = {},

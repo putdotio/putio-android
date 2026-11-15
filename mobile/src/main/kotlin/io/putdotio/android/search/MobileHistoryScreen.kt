@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,10 +58,10 @@ import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
-import io.putdotio.android.design.RowText
+import io.putdotio.android.design.Built
+import io.putdotio.android.design.buildReusing
 import io.putdotio.android.design.rememberBuiltOffMain
 import io.putdotio.android.design.putioMono
-import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
@@ -173,27 +174,27 @@ private fun MobileHistoryContent(
 }
 
 @Composable
+@NonSkippableComposable
 private fun MobileHistoryList(
     content: HistoryContent.Ready,
     today: LocalDate,
     onEvent: (HistoryEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val rowText = rememberHistoryRowText(content.items)
     val listState = rememberLazyListState()
     val history = rememberHistoryDays(content.items, today) ?: return
     LoadNextPageNearEnd(
         listState = listState,
-        nextPage = (content.paging as? HistoryPaging.Available).takeIf { history.items == content.items },
+        nextPage = (content.paging as? HistoryPaging.Available).takeIf { history.isBuiltFrom(content.items) },
         onLoadNextPage = { onEvent(HistoryEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {
-        history.days.forEachIndexed { index, day ->
+        history.value.days.forEachIndexed { index, day ->
             item(key = day.key, contentType = "day") {
                 MobileSectionLabel(day.label, first = index == 0)
             }
-            items(day.events, key = { it.id.value }, contentType = { "row" }) { item ->
-                MobileHistoryRow(item, rowText[item], onEvent)
+            items(day.events, key = { it.item.id.value }, contentType = { "row" }) { row ->
+                MobileHistoryRow(row.item, row.text, onEvent)
             }
         }
         if (content.paging != HistoryPaging.Complete) {
@@ -342,28 +343,51 @@ private fun MobileHistoryDialog(
     }
 }
 
-private class HistoryDay(val key: String, val label: String, val events: List<HistoryItem>)
+private sealed interface HistoryDayKey {
+    data class Date(val date: LocalDate) : HistoryDayKey
 
-private class HistoryDays(val items: List<HistoryItem>, val days: List<HistoryDay>)
+    data class Raw(val createdAt: String) : HistoryDayKey
+}
+
+private class HistoryRow(val item: HistoryItem, val day: HistoryDayKey, val text: HistoryRowText)
+
+private class HistoryDay(val key: String, val label: String, val events: List<HistoryRow>)
+
+private class HistoryDays(val days: List<HistoryDay>, val rows: Map<HistoryItem, HistoryRow>)
 
 @Composable
-private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): HistoryDays? {
+private fun rememberHistoryDays(
+    items: List<HistoryItem>,
+    today: LocalDate,
+): Built<List<HistoryItem>, HistoryDays>? {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
+    val hours24 = DateFormat.is24HourFormat(context)
     val zone = ZoneId.systemDefault()
-    return rememberBuiltOffMain(items, today, zone, context, locales) {
-        HistoryDays(items, items.historyDays(context, today, zone))
+    return rememberBuiltOffMain(items, today, zone, context, locales, hours24) { next, previous ->
+        next.historyDays(context, today, zone, previous?.rows.orEmpty())
     }
 }
 
-private fun List<HistoryItem>.historyDays(context: Context, today: LocalDate, zone: ZoneId): List<HistoryDay> =
-    groupBy { item -> parsePutioTimestamp(item.createdAt)?.atZone(zone)?.toLocalDate() ?: item.createdAt }
-        .map { (day, events) ->
-            when (day) {
-                is LocalDate -> HistoryDay("date-$day", day.label(context, today, zone), events)
-                else -> HistoryDay("raw-$day", day.toString(), events)
-            }
+private suspend fun List<HistoryItem>.historyDays(
+    context: Context,
+    today: LocalDate,
+    zone: ZoneId,
+    built: Map<HistoryItem, HistoryRow>,
+): HistoryDays {
+    val rows = buildReusing(built) { HistoryRow(it, it.day(zone), it.rowText(context)) }
+    val days = rows.rows.groupBy { it.day }.map { (day, events) ->
+        when (day) {
+            is HistoryDayKey.Date -> HistoryDay("date-${day.date}", day.date.label(context, today, zone), events)
+            is HistoryDayKey.Raw -> HistoryDay("raw-${day.createdAt}", day.createdAt, events)
         }
+    }
+    return HistoryDays(days, rows.byItem)
+}
+
+private fun HistoryItem.day(zone: ZoneId): HistoryDayKey =
+    parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate()?.let { HistoryDayKey.Date(it) }
+        ?: HistoryDayKey.Raw(createdAt)
 
 /** Today, Yesterday, then the date in words, with the year only when it is not this one. */
 private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): String =
@@ -380,26 +404,11 @@ private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): S
 
 private data class HistoryRowText(val kind: String?, val time: String)
 
-@Composable
-private fun rememberHistoryRowText(items: List<HistoryItem>): RowText<HistoryItem, HistoryRowText> {
-    val context = LocalContext.current.applicationContext
-    val locales = LocalConfiguration.current.locales
-    val hours24 = DateFormat.is24HourFormat(context)
-    return rememberRowText(
-        items,
-        context,
-        locales,
-        ZoneId.systemDefault(),
-        hours24,
-        key = { it.id.value },
-        placeholder = HistoryRowText(kind = null, time = ""),
-    ) { item ->
-        HistoryRowText(
-            kind = item.kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
-            time = item.timeLabel(context),
-        )
-    }
-}
+private fun HistoryItem.rowText(context: Context): HistoryRowText =
+    HistoryRowText(
+        kind = kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
+        time = timeLabel(context),
+    )
 
 private fun HistoryItem.timeLabel(context: Context): String {
     val created = parsePutioTimestamp(createdAt) ?: return createdAt

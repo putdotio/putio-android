@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
@@ -74,7 +75,6 @@ import io.putdotio.android.tv.files.tvMessageText
 import io.putdotio.android.tv.refocusAfterDialog
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import java.time.Clock
-import java.time.LocalDate
 
 internal const val TV_HISTORY_LIST_TAG = "tv-history-list"
 internal const val TV_HISTORY_ROW_TAG = "tv-history-row"
@@ -220,11 +220,11 @@ private fun TvHistoryLoading(skeletonFocus: FocusRequester) {
 }
 
 private fun detailFocus(
-    history: TvHistoryEntries?,
+    hasHistory: Boolean,
     fileId: HistoryFileId?,
     actionable: Boolean,
     open: FocusRequester,
-): FocusRequester = if (history != null && fileId != null && actionable) open else FocusRequester.Cancel
+): FocusRequester = if (hasHistory && fileId != null && actionable) open else FocusRequester.Cancel
 
 @Composable
 private fun TvHistoryListSkeleton(modifier: Modifier) {
@@ -233,6 +233,7 @@ private fun TvHistoryListSkeleton(modifier: Modifier) {
 }
 
 @Composable
+@NonSkippableComposable
 private fun TvHistoryListDetail(
     content: HistoryContent.Ready,
     onEvent: (HistoryEvent) -> Boolean,
@@ -246,9 +247,8 @@ private fun TvHistoryListDetail(
     snackbar: TvUndoSnackbar,
 ) {
     val restoreRowId = remember { pickedRow.id }
-    val today = remember(content.items) { LocalDate.now(clock) }
-    val history = rememberHistoryEntries(content.items, today, clock.zone)
-    val shownItems = history?.items ?: content.items
+    val history = rememberHistoryEntries(content.items, clock)
+    val shownItems = history?.source ?: content.items
     val openFocus = remember { FocusRequester() }
     val detailRow = rememberTvHeldDetail { restoreRowId }
     val detailItem = shownItems.firstOrNull { it.id.value == detailRow.shown } ?: shownItems.first()
@@ -264,7 +264,7 @@ private fun TvHistoryListDetail(
         TvListDetail(
             modifier = Modifier.weight(1f).heldDetail(detailRow),
             header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
-            detailFocus = detailFocus(history, detailFileId, detailActionable, openFocus),
+            detailFocus = detailFocus(history != null, detailFileId, detailActionable, openFocus),
             listFocus = focus.list,
             onDetailFocusChanged = { if (it) detailHadFocus = true },
             list = {
@@ -277,7 +277,6 @@ private fun TvHistoryListDetail(
                     content = content,
                     history = history,
                     restoreRowId = restoreRowId,
-                    zone = clock.zone,
                     focus = focus,
                     actions = TvHistoryListActions(
                         onOpen = { onEvent(HistoryEvent.OpenFile(it)) },
@@ -306,7 +305,7 @@ private fun TvHistoryListDetail(
                 TvHistoryDetail(
                     item = detailItem,
                     lookup = lookup,
-                    stamp = history.stampOf(detailItem),
+                    stamp = history.value.stampOf(detailItem),
                     openFocus = openFocus,
                     actions = TvHistoryDetailActions(
                         editing = editing,

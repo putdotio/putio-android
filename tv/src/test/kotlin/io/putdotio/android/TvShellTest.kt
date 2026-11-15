@@ -46,6 +46,7 @@ import io.putdotio.android.tv.search.TvSearchScreen
 import io.putdotio.android.tv.search.tvSearchDetail
 import io.putdotio.android.tv.search.tvSearchResults
 import androidx.compose.ui.test.onNodeWithTag
+import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
@@ -54,6 +55,8 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.tv.history.TvHistoryScreen
+import io.putdotio.android.tv.history.TV_HISTORY_CLEAR_PICK
+import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
@@ -566,6 +569,43 @@ class TvShellTest {
         compose.openTab(TvDestination.History)
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused()
+    }
+
+    @Test
+    fun aDialogClosedWhileHistoryBuildsReturnsToTheSavedClearHistoryFocus() {
+        val items = listOf(historyEvent(1, "Sintel.mp4"))
+        var history by mutableStateOf(historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+        val pickedRow = TvPickedRow().apply { pick(TV_HISTORY_CLEAR_PICK) }
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus ->
+                        TvHistoryScreen(
+                            state = history,
+                            onEvent = { true },
+                            modifier = Modifier.focusRequester(paneFocus),
+                            pickedRow = pickedRow,
+                        )
+                    },
+                )
+            }
+        }
+        compose.openTab(TvDestination.History)
+        compose.runOnIdle {
+            history = historyState(
+                HistoryContent.Ready(items, HistoryPaging.Complete),
+                HistoryClearing.AwaitingConfirmation,
+            )
+        }
+        compose.onNodeWithText("Clear history?").assertIsDisplayed()
+        compose.runOnIdle { history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)) }
+        compose.waitForIdle()
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNode(hasText("Clear history") and hasClickAction()).assertIsFocused()
     }
 
     @Test

@@ -3,6 +3,7 @@ package io.putdotio.android
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -35,6 +36,7 @@ import io.putdotio.android.history.HistoryEvent
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
+import io.putdotio.android.history.CountingHistoryItems
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryNoticeType
 import io.putdotio.android.history.HistoryPaging
@@ -53,6 +55,7 @@ import java.time.LocalDate
 import java.util.TimeZone
 import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -419,11 +422,53 @@ class MobileSearchScreensTest {
                     HistoryPaging.Available(HistoryEventId(3)),
                 ),
             )
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
             compose.runOnIdle { assertEquals(3, events.count { it == HistoryEvent.LoadNextPage }) }
         } finally {
             TimeZone.setDefault(previous)
         }
     }
+
+    @Test
+    fun anUnchangedRefreshComparesItsEventsOnlyOffTheMainThread() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val comparisons = CountingHistoryItems.Comparisons()
+            val event = historyEvent(1, "2026-10-25T09:00:00", "file-1.mkv")
+            val firstPage = CountingHistoryItems(listOf(event), comparisons)
+            var history by mutableStateOf(
+                historyState(HistoryContent.Ready(firstPage, HistoryPaging.Available(HistoryEventId(1)))),
+                neverEqualPolicy(),
+            )
+            val events = mutableListOf<HistoryEvent>()
+            val build = StandardTestDispatcher()
+            compose.setContent {
+                CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                    PutioTheme {
+                        MobileHistoryScreen(historyState = history, onHistoryEvent = events::add, today = TODAY)
+                    }
+                }
+            }
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.runOnIdle { assertEquals(1, events.count { it == HistoryEvent.LoadNextPage }) }
+
+            val refreshed = CountingHistoryItems(listOf(event.copy()), comparisons)
+            compose.runOnIdle {
+                comparisons.count = 0
+                history = historyState(HistoryContent.Ready(refreshed, HistoryPaging.Available(HistoryEventId(2))))
+            }
+            compose.runOnIdle { assertEquals(0, comparisons.count) }
+
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.runOnIdle { assertEquals(2, events.count { it == HistoryEvent.LoadNextPage }) }
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    private fun historyEvent(id: Long, stamp: String, name: String) =
+        HistoryItem(HistoryEventId(id), stamp, HistoryEventKind.File(HistoryFileId(id), name))
 
     @Test
     fun anUploadedFileOpensFromItsHistoryRow() {
