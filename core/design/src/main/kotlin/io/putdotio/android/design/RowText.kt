@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import java.util.concurrent.ConcurrentHashMap
@@ -12,13 +11,13 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
 @Stable
-public class RowText<T : Any, V>(
+public class RowText<T : Any, V> internal constructor(
     private val key: (T) -> Any,
     private val placeholder: V,
     private val build: (T) -> V,
@@ -27,9 +26,6 @@ public class RowText<T : Any, V>(
 
     @Volatile
     private var entries = ConcurrentHashMap<Any, Entry<T, V>>()
-
-    @Volatile
-    private var refresh: Any? = null
 
     private val waiting = ConcurrentHashMap<Any, T>()
 
@@ -53,26 +49,26 @@ public class RowText<T : Any, V>(
         return entry
     }
 
-    public suspend fun prepare(items: List<T>, refresh: Any?) {
+    internal suspend fun prepare(items: List<T>, refresh: Any?) {
         val run = generation.incrementAndGet()
         val known = entries
         val built = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
+        var changed = false
         items.forEach { item ->
             currentCoroutineContext().ensureActive()
-            built[key(item)] = known[key(item)]?.takeIf { it.item == item && it.refresh == refresh }
-                ?: Entry(item, build(item), refresh)
+            val old = known[key(item)]?.takeIf { it.item == item }
+            built[key(item)] = old?.takeIf { it.refresh == refresh }
+                ?: Entry(item, build(item), refresh).also { if (old != null && old.value != it.value) changed = true }
         }
         val context = currentCoroutineContext()
         synchronized(generation) {
             if (run != generation.get() || !context.isActive) return
             entries = built
-            val newRefresh = refresh != this.refresh
-            this.refresh = refresh
-            if (waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || newRefresh) stale.set(true)
+            if (waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || changed) stale.set(true)
         }
     }
 
-    public fun recomposeStaleRows() {
+    internal fun recomposeStaleRows() {
         if (stale.getAndSet(false)) prepared.intValue++
     }
 }
@@ -84,30 +80,22 @@ public fun <T : Any, V> rememberRowText(
     key: (T) -> Any,
     placeholder: V,
     refresh: Any? = null,
+    everyMinute: Boolean = false,
     build: (T) -> V,
 ): RowText<T, V> {
     val text = remember(*inputs) { RowText(key, placeholder, build) }
-    LaunchedEffect(text, items, refresh) {
+    LaunchedEffect(text, items, refresh, everyMinute) {
         text.recomposeStaleRows()
-        withContext(Dispatchers.Default) { text.prepare(items, refresh) }
-        withFrameNanos {}
-        text.recomposeStaleRows()
-    }
-    return text
-}
-
-@Composable
-public fun rememberMinute(): Long {
-    val minute = remember { mutableLongStateOf(System.currentTimeMillis() / MINUTE_MILLIS) }
-    LaunchedEffect(minute) {
-        withContext(Dispatchers.Default) {
-            while (isActive) {
-                delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
-                minute.longValue = System.currentTimeMillis() / MINUTE_MILLIS
-            }
+        while (isActive) {
+            val stamp = if (everyMinute) refresh to System.currentTimeMillis() / MINUTE_MILLIS else refresh
+            withContext(Dispatchers.Default) { text.prepare(items, stamp) }
+            withFrameNanos {}
+            text.recomposeStaleRows()
+            if (!everyMinute) break
+            delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
         }
     }
-    return minute.longValue
+    return text
 }
 
 private const val MINUTE_MILLIS = 60_000L

@@ -77,9 +77,6 @@ private sealed interface TvHistoryEntry {
     }
 }
 
-private data class TvHistoryRowText(val label: String, val meta: TvRowMeta)
-
-private val PENDING_ROW_TEXT = TvHistoryRowText(label = "", meta = TvRowMeta.Pending)
 
 @Composable
 private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: ZoneId): List<TvHistoryEntry> {
@@ -107,7 +104,7 @@ private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K):
     }
 
 @Composable
-private fun rememberHistoryRowText(items: List<HistoryItem>, zone: ZoneId): RowText<HistoryItem, TvHistoryRowText> {
+private fun rememberHistoryRowMeta(items: List<HistoryItem>, zone: ZoneId): RowText<HistoryItem, TvRowMeta> {
     val resources = LocalResources.current
     val locale = LocalConfiguration.current.locales[0]
     return rememberRowText(
@@ -116,21 +113,17 @@ private fun rememberHistoryRowText(items: List<HistoryItem>, zone: ZoneId): RowT
         resources,
         locale,
         key = { it.id.value },
-        placeholder = PENDING_ROW_TEXT,
-    ) { it.rowText(zone, resources, resources.getString(R.string.tv_history_no_title)) }
+        placeholder = TvRowMeta.Pending,
+    ) { it.rowMeta(zone, resources) }
 }
 
-private fun HistoryItem.rowText(zone: ZoneId, resources: Resources, untitled: String): TvHistoryRowText {
-    val title = named() ?: untitled
-    val label = if (kind.navigableFileId() == null) title else resources.getString(R.string.tv_history_open_file, title)
-    val meta = TvRowMeta(
+private fun HistoryItem.rowMeta(zone: ZoneId, resources: Resources): TvRowMeta =
+    TvRowMeta(
         listOfNotNull(
             kind.kindLabel()?.let { TvRowMetaPart(resources.getString(it), shrinks = true) },
             TvRowMetaPart(timeLabel(zone), mono = true),
         ),
     )
-    return TvHistoryRowText(label, meta)
-}
 
 private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequesters): Modifier =
     if (entry is TvHistoryEntry.Event) focusRequester(requesters.of(entry.key)) else this
@@ -178,7 +171,7 @@ internal fun TvHistoryList(
     val paneHasFocus = focus.paneHasFocus
     val entries = historyEntries(content.items, today, zone)
     val titles = remember(entries) { entries.mapNotNull { (it as? TvHistoryEntry.Event)?.title } }
-    val rowText = rememberHistoryRowText(content.items, zone)
+    val rowMeta = rememberHistoryRowMeta(content.items, zone)
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val restoreRow = remember { FocusRequester() }
@@ -240,7 +233,7 @@ internal fun TvHistoryList(
                     .focusRequesterIf(index == lastIndex, lastRow)
                     .holdAtPendingEnd(index == pendingEndIndex)
                     .focusRequesterIf(index == restoreIndex, restoreRow)
-                TvHistoryEntryItem(entry, rowText, focus, actions, modifier = requesters)
+                TvHistoryEntryItem(entry, rowMeta, focus, actions, modifier = requesters)
             }
             if (content.paging != HistoryPaging.Complete) {
                 item(key = PAGING_KEY, contentType = "paging") {
@@ -260,7 +253,7 @@ internal fun TvHistoryList(
 @Composable
 private fun TvHistoryEntryItem(
     entry: TvHistoryEntry,
-    rowText: RowText<HistoryItem, TvHistoryRowText>,
+    rowMeta: RowText<HistoryItem, TvRowMeta>,
     focus: TvHistoryFocus,
     actions: TvHistoryListActions,
     modifier: Modifier = Modifier,
@@ -287,7 +280,7 @@ private fun TvHistoryEntryItem(
         is TvHistoryEntry.Event -> TvHistoryRow(
             item = entry.item,
             title = entry.title,
-            text = rowText[entry.item],
+            meta = rowMeta[entry.item],
             onOpen = actions.onOpen,
             modifier = modifier.onFocusChanged { if (it.isFocused) actions.onRowFocused(entry.item) },
         )
@@ -298,21 +291,24 @@ private fun TvHistoryEntryItem(
 private fun TvHistoryRow(
     item: HistoryItem,
     title: String,
-    text: TvHistoryRowText,
+    meta: TvRowMeta,
     onOpen: (HistoryFileId) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val fileId = item.kind.navigableFileId()
+    val resources = LocalResources.current
     TvListRow(
         glyph = item.kind.glyph(),
         title = title,
         onClick = { if (fileId != null) onOpen(fileId) },
         modifier = modifier
-            .semantics { contentDescription = text.label.ifEmpty { title } }
+            .semantics {
+                contentDescription = if (fileId == null) title else resources.getString(R.string.tv_history_open_file, title)
+            }
             .testTag(TV_HISTORY_ROW_TAG),
         glyphSize = GLYPH,
         neutralGlyph = true,
-    ) { secondary -> TvListRowMeta(text.meta, secondary) }
+    ) { secondary -> TvListRowMeta(meta, secondary) }
 }
 
 private const val SECTION_KEY = "tv-history-section"

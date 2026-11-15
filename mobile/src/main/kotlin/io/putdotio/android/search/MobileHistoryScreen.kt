@@ -54,12 +54,12 @@ import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobilePullToRefresh
 import io.putdotio.android.MobileRow
-import io.putdotio.android.design.RowText
-import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.RowText
 import io.putdotio.android.design.putioMono
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent

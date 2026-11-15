@@ -19,6 +19,8 @@ import androidx.compose.ui.semantics.onLongClick
 import io.putdotio.android.MobileSelectedRowTint
 import io.putdotio.android.MobileSelectionCheckbox
 import io.putdotio.android.MobileSelectionToolbarClearance
+import io.putdotio.android.design.RowText
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesItemId
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -70,9 +72,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.formatFileSize
-import io.putdotio.android.design.RowText
 import io.putdotio.android.monoValue
-import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.mobileMessage

@@ -71,9 +71,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRetryButton
-import io.putdotio.android.design.RowText
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.R
+import io.putdotio.android.design.RowText
 import io.putdotio.android.monoValue
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioEmptyGlyph

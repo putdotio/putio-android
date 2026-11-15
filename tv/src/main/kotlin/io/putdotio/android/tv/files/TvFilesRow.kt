@@ -38,13 +38,7 @@ internal sealed interface TvFilesRowPlace {
     data class SearchResult(val folderName: String?) : TvFilesRowPlace
 }
 
-internal data class TvFilesRowText(val meta: TvRowMeta, val label: String) {
-    companion object {
-        val Pending: TvFilesRowText = TvFilesRowText(TvRowMeta.Pending, label = "")
-    }
-}
-
-internal fun FilesItem.rowText(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvFilesRowText {
+internal fun FilesItem.rowMeta(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvRowMeta {
     val where = when (place) {
         TvFilesRowPlace.Listing -> metaDate(context, nowMillis)
         is TvFilesRowPlace.SearchResult -> place.folderName
@@ -53,25 +47,29 @@ internal fun FilesItem.rowText(context: Context, place: TvFilesRowPlace, nowMill
         metaSize?.let { TvRowMetaPart(it, mono = true) },
         where?.let { TvRowMetaPart(it, shrinks = true) },
     )
-    val label = when {
+    return TvRowMeta(parts, endsWithDot = showsWatched && parts.isNotEmpty())
+}
+
+private fun FilesItem.rowLabel(context: Context, searchResult: Boolean): String =
+    when {
         isPlayable -> context.getString(R.string.tv_files_play_media, name)
-        place is TvFilesRowPlace.SearchResult -> context.getString(R.string.tv_search_open_result, name)
+        searchResult -> context.getString(R.string.tv_search_open_result, name)
         isFolder -> context.getString(R.string.tv_files_open_folder, name)
         else -> name
     }
-    return TvFilesRowText(TvRowMeta(parts, endsWithDot = showsWatched && parts.isNotEmpty()), label)
-}
 
 @Composable
 internal fun TvFilesRow(
     item: FilesItem,
-    text: TvFilesRowText,
+    meta: TvRowMeta,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     /** Long-press Center or the Menu key; null when the row offers nothing beyond opening. */
     onActions: (() -> Unit)? = null,
     showsFocus: Boolean = true,
+    searchResult: Boolean = false,
 ) {
+    val context = LocalContext.current
     TvListRow(
         glyph = fileTypeIconRes(item.type),
         title = item.name,
@@ -88,10 +86,10 @@ internal fun TvFilesRow(
                     false
                 }
             }
-            .semantics { contentDescription = text.label.ifEmpty { item.name } }
+            .semantics { contentDescription = item.rowLabel(context, searchResult) }
             .testTag(TV_FILES_ROW_TAG),
     ) { secondary ->
-        TvListRowMeta(text.meta, secondary)
+        TvListRowMeta(meta, secondary)
         if (item.showsWatched) {
             Icon(
                 painter = painterResource(R.drawable.ic_ph_eye),

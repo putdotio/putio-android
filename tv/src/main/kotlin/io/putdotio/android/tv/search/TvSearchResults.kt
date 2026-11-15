@@ -46,18 +46,18 @@ import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.TvFocusedItem
 import io.putdotio.android.tv.TvItemRequesters
 import io.putdotio.android.tv.TvPaneFocusOwner
+import io.putdotio.android.tv.TvRowMeta
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.composes
-import io.putdotio.android.tv.files.TvFilesRow
-import io.putdotio.android.tv.files.TvFilesRowPlace
-import io.putdotio.android.tv.files.TvFilesRowText
-import io.putdotio.android.tv.files.rowText
+import io.putdotio.android.tv.files.rowMeta
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.keepsHeldFocusInView
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.tracksFocusedItem
+import io.putdotio.android.tv.files.TvFilesRow
+import io.putdotio.android.tv.files.TvFilesRowPlace
 
 internal const val TV_SEARCH_RESULTS_TAG = "tv-search-results"
 
@@ -111,14 +111,14 @@ internal fun TvSearchResultList(
     val context = LocalContext.current
     val currentRows by rememberUpdatedState(rows)
     val folders = rows.folderNames to rows.rootName
-    val rowText = rememberRowText(
+    val rowMeta = rememberRowText(
         items,
         context,
         key = { it.id.value },
-        placeholder = TvFilesRowText.Pending,
+        placeholder = TvRowMeta.Pending,
         refresh = folders,
     ) {
-        it.rowText(context, currentRows.place(it), System.currentTimeMillis())
+        it.rowMeta(context, currentRows.place(it), System.currentTimeMillis())
     }
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
@@ -180,7 +180,7 @@ internal fun TvSearchResultList(
                 pendingEnd = paging.isPending,
             )
             val row: @Composable (FilesItem) -> Unit = { item ->
-                TvSearchResultRow(item, rowText[item], rows, requesters)
+                TvSearchResultRow(item, rowMeta[item], rows, requesters)
             }
             resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
             resultGroup(
@@ -219,15 +219,16 @@ private val SearchPaging.isPending: Boolean
 @Composable
 private fun TvSearchResultRow(
     item: FilesItem,
-    text: TvFilesRowText,
+    meta: TvRowMeta,
     rows: TvSearchRows,
     requesters: TvSearchRowRequesters,
 ) {
     val id = item.id.value
     TvFilesRow(
         item = item,
-        text = text,
+        meta = meta,
         onClick = { rows.onResult(item) },
+        searchResult = true,
         onActions = rows.onActions?.let { open -> { open(item) } },
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }
