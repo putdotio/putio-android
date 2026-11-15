@@ -164,6 +164,7 @@ private class TvRowMetaNode(
         if (clip) {
             canvas.save()
             canvas.clipRect(0f, 0f, size.width, size.height)
+            if (layoutDirection == LayoutDirection.Rtl) canvas.translate(size.width - width, 0f)
         }
         runs.forEach { run ->
             canvas.save()

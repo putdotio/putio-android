@@ -49,7 +49,6 @@ import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.keepsHeldFocusInView
-import io.putdotio.android.tv.monoNumber
 import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.rememberTvRowText
 import io.putdotio.android.tv.tracksFocusedItem
@@ -312,7 +311,7 @@ private fun daysLeftLabel(resources: Resources, days: Long): AnnotatedString =
         AnnotatedString(resources.getString(R.string.tv_trash_last_day))
     } else {
         val count = days.toInt()
-        monoNumber(resources.getQuantityString(R.plurals.tv_trash_days_left, count, count), count.toString())
+        trashCount(resources, R.plurals.tv_trash_days_left, count)
     }
 
 @Composable

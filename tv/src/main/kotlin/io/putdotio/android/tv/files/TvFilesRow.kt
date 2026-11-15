@@ -42,7 +42,7 @@ internal data class TvFilesRowText(val meta: TvRowMeta, val label: String)
 
 internal fun FilesItem.rowText(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvFilesRowText {
     val where = when (place) {
-        TvFilesRowPlace.Listing -> updatedAgo(nowMillis) ?: createdAt.toDisplayDate(context)
+        TvFilesRowPlace.Listing -> metaDate(context, nowMillis)
         is TvFilesRowPlace.SearchResult -> place.folderName
     }
     val parts = listOfNotNull(
@@ -108,6 +108,9 @@ internal val FilesItem.metaSize: String?
 internal fun rememberMetaDate(item: FilesItem): String? {
     val context = LocalContext.current
     return remember(item.updatedAt, item.createdAt, item.type, context) {
-        item.updatedAgo(System.currentTimeMillis()) ?: item.createdAt.toDisplayDate(context)
+        item.metaDate(context, System.currentTimeMillis())
     }
 }
+
+private fun FilesItem.metaDate(context: Context, nowMillis: Long): String? =
+    updatedAgo(nowMillis) ?: createdAt.toDisplayDate(context)

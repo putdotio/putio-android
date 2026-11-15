@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
@@ -36,17 +37,17 @@ internal class TvRowText<T : Any, V>(
     suspend fun prepare(items: List<T>, refresh: Any?) {
         val known = entries
         val prepared = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
+        var changed = false
         items.forEach { item ->
             currentCoroutineContext().ensureActive()
-            prepared[key(item)] = known[key(item)]?.takeIf { it.item == item && it.refresh == refresh }
-                ?: Entry(item, build(item), refresh)
+            val old = known[key(item)]?.takeIf { it.item == item }
+            prepared[key(item)] = old?.takeIf { it.refresh == refresh }
+                ?: Entry(item, build(item), refresh).also { if (old != null && old.value != it.value) changed = true }
         }
         currentCoroutineContext().ensureActive()
         entries = prepared
-        if (refresh != applied) {
-            applied = refresh
-            refreshed.intValue++
-        }
+        applied = refresh
+        if (changed) refreshed.intValue++
     }
 }
 
@@ -56,9 +57,22 @@ internal fun <T : Any, V> rememberTvRowText(
     vararg inputs: Any?,
     key: (T) -> Any,
     refresh: Any? = null,
+    everyMinute: Boolean = false,
     build: (T) -> V,
 ): TvRowText<T, V> {
     val text = remember(*inputs) { TvRowText(key, build) }
-    LaunchedEffect(text, items, refresh) { withContext(Dispatchers.Default) { text.prepare(items, refresh) } }
+    LaunchedEffect(text, items, refresh, everyMinute) {
+        withContext(Dispatchers.Default) {
+            text.prepare(items, refresh to currentMinute())
+            while (everyMinute) {
+                delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
+                text.prepare(items, refresh to currentMinute())
+            }
+        }
+    }
     return text
 }
+
+private fun currentMinute(): Long = System.currentTimeMillis() / MINUTE_MILLIS
+
+private const val MINUTE_MILLIS = 60_000L

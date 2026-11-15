@@ -176,7 +176,7 @@ internal fun TvFilesList(
     )
     val names = remember(content.items) { content.items.map { it.name } }
     val context = LocalContext.current
-    val rowText = rememberTvRowText(content.items, context, key = { it.id.value }) {
+    val rowText = rememberTvRowText(content.items, context, key = { it.id.value }, everyMinute = true) {
         it.rowText(context, TvFilesRowPlace.Listing, System.currentTimeMillis())
     }
     RevealOnlyHiddenRows(names) {
