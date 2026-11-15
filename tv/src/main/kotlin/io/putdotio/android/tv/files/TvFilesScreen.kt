@@ -132,44 +132,29 @@ internal fun TvFilesScreen(
     onEvent: (FilesBrowserEvent) -> Boolean,
     onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
-    /** Changes with the signed-in session so one account's saved UI state never greets the next. */
     sessionKey: Any? = null,
-    /** The account's confirmed `trash_enabled`; null hides deletion, since its wording depends on it. */
     confirmedTrashEnabled: Boolean? = null,
-    /** True when the account keeps positions (`use_start_from`), which is what the watched toggle writes. */
     watchedToggleEnabled: Boolean = false,
     onOpenInVlc: (FilesItem) -> Unit = {},
     onSetWatched: (FilesItem, Boolean) -> Unit = { _, _ -> },
     pinnedIds: List<FilesItemId>? = null,
     onSetPinned: (FilesItem, Boolean) -> Unit = { _, _ -> },
     trashUndo: TvTrashUndoOffer? = null,
-    /** An explanation from outside the browser (a link that did not open, a failed undo); OK dismisses it. */
     notice: String? = null,
     onDismissNotice: () -> Unit = {},
     brief: TvBrief? = null,
-    /**
-     * Which row last held focus in each folder; owned by the session so it survives the pane
-     * being disposed for another destination. A LazyColumn is remounted on every folder
-     * change and after the unsupported screen, so Compose's own restorer has no history.
-     */
     focusMemory: MutableMap<Long, Long> = remember(sessionKey) { mutableMapOf() },
     onPlay: (FilesItem, TvPlayStart) -> Unit = { item, _ -> onPlayMedia(item) },
     playbackMethod: StreamingMethod? = null,
     onPlayWith: (FilesItem, StreamingMethod) -> Unit = { _, _ -> },
     resumePlayback: Boolean = true,
     detailSources: TvFilesDetailSources = remember(sessionKey) { TvFilesDetailSources.None },
-    /** Opens images, PDFs and text in the viewer; without it they land on the unsupported screen. */
     viewerUrl: TvViewerUrl? = null,
     accountDefaultSort: FilesSort? = null,
     edits: TvFilesEdits? = null,
     onAuthenticationRequired: suspend () -> Unit = {},
 ) {
     val current = state.current
-    // Whether D-pad focus belongs to this pane. A content change while the user is on the
-    // rail must not pull focus back. Only a directional exit from the pane clears it: a
-    // focused row being disposed (folder change, overlay) also drops focus, but the pane is
-    // still the owner and must re-request. Remembered above the unsupported overlay so
-    // dismissing it does not read as a fresh entry.
     val paneHasFocus = rememberTvPaneHasFocus()
     val trackPaneFocus = Modifier
         .onFocusChanged { if (it.hasFocus) paneHasFocus.value = true }
@@ -181,8 +166,6 @@ internal fun TvFilesScreen(
         }
     var unsupported by rememberSaveable(sessionKey, current.folder.id.value) { mutableStateOf<Long?>(null) }
     val unsupportedItem = (current.content as? FilesContent.Ready)?.items?.firstOrNull { it.id.value == unsupported }
-    // The overlay closes when its item leaves the listing (refresh, sort, deletion); it must
-    // not come back on its own if the item reappears later.
     val overlayOrphaned = unsupported != null && unsupportedItem == null
     SideEffect { if (overlayOrphaned) unsupported = null }
     if (unsupportedItem != null) {
@@ -222,8 +205,6 @@ internal fun TvFilesScreen(
     val downToUndo = undoFocus.takeIf { snackbar.showing?.message?.actionLabel != null }
     val sortFocus = remember { FocusRequester() }
     val content = current.content
-    // The shell asks the pane for focus on entry. A Column is not a target itself, so the
-    // request is redirected to whichever control this pane currently wants focused.
     val retryFocus = remember { FocusRequester() }
     val pagingFocus = remember { FocusRequester() }
     val headerHasFocus = remember { mutableStateOf(false) }
@@ -234,7 +215,10 @@ internal fun TvFilesScreen(
     entryTarget.value = content.paneEntryTarget(skeletonFocus, retryFocus, pagingFocus, emptyFocus, listEntry)
     val folderId = current.folder.id.value
     val detailRow = rememberTvHeldDetail(sessionKey, folderId) { focusMemory[folderId] }
-    val detailItem = content.detailItem(detailRow.shown, focusMemory[folderId])
+    val ready = content as? FilesContent.Ready
+    val rowText = rememberTvFilesRowText(ready?.items.orEmpty())
+    val shown = rowText.shown(ready, ready?.items.orEmpty(), folderId)
+    val detailItem = shown.detailItem(detailRow.shown, focusMemory[folderId])
     val detailFocus = remember { TvFilesDetailFocus() }
     val detailText = rememberTvFilesDetailText(content.items())
     val listing = rememberTvFilesListing(current)
@@ -267,7 +251,6 @@ internal fun TvFilesScreen(
     val noticeFocus = remember { TvFocusHandBack() }
     val dialogShowing = rememberUpdatedState(dialogOpen)
     noticeFocus.Refocus(paneHasFocus, blocked = dialogShowing, target = entryTarget)
-    // As in tv-native, a row with nothing to offer opens no menu.
     val openActions = { item: FilesItem -> if (actionsOf(item).isNotEmpty()) actions.openSheet(item) }
     val runDetailAction = { item: FilesItem, action: TvFilesAction ->
         if (action is TvFilesAction.Delete) actions.pressDelete(item, action) else handlers.run(action, item)
@@ -323,6 +306,8 @@ internal fun TvFilesScreen(
                         TvFilesMoveStatus(current, onEvent, noticeFocus)
                         TvFilesRows(
                             current = current,
+                            rowText = rowText,
+                            shown = shown,
                             focusMemory = focusMemory,
                             paneHasFocus = paneHasFocus,
                             headerHasFocus = headerHasFocus,
@@ -344,7 +329,7 @@ internal fun TvFilesScreen(
                     },
                     detail = {
                         TvFilesDetailPane(
-                            loading = content is FilesContent.Loading,
+                            loading = shown == null && (ready != null || content is FilesContent.Loading),
                             item = detailItem,
                             text = detailText,
                             detailFocus = detailFocus,
@@ -509,8 +494,8 @@ private fun FilesBrowserState.crumbLabel(): String =
         ?: stack.dropLast(1).lastOrNull()?.folder?.name
         ?: stringResource(R.string.tv_files_title)
 
-private fun FilesContent.detailItem(focusedId: Long?, rememberedId: Long?): FilesItem? =
-    (this as? FilesContent.Ready)?.items?.let { items ->
+private fun FilesContent.Ready?.detailItem(focusedId: Long?, rememberedId: Long?): FilesItem? =
+    this?.items?.let { items ->
         items.firstOrNull { it.id.value == focusedId }
             ?: items.firstOrNull { it.id.value == rememberedId }
             ?: items.first()
@@ -528,7 +513,6 @@ private fun FilesItem.open(
     }
 }
 
-/** For a listing, the target is the row the list last reported in [listEntry]. */
 private fun FilesContent.paneEntryTarget(
     skeleton: FocusRequester,
     retry: FocusRequester,
@@ -555,6 +539,8 @@ private fun FilesContent.fillsPane(): Boolean = this is FilesContent.Failed || t
 @Composable
 private fun TvFilesRows(
     current: FilesFolderState,
+    rowText: RowText<FilesItem, TvFilesRowText>,
+    shown: FilesContent.Ready?,
     focusMemory: MutableMap<Long, Long>,
     paneHasFocus: State<Boolean>,
     headerHasFocus: State<Boolean>,
@@ -573,14 +559,12 @@ private fun TvFilesRows(
     val folderId = current.folder.id.value
     val content = current.content
     val ready = content as? FilesContent.Ready
-    val rowText = rememberTvFilesRowText(ready?.items.orEmpty())
-    val shown = rowText.shown(ready, ready?.items.orEmpty(), folderId)
     when {
         shown != null -> TvFilesList(
             folderId = folderId,
             content = shown,
             rowText = rowText,
-            pagingEnabled = current.operation.canStartOperation,
+            pagingEnabled = current.operation.canStartOperation && shown === ready,
             focusMemory = focusMemory,
             paneHasFocus = paneHasFocus,
             headerHasFocus = headerHasFocus,
@@ -733,10 +717,6 @@ private fun TvFilesStatePane(
     }
 }
 
-/**
- * The shared delete operation, above the list: its phases while it runs, Check status or
- * Retry when it fails, and what the fresh listing said about the item once it settled.
- */
 @Composable
 private fun TvFilesDeleteStatus(
     current: FilesFolderState,
@@ -793,10 +773,6 @@ internal fun FilesDeleteStatus.tvOutcomeMessage(): Int? =
         FilesDeleteStatus.CHECKING, FilesDeleteStatus.UNKNOWN, FilesDeleteStatus.TOO_LARGE_FOR_TRASH -> null
     }
 
-/**
- * A folder put.io would not send to trash stays with web's explanation and a Delete permanently
- * action; only the confirmation dialog, which opens with Cancel focused, sends the permanent delete.
- */
 @Composable
 private fun TvFilesTrashLimitStatus(
     outcome: FilesDeleteOutcome,
@@ -805,8 +781,6 @@ private fun TvFilesTrashLimitStatus(
     noticeFocus: TvFocusHandBack,
 ) {
     var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
-    // A refresh that no longer lists the folder leaves nothing for the reducer to delete; a
-    // rename keeps the outcome, so the dialog names the folder as it is listed now.
     val listed = current.content.items().firstOrNull { it.id in outcome.intent.itemIds }
     TvFilesNotice(
         text = stringResource(R.string.tv_files_trash_limit_title),
@@ -833,7 +807,6 @@ private fun TvFilesTrashLimitStatus(
     }
 }
 
-/** A line above the rows, with an optional action in its own focus group so Up from a row reaches it. */
 @Composable
 internal fun TvFilesNotice(
     text: String,
@@ -1110,11 +1083,6 @@ private fun BoxScope.TvFilesTrashSnackbar(
     TvUndoSnackbarHost(snackbar, undoFocus, refocus)
 }
 
-/**
- * The row whose actions are up, whether they show as a sheet (the list's shortcut) or only run a
- * deletion pressed in the detail pane, and whether that deletion is being confirmed. All close
- * when the row leaves the listing, like the unsupported overlay.
- */
 @Stable
 private class TvFilesActionsTarget(itemId: Long? = null, sheet: Boolean = false, confirming: Boolean = false) {
     var itemId by mutableStateOf(itemId)
@@ -1122,14 +1090,8 @@ private class TvFilesActionsTarget(itemId: Long? = null, sheet: Boolean = false,
     var sheet by mutableStateOf(sheet)
         private set
 
-    // Only permanent deletion confirms; Move to trash runs at once, as on web and iOS. Trash
-    // turning on underneath, or an operation the folder starts on its own (a reload after a
-    // restore), closes the confirmation rather than offering a Delete the reducer would refuse.
     var confirmingPermanentDelete by mutableStateOf(confirming)
 
-    // A Move to trash press is sent after the next composition, against the latest Trash setting:
-    // a press made before a change to the setting reached the menu must not send TRASH, which
-    // the server applies as permanent deletion once Trash is off.
     var trashPressed by mutableStateOf(false)
 
     fun openSheet(item: FilesItem) {

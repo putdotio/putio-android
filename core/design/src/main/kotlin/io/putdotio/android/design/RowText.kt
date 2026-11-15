@@ -75,7 +75,12 @@ public class RowText<T : Any, V> internal constructor(
     internal fun show(batch: Batch<T, V>) {
         val previous = prepared.value?.entries.orEmpty()
         prepared.value = Prepared(batch.items, batch.entries, previous)
-        val arrived = waiting.entries.removeIf { (key, item) -> batch.entries[key]?.item == item }
+        var arrived = false
+        waiting.entries.removeIf { (key, item) ->
+            val entry = batch.entries[key]
+            if (entry?.item == item) arrived = true
+            entry == null || entry.item == item
+        }
         if (arrived || batch.changed) stale.intValue++
     }
 }
@@ -84,7 +89,7 @@ private class Shown<S>(var source: S?)
 
 @Composable
 public fun <T : Any, S : Any> RowText<T, *>.shown(source: S?, items: List<T>, vararg keys: Any?): S? {
-    val last = remember(*keys) { Shown<S>(null) }
+    val last = remember(this, *keys) { Shown<S>(null) }
     val shown = when {
         source == null -> null
         isBuiltFor(items) -> source
@@ -94,7 +99,7 @@ public fun <T : Any, S : Any> RowText<T, *>.shown(source: S?, items: List<T>, va
     return shown
 }
 
-private class Identity(val value: Any) {
+public class Identity(private val value: Any) {
     override fun equals(other: Any?): Boolean = other is Identity && other.value === value
 
     override fun hashCode(): Int = System.identityHashCode(value)

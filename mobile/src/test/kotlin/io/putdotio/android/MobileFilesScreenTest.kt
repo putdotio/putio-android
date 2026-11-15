@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.StandardTestDispatcher
 import io.putdotio.android.design.LocalBuildDispatcher
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -555,6 +556,46 @@ class MobileFilesListTest {
         assertEquals(1, loads())
         compose.runOnIdle { state = browserState(available) }
         assertEquals(2, loads())
+    }
+
+    @Test
+    fun aSortLandingNearTheEndPagesOnlyOnceItsRowsShow() {
+        val items = (1L..60L).map { filesItem(id = it, name = "Sample $it.txt") }
+        val available = FilesContent.Ready(items, FilesPaging.Available(FilesCursor("next-page")))
+        var state by mutableStateOf(browserState(available))
+        val events = mutableListOf<FilesBrowserEvent>()
+        val build = StandardTestDispatcher()
+        compose.setContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                PutioTheme {
+                    MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
+                }
+            }
+        }
+        fun loads() = compose.runOnIdle { events.count { it == FilesBrowserEvent.LoadNextPage } }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(50)
+        assertEquals(1, loads())
+
+        compose.runOnIdle {
+            state = browserState(
+                available,
+                operation = FilesFolderOperation.Loading(
+                    FilesRequestId(9L), FilesFolderOperationIntent.Refresh, FilesFolderOperationPhase.RELOADING,
+                ),
+            )
+        }
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Ready(items.reversed(), FilesPaging.Available(FilesCursor("sorted"))),
+                viewportGeneration = 1L,
+            )
+        }
+        assertEquals(1, loads())
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithText("Sample 60.txt").assertIsDisplayed()
+        assertEquals(1, loads())
     }
 
     @Test

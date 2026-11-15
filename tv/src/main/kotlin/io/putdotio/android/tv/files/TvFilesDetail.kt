@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
+import io.putdotio.android.design.Identity
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.LocalBuildDispatcher
 import io.putdotio.android.design.RowText
@@ -127,7 +128,7 @@ internal fun rememberTvFilesListing(folder: FilesFolderState): Any {
     val folderId = folder.folder.id.value
     val reads = remember(folderId) { TvFilesListingReads() }
     val completedReads = reads.completedAfter(folder.fullReadRequest())
-    return remember(folderId, folder.content.items(), completedReads) { Any() }
+    return remember(folderId, Identity(folder.content.items()), completedReads) { Any() }
 }
 
 private class TvFilesListingReads {
