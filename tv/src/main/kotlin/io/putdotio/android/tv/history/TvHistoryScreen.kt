@@ -241,6 +241,7 @@ private fun TvHistoryListDetail(
 ) {
     val restoreRowId = remember { pickedRow.id }
     val today = remember(content.items) { LocalDate.now(clock) }
+    val history = rememberHistoryEntries(content.items, today, clock.zone) ?: return
     val openFocus = remember { FocusRequester() }
     val detailRow = rememberTvHeldDetail { restoreRowId }
     val detailItem = content.items.firstOrNull { it.id.value == detailRow.shown } ?: content.items.first()
@@ -263,8 +264,8 @@ private fun TvHistoryListDetail(
                 if (notice != null) TvHistoryNotice(notice)
                 TvHistoryList(
                     content = content,
+                    history = history,
                     restoreRowId = restoreRowId,
-                    today = today,
                     zone = clock.zone,
                     focus = focus,
                     actions = TvHistoryListActions(
@@ -290,8 +291,7 @@ private fun TvHistoryListDetail(
                 TvHistoryDetail(
                     item = detailItem,
                     lookup = lookup,
-                    today = today,
-                    zone = clock.zone,
+                    stamp = history.stampOf(detailItem),
                     openFocus = openFocus,
                     actions = TvHistoryDetailActions(
                         editing = editing,

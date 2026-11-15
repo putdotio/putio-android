@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import java.util.concurrent.ConcurrentHashMap
@@ -96,6 +97,13 @@ public fun <T : Any, V> rememberRowText(
         }
     }
     return text
+}
+
+@Composable
+public fun <V : Any> rememberBuiltOffMain(vararg inputs: Any?, build: () -> V): V? {
+    val built = remember { mutableStateOf<V?>(null) }
+    LaunchedEffect(*inputs) { built.value = withContext(Dispatchers.Default) { build() } }
+    return built.value
 }
 
 private fun currentMinute(): Long = System.currentTimeMillis() / MINUTE_MILLIS
