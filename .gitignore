@@ -18,3 +18,4 @@ replay_pid*.log
 __pycache__/
 
 mobile/src/main/play/release-notes/
+.worktrees/
