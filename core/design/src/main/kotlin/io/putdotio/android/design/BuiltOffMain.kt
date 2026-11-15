@@ -45,18 +45,17 @@ internal fun <S : Any, V : Any> Flow<S>.buildLatest(build: suspend (S, V?) -> V)
     var covers: S? = null
     var job: Job? = null
     collect { next ->
-        val reused = lock.withLock {
+        lock.withLock {
             val finished = done
             when {
-                job != null && building == next -> {
-                    covers = next
-                    null
-                }
+                job != null && building == next -> covers = next
                 finished != null && finished.source == next -> {
                     job?.cancel()
                     job = null
                     building = null
-                    Built(finished.source, finished.value, next).also { done = it }
+                    val reused = Built(finished.source, finished.value, next)
+                    done = reused
+                    send(reused)
                 }
                 else -> {
                     job?.cancel()
@@ -64,21 +63,18 @@ internal fun <S : Any, V : Any> Flow<S>.buildLatest(build: suspend (S, V?) -> V)
                     covers = next
                     job = launch {
                         val value = build(next, finished?.value)
-                        val built = lock.withLock {
+                        lock.withLock {
                             if (building !== next) return@launch
-                            Built(next, value, covers).also {
-                                done = it
-                                building = null
-                                job = null
-                            }
+                            val built = Built(next, value, covers)
+                            done = built
+                            building = null
+                            job = null
+                            send(built)
                         }
-                        send(built)
                     }
-                    null
                 }
             }
         }
-        if (reused != null) send(reused)
     }
 }
 
