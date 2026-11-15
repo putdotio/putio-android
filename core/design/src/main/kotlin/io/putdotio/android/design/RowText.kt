@@ -160,7 +160,7 @@ public fun <S : Any, V : Any> rememberBuiltOffMain(
         built.value = built.value?.superseded()
         snapshotFlow { Submitted(latest.value) }
             .map { it.source }
-            .buildLatest { next, previous -> currentBuild.value(next, previous) }
+            .buildLatest<S, V> { next, previous -> currentBuild.value(next, previous) }
             .flowOn(dispatcher)
             .collect { built.value = it }
     }
