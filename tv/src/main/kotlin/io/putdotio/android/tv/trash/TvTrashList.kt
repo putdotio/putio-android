@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import io.putdotio.android.R
 import io.putdotio.android.design.fileTypeIconRes
+import io.putdotio.android.design.RowText
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.trash.TrashContent
@@ -58,10 +59,27 @@ import kotlinx.coroutines.flow.first
 internal const val TV_TRASH_LIST_TAG = "tv-trash-list"
 internal const val TV_TRASH_ROW_TAG = "tv-trash-row"
 
+@Composable
+internal fun rememberTvTrashRowMeta(items: List<TrashItem>): RowText<TrashItem, TvRowMeta> {
+    val resources = LocalResources.current
+    val today = LocalTrashToday.current
+    val currentToday by rememberUpdatedState(today)
+    return rememberRowText(
+        items,
+        resources,
+        key = { it.id.value },
+        placeholder = TvRowMeta.Pending,
+        refresh = today,
+    ) {
+        it.rowMeta(resources, currentToday)
+    }
+}
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvTrashList(
     content: TrashContent.Loaded,
+    rowMeta: RowText<TrashItem, TvRowMeta>,
     restoreRowId: Long?,
     onChoose: (TrashItem) -> Unit,
     onRowFocusChanged: (TrashItem, Boolean) -> Unit,
@@ -72,18 +90,6 @@ internal fun TvTrashList(
 ) {
     val items = content.items
     val names = remember(items) { items.map { it.name } }
-    val resources = LocalResources.current
-    val today = LocalTrashToday.current
-    val currentToday by rememberUpdatedState(today)
-    val rowMeta = rememberRowText(
-        items,
-        resources,
-        key = { it.id.value },
-        placeholder = TvRowMeta.Pending,
-        refresh = today,
-    ) {
-        it.rowMeta(resources, currentToday)
-    }
     val rows = remember { TrashRowFocus() }
     val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }

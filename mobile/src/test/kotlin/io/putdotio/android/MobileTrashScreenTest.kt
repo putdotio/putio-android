@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -16,6 +17,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.design.LocalBuildDispatcher
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItem
@@ -38,6 +40,7 @@ import io.putdotio.android.trash.TrashState
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.time.LocalDate
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -54,6 +57,21 @@ class MobileTrashScreenTest {
     private val item = TrashItem(FilesItemId(7), FilesItemId(8), "été 東京.txt", PutioFileType.TEXT, 12,
         "2026-09-06T00:00:00Z", "2026-09-20")
     private val loaded = TrashContent.Loaded(listOf(item), null, 1, 12)
+
+    @Test
+    fun aLoadedPageComposesNoRowBeforeItsTextIsBuilt() {
+        val build = StandardTestDispatcher()
+        compose.setContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                PutioTheme { MobileTrashScreen(TrashState(content = loaded), { true }) }
+            }
+        }
+        compose.onNodeWithText(item.name).assertDoesNotExist()
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).performScrollToNode(hasText(item.name))
+        compose.onNodeWithText(item.name).assertIsDisplayed()
+    }
 
     @Test
     fun queuedAndUnknownResultsOfferOnlyReadRecoveryAndDisableTheStaleRow() {

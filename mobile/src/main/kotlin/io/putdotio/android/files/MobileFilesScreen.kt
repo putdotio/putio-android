@@ -70,6 +70,7 @@ import io.putdotio.android.LoadNextPageNow
 import io.putdotio.android.MobileInlineError
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.design.RowText
+import io.putdotio.android.design.shown
 import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileKeyCommand
@@ -424,17 +425,19 @@ private fun MobileRefreshableFilesContent(
                     is FilesContent.Ready -> {
                         val rowText = rememberFilesRowText(content.items)
                         val pinnedText = rememberFilesRowText(headers.pinned)
+                        val shownContent = rowText.shown(content, content.items) ?: return@PullToRefreshBox
+                        val shownHeaders = pinnedText.shown(headers, headers.pinned) ?: return@PullToRefreshBox
                         // The depth tells a folder opened from Search apart from the same folder under it. A
                         // header set that grew or shrank restarts the list from the row-relative viewport.
                         key(
                             state.stack.size,
                             state.current.folder.id.value,
                             state.current.viewportGeneration,
-                            headers.itemCount,
+                            shownHeaders.itemCount,
                         ) {
                             MobileFilesList(
-                                content = content,
-                                headers = headers,
+                                content = shownContent,
+                                headers = shownHeaders,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
                                 rowText = rowText,

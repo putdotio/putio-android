@@ -27,7 +27,6 @@ class RowTextTest {
             invalidated = invalidated || changed.any { it in reads }
         }
         prepare()
-        text.recomposeStaleRows()
         Snapshot.sendApplyNotifications()
         observer.dispose()
         return invalidated
@@ -38,30 +37,30 @@ class RowTextTest {
         assertEquals("", text[Row(1, "a")])
         assertEquals(emptyList<Row>(), built)
 
-        assertTrue(recomposesRowsAfter { text.prepare(listOf(Row(1, "a"), Row(2, "b")), refresh = null) })
+        assertTrue(recomposesRowsAfter { text.show(text.prepare(listOf(Row(1, "a"), Row(2, "b")), refresh = null)) })
         assertEquals("a text", text[Row(1, "a")])
     }
 
     @Test
     fun aChangedRowKeepsItsOldTextUntilTheNewTextIsBuilt() = runTest {
-        text.prepare(listOf(Row(1, "a")), refresh = null)
+        text.show(text.prepare(listOf(Row(1, "a")), refresh = null))
         built.clear()
 
         assertEquals("a text", text[Row(1, "renamed")])
         assertEquals(emptyList<Row>(), built)
 
-        text.prepare(listOf(Row(1, "renamed")), refresh = null)
+        text.show(text.prepare(listOf(Row(1, "renamed")), refresh = null))
         assertEquals("renamed text", text[Row(1, "renamed")])
     }
 
     @Test
     fun aRefreshRecomposesRowsOnlyWhenTheirTextChanges() = runTest {
-        text.prepare(listOf(Row(1, "a")), refresh = 1)
+        text.show(text.prepare(listOf(Row(1, "a")), refresh = 1))
 
-        assertFalse(recomposesRowsAfter { text.prepare(listOf(Row(1, "a")), refresh = 2) })
+        assertFalse(recomposesRowsAfter { text.show(text.prepare(listOf(Row(1, "a")), refresh = 2)) })
 
         suffix = "later"
-        assertTrue(recomposesRowsAfter { text.prepare(listOf(Row(1, "a")), refresh = 3) })
+        assertTrue(recomposesRowsAfter { text.show(text.prepare(listOf(Row(1, "a")), refresh = 3)) })
         assertEquals("a later", text[Row(1, "a")])
     }
 }

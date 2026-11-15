@@ -36,11 +36,14 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.RowText
 import io.putdotio.android.design.rememberRowText
+import io.putdotio.android.design.shown
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.search.SearchPaging
+import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.TvFocusedItem
@@ -93,7 +96,6 @@ internal class TvSearchGroups(items: List<FilesItem>) {
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun TvSearchResultList(
     groups: TvSearchGroups,
@@ -106,13 +108,11 @@ internal fun TvSearchResultList(
     listFocus: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
-    val items = groups.ordered
-    val names = remember(items) { items.map { it.name } }
     val context = LocalContext.current
     val currentRows by rememberUpdatedState(rows)
     val folders = rows.folderNames to rows.rootName
     val rowText = rememberRowText(
-        items,
+        groups.ordered,
         context,
         key = { it.id.value },
         placeholder = TvFilesRowText.Pending,
@@ -120,6 +120,30 @@ internal fun TvSearchResultList(
     ) {
         it.rowText(context, currentRows.place(it), System.currentTimeMillis())
     }
+    val shown = rowText.shown(groups, groups.ordered)
+    if (shown == null) {
+        TvListSkeleton(modifier)
+        return
+    }
+    TvSearchResultRows(shown, rowText, paging, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier)
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun TvSearchResultRows(
+    groups: TvSearchGroups,
+    rowText: RowText<FilesItem, TvFilesRowText>,
+    paging: SearchPaging,
+    restoreRowId: Long?,
+    rows: TvSearchRows,
+    onNextPage: () -> Unit,
+    onRetry: () -> Unit,
+    owner: TvPaneFocusOwner,
+    listFocus: FocusRequester,
+    modifier: Modifier,
+) {
+    val items = groups.ordered
+    val names = remember(items) { items.map { it.name } }
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
