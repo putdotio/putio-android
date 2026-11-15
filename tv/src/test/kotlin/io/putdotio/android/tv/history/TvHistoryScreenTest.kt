@@ -435,7 +435,13 @@ class TvHistoryScreenTest {
         val build = StandardTestDispatcher()
         compose.setTvContent {
             CompositionLocalProvider(LocalBuildDispatcher provides build) {
-                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+                TvHistoryScreen(
+                    state = state,
+                    onEvent = { true },
+                    clock = clock,
+                    files = TvHistoryFiles(resolver(FilesItemId(3) to file(3, "sintel.mp4", FilesFolder.Root.id))),
+                    itemActions = historyActions(),
+                )
             }
         }
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
@@ -447,10 +453,10 @@ class TvHistoryScreenTest {
         compose.runOnIdle {
             state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
         }
-        val open = hasText("Open") and hasClickAction()
-        compose.onNode(open).performSemanticsAction(SemanticsActions.RequestFocus)
+        val play = hasText("Play") and hasClickAction()
+        compose.onNode(play).performSemanticsAction(SemanticsActions.RequestFocus)
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNode(open).assertIsFocused()
+        compose.onNode(play).assertIsFocused()
     }
 
     @Test
