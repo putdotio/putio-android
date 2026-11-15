@@ -518,9 +518,10 @@ class TvTrashScreenTest {
         }
         compose.runOnIdle { pane.requestFocus() }
         compose.onNode(row).assertDoesNotExist()
+        compose.onNode(isFocused()).assertExists()
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNode(row).assertIsDisplayed()
+        compose.onNode(row).assertIsFocused()
     }
 
     @Test

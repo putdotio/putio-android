@@ -380,7 +380,7 @@ private fun TvSearchReady(
     val shownGroups = shown?.first
     val heldDetail = rememberTvHeldDetail { restoreRowId }
     val detailId = heldDetail.shown
-    val detailItem = shownGroups?.ordered?.let { items -> items.firstOrNull { it.id.value == detailId } ?: items.first() }
+    val detailItem = shownGroups?.detailItem(detailId)
     val detailFocus = remember { TvFilesDetailFocus() }
     val detailText = rememberTvFilesDetailText(groups.ordered)
     val detailRow = remember { FocusRequester() }
@@ -389,10 +389,7 @@ private fun TvSearchReady(
     val itemActions = results.itemActions
     val edits = itemActions.edits
     val actionsOf = { item: FilesItem ->
-        itemActions.actionsOf(item).filter { action ->
-            edits != null ||
-                (action !is TvFilesAction.Delete && action != TvFilesAction.Rename && action != TvFilesAction.Move)
-        }
+        itemActions.actionsOf(item).filter { it.allowed(edits != null) }
     }
     val edit = remember { TvItemEditTarget() }
     val editing = edits.rememberBusy()
@@ -589,3 +586,9 @@ private val CONTENT_TOP = 20.dp
 private val SHRUG_LIFT = 2.dp
 private val EMPTY_TOP = 16.dp
 private val EMPTY_BOTTOM = 3.dp
+
+private fun TvSearchGroups.detailItem(id: Long?): FilesItem =
+    ordered.firstOrNull { it.id.value == id } ?: ordered.first()
+
+private fun TvFilesAction.allowed(edits: Boolean): Boolean =
+    edits || (this !is TvFilesAction.Delete && this != TvFilesAction.Rename && this != TvFilesAction.Move)

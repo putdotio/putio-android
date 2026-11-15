@@ -444,7 +444,8 @@ private fun MobileRefreshableFilesContent(
                                         },
                                     ),
                                     revealItemId = state.current.revealItemId,
-                                    pagingEnabled = operation == FilesFolderOperation.Idle && shownContent === content,
+                                    pagingEnabled = shownContent ===
+                                        content.takeIf { operation == FilesFolderOperation.Idle },
                                     onEvent = onEvent,
                                     onPlayMedia = onPlayMedia,
                                     onActions = { selectedItemId = it.id.value },
