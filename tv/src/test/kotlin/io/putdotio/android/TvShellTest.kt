@@ -1,6 +1,7 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.assertCountEquals
+import io.putdotio.android.tv.awaitFocused
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.ui.test.assertIsDisplayed
@@ -518,7 +519,7 @@ class TvShellTest {
             )
         }
         compose.openTab(TvDestination.History)
-        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+        compose.awaitFocused("Open Sintel.mp4").performKeyInput {
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
         }
@@ -561,7 +562,7 @@ class TvShellTest {
                 )
             }
             compose.openTab(TvDestination.History)
-            compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
+            compose.awaitFocused("Open Sintel.mp4").performKeyInput {
                 repeat(2) { pressKey(Key.DirectionUp) }
             }
             val refreshed = CompletableDeferred<Unit>().also { gate = it }

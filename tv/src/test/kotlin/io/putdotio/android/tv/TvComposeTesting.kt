@@ -7,9 +7,13 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.KeyInjectionScope
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.isFocused
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performKeyPress
@@ -20,6 +24,11 @@ internal fun ComposeContentTestRule.awaitText(text: String, substring: Boolean =
     waitUntil(30_000L) {
         onAllNodesWithText(text, substring = substring, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     }
+
+internal fun ComposeContentTestRule.awaitFocused(description: String): SemanticsNodeInteraction {
+    waitUntil(30_000L) { onAllNodes(hasContentDescription(description) and isFocused()).fetchSemanticsNodes().isNotEmpty() }
+    return onNodeWithContentDescription(description)
+}
 
 /** [content] in the app's Compose for TV theme. */
 internal fun ComposeContentTestRule.setTvContent(content: @Composable () -> Unit) {
