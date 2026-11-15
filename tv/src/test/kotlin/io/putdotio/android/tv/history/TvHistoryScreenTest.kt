@@ -66,8 +66,6 @@ import kotlinx.coroutines.Dispatchers
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.performSemanticsAction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Rule
@@ -427,42 +425,6 @@ class TvHistoryScreenTest {
         compose.onNodeWithTag(TV_HISTORY_LIST_TAG).performKeyInput { pressKey(Key.DirectionUp) }
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNodeWithContentDescription("Open older.mkv").assertIsNotFocused()
-    }
-
-    @Test
-    fun focusMovedToTheDetailWhileTheLandedPageBuildsStaysThere() {
-        var state by mutableStateOf(historyState(HistoryContent.Ready(items(), pageFailed())))
-        val build = StandardTestDispatcher()
-        compose.setTvContent {
-            CompositionLocalProvider(LocalBuildDispatcher provides build) {
-                TvHistoryScreen(
-                    state = state,
-                    onEvent = { true },
-                    clock = clock,
-                    files = TvHistoryFiles(
-                        resolver(
-                            FilesItemId(1) to file(1, "Big Buck Bunny", FilesFolder.Root.id),
-                            FilesItemId(3) to file(3, "sintel.mp4", FilesFolder.Root.id),
-                        ),
-                    ),
-                    itemActions = historyActions(),
-                )
-            }
-        }
-        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
-            repeat(5) { pressKey(Key.DirectionDown) }
-        }
-        compose.onNodeWithText("Try again").assertIsFocused()
-
-        compose.runOnIdle {
-            state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
-        }
-        val play = hasText("Play") and hasClickAction()
-        compose.waitUntil(5_000) { compose.onAllNodes(play).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNode(play).performSemanticsAction(SemanticsActions.RequestFocus)
-        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
-        compose.onNode(play).assertIsFocused()
     }
 
     @Test

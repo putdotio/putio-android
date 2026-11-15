@@ -140,7 +140,6 @@ internal fun TvHistoryList(
     content: HistoryContent.Ready,
     history: Built<List<HistoryItem>, TvHistoryEntries>,
     restoreRowId: Long?,
-    detailHasFocus: () -> Boolean,
     focus: TvHistoryFocus,
     actions: TvHistoryListActions,
     modifier: Modifier = Modifier,
@@ -169,7 +168,7 @@ internal fun TvHistoryList(
         withFrameNanos {}
         if (paneHasFocus.value) (if (restoreIndex >= 0) restoreRow else listFocus).requestFocus()
     }
-    HandOffToLastRow(handOff, built, listState, entries, lastRow) { paneHasFocus.value && !detailHasFocus() }
+    HandOffToLastRow(handOff, built, listState, entries, lastRow) { paneHasFocus.value }
     ProvideMiddleCuts(history.value.titles) {
         LazyColumn(
             state = listState,
