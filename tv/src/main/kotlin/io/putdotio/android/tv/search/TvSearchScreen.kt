@@ -80,6 +80,7 @@ import io.putdotio.android.tv.files.TvFilesDetailActions
 import io.putdotio.android.tv.files.TvFilesDetailEnabled
 import io.putdotio.android.tv.files.TvFilesDetailFocus
 import io.putdotio.android.tv.files.TvFilesDetailSources
+import io.putdotio.android.tv.files.rememberTvFilesDetailText
 import io.putdotio.android.tv.files.TvFileViewerLayer
 import io.putdotio.android.tv.files.TvFileViewerState
 import io.putdotio.android.tv.files.TvViewerUrl
@@ -376,6 +377,7 @@ private fun TvSearchReady(
     val detailId = heldDetail.shown
     val detailItem = groups.ordered.firstOrNull { it.id.value == detailId } ?: groups.ordered.first()
     val detailFocus = remember { TvFilesDetailFocus() }
+    val detailText = rememberTvFilesDetailText(groups.ordered)
     val detailRow = remember { FocusRequester() }
     val listing = remember(content.items) { Any() }
     var actionsFor by remember { mutableStateOf<Long?>(null) }
@@ -445,6 +447,7 @@ private fun TvSearchReady(
                     onSecondary = runAction,
                     enabled = TvFilesDetailEnabled(delete = !editing, edits = !editing),
                 ),
+                text = detailText,
                 place = rows.place(detailItem),
             )
         },

@@ -121,5 +121,5 @@ internal fun rememberMetaDate(item: FilesItem): String? {
     }
 }
 
-private fun FilesItem.metaDate(context: Context, nowMillis: Long): String? =
+internal fun FilesItem.metaDate(context: Context, nowMillis: Long): String? =
     updatedAgo(nowMillis) ?: createdAt.toDisplayDate(context)

@@ -1,6 +1,8 @@
 package io.putdotio.android.tv.files
 
 import io.putdotio.android.playback.R as PlaybackR
+import android.content.Context
+import android.content.res.Resources
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
@@ -14,8 +16,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -26,6 +29,8 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.RowText
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesFolderOperation
@@ -48,7 +53,9 @@ import io.putdotio.android.tv.asMonoRun
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 internal const val TV_FILES_DETAIL_PRIMARY_TAG = "tv-files-detail-primary"
 
@@ -58,42 +65,42 @@ internal class TvFilesDetailSources(
     private val onAuthenticationRequired: suspend () -> Unit = {},
     val thumbnails: TvItemThumbnails = TvItemThumbnails.None,
 ) {
-    private val counts = mutableMapOf<Long, Int?>()
-    private val subtitles = mutableMapOf<Long, FilesSubtitles>()
+    private val counts = mutableMapOf<Long, String?>()
+    private val subtitles = mutableMapOf<Long, String?>()
     private val countListings = mutableMapOf<Long, Any>()
     private val subtitleListings = mutableMapOf<Long, Any>()
 
-    fun knownCount(id: FilesItemId): Int? = counts[id.value]
+    fun knownCount(id: FilesItemId): String? = counts[id.value]
 
-    fun knownSubtitles(id: FilesItemId): FilesSubtitles? = subtitles[id.value]
+    fun knownSubtitles(id: FilesItemId): String? = subtitles[id.value]
 
     fun countSettled(id: FilesItemId, listing: Any): Boolean = countListings[id.value] === listing
 
     fun subtitlesSettled(id: FilesItemId, listing: Any): Boolean = subtitleListings[id.value] === listing
 
-    suspend fun count(id: FilesItemId, listing: Any): Int? =
+    suspend fun count(id: FilesItemId, listing: Any, label: (Int) -> String): String? =
         if (countSettled(id, listing)) {
             counts[id.value]
         } else {
-            folderCounts?.takeIf { id.value >= 0L }?.itemCount(id)?.settle {
+            folderCounts?.takeIf { id.value >= 0L }?.itemCount(id)?.settle({ it?.let(label) }) {
                 counts[id.value] = it
                 countListings[id.value] = listing
             }
         }
 
-    suspend fun subtitles(id: FilesItemId, listing: Any): FilesSubtitles? =
+    suspend fun subtitles(id: FilesItemId, listing: Any, label: (FilesSubtitles) -> String?): String? =
         if (subtitlesSettled(id, listing)) {
             subtitles[id.value]
         } else {
-            subtitleLanguages?.takeIf { id.value > 0L }?.subtitleLanguages(id)?.settle {
+            subtitleLanguages?.takeIf { id.value > 0L }?.subtitleLanguages(id)?.settle(label) {
                 subtitles[id.value] = it
                 subtitleListings[id.value] = listing
             }
         }
 
-    private suspend fun <T> PutioResult<T>.settle(keep: (T) -> Unit): T? =
+    private suspend fun <T> PutioResult<T>.settle(label: (T) -> String?, keep: (String?) -> Unit): String? =
         when (this) {
-            is PutioResult.Success -> value.also(keep)
+            is PutioResult.Success -> withContext(Dispatchers.Default) { label(value) }.also(keep)
             is PutioResult.Failure -> {
                 if (failure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
                 null
@@ -183,6 +190,39 @@ internal class TvFilesDetailActions(
 
 internal class TvFilesDetailEnabled(val delete: Boolean = true, val edits: Boolean = true)
 
+internal data class TvFilesDetailText(
+    val duration: String?,
+    val size: String?,
+    val date: String?,
+    val resume: AnnotatedString?,
+) {
+    companion object {
+        val Pending: TvFilesDetailText = TvFilesDetailText(duration = null, size = null, date = null, resume = null)
+    }
+}
+
+internal fun FilesItem.detailText(context: Context, nowMillis: Long): TvFilesDetailText =
+    TvFilesDetailText(
+        duration = playback?.durationSeconds?.let(::tvClock),
+        size = metaSize,
+        date = metaDate(context, nowMillis),
+        resume = resumePosition(resumePlayback = true)?.let { resumeLabel(context.resources, it) },
+    )
+
+@Composable
+internal fun rememberTvFilesDetailText(items: List<FilesItem>): RowText<FilesItem, TvFilesDetailText> {
+    val context = LocalContext.current
+    return rememberRowText(
+        items,
+        context,
+        key = { it.id.value },
+        placeholder = TvFilesDetailText.Pending,
+        everyMinute = true,
+    ) {
+        it.detailText(context, System.currentTimeMillis())
+    }
+}
+
 @Composable
 internal fun ColumnScope.TvFilesDetail(
     item: FilesItem,
@@ -191,20 +231,26 @@ internal fun ColumnScope.TvFilesDetail(
     sources: TvFilesDetailSources,
     listing: Any,
     actions: TvFilesDetailActions,
+    text: RowText<FilesItem, TvFilesDetailText>,
     place: TvFilesRowPlace = TvFilesRowPlace.Listing,
 ) {
-    val count by produceState(sources.knownCount(item.id), item.id, sources, listing) {
+    val built = text[item]
+    val resources = LocalResources.current
+    val unknownLanguage = stringResource(PlaybackR.string.playback_subtitle_unknown)
+    val itemCount by produceState(sources.knownCount(item.id), item.id, sources, listing) {
         value = sources.knownCount(item.id)
         if (item.isFolder && !sources.countSettled(item.id, listing)) {
             delay(LOOKUP_DELAY_MILLIS)
-            value = sources.count(item.id, listing)
+            value = sources.count(item.id, listing) {
+                resources.getQuantityString(R.plurals.tv_files_item_count, it, it.toString())
+            }
         }
     }
-    val subtitles by produceState(sources.knownSubtitles(item.id), item.id, sources, listing) {
+    val subtitlesValue by produceState(sources.knownSubtitles(item.id), item.id, sources, listing) {
         value = sources.knownSubtitles(item.id)
         if (item.type == PutioFileType.VIDEO && !sources.subtitlesSettled(item.id, listing)) {
             delay(LOOKUP_DELAY_MILLIS)
-            value = sources.subtitles(item.id, listing)
+            value = sources.subtitles(item.id, listing) { it.label(resources, unknownLanguage) }
         }
     }
     val current by rememberUpdatedState(item)
@@ -213,12 +259,12 @@ internal fun ColumnScope.TvFilesDetail(
         tile = { TvItemTile(item, sources.thumbnails) },
         key = item.id,
         title = item.name,
-        meta = detailMeta(item, count),
-        facts = detailFacts(subtitles, place),
+        meta = detailMeta(item, built, itemCount),
+        facts = detailFacts(subtitlesValue, place),
         rows = { firstRow ->
             TvFilesPrimaryRow(
                 item = item,
-                resumeAt = item.resumePosition(resumePlayback),
+                resume = item.shownResume(resumePlayback, built.resume),
                 actions = actions,
                 current = { current },
                 modifier = firstRow
@@ -254,15 +300,13 @@ internal fun ColumnScope.TvFilesDetail(
 }
 
 @Composable
-private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
-    val date = rememberMetaDate(item)
+private fun detailMeta(item: FilesItem, text: TvFilesDetailText, itemCount: String?): AnnotatedString {
     val watched = stringResource(R.string.tv_files_watched)
-    val itemCount = count?.let { pluralStringResource(R.plurals.tv_files_item_count, it, it.toString()) }
     val parts = buildList {
-        item.playback?.durationSeconds?.let { add(tvClock(it).asMonoRun()) }
+        text.duration?.let { add(it.asMonoRun()) }
         itemCount?.let { add(AnnotatedString(it)) }
-        item.metaSize?.let { add(it.asMonoRun()) }
-        date?.let { add(AnnotatedString(it)) }
+        text.size?.let { add(it.asMonoRun()) }
+        text.date?.let { add(AnnotatedString(it)) }
         if (item.showsWatched) add(AnnotatedString(watched))
     }
     return buildAnnotatedString {
@@ -273,24 +317,19 @@ private fun detailMeta(item: FilesItem, count: Int?): AnnotatedString {
     }
 }
 
+private fun FilesSubtitles.label(resources: Resources, unknownLanguage: String): String? {
+    if (languages.isEmpty()) return null
+    val names = languages.joinToString(", ") { it ?: unknownLanguage }
+    val files = sidecarFiles.takeIf { it > 0 }?.let {
+        resources.getQuantityString(R.plurals.tv_files_detail_subtitle_files, it, it.toString())
+    }
+    return if (files == null) names else "$names$META_SEPARATOR$files"
+}
+
 @Composable
-private fun detailFacts(subtitles: FilesSubtitles?, place: TvFilesRowPlace): List<TvDetailFact> {
+private fun detailFacts(subtitlesValue: String?, place: TvFilesRowPlace): List<TvDetailFact> {
     val folder = stringResource(R.string.tv_files_detail_folder)
     val subtitlesLabel = stringResource(R.string.tv_files_detail_subtitles)
-    val unknownLanguage = stringResource(PlaybackR.string.playback_subtitle_unknown)
-    val subtitlesValue = subtitles?.takeIf { it.languages.isNotEmpty() }?.let { found ->
-        val languages = found.languages.joinToString(", ") { it ?: unknownLanguage }
-        if (found.sidecarFiles > 0) {
-            val files = pluralStringResource(
-                R.plurals.tv_files_detail_subtitle_files,
-                found.sidecarFiles,
-                found.sidecarFiles.toString(),
-            )
-            "$languages$META_SEPARATOR$files"
-        } else {
-            languages
-        }
-    }
     return listOfNotNull(
         (place as? TvFilesRowPlace.SearchResult)?.folderName?.let { TvDetailFact(folder, it) },
         subtitlesValue?.let { TvDetailFact(subtitlesLabel, it) },
@@ -300,14 +339,14 @@ private fun detailFacts(subtitles: FilesSubtitles?, place: TvFilesRowPlace): Lis
 @Composable
 private fun TvFilesPrimaryRow(
     item: FilesItem,
-    resumeAt: Double?,
+    resume: AnnotatedString?,
     actions: TvFilesDetailActions,
     current: () -> FilesItem,
     modifier: Modifier = Modifier,
 ) {
     val action = tvPrimaryAction(
         item = item,
-        resumeAt = resumeAt,
+        resume = resume,
         onOpenFolder = { actions.onOpenFolder(current()) },
         onPlay = { actions.onPlay(current(), TvPlayStart.Resume) },
         onOpenFile = { actions.onUnsupported(current()) },
@@ -332,7 +371,7 @@ internal fun TvPrimaryRow(action: TvPrimaryAction, modifier: Modifier = Modifier
 @Composable
 internal fun tvPrimaryAction(
     item: FilesItem,
-    resumeAt: Double?,
+    resume: AnnotatedString?,
     onOpenFolder: () -> Unit,
     onPlay: () -> Unit,
     onOpenFile: () -> Unit,
@@ -343,14 +382,7 @@ internal fun tvPrimaryAction(
             R.drawable.ic_ph_folder,
             onOpenFolder,
         )
-        resumeAt != null -> {
-            val time = tvClock(resumeAt)
-            TvPrimaryAction(
-                resumeLabel(stringResource(R.string.tv_files_detail_resume, time), time),
-                DesignR.drawable.ic_ph_play_fill,
-                onPlay,
-            )
-        }
+        resume != null -> TvPrimaryAction(resume, DesignR.drawable.ic_ph_play_fill, onPlay)
         item.isPlayable -> TvPrimaryAction(
             AnnotatedString(stringResource(R.string.tv_files_detail_play)),
             DesignR.drawable.ic_ph_play_fill,
@@ -368,6 +400,14 @@ internal class TvPrimaryAction(
     @param:DrawableRes val icon: Int,
     val onClick: () -> Unit,
 )
+
+internal fun FilesItem.shownResume(resumePlayback: Boolean, built: AnnotatedString?): AnnotatedString? =
+    built?.takeIf { resumePosition(resumePlayback) != null }
+
+internal fun resumeLabel(resources: Resources, seconds: Double): AnnotatedString {
+    val time = tvClock(seconds)
+    return resumeLabel(resources.getString(R.string.tv_files_detail_resume, time), time)
+}
 
 internal val FilesItem.showsWatched: Boolean
     get() = !isFolder && playback?.isWatched == true && resumePosition(resumePlayback = true) == null

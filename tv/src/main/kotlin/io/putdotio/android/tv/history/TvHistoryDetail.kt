@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.history
 
+import android.content.res.Resources
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -8,12 +9,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import io.putdotio.android.R
+import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.history.HistoryFileId
@@ -32,7 +35,9 @@ import io.putdotio.android.tv.files.TvItemTile
 import io.putdotio.android.tv.files.TvPrimaryRow
 import io.putdotio.android.tv.files.icon
 import io.putdotio.android.tv.files.label
+import io.putdotio.android.tv.files.resumeLabel
 import io.putdotio.android.tv.files.resumePosition
+import io.putdotio.android.tv.files.shownResume
 import io.putdotio.android.tv.files.tvPrimaryAction
 import kotlinx.coroutines.delay
 
@@ -53,15 +58,42 @@ internal fun rememberTvHistoryLookup(
     return lookup
 }
 
+internal class TvHistoryFileText(val size: String, val resume: AnnotatedString?)
+
+internal class TvHistoryShown(val lookup: TvHistoryLookup?, val text: TvHistoryFileText?)
+
+@Composable
+internal fun rememberTvHistoryShown(lookup: TvHistoryLookup?): TvHistoryShown {
+    val resources = LocalResources.current
+    val file = (lookup as? TvHistoryLookup.Found)?.file
+    val built = rememberRowText<TvHistoryFile, TvHistoryFileText?>(
+        listOfNotNull(file),
+        resources,
+        key = { it.item.id },
+        placeholder = null,
+    ) { it.text(resources) }
+    val text = file?.let { built[it] }
+    val waits = lookup is TvHistoryLookup.Found && text == null
+    return TvHistoryShown(if (waits) TvHistoryLookup.Pending else lookup, text)
+}
+
+private fun TvHistoryFile.text(resources: Resources): TvHistoryFileText =
+    TvHistoryFileText(
+        size = formatFileSize(sizeBytes),
+        resume = item.resumePosition(resumePlayback = true)?.let { resumeLabel(resources, it) },
+    )
+
 @Composable
 internal fun ColumnScope.TvHistoryDetail(
     item: HistoryItem,
-    lookup: TvHistoryLookup?,
+    shown: TvHistoryShown,
     stamp: TvHistoryStamp?,
     openFocus: FocusRequester,
     actions: TvHistoryDetailActions,
 ) {
     val fileId = item.kind.navigableFileId()
+    val lookup = shown.lookup
+    val fileText = shown.text
     val found = (lookup as? TvHistoryLookup.Found)?.file
     TvDetailBody(
         tile = {
@@ -74,9 +106,11 @@ internal fun ColumnScope.TvHistoryDetail(
         title = found?.item?.name ?: item.title(),
         key = item.id,
         meta = detailMeta(item, stamp),
-        facts = detailFacts(lookup),
+        facts = detailFacts(lookup, fileText),
         rows = when {
-            found != null -> { firstRow -> HistoryRows(found.item, fileId, firstRow, openFocus, actions) }
+            found != null -> { firstRow ->
+                HistoryRows(found.item, fileText?.resume, fileId, firstRow, openFocus, actions)
+            }
             lookup == TvHistoryLookup.Pending -> { _ -> TvDetailPrimarySkeleton() }
             lookup == TvHistoryLookup.Unknown && fileId != null -> { firstRow ->
                 TvSheetOption(
@@ -97,6 +131,7 @@ internal fun ColumnScope.TvHistoryDetail(
 @Composable
 private fun HistoryRows(
     item: FilesItem,
+    resume: AnnotatedString?,
     fileId: HistoryFileId?,
     modifier: Modifier,
     openFocus: FocusRequester,
@@ -105,7 +140,7 @@ private fun HistoryRows(
     val open = { fileId?.let(actions.onGoToFolder) ?: Unit }
     val primary = tvPrimaryAction(
         item = item,
-        resumeAt = item.resumePosition(actions.playback.resumePlayback),
+        resume = item.shownResume(actions.playback.resumePlayback, resume),
         onOpenFolder = open,
         onPlay = { actions.playback.onPlay(item) },
         onOpenFile = open,
@@ -153,7 +188,7 @@ private fun detailMeta(item: HistoryItem, stamp: TvHistoryStamp?): AnnotatedStri
 }
 
 @Composable
-private fun detailFacts(lookup: TvHistoryLookup?): List<TvDetailFact> {
+private fun detailFacts(lookup: TvHistoryLookup?, text: TvHistoryFileText?): List<TvDetailFact> {
     val file = (lookup as? TvHistoryLookup.Found)?.file
     if (file == null) {
         return listOfNotNull(
@@ -171,7 +206,7 @@ private fun detailFacts(lookup: TvHistoryLookup?): List<TvDetailFact> {
     return listOfNotNull(
         TvDetailFact(
             stringResource(R.string.tv_history_detail_size),
-            formatFileSize(file.sizeBytes),
+            text?.size.orEmpty(),
             mono = true,
         ),
         savedTo?.let { TvDetailFact(stringResource(R.string.tv_history_detail_saved_to), it) },
