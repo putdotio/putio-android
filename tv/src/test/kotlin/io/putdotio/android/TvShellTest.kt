@@ -54,6 +54,8 @@ import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.tv.history.TvHistoryScreen
+import io.putdotio.android.tv.history.TV_HISTORY_CLEAR_PICK
+import io.putdotio.android.tv.TvPickedRow
 import io.putdotio.android.account.InactiveAccountNotice
 import io.putdotio.android.tv.TvShell
 import io.putdotio.android.tv.auth.TvAccount
@@ -566,6 +568,34 @@ class TvShellTest {
         compose.openTab(TvDestination.History)
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused()
+    }
+
+    @Test
+    fun historyEnteredWhileItsListBuildsRestoresASavedClearHistoryFocus() {
+        val history = historyState(
+            HistoryContent.Ready(listOf(historyEvent(1, "Sintel.mp4")), HistoryPaging.Complete),
+        )
+        val pickedRow = TvPickedRow().apply { pick(TV_HISTORY_CLEAR_PICK) }
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvShell(
+                    account = TvAccount(userId = 1, username = "user", email = "user@example.com"),
+                    onSignOut = {},
+                    historyPane = { paneFocus ->
+                        TvHistoryScreen(
+                            state = history,
+                            onEvent = { true },
+                            modifier = Modifier.focusRequester(paneFocus),
+                            pickedRow = pickedRow,
+                        )
+                    },
+                )
+            }
+        }
+        compose.openTab(TvDestination.History)
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNode(hasText("Clear history") and hasClickAction()).assertIsFocused()
     }
 
     @Test

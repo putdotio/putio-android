@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.history
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +51,8 @@ import io.putdotio.android.tv.files.tvActions
 import io.putdotio.android.tv.assertHeldDownWaitsForScroll
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
+import io.putdotio.android.design.LocalBuildDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.FileDeleteResult
 import io.putdotio.sdk.files.PutioFileType
@@ -357,6 +360,35 @@ class TvHistoryScreenTest {
         }
         compose.onNodeWithContentDescription("Open sintel.mp4").assertIsFocused()
         compose.onNodeWithContentDescription("Open older.mkv").assertIsDisplayed()
+    }
+
+    @Test
+    fun focusOnTryAgainMovesToTheLandedPagesLastRowOnlyOnceItsRowsAreBuilt() {
+        var state by mutableStateOf(
+            historyState(
+                HistoryContent.Ready(
+                    items(),
+                    HistoryPaging.Failed(HistoryEventId(3), PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))),
+                ),
+            ),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused().performKeyInput {
+            repeat(5) { pressKey(Key.DirectionDown) }
+        }
+        compose.onNodeWithText("Try again").assertIsFocused()
+
+        compose.runOnIdle {
+            state = historyState(HistoryContent.Ready(items() + item(4, "older.mkv", 20), HistoryPaging.Complete))
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open older.mkv").assertIsFocused()
     }
 
     @Test

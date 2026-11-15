@@ -53,6 +53,7 @@ import java.time.LocalDate
 import java.util.TimeZone
 import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -419,11 +420,111 @@ class MobileSearchScreensTest {
                     HistoryPaging.Available(HistoryEventId(3)),
                 ),
             )
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
             compose.runOnIdle { assertEquals(3, events.count { it == HistoryEvent.LoadNextPage }) }
         } finally {
             TimeZone.setDefault(previous)
         }
     }
+
+    @Test
+    fun anUnchangedRefreshComparesItsEventsOnlyOffTheMainThread() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val firstPage = CountingEvents(listOf(historyEvent(1, "2026-10-25T09:00:00", "file-1.mkv")))
+            var history by mutableStateOf(
+                historyState(HistoryContent.Ready(firstPage, HistoryPaging.Available(HistoryEventId(1)))),
+            )
+            val events = mutableListOf<HistoryEvent>()
+            val build = StandardTestDispatcher()
+            compose.setContent {
+                CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                    PutioTheme {
+                        MobileHistoryScreen(historyState = history, onHistoryEvent = events::add, today = TODAY)
+                    }
+                }
+            }
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.runOnIdle { assertEquals(1, events.count { it == HistoryEvent.LoadNextPage }) }
+
+            val refreshed = CountingEvents(listOf(historyEvent(1, "2026-10-25T09:00:00", "file-1.mkv")))
+            compose.runOnIdle {
+                CountingEvents.comparisons = 0
+                history = historyState(HistoryContent.Ready(refreshed, HistoryPaging.Available(HistoryEventId(2))))
+            }
+            compose.runOnIdle { assertEquals(0, CountingEvents.comparisons) }
+
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.runOnIdle { assertEquals(2, events.count { it == HistoryEvent.LoadNextPage }) }
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun aRowKeepsItsOwnTextWhileTheRefreshedListBuilds() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            var history by mutableStateOf(
+                historyState(
+                    HistoryContent.Ready(
+                        listOf(historyEvent(1, "2026-10-25T09:00:00", "first.mkv")),
+                        HistoryPaging.Complete,
+                    ),
+                ),
+            )
+            val build = StandardTestDispatcher()
+            compose.setContent {
+                CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                    PutioTheme {
+                        MobileHistoryScreen(historyState = history, onHistoryEvent = {}, today = TODAY)
+                    }
+                }
+            }
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.onNodeWithText("9:00", substring = true).assertIsDisplayed()
+
+            compose.runOnIdle {
+                history = historyState(
+                    HistoryContent.Ready(
+                        listOf(historyEvent(1, "2026-10-25T21:30:00", "second.mkv")),
+                        HistoryPaging.Complete,
+                    ),
+                )
+            }
+            val mixed = runCatching {
+                compose.waitUntil(1_000) {
+                    compose.onAllNodesWithText("9:30", substring = true).fetchSemanticsNodes().isNotEmpty()
+                }
+            }.isSuccess
+            assertFalse("first.mkv shows the time of the refreshed event", mixed)
+            compose.onNodeWithText("first.mkv").assertIsDisplayed()
+
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.onNodeWithText("second.mkv").assertIsDisplayed()
+            compose.onNodeWithText("9:30", substring = true).assertIsDisplayed()
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    private class CountingEvents(private val events: List<HistoryItem>) : List<HistoryItem> by events {
+        override fun equals(other: Any?): Boolean {
+            comparisons++
+            return events == ((other as? CountingEvents)?.events ?: other)
+        }
+
+        override fun hashCode(): Int = events.hashCode()
+
+        companion object {
+            var comparisons = 0
+        }
+    }
+
+    private fun historyEvent(id: Long, stamp: String, name: String) =
+        HistoryItem(HistoryEventId(id), stamp, HistoryEventKind.File(HistoryFileId(id), name))
 
     @Test
     fun anUploadedFileOpensFromItsHistoryRow() {
