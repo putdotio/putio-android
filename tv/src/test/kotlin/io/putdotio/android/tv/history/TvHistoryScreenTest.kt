@@ -3,6 +3,7 @@ package io.putdotio.android.tv.history
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
@@ -389,6 +390,51 @@ class TvHistoryScreenTest {
         }
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNodeWithContentDescription("Open older.mkv").assertIsFocused()
+    }
+
+    @Test
+    fun anUnchangedRefreshComparesItsEventsOnlyOffTheMainThread() {
+        var state by mutableStateOf(
+            historyState(HistoryContent.Ready(CountingEvents(items()), HistoryPaging.Available(HistoryEventId(3)))),
+            neverEqualPolicy(),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(
+                    state = state,
+                    onEvent = {
+                        if (it != HistoryEvent.Refresh) log += it
+                        true
+                    },
+                    clock = clock,
+                )
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.runOnIdle { assertEquals(listOf<HistoryEvent>(HistoryEvent.LoadNextPage), log) }
+
+        compose.runOnIdle {
+            CountingEvents.comparisons = 0
+            state = historyState(HistoryContent.Ready(CountingEvents(items()), HistoryPaging.Available(HistoryEventId(4))))
+        }
+        compose.runOnIdle { assertEquals(0, CountingEvents.comparisons) }
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.runOnIdle { assertEquals(listOf(HistoryEvent.LoadNextPage, HistoryEvent.LoadNextPage), log) }
+    }
+
+    private class CountingEvents(private val events: List<HistoryItem>) : List<HistoryItem> by events {
+        override fun equals(other: Any?): Boolean {
+            comparisons++
+            return events == ((other as? CountingEvents)?.events ?: other)
+        }
+
+        override fun hashCode(): Int = events.hashCode()
+
+        companion object {
+            var comparisons = 0
+        }
     }
 
     @Test

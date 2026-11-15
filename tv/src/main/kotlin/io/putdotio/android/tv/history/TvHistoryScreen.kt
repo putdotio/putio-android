@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
@@ -232,6 +233,7 @@ private fun TvHistoryListSkeleton(modifier: Modifier) {
 }
 
 @Composable
+@NonSkippableComposable
 private fun TvHistoryListDetail(
     content: HistoryContent.Ready,
     onEvent: (HistoryEvent) -> Boolean,

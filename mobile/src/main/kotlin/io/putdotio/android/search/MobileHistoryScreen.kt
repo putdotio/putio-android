@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -174,6 +175,7 @@ private fun MobileHistoryContent(
 }
 
 @Composable
+@NonSkippableComposable
 private fun MobileHistoryList(
     content: HistoryContent.Ready,
     today: LocalDate,
