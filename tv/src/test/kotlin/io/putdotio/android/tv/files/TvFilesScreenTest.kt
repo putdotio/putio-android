@@ -44,6 +44,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.onNodeWithTag
 import io.putdotio.android.PutioResult
 import io.putdotio.android.files.FilesFolderCounts
+import io.putdotio.android.tv.awaitText
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
@@ -478,6 +479,7 @@ class TvFilesScreenTest {
 
         position = 1_500.0
         compose.mainClock.advanceTimeBy(1_000)
+        compose.awaitText("Resume from 25:00")
 
         compose.onNode(hasText("Resume from 25:00") and hasClickAction()).assertIsFocused()
     }

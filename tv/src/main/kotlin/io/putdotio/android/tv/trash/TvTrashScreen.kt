@@ -237,6 +237,7 @@ private fun TvTrashListDetail(
     val detailItem = items.firstOrNull { it.id.value == detailId }
         ?: items.firstOrNull { it.id.value == pickedRow.id }
         ?: items.firstOrNull()
+    val detailText = rememberTvTrashDetailText(items)
     val panelHeld = remember { mutableStateOf(false) }
     TvTrashDetailLeaves(loaded, detailId, panelHeld, listFocus, focus.list)
     TvListDetail(
@@ -280,6 +281,7 @@ private fun TvTrashListDetail(
                 loaded == null -> TvDetailSkeleton()
                 detailItem != null -> TvTrashDetail(
                     item = detailItem,
+                    text = detailText,
                     actions = TvTrashDetailActions(
                         canRestore = state.canRestore(detailItem.id),
                         canDelete = state.canDelete(detailItem.id),
@@ -300,16 +302,6 @@ internal class TvTrashListFocus(
     val list: FocusRequester,
     val paneHasFocus: State<Boolean>,
     val dialogShowing: State<Boolean>,
-)
-
-internal data class TvTrashDetailActions(
-    val canRestore: Boolean,
-    val canDelete: Boolean,
-    val onRestore: () -> Unit,
-    val onDelete: () -> Unit,
-    val showsFocus: Boolean,
-    val restoreModifier: Modifier,
-    val deleteModifier: Modifier,
 )
 
 private class TvTrashFocus {

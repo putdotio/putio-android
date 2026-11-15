@@ -50,6 +50,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioEmptyGlyph
+import io.putdotio.android.design.RowText
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
 import io.putdotio.android.files.FilesContent
@@ -234,6 +235,7 @@ internal fun TvFilesScreen(
     val detailRow = rememberTvHeldDetail(sessionKey, folderId) { focusMemory[folderId] }
     val detailItem = content.detailItem(detailRow.shown, focusMemory[folderId])
     val detailFocus = remember { TvFilesDetailFocus() }
+    val detailText = rememberTvFilesDetailText(content.items())
     val listing = rememberTvFilesListing(current)
     val actionContext = TvFilesActionContext(
         watchedToggleEnabled = watchedToggleEnabled,
@@ -343,6 +345,7 @@ internal fun TvFilesScreen(
                         TvFilesDetailPane(
                             loading = content is FilesContent.Loading,
                             item = detailItem,
+                            text = detailText,
                             detailFocus = detailFocus,
                             resumePlayback = resumePlayback,
                             sources = detailSources,
@@ -598,6 +601,7 @@ private fun TvFilesRows(
 private fun ColumnScope.TvFilesDetailPane(
     loading: Boolean,
     item: FilesItem?,
+    text: RowText<FilesItem, TvFilesDetailText>,
     detailFocus: TvFilesDetailFocus,
     resumePlayback: Boolean,
     sources: TvFilesDetailSources,
@@ -625,6 +629,7 @@ private fun ColumnScope.TvFilesDetailPane(
             onSecondary = onSecondary,
             enabled = enabled,
         ),
+        text = text,
     )
 }
 
