@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -175,7 +176,13 @@ class MobileFilesListDetailTest {
     @Test
     fun aPinRefusedFromTheViewerShowsItsNoticeOverTheViewer() {
         val pinNotices = MutableSharedFlow<MobileFilesNotice>(extraBufferCapacity = 1)
-        setRoute(width = 400.dp, wide = false, itemActions = MobileFilesItemActions(pinNotices = pinNotices))
+        compose.setBuiltContent {
+            PutioTheme {
+                CompositionLocalProvider(LocalMobileFileViewerIo provides Dispatchers.Unconfined) {
+                    MobilePinNoticeRoute(MobileFilesItemActions(pinNotices = pinNotices))
+                }
+            }
+        }
         compose.onNodeWithText(SECOND_IMAGE.name).performClick()
         compose.waitForIdle()
 
@@ -351,7 +358,6 @@ class MobileFilesListDetailTest {
         state: FilesBrowserState = blueLights(),
         events: MutableList<FilesBrowserEvent> = mutableListOf(),
         linkedFile: FilesItemId? = null,
-        itemActions: MobileFilesItemActions = MobileFilesItemActions(),
     ) {
         compose.setBuiltContent {
             PutioTheme {
@@ -369,7 +375,6 @@ class MobileFilesListDetailTest {
                             fileOpener = MobileFileOpener(userId = 42L),
                             linkedFile = linkedFile,
                             onLinkedFileLanded = { landedLinks++ },
-                            itemActions = itemActions,
                         )
                     }
                 }
@@ -427,6 +432,42 @@ class MobileFilesListDetailTest {
             type = type,
             sizeBytes = 3_200_000_000L,
             createdAt = "2026-10-13T10:00:00",
+        )
+    }
+}
+
+@Composable
+private fun MobilePinNoticeRoute(itemActions: MobileFilesItemActions) {
+    Box(Modifier.requiredSize(width = 400.dp, height = 700.dp)) {
+        MobileFilesRoute(
+            state = filesBrowserState(
+                stack = listOf(
+                    FilesFolderState(
+                        FilesFolder(FilesItemId(11L), "Blue Lights"),
+                        FilesContent.Ready(
+                            listOf(
+                                FilesItem(
+                                    id = FilesItemId(4L),
+                                    parentId = FilesItemId(11L),
+                                    name = "Belém at noon.jpg",
+                                    type = PutioFileType.IMAGE,
+                                    sizeBytes = 3_200_000L,
+                                    createdAt = "2026-10-13T10:00:00",
+                                ),
+                            ),
+                            FilesPaging.Complete,
+                        ),
+                    ),
+                ),
+                nextRequestValue = 2L,
+            ),
+            repository = null,
+            onEvent = { true },
+            onPlayMedia = {},
+            confirmedTrashEnabled = true,
+            onAuthenticationRequired = {},
+            fileOpener = MobileFileOpener(userId = 42L),
+            itemActions = itemActions,
         )
     }
 }

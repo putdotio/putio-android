@@ -98,12 +98,12 @@ internal fun MobileFilesRoute(
     val actionsRequests = remember { MutableSharedFlow<MobileFilesActionsRequest>(extraBufferCapacity = 1) }
     val viewFile: (FilesItem) -> Unit = { viewerId = it.id.value }
     val openFile = fileOpenAction(onPlayMedia, onView = viewFile, onOther = openWithAnotherApp)
-    val viewerShown = fileOpener != null && items.any { it.id.value == viewerId }
-    val sheetActions = when {
-        fileOpener == null -> itemActions
-        viewerShown -> itemActions.copy(onOpen = viewFile, onOpenWith = openWithAnotherApp, pinNotices = emptyFlow())
-        else -> itemActions.copy(onOpen = viewFile, onOpenWith = openWithAnotherApp)
-    }
+    val sheetActions = itemActions.opening(
+        views = fileOpener != null,
+        view = viewFile,
+        openWith = openWithAnotherApp,
+        viewerShown = items.any { it.id.value == viewerId },
+    )
     val fileOpening = fileOpener?.let {
         MobileFilesOpening(
             onOpenFile = if (showsDetail) { item -> detailId = item.id.value } else openFile,
@@ -235,6 +235,17 @@ private fun fileOpenAction(
         item.viewerKind != null -> onView(item)
         else -> onOther(item)
     }
+}
+
+private fun MobileFilesItemActions.opening(
+    views: Boolean,
+    view: (FilesItem) -> Unit,
+    openWith: (FilesItem) -> Unit,
+    viewerShown: Boolean,
+): MobileFilesItemActions = when {
+    !views -> this
+    viewerShown -> copy(onOpen = view, onOpenWith = openWith, pinNotices = emptyFlow())
+    else -> copy(onOpen = view, onOpenWith = openWith)
 }
 
 /** The viewer over the folder's files of the shown file's kind, while that file is still listed. */

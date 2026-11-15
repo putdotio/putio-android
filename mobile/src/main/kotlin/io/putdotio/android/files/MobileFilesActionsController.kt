@@ -75,7 +75,6 @@ internal class MobileFilesActionsController(
     private val scope: CoroutineScope,
     private val sources: MobileFilesActionSources,
     private val onFilesEvent: (FilesBrowserEvent) -> Boolean,
-    private val onTrashUndone: (FilesDeleteOutcome) -> Unit = {},
     /** put.io accepted a position from the watched toggle: Continue watching and offline positions follow. */
     private val onPositionSaved: (FilesItemId, Double) -> Unit,
     private val onAuthenticationRequired: suspend () -> Unit,
@@ -200,7 +199,6 @@ internal class MobileFilesActionsController(
                         onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
                     }
                     onFilesEvent(FilesBrowserEvent.ReloadIfStale)
-                    onTrashUndone(outcome)
                 }
                 is PutioResult.Failure -> report(
                     if (itemIds.size == 1) {

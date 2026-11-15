@@ -260,8 +260,10 @@ internal fun SignedInMobileRoot(
                             trash = trashRepository,
                             positionWrites = { id, write -> runtime.playbackReporting.supersede(id.value, write) },
                         ),
-                        onFilesEvent = browser::dispatch,
-                        onTrashUndone = { outcome -> pinnedFiles?.trashUndone(outcome) },
+                        onFilesEvent = { event ->
+                            if (event is FilesBrowserEvent.TrashUndone) pinnedFiles?.trashUndone(event.outcome)
+                            browser.dispatch(event)
+                        },
                         onPositionSaved = { fileId, seconds ->
                             // Finished or cleared, the video leaves Continue watching; an offline position follows.
                             continueWatching?.positionSaved(fileId, seconds)
