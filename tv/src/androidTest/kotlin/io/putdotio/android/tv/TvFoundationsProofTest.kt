@@ -59,7 +59,7 @@ import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.TvFilesRowPlace
-import io.putdotio.android.tv.files.rowText
+import io.putdotio.android.tv.files.rowMeta
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.UUID
@@ -324,10 +324,10 @@ private fun FocusAccentsSheet(choices: Boolean) {
             val sintel = watched(20, "Sintel.2010.1080p.mkv")
             val bunny = watched(21, "Big_Buck_Bunny_1080_10s_30MB.mp4")
             val now = System.currentTimeMillis()
-            TvFilesRow(item = sintel, text = sintel.rowText(context, TvFilesRowPlace.Listing, now), onClick = {})
+            TvFilesRow(item = sintel, meta = sintel.rowMeta(context, TvFilesRowPlace.Listing, now), onClick = {})
             TvFilesRow(
                 item = bunny,
-                text = bunny.rowText(context, TvFilesRowPlace.Listing, now),
+                meta = bunny.rowMeta(context, TvFilesRowPlace.Listing, now),
                 onClick = {},
                 modifier = Modifier.focusRequester(rowFocus),
             )

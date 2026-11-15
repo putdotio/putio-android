@@ -50,10 +50,10 @@ internal fun FilesItem.rowMeta(context: Context, place: TvFilesRowPlace, nowMill
     return TvRowMeta(parts, endsWithDot = showsWatched && parts.isNotEmpty())
 }
 
-private fun FilesItem.rowLabel(context: Context, searchResult: Boolean): String =
+private fun FilesItem.rowLabel(context: Context, place: TvFilesRowPlace): String =
     when {
         isPlayable -> context.getString(R.string.tv_files_play_media, name)
-        searchResult -> context.getString(R.string.tv_search_open_result, name)
+        place is TvFilesRowPlace.SearchResult -> context.getString(R.string.tv_search_open_result, name)
         isFolder -> context.getString(R.string.tv_files_open_folder, name)
         else -> name
     }
@@ -67,9 +67,10 @@ internal fun TvFilesRow(
     /** Long-press Center or the Menu key; null when the row offers nothing beyond opening. */
     onActions: (() -> Unit)? = null,
     showsFocus: Boolean = true,
-    searchResult: Boolean = false,
+    place: TvFilesRowPlace = TvFilesRowPlace.Listing,
 ) {
     val context = LocalContext.current
+    val label = remember(item, place, context) { lazy { item.rowLabel(context, place) } }
     TvListRow(
         glyph = fileTypeIconRes(item.type),
         title = item.name,
@@ -86,11 +87,11 @@ internal fun TvFilesRow(
                     false
                 }
             }
-            .semantics { contentDescription = item.rowLabel(context, searchResult) }
+            .semantics { contentDescription = label.value }
             .testTag(TV_FILES_ROW_TAG),
     ) { secondary ->
         TvListRowMeta(meta, secondary)
-        if (item.showsWatched) {
+        if (item.showsWatched && meta !== TvRowMeta.Pending) {
             Icon(
                 painter = painterResource(R.drawable.ic_ph_eye),
                 contentDescription = stringResource(R.string.tv_files_watched),

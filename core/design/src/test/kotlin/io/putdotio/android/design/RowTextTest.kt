@@ -23,7 +23,9 @@ class RowTextTest {
         read.enter { text[Row(1, "a")] }
         read.dispose()
         var invalidated = false
-        val observer = Snapshot.registerApplyObserver { changed, _ -> invalidated = changed.any { it in reads } }
+        val observer = Snapshot.registerApplyObserver { changed, _ ->
+            invalidated = invalidated || changed.any { it in reads }
+        }
         prepare()
         text.recomposeStaleRows()
         Snapshot.sendApplyNotifications()
@@ -33,21 +35,10 @@ class RowTextTest {
 
     @Test
     fun aRowReadBeforeItsTextIsBuiltGetsThePlaceholderAndRecomposesOnceBuilt() = runTest {
-        val reads = mutableSetOf<Any>()
-        val read = Snapshot.takeSnapshot { reads += it }
-        val shown = read.enter { text[Row(1, "a")] }
-        read.dispose()
-        assertEquals("", shown)
+        assertEquals("", text[Row(1, "a")])
         assertEquals(emptyList<Row>(), built)
 
-        var invalidated = false
-        val observer = Snapshot.registerApplyObserver { changed, _ -> invalidated = changed.any { it in reads } }
-        text.prepare(listOf(Row(1, "a"), Row(2, "b")), refresh = null)
-        text.recomposeStaleRows()
-        Snapshot.sendApplyNotifications()
-        observer.dispose()
-
-        assertTrue(invalidated)
+        assertTrue(recomposesRowsAfter { text.prepare(listOf(Row(1, "a"), Row(2, "b")), refresh = null) })
         assertEquals("a text", text[Row(1, "a")])
     }
 

@@ -228,7 +228,7 @@ private fun TvSearchResultRow(
         item = item,
         meta = meta,
         onClick = { rows.onResult(item) },
-        searchResult = true,
+        place = rows.place(item),
         onActions = rows.onActions?.let { open -> { open(item) } },
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }

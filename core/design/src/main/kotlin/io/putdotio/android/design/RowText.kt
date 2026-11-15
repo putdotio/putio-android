@@ -87,15 +87,17 @@ public fun <T : Any, V> rememberRowText(
     LaunchedEffect(text, items, refresh, everyMinute) {
         text.recomposeStaleRows()
         while (isActive) {
-            val stamp = if (everyMinute) refresh to System.currentTimeMillis() / MINUTE_MILLIS else refresh
-            withContext(Dispatchers.Default) { text.prepare(items, stamp) }
+            val minute = currentMinute()
+            withContext(Dispatchers.Default) { text.prepare(items, if (everyMinute) refresh to minute else refresh) }
             withFrameNanos {}
             text.recomposeStaleRows()
             if (!everyMinute) break
-            delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
+            if (currentMinute() == minute) delay(MINUTE_MILLIS - System.currentTimeMillis() % MINUTE_MILLIS)
         }
     }
     return text
 }
+
+private fun currentMinute(): Long = System.currentTimeMillis() / MINUTE_MILLIS
 
 private const val MINUTE_MILLIS = 60_000L

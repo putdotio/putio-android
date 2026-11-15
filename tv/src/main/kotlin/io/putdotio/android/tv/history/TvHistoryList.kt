@@ -77,7 +77,6 @@ private sealed interface TvHistoryEntry {
     }
 }
 
-
 @Composable
 private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: ZoneId): List<TvHistoryEntry> {
     val resources = LocalResources.current
@@ -297,14 +296,15 @@ private fun TvHistoryRow(
 ) {
     val fileId = item.kind.navigableFileId()
     val resources = LocalResources.current
+    val label = remember(title, fileId, resources) {
+        lazy { if (fileId == null) title else resources.getString(R.string.tv_history_open_file, title) }
+    }
     TvListRow(
         glyph = item.kind.glyph(),
         title = title,
         onClick = { if (fileId != null) onOpen(fileId) },
         modifier = modifier
-            .semantics {
-                contentDescription = if (fileId == null) title else resources.getString(R.string.tv_history_open_file, title)
-            }
+            .semantics { contentDescription = label.value }
             .testTag(TV_HISTORY_ROW_TAG),
         glyphSize = GLYPH,
         neutralGlyph = true,
