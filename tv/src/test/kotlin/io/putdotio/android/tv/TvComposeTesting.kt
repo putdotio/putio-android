@@ -2,6 +2,7 @@ package io.putdotio.android.tv
 
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.test.ExperimentalTestApi
@@ -14,7 +15,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performKeyPress
 import androidx.compose.ui.test.pressKey
+import io.putdotio.android.design.LocalBuildDispatcher
 import io.putdotio.android.design.PutioTvTheme
+import kotlinx.coroutines.Dispatchers
 
 internal fun ComposeContentTestRule.awaitText(text: String, substring: Boolean = false) =
     waitUntil(30_000L) {
@@ -23,7 +26,11 @@ internal fun ComposeContentTestRule.awaitText(text: String, substring: Boolean =
 
 /** [content] in the app's Compose for TV theme. */
 internal fun ComposeContentTestRule.setTvContent(content: @Composable () -> Unit) {
-    setContent { PutioTvTheme(content = content) }
+    setContent {
+        CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined) {
+            PutioTvTheme(content = content)
+        }
+    }
 }
 
 /** A D-pad Center tap with no hold between down and up. */

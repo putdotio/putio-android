@@ -6,8 +6,6 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
 import io.putdotio.android.history.HistoryEventKind
@@ -26,11 +24,6 @@ internal data class TvHistoryDay(val date: LocalDate?, val raw: String?)
 
 internal fun HistoryItem.day(zone: ZoneId): TvHistoryDay =
     localDate(zone)?.let { TvHistoryDay(it, null) } ?: TvHistoryDay(null, createdAt)
-
-@Composable
-@ReadOnlyComposable
-internal fun TvHistoryDay.label(today: LocalDate): String =
-    label(today, LocalResources.current, LocalConfiguration.current.locales[0])
 
 internal fun TvHistoryDay.label(today: LocalDate, resources: Resources, locale: Locale): String =
     when (date) {

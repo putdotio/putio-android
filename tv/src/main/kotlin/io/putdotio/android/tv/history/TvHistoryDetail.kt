@@ -34,8 +34,6 @@ import io.putdotio.android.tv.files.icon
 import io.putdotio.android.tv.files.label
 import io.putdotio.android.tv.files.resumePosition
 import io.putdotio.android.tv.files.tvPrimaryAction
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlinx.coroutines.delay
 
 @Composable
@@ -59,8 +57,7 @@ internal fun rememberTvHistoryLookup(
 internal fun ColumnScope.TvHistoryDetail(
     item: HistoryItem,
     lookup: TvHistoryLookup?,
-    today: LocalDate,
-    zone: ZoneId,
+    stamp: TvHistoryStamp?,
     openFocus: FocusRequester,
     actions: TvHistoryDetailActions,
 ) {
@@ -76,7 +73,7 @@ internal fun ColumnScope.TvHistoryDetail(
         },
         title = found?.item?.name ?: item.title(),
         key = item.id,
-        meta = detailMeta(item, today, zone),
+        meta = detailMeta(item, stamp),
         facts = detailFacts(lookup),
         rows = when {
             found != null -> { firstRow -> HistoryRows(found.item, fileId, firstRow, openFocus, actions) }
@@ -141,20 +138,16 @@ private fun HistoryRows(
 }
 
 @Composable
-private fun detailMeta(item: HistoryItem, today: LocalDate, zone: ZoneId): AnnotatedString {
+private fun detailMeta(item: HistoryItem, stamp: TvHistoryStamp?): AnnotatedString {
     val kind = item.kind.kindLabel()?.let { stringResource(it) }
-    val day = item.day(zone)
-    val dayLabel = day.label(today)
-    val time = item.timeLabel(zone)
     return buildAnnotatedString {
-        if (kind != null) {
-            append(kind)
-            append(META_SEPARATOR)
-        }
-        append(dayLabel)
-        if (day.date != null) {
+        if (kind != null) append(kind)
+        if (stamp == null) return@buildAnnotatedString
+        if (kind != null) append(META_SEPARATOR)
+        append(stamp.day)
+        stamp.time?.let {
             append(DAY_TIME_SEPARATOR)
-            withStyle(TV_MONO_RUN) { append(time) }
+            withStyle(TV_MONO_RUN) { append(it) }
         }
     }
 }

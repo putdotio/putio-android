@@ -32,6 +32,7 @@ import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.RowText
+import io.putdotio.android.design.rememberBuiltOffMain
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.history.HistoryContent
 import io.putdotio.android.history.HistoryFileId
@@ -59,9 +60,10 @@ import io.putdotio.android.tv.tracksFocusedItem
 import io.putdotio.android.tv.withFullLineBox
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import kotlinx.coroutines.flow.first
 
-private sealed interface TvHistoryEntry {
+internal sealed interface TvHistoryEntry {
     val key: Any
 
     data class Section(val label: String) : TvHistoryEntry {
@@ -77,21 +79,45 @@ private sealed interface TvHistoryEntry {
     }
 }
 
+internal class TvHistoryStamp(val day: String, val time: String?)
+
+internal class TvHistoryEntries(
+    val items: List<HistoryItem>,
+    val list: List<TvHistoryEntry>,
+    private val stamps: Map<Long, TvHistoryStamp>,
+) {
+    fun stampOf(item: HistoryItem): TvHistoryStamp? = stamps[item.id.value]
+}
+
 @Composable
-private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: ZoneId): List<TvHistoryEntry> {
+internal fun rememberHistoryEntries(items: List<HistoryItem>, today: LocalDate, zone: ZoneId): TvHistoryEntries? {
     val resources = LocalResources.current
     val locale = LocalConfiguration.current.locales[0]
-    return remember(items, today, zone, resources, locale) {
-        val untitled = resources.getString(R.string.tv_history_no_title)
-        val days = items.groupConsecutiveBy { it.day(zone) }
-        buildList {
-            days.forEachIndexed { index, (day, events) ->
-                val label = day.label(today, resources, locale)
-                add(if (index == 0) TvHistoryEntry.Section(label) else TvHistoryEntry.Header(label, day))
-                events.forEach { add(TvHistoryEntry.Event(it, it.named() ?: untitled)) }
+    return rememberBuiltOffMain(items, today, zone, resources, locale) {
+        items.historyEntries(today, zone, resources, locale)
+    }
+}
+
+private fun List<HistoryItem>.historyEntries(
+    today: LocalDate,
+    zone: ZoneId,
+    resources: Resources,
+    locale: Locale,
+): TvHistoryEntries {
+    val untitled = resources.getString(R.string.tv_history_no_title)
+    val stamps = HashMap<Long, TvHistoryStamp>(size)
+    val days = groupConsecutiveBy { it.day(zone) }
+    val list = buildList {
+        days.forEachIndexed { index, (day, events) ->
+            val label = day.label(today, resources, locale)
+            add(if (index == 0) TvHistoryEntry.Section(label) else TvHistoryEntry.Header(label, day))
+            events.forEach {
+                stamps[it.id.value] = TvHistoryStamp(label, it.timeLabel(zone).takeIf { day.date != null })
+                add(TvHistoryEntry.Event(it, it.named() ?: untitled))
             }
         }
     }
+    return TvHistoryEntries(this, list, stamps)
 }
 
 private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K): List<Pair<K, List<HistoryItem>>> =
@@ -138,6 +164,12 @@ private fun HistoryItem.rowLabel(title: String, resources: Resources): String =
 private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequesters): Modifier =
     if (entry is TvHistoryEntry.Event) focusRequester(requesters.of(entry.key)) else this
 
+private fun pagingLanded(built: Boolean, paging: HistoryPaging, pagingHeldFocus: Boolean): Boolean =
+    built && paging !is HistoryPaging.Failed && pagingHeldFocus
+
+private fun HistoryPaging.nextPageWhen(built: Boolean): HistoryPaging.Available? =
+    (this as? HistoryPaging.Available)?.takeIf { built }
+
 private val HistoryPaging.isPending: Boolean
     get() = this is HistoryPaging.Available || this is HistoryPaging.Loading
 
@@ -170,8 +202,8 @@ private suspend fun LazyListState.awaitMountRow(
 @Composable
 internal fun TvHistoryList(
     content: HistoryContent.Ready,
+    history: TvHistoryEntries,
     restoreRowId: Long?,
-    today: LocalDate,
     zone: ZoneId,
     focus: TvHistoryFocus,
     actions: TvHistoryListActions,
@@ -179,7 +211,7 @@ internal fun TvHistoryList(
 ) {
     val listFocus = focus.list
     val paneHasFocus = focus.paneHasFocus
-    val entries = historyEntries(content.items, today, zone)
+    val entries = history.list
     val titles = remember(entries) { entries.mapNotNull { (it as? TvHistoryEntry.Event)?.title } }
     val rowText = rememberHistoryRowText(content.items, zone)
     val rowFocus = remember { TvItemRequesters() }
@@ -187,7 +219,8 @@ internal fun TvHistoryList(
     val restoreRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
-    if (content.paging !is HistoryPaging.Failed && pagingHeldFocus.value) {
+    val built = history.items == content.items
+    if (pagingLanded(built, content.paging, pagingHeldFocus.value)) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
     }
@@ -197,7 +230,7 @@ internal fun TvHistoryList(
     val restoreIndex = remember(entries) { entries.indexOfPick(restoreRowId) }
     val pendingEndIndex = lastIndex.takeIf { content.paging.isPending }
     TvAutoPaging(
-        page = content.paging as? HistoryPaging.Available,
+        page = content.paging.nextPageWhen(built),
         onLoadMore = actions.onNextPage,
         nearEnd = { listState.isNearEnd(lastIndex) },
     )

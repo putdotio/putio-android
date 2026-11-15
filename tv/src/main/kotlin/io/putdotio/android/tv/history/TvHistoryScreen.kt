@@ -213,17 +213,23 @@ private fun TvHistoryLoading(skeletonFocus: FocusRequester) {
             modifier = Modifier.weight(1f),
             header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
             detailFocus = FocusRequester.Cancel,
-            list = {
-                TvSectionLine {}
-                TvListSkeleton(
-                    Modifier
-                        .focusRequester(skeletonFocus)
-                        .focusable(),
-                )
-            },
+            list = { TvHistoryListSkeleton(Modifier.focusRequester(skeletonFocus)) },
             detail = { TvDetailSkeleton() },
         )
     }
+}
+
+private fun detailFocus(
+    history: TvHistoryEntries?,
+    fileId: HistoryFileId?,
+    actionable: Boolean,
+    open: FocusRequester,
+): FocusRequester = if (history != null && fileId != null && actionable) open else FocusRequester.Cancel
+
+@Composable
+private fun TvHistoryListSkeleton(modifier: Modifier) {
+    TvSectionLine {}
+    TvListSkeleton(modifier.focusable())
 }
 
 @Composable
@@ -241,9 +247,11 @@ private fun TvHistoryListDetail(
 ) {
     val restoreRowId = remember { pickedRow.id }
     val today = remember(content.items) { LocalDate.now(clock) }
+    val history = rememberHistoryEntries(content.items, today, clock.zone)
+    val shownItems = history?.items ?: content.items
     val openFocus = remember { FocusRequester() }
     val detailRow = rememberTvHeldDetail { restoreRowId }
-    val detailItem = content.items.firstOrNull { it.id.value == detailRow.shown } ?: content.items.first()
+    val detailItem = shownItems.firstOrNull { it.id.value == detailRow.shown } ?: shownItems.first()
     val detailFileId = detailItem.kind.navigableFileId()
     val lookup = rememberTvHistoryLookup(detailFileId, files, onAuthenticationRequired)
     val detailActionable = lookup is TvHistoryLookup.Found || lookup == TvHistoryLookup.Unknown
@@ -256,15 +264,19 @@ private fun TvHistoryListDetail(
         TvListDetail(
             modifier = Modifier.weight(1f).heldDetail(detailRow),
             header = { Spacer(Modifier.height(HISTORY_TOP_GAP)) },
-            detailFocus = if (detailFileId != null && detailActionable) openFocus else FocusRequester.Cancel,
+            detailFocus = detailFocus(history, detailFileId, detailActionable, openFocus),
             listFocus = focus.list,
             onDetailFocusChanged = { if (it) detailHadFocus = true },
             list = {
                 if (notice != null) TvHistoryNotice(notice)
+                if (history == null) {
+                    TvHistoryListSkeleton(Modifier.focusRequester(focus.list).focusRequester(focus.clear))
+                    return@TvListDetail
+                }
                 TvHistoryList(
                     content = content,
+                    history = history,
                     restoreRowId = restoreRowId,
-                    today = today,
                     zone = clock.zone,
                     focus = focus,
                     actions = TvHistoryListActions(
@@ -287,11 +299,14 @@ private fun TvHistoryListDetail(
                 )
             },
             detail = {
+                if (history == null) {
+                    TvDetailSkeleton()
+                    return@TvListDetail
+                }
                 TvHistoryDetail(
                     item = detailItem,
                     lookup = lookup,
-                    today = today,
-                    zone = clock.zone,
+                    stamp = history.stampOf(detailItem),
                     openFocus = openFocus,
                     actions = TvHistoryDetailActions(
                         editing = editing,

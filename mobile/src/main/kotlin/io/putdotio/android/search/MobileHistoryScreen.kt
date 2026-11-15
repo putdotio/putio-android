@@ -58,6 +58,7 @@ import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.RowText
+import io.putdotio.android.design.rememberBuiltOffMain
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.mobileMessage
@@ -178,29 +179,20 @@ private fun MobileHistoryList(
     onEvent: (HistoryEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val zone = ZoneId.systemDefault()
-    // A stamp the parser cannot read keeps a group of its own, under itself.
-    val grouped = remember(content.items, zone) {
-        content.items.groupBy { item -> item.localDate(zone)?.let { it to null } ?: (null to item.createdAt) }
-    }
     val rowText = rememberHistoryRowText(content.items)
-    val dayLabels = rememberDayLabels(today, zone)
     val listState = rememberLazyListState()
+    val history = rememberHistoryDays(content.items, today) ?: return
     LoadNextPageNearEnd(
         listState = listState,
-        nextPage = content.paging as? HistoryPaging.Available,
+        nextPage = (content.paging as? HistoryPaging.Available).takeIf { history.items == content.items },
         onLoadNextPage = { onEvent(HistoryEvent.LoadNextPage) },
     )
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_HISTORY_LIST_TAG)) {
-        var first = true
-        grouped.forEach { (day, events) ->
-            val (date, raw) = day
-            val isFirst = first
-            first = false
-            item(key = date?.let { "date-$it" } ?: "raw-$raw", contentType = "day") {
-                MobileSectionLabel(date?.let(dayLabels::get) ?: raw.orEmpty(), first = isFirst)
+        history.days.forEachIndexed { index, day ->
+            item(key = day.key, contentType = "day") {
+                MobileSectionLabel(day.label, first = index == 0)
             }
-            items(events, key = { it.id.value }, contentType = { "row" }) { item ->
+            items(day.events, key = { it.id.value }, contentType = { "row" }) { item ->
                 MobileHistoryRow(item, rowText[item], onEvent)
             }
         }
@@ -350,33 +342,41 @@ private fun MobileHistoryDialog(
     }
 }
 
-private fun HistoryItem.localDate(zone: ZoneId): LocalDate? =
-    parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate()
+private class HistoryDay(val key: String, val label: String, val events: List<HistoryItem>)
 
-/** Today, Yesterday, then the date in words, with the year only when it is not this one. */
-private class HistoryDayLabels(private val context: Context, private val today: LocalDate, private val zone: ZoneId) {
-    private val labels = HashMap<LocalDate, String>()
+private class HistoryDays(val items: List<HistoryItem>, val days: List<HistoryDay>)
 
-    fun get(date: LocalDate): String = labels.getOrPut(date) {
-        when (date) {
-            today -> context.getString(R.string.mobile_history_today)
-            today.minusDays(1) -> context.getString(R.string.mobile_history_yesterday)
-            else -> DateUtils.formatDateTime(
-                context,
-                date.atStartOfDay(zone).toInstant().toEpochMilli(),
-                DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or
-                    if (date.year == today.year) DateUtils.FORMAT_NO_YEAR else DateUtils.FORMAT_SHOW_YEAR,
-            )
-        }
+@Composable
+private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): HistoryDays? {
+    val context = LocalContext.current.applicationContext
+    val locales = LocalConfiguration.current.locales
+    val zone = ZoneId.systemDefault()
+    return rememberBuiltOffMain(items, today, zone, context, locales) {
+        HistoryDays(items, items.historyDays(context, today, zone))
     }
 }
 
-@Composable
-private fun rememberDayLabels(today: LocalDate, zone: ZoneId): HistoryDayLabels {
-    val context = LocalContext.current.applicationContext
-    val locales = LocalConfiguration.current.locales
-    return remember(context, locales, today, zone) { HistoryDayLabels(context, today, zone) }
-}
+private fun List<HistoryItem>.historyDays(context: Context, today: LocalDate, zone: ZoneId): List<HistoryDay> =
+    groupBy { item -> parsePutioTimestamp(item.createdAt)?.atZone(zone)?.toLocalDate() ?: item.createdAt }
+        .map { (day, events) ->
+            when (day) {
+                is LocalDate -> HistoryDay("date-$day", day.label(context, today, zone), events)
+                else -> HistoryDay("raw-$day", day.toString(), events)
+            }
+        }
+
+/** Today, Yesterday, then the date in words, with the year only when it is not this one. */
+private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): String =
+    when (this) {
+        today -> context.getString(R.string.mobile_history_today)
+        today.minusDays(1) -> context.getString(R.string.mobile_history_yesterday)
+        else -> DateUtils.formatDateTime(
+            context,
+            atStartOfDay(zone).toInstant().toEpochMilli(),
+            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_MONTH or
+                if (year == today.year) DateUtils.FORMAT_NO_YEAR else DateUtils.FORMAT_SHOW_YEAR,
+        )
+    }
 
 private data class HistoryRowText(val kind: String?, val time: String)
 
