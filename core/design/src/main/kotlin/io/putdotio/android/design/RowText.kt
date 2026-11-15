@@ -2,14 +2,17 @@ package io.putdotio.android.design
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -99,10 +102,14 @@ public fun <T : Any, V> rememberRowText(
     return text
 }
 
+public val LocalBuildDispatcher: ProvidableCompositionLocal<CoroutineDispatcher> =
+    staticCompositionLocalOf { Dispatchers.Default }
+
 @Composable
 public fun <V : Any> rememberBuiltOffMain(vararg inputs: Any?, build: () -> V): V? {
     val built = remember { mutableStateOf<V?>(null) }
-    LaunchedEffect(*inputs) { built.value = withContext(Dispatchers.Default) { build() } }
+    val dispatcher = LocalBuildDispatcher.current
+    LaunchedEffect(dispatcher, *inputs) { built.value = withContext(dispatcher) { build() } }
     return built.value
 }
 

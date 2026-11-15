@@ -3,7 +3,6 @@ package io.putdotio.android
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
-import io.putdotio.android.tv.awaitFocused
 import io.putdotio.android.tv.setTvContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -333,7 +332,7 @@ class TvShellFocusTest {
             )
         }
         compose.openTab(TvDestination.History)
-        compose.awaitFocused("Open Sintel.mp4")
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused()
 
         compose.runOnIdle { history = historyState(HistoryContent.Empty) }
         compose.onNodeWithText("No activity yet.").assertIsDisplayed()

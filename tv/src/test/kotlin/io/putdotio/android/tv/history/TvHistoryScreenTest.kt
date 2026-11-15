@@ -41,7 +41,6 @@ import io.putdotio.android.history.HistoryRequestId
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.HistoryTransferId
 import io.putdotio.android.history.historyState
-import io.putdotio.android.tv.awaitFocused
 import io.putdotio.android.tv.files.TvFilesActionContext
 import io.putdotio.android.tv.files.TvFilesActionHandlers
 import io.putdotio.android.tv.files.TvFilesEdits
@@ -293,7 +292,7 @@ class TvHistoryScreenTest {
         assertEquals(listOf<HistoryEvent>(HistoryEvent.Retry), log)
 
         compose.runOnIdle { state = historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
-        compose.awaitFocused("Open Big Buck Bunny")
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
     }
 
     @Test
@@ -304,7 +303,7 @@ class TvHistoryScreenTest {
         compose.onNodeWithContentDescription("Loading").assertIsFocused()
 
         compose.runOnIdle { state = historyState(HistoryContent.Ready(items(), HistoryPaging.Complete)) }
-        compose.awaitFocused("Open Big Buck Bunny")
+        compose.onNodeWithContentDescription("Open Big Buck Bunny").assertIsFocused()
     }
 
     @Test

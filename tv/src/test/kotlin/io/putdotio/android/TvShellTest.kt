@@ -1,7 +1,6 @@
 package io.putdotio.android
 
 import androidx.compose.ui.test.assertCountEquals
-import io.putdotio.android.tv.awaitFocused
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.compose.ui.test.assertIsDisplayed
@@ -14,7 +13,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
@@ -520,7 +518,7 @@ class TvShellTest {
             )
         }
         compose.openTab(TvDestination.History)
-        compose.awaitFocused("Open Sintel.mp4").performKeyInput {
+        compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
             pressKey(Key.DirectionUp)
         }
@@ -563,7 +561,7 @@ class TvShellTest {
                 )
             }
             compose.openTab(TvDestination.History)
-            compose.awaitFocused("Open Sintel.mp4").performKeyInput {
+            compose.onNodeWithContentDescription("Open Sintel.mp4").assertIsFocused().performKeyInput {
                 repeat(2) { pressKey(Key.DirectionUp) }
             }
             val refreshed = CompletableDeferred<Unit>().also { gate = it }
@@ -579,9 +577,7 @@ class TvShellTest {
 
             compose.runOnIdle { refreshed.complete(Unit) }
 
-            compose.waitUntil(30_000L) {
-                compose.onAllNodesWithContentDescription("Open Tears of Steel.mp4").fetchSemanticsNodes().isNotEmpty()
-            }
+            compose.onNodeWithContentDescription("Open Tears of Steel.mp4").assertExists()
             compose.onNodeWithContentDescription("Open Big Buck Bunny.mp4").assertIsFocused()
         } finally {
             controller.close()
