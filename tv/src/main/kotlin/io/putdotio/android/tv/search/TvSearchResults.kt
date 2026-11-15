@@ -13,8 +13,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -23,6 +25,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -52,11 +55,15 @@ import io.putdotio.android.tv.paneSection
 import io.putdotio.android.tv.tracksFocusedItem
 import io.putdotio.android.tv.files.TvFilesRow
 import io.putdotio.android.tv.files.TvFilesRowPlace
+import io.putdotio.android.tv.files.TvFilesRowText
+import io.putdotio.android.tv.files.rowText
+import io.putdotio.android.tv.rememberTvRowText
 
 internal const val TV_SEARCH_RESULTS_TAG = "tv-search-results"
 
 internal class TvSearchRows(
-    val folderName: (FilesItemId) -> String?,
+    val folderNames: Map<FilesItemId, String>,
+    val rootName: String,
     val onResult: (FilesItem) -> Unit,
     val onActions: ((FilesItem) -> Unit)?,
     val onFocused: (FilesItem) -> Unit,
@@ -70,11 +77,8 @@ internal class TvSearchRowDetail(
 
 internal fun TvSearchRows.place(item: FilesItem): TvFilesRowPlace.SearchResult =
     TvFilesRowPlace.SearchResult(
-        item.parentId?.let(folderName),
+        item.parentId?.let { parent -> if (parent == FilesFolder.Root.id) rootName else folderNames[parent] },
     )
-
-internal fun folderNameOf(names: Map<FilesItemId, String>, rootName: String): (FilesItemId) -> String? =
-    { parent -> if (parent == FilesFolder.Root.id) rootName else names[parent] }
 
 internal class TvSearchGroups(items: List<FilesItem>) {
     val folders: List<FilesItem> = items.filter(FilesItem::isFolder)
@@ -104,6 +108,12 @@ internal fun TvSearchResultList(
 ) {
     val items = groups.ordered
     val names = remember(items) { items.map { it.name } }
+    val context = LocalContext.current
+    val currentRows by rememberUpdatedState(rows)
+    val folders = rows.folderNames to rows.rootName
+    val rowText = rememberTvRowText(items, context, key = { it.id.value }, refresh = folders) {
+        it.rowText(context, currentRows.place(it), System.currentTimeMillis())
+    }
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
@@ -163,7 +173,9 @@ internal fun TvSearchResultList(
                 restore = TvSearchRowDetail(restoreRowId, restoreRow),
                 pendingEnd = paging.isPending,
             )
-            val row: @Composable (FilesItem) -> Unit = { item -> TvSearchResultRow(item, rows, requesters) }
+            val row: @Composable (FilesItem) -> Unit = { item ->
+                TvSearchResultRow(item, rowText[item], rows, requesters)
+            }
             resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
             resultGroup(
                 R.string.tv_search_group_files,
@@ -199,14 +211,18 @@ private val SearchPaging.isPending: Boolean
     get() = this is SearchPaging.Available || this is SearchPaging.Loading
 
 @Composable
-private fun TvSearchResultRow(item: FilesItem, rows: TvSearchRows, requesters: TvSearchRowRequesters) {
+private fun TvSearchResultRow(
+    item: FilesItem,
+    text: TvFilesRowText,
+    rows: TvSearchRows,
+    requesters: TvSearchRowRequesters,
+) {
     val id = item.id.value
     TvFilesRow(
         item = item,
+        text = text,
         onClick = { rows.onResult(item) },
         onActions = rows.onActions?.let { open -> { open(item) } },
-        label = stringResource(item.resultLabel(), item.name),
-        place = rows.place(item),
         modifier = Modifier
             .onFocusChanged { if (it.isFocused) rows.onFocused(item) }
             .tracksFocusedItem(requesters.focused, id)
@@ -249,13 +265,6 @@ private fun TvSearchGroupLabel(title: String, count: Int, first: Boolean) {
         Text(count.toString(), style = LABEL_COUNT, color = color)
     }
 }
-
-@StringRes
-private fun FilesItem.resultLabel(): Int =
-    when {
-        isPlayable -> R.string.tv_files_play_media
-        else -> R.string.tv_search_open_result
-    }
 
 internal val TV_SEARCH_LABEL_HEIGHT = 16.dp
 internal val TV_SEARCH_LABEL_GAP = 4.dp

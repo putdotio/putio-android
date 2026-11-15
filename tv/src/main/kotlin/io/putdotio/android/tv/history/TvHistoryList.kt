@@ -26,7 +26,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -39,10 +38,10 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.ROW_BLEED
-import io.putdotio.android.tv.TV_LIST_ROW_META
-import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
 import io.putdotio.android.tv.TvListRow
-import io.putdotio.android.tv.TvListRowDot
+import io.putdotio.android.tv.TvListRowMeta
+import io.putdotio.android.tv.TvRowMeta
+import io.putdotio.android.tv.TvRowMetaPart
 import io.putdotio.android.tv.TvSectionLine
 import io.putdotio.android.tv.TvSectionPill
 import io.putdotio.android.tv.bringIntoComposition
@@ -76,7 +75,7 @@ private sealed interface TvHistoryEntry {
     }
 }
 
-private data class TvHistoryRowText(val title: String, val label: String, val kind: String?, val time: String)
+private data class TvHistoryRowText(val title: String, val label: String, val meta: TvRowMeta)
 
 @Composable
 private fun historyEntries(items: List<HistoryItem>, today: LocalDate, zone: ZoneId): List<TvHistoryEntry> {
@@ -106,7 +105,13 @@ private fun <K> List<HistoryItem>.groupConsecutiveBy(keyOf: (HistoryItem) -> K):
 private fun HistoryItem.rowText(zone: ZoneId, resources: Resources, untitled: String): TvHistoryRowText {
     val title = named() ?: untitled
     val label = if (kind.navigableFileId() == null) title else resources.getString(R.string.tv_history_open_file, title)
-    return TvHistoryRowText(title, label, kind.kindLabel()?.let(resources::getString), timeLabel(zone))
+    val meta = TvRowMeta(
+        listOfNotNull(
+            kind.kindLabel()?.let { TvRowMetaPart(resources.getString(it), shrinks = true) },
+            TvRowMetaPart(timeLabel(zone), mono = true),
+        ),
+    )
+    return TvHistoryRowText(title, label, meta)
 }
 
 private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequesters): Modifier =
@@ -276,8 +281,6 @@ private fun TvHistoryRow(
     modifier: Modifier = Modifier,
 ) {
     val fileId = item.kind.navigableFileId()
-    val kind = text.kind
-    val time = text.time
     TvListRow(
         glyph = item.kind.glyph(),
         title = text.title,
@@ -287,20 +290,7 @@ private fun TvHistoryRow(
             .testTag(TV_HISTORY_ROW_TAG),
         glyphSize = GLYPH,
         neutralGlyph = true,
-    ) { secondary ->
-        if (kind != null) {
-            Text(
-                kind,
-                style = TV_LIST_ROW_META,
-                color = secondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            TvListRowDot(secondary)
-        }
-        Text(time, style = TV_LIST_ROW_META_MONO, color = secondary, maxLines = 1, softWrap = false)
-    }
+    ) { secondary -> TvListRowMeta(text.meta, secondary) }
 }
 
 private const val SECTION_KEY = "tv-history-section"

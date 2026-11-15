@@ -1,10 +1,10 @@
 package io.putdotio.android.tv.files
 
+import android.content.Context
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -16,20 +16,18 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.tv.material3.Icon
-import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.toDisplayDate
 import io.putdotio.android.files.updatedAgo
-import io.putdotio.android.tv.TV_LIST_ROW_META
 import io.putdotio.android.tv.TV_LIST_ROW_META_ICON
-import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
 import io.putdotio.android.tv.TvListRow
-import io.putdotio.android.tv.TvListRowMetaParts
+import io.putdotio.android.tv.TvListRowMeta
+import io.putdotio.android.tv.TvRowMeta
+import io.putdotio.android.tv.TvRowMetaPart
 import io.putdotio.sdk.files.PutioFolderType
 
 internal const val TV_FILES_ROW_TAG = "tv-files-row"
@@ -40,21 +38,35 @@ internal sealed interface TvFilesRowPlace {
     data class SearchResult(val folderName: String?) : TvFilesRowPlace
 }
 
+internal data class TvFilesRowText(val meta: TvRowMeta, val label: String)
+
+internal fun FilesItem.rowText(context: Context, place: TvFilesRowPlace, nowMillis: Long): TvFilesRowText {
+    val where = when (place) {
+        TvFilesRowPlace.Listing -> metaDate(context, nowMillis)
+        is TvFilesRowPlace.SearchResult -> place.folderName
+    }
+    val parts = listOfNotNull(
+        metaSize?.let { TvRowMetaPart(it, mono = true) },
+        where?.let { TvRowMetaPart(it, shrinks = true) },
+    )
+    val label = when {
+        isPlayable -> context.getString(R.string.tv_files_play_media, name)
+        place is TvFilesRowPlace.SearchResult -> context.getString(R.string.tv_search_open_result, name)
+        isFolder -> context.getString(R.string.tv_files_open_folder, name)
+        else -> name
+    }
+    return TvFilesRowText(TvRowMeta(parts, endsWithDot = showsWatched && parts.isNotEmpty()), label)
+}
+
 @Composable
 internal fun TvFilesRow(
     item: FilesItem,
+    text: TvFilesRowText,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     /** Long-press Center or the Menu key; null when the row offers nothing beyond opening. */
     onActions: (() -> Unit)? = null,
-    /** What Center does here, when it is not the Files default of open, play, or explain. */
-    label: String = when {
-        item.isFolder -> stringResource(R.string.tv_files_open_folder, item.name)
-        item.isPlayable -> stringResource(R.string.tv_files_play_media, item.name)
-        else -> item.name
-    },
     showsFocus: Boolean = true,
-    place: TvFilesRowPlace = TvFilesRowPlace.Listing,
 ) {
     TvListRow(
         glyph = fileTypeIconRes(item.type),
@@ -72,37 +84,19 @@ internal fun TvFilesRow(
                     false
                 }
             }
-            .semantics { contentDescription = label }
+            .semantics { contentDescription = text.label }
             .testTag(TV_FILES_ROW_TAG),
-    ) { secondary -> TvFilesRowMeta(item, place, secondary) }
-}
-
-@Composable
-private fun TvFilesRowMeta(item: FilesItem, place: TvFilesRowPlace, color: Color) {
-    val size = item.metaSize
-    val date = rememberMetaDate(item)
-    val where = when (place) {
-        TvFilesRowPlace.Listing -> date
-        is TvFilesRowPlace.SearchResult -> place.folderName
-    }
-    val watched = item.showsWatched
-    val parts = buildList<@Composable () -> Unit> {
-        size?.let { add { Text(it, style = TV_LIST_ROW_META_MONO, color = color, maxLines = 1) } }
-        where?.let {
-            add { Text(it, style = TV_LIST_ROW_META, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
-        if (watched) {
-            add {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_eye),
-                    contentDescription = stringResource(R.string.tv_files_watched),
-                    tint = color,
-                    modifier = Modifier.size(TV_LIST_ROW_META_ICON),
-                )
-            }
+    ) { secondary ->
+        TvListRowMeta(text.meta, secondary)
+        if (item.showsWatched) {
+            Icon(
+                painter = painterResource(R.drawable.ic_ph_eye),
+                contentDescription = stringResource(R.string.tv_files_watched),
+                tint = secondary,
+                modifier = Modifier.size(TV_LIST_ROW_META_ICON),
+            )
         }
     }
-    TvListRowMetaParts(parts, color)
 }
 
 /** A file's size, or a folder's own; the shared folders have none. */
@@ -114,6 +108,9 @@ internal val FilesItem.metaSize: String?
 internal fun rememberMetaDate(item: FilesItem): String? {
     val context = LocalContext.current
     return remember(item.updatedAt, item.createdAt, item.type, context) {
-        item.updatedAgo(System.currentTimeMillis()) ?: item.createdAt.toDisplayDate(context)
+        item.metaDate(context, System.currentTimeMillis())
     }
 }
+
+private fun FilesItem.metaDate(context: Context, nowMillis: Long): String? =
+    updatedAgo(nowMillis) ?: createdAt.toDisplayDate(context)

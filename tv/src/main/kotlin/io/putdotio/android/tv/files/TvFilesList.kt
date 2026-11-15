@@ -30,6 +30,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
@@ -43,6 +44,7 @@ import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.keepsHeldFocusInView
+import io.putdotio.android.tv.rememberTvRowText
 import kotlin.math.abs
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -173,6 +175,10 @@ internal fun TvFilesList(
         nearEnd = { listState.isNearEnd(content.items.lastIndex) },
     )
     val names = remember(content.items) { content.items.map { it.name } }
+    val context = LocalContext.current
+    val rowText = rememberTvRowText(content.items, context, key = { it.id.value }, everyMinute = true) {
+        it.rowText(context, TvFilesRowPlace.Listing, System.currentTimeMillis())
+    }
     RevealOnlyHiddenRows(names) {
         LazyColumn(
             state = listState,
@@ -193,6 +199,7 @@ internal fun TvFilesList(
                 }
                 TvFilesRow(
                     item = item,
+                    text = rowText[item],
                     onClick = { currentOnOpen(item) },
                     onActions = { currentOnActions(item) },
                     showsFocus = rowsShowFocus,

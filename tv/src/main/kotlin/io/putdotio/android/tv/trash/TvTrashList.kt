@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.trash
 
+import android.content.res.Resources
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,8 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -20,26 +23,26 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.tv.material3.Text
 import io.putdotio.android.R
 import io.putdotio.android.design.fileTypeIconRes
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.trash.TrashContent
 import io.putdotio.android.trash.TrashItem
+import io.putdotio.android.trash.trashDaysLeft
 import io.putdotio.android.tv.KeepTopWhenRowsArriveAbove
 import io.putdotio.android.tv.ProvideMiddleCuts
-import io.putdotio.android.tv.TV_LIST_ROW_META
-import io.putdotio.android.tv.TV_LIST_ROW_META_MONO
 import io.putdotio.android.tv.TvAutoPaging
 import io.putdotio.android.tv.TvFocusedItem
 import io.putdotio.android.tv.TvItemRequesters
 import io.putdotio.android.tv.TvListPaging
 import io.putdotio.android.tv.TvListRow
-import io.putdotio.android.tv.TvListRowMetaParts
+import io.putdotio.android.tv.TvListRowMeta
+import io.putdotio.android.tv.TvRowMeta
+import io.putdotio.android.tv.TvRowMetaPart
 import io.putdotio.android.tv.bringIntoComposition
 import io.putdotio.android.tv.composes
 import io.putdotio.android.tv.focusRequesterIf
@@ -47,7 +50,9 @@ import io.putdotio.android.tv.holdAtPendingEnd
 import io.putdotio.android.tv.isNearEnd
 import io.putdotio.android.tv.keepsHeldFocusInView
 import io.putdotio.android.tv.paneSection
+import io.putdotio.android.tv.rememberTvRowText
 import io.putdotio.android.tv.tracksFocusedItem
+import java.time.LocalDate
 import kotlinx.coroutines.flow.first
 
 internal const val TV_TRASH_LIST_TAG = "tv-trash-list"
@@ -67,6 +72,12 @@ internal fun TvTrashList(
 ) {
     val items = content.items
     val names = remember(items) { items.map { it.name } }
+    val resources = LocalResources.current
+    val today = LocalTrashToday.current
+    val currentToday by rememberUpdatedState(today)
+    val rowMeta = rememberTvRowText(items, resources, key = { it.id.value }, refresh = today) {
+        it.rowMeta(resources, currentToday)
+    }
     val rows = remember { TrashRowFocus() }
     val pagingFocus = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
@@ -120,6 +131,7 @@ internal fun TvTrashList(
             itemsIndexed(items, key = { _, item -> item.id.value }, contentType = { _, _ -> "row" }) { index, item ->
                 TvTrashRow(
                     item = item,
+                    meta = rowMeta[item],
                     onClick = { onChoose(item) },
                     showsFocus = !focus.dialogShowing.value,
                     modifier = with(rows) {
@@ -270,6 +282,7 @@ private val TrashContent.Loaded.showsPaging: Boolean
 @Composable
 private fun TvTrashRow(
     item: TrashItem,
+    meta: TvRowMeta,
     onClick: () -> Unit,
     showsFocus: Boolean,
     modifier: Modifier = Modifier,
@@ -280,33 +293,25 @@ private fun TvTrashRow(
         onClick = onClick,
         showsFocus = showsFocus,
         modifier = modifier.testTag(TV_TRASH_ROW_TAG),
-    ) { secondary -> TvTrashRowMeta(item, secondary) }
+    ) { secondary -> TvListRowMeta(meta, secondary) }
 }
 
-@Composable
-private fun TvTrashRowMeta(item: TrashItem, color: Color) {
-    val daysLeft = rememberTrashDaysLeft(item)
-    val parts = buildList<@Composable () -> Unit> {
-        add {
-            Text(
-                formatFileSize(item.sizeBytes),
-                style = TV_LIST_ROW_META_MONO,
-                color = color,
-                maxLines = 1,
-            )
-        }
-        daysLeft?.let { add { Text(daysLeftLabel(it), style = TV_LIST_ROW_META, color = color, maxLines = 1) } }
-    }
-    TvListRowMetaParts(parts, color)
+private fun TrashItem.rowMeta(resources: Resources, today: LocalDate): TvRowMeta {
+    val daysLeft = expirationDate?.trashDaysLeft(today)
+    return TvRowMeta(
+        listOfNotNull(
+            TvRowMetaPart(formatFileSize(sizeBytes), mono = true),
+            daysLeft?.let { TvRowMetaPart(daysLeftLabel(resources, it)) },
+        ),
+    )
 }
 
-@Composable
-private fun daysLeftLabel(days: Long): AnnotatedString =
+private fun daysLeftLabel(resources: Resources, days: Long): AnnotatedString =
     if (days == 0L) {
-        AnnotatedString(stringResource(R.string.tv_trash_last_day))
+        AnnotatedString(resources.getString(R.string.tv_trash_last_day))
     } else {
         val count = days.toInt()
-        trashCount(R.plurals.tv_trash_days_left, count)
+        trashCount(resources, R.plurals.tv_trash_days_left, count)
     }
 
 @Composable

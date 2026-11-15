@@ -30,6 +30,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsFocused
@@ -57,6 +58,8 @@ import io.putdotio.android.files.FilesPage
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.files.TvFilesRow
+import io.putdotio.android.tv.files.TvFilesRowPlace
+import io.putdotio.android.tv.files.rowText
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.UUID
@@ -317,9 +320,14 @@ private fun FocusAccentsSheet(choices: Boolean) {
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SpecLabel("Watched rows")
-            TvFilesRow(item = watched(20, "Sintel.2010.1080p.mkv"), onClick = {})
+            val context = LocalContext.current
+            val sintel = watched(20, "Sintel.2010.1080p.mkv")
+            val bunny = watched(21, "Big_Buck_Bunny_1080_10s_30MB.mp4")
+            val now = System.currentTimeMillis()
+            TvFilesRow(item = sintel, text = sintel.rowText(context, TvFilesRowPlace.Listing, now), onClick = {})
             TvFilesRow(
-                item = watched(21, "Big_Buck_Bunny_1080_10s_30MB.mp4"),
+                item = bunny,
+                text = bunny.rowText(context, TvFilesRowPlace.Listing, now),
                 onClick = {},
                 modifier = Modifier.focusRequester(rowFocus),
             )

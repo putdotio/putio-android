@@ -1,6 +1,7 @@
 package io.putdotio.android.tv.trash
 
 import android.content.Context
+import android.content.res.Resources
 import android.text.format.DateUtils
 import androidx.annotation.PluralsRes
 import androidx.compose.foundation.layout.ColumnScope
@@ -14,7 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
@@ -30,9 +31,9 @@ import io.putdotio.android.trash.trashDaysLeft
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.tv.TvDetailBody
 import io.putdotio.android.tv.TvDetailDivider
-import io.putdotio.android.tv.TvSheetOption
-import io.putdotio.android.tv.TvDetailTile
 import io.putdotio.android.tv.TvDetailFact
+import io.putdotio.android.tv.TvDetailTile
+import io.putdotio.android.tv.TvSheetOption
 import io.putdotio.android.tv.monoNumber
 import java.time.LocalDate
 import java.time.ZoneId
@@ -123,10 +124,11 @@ internal fun rememberTrashDaysLeft(item: TrashItem): Long? {
 }
 
 @Composable
-internal fun trashCount(@PluralsRes id: Int, count: Int): AnnotatedString {
-    val number = count.toString()
-    return monoNumber(pluralStringResource(id, count, count), number)
-}
+internal fun trashCount(@PluralsRes id: Int, count: Int): AnnotatedString =
+    trashCount(LocalResources.current, id, count)
+
+internal fun trashCount(resources: Resources, @PluralsRes id: Int, count: Int): AnnotatedString =
+    monoNumber(resources.getQuantityString(id, count, count), count.toString())
 
 private fun trashDate(context: Context, value: String): String {
     val millis = parsePutioTimestamp(value)?.toEpochMilli()
