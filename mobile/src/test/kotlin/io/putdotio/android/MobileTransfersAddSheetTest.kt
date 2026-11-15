@@ -84,7 +84,7 @@ class MobileTransfersAddSheetTest {
         val draft = MobileTransferDraft()
         draft.receive(parseMobileSharedTransfer("https://example.invalid/file?token=private-share-marker"))
         lateinit var registry: SaveableStateRegistry
-        compose.setContent {
+        compose.setBuiltContent {
             registry = requireNotNull(LocalSaveableStateRegistry.current)
             PutioTheme { MobileTransfersScreen(transfersTestState(TransfersContent.Empty), {}, draft = draft) }
         }
@@ -101,7 +101,7 @@ class MobileTransfersAddSheetTest {
         val normalized = "https://example.invalid/first\nhttps://example.invalid/second"
         draft.receive(parseMobileSharedTransfer("https://example.invalid/first https://example.invalid/second"))
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersScreen(transfersTestState(TransfersContent.Empty), events::add, draft = draft) }
         }
         assertAddInput(normalized)
@@ -132,7 +132,7 @@ class MobileTransfersAddSheetTest {
                 )
         }
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransfersScreen(
                     transfersTestState(TransfersContent.Empty),
@@ -166,7 +166,7 @@ class MobileTransfersAddSheetTest {
         val torrent = TorrentUpload("Harbor film.torrent", "d4:infod4:name6:Harboree".toByteArray())
         draft.receive(MobileSharedTransfer(torrent = torrent))
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersScreen(transfersTestState(TransfersContent.Empty), events::add, draft = draft) }
         }
         compose.onNodeWithTag(MOBILE_TRANSFER_TORRENT_TAG).assertTextContains("Harbor film.torrent")
@@ -183,7 +183,7 @@ class MobileTransfersAddSheetTest {
     fun refusedLinksReopenTheSheetAndOnlyStartedTransfersAreAnnounced() {
         val draft = MobileTransferDraft()
         var current by mutableStateOf(transfersTestState(TransfersContent.Empty))
-        compose.setContent { PutioTheme { MobileTransfersScreen(current, {}, draft = draft) } }
+        compose.setBuiltContent { PutioTheme { MobileTransfersScreen(current, {}, draft = draft) } }
         compose.runOnIdle {
             draft.receive(parseMobileSharedTransfer("magnet:?xt=urn:btih:1 https://example.invalid/refused"))
             current = current.withRunningLinkAdd()
@@ -214,7 +214,7 @@ class MobileTransfersAddSheetTest {
         draft.receive(parseMobileSharedTransfer("https://example.invalid/first"))
         val events = mutableListOf<TransfersEvent>()
         var current by mutableStateOf(transfersTestState(TransfersContent.InitialLoading(TransfersRequestId(1))))
-        compose.setContent { PutioTheme { MobileTransfersScreen(current, events::add, draft = draft) } }
+        compose.setBuiltContent { PutioTheme { MobileTransfersScreen(current, events::add, draft = draft) } }
         val blocked = listOf(
             current,
             transfersTestState(TransfersContent.Empty).copyForTest(
@@ -249,7 +249,7 @@ class MobileTransfersAddSheetTest {
             ),
         ))
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransfersScreen(current, { event ->
                     events.add(event)
@@ -271,7 +271,7 @@ class MobileTransfersAddSheetTest {
         val original = "https://example.invalid/first"
         draft.receive(parseMobileSharedTransfer(original))
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersScreen(transfersTestState(TransfersContent.Empty), events::add, draft = draft) }
         }
         compose.onNodeWithTag(MOBILE_TRANSFER_ADD_FIELD_TAG).performTextReplacement("x".repeat(16 * 1024 + 1))
@@ -293,7 +293,7 @@ class MobileTransfersAddSheetTest {
         val draft = MobileTransferDraft()
         var visible by mutableStateOf(true)
         var current by mutableStateOf(transfersTestState(TransfersContent.Empty))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 if (visible) MobileTransfersScreen(current, {}, draft = draft)
             }
@@ -326,7 +326,7 @@ class MobileTransfersAddSheetTest {
     fun addSheetValidatesAndPreservesInputWhenTheApiRejectsIt() {
         var current by mutableStateOf(transfersTestState(TransfersContent.Empty))
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransfersScreen(
                     state = current,
@@ -389,7 +389,7 @@ class MobileTransfersAddSheetTest {
     @Test
     fun immediateAddSuccessClosesAndClearsTheSheet() {
         var current by mutableStateOf(transfersTestState(TransfersContent.Empty))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransfersScreen(
                     state = current,
@@ -423,7 +423,7 @@ class MobileTransfersAddSheetTest {
     fun addDraftSurvivesToolbarChangesAndResetsWithTheSession() {
         var sessionId by mutableStateOf(MobileAuthSessionId(1L))
         var current by mutableStateOf(transfersTestState(TransfersContent.Empty))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTransfersScreen(state = current, onEvent = {}, sessionId = sessionId)
             }
@@ -457,7 +457,7 @@ class MobileTransfersAddSheetTest {
         val draft = MobileTransferDraft()
         draft.receive(MobileSharedTransfer("magnet:?xt=urn:btih:1\nhttps://example.invalid/page and prose"))
         val events = mutableListOf<TransfersEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersScreen(transfersTestState(TransfersContent.Empty), events::add, draft = draft) }
         }
         compose.onNodeWithText("Line 2 isn’t a magnet or a file link.").assertIsDisplayed()
@@ -479,7 +479,7 @@ class MobileTransfersAddSheetTest {
             .setPrimaryClip(ClipData.newPlainText("link", "  magnet:?xt=urn:btih:pasted  "))
         val draft = MobileTransferDraft()
         draft.receive(MobileSharedTransfer("https://example.invalid/first"))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersScreen(transfersTestState(TransfersContent.Empty), {}, draft = draft) }
         }
         compose.onNodeWithTag(MOBILE_TRANSFER_PASTE_TAG).performClick()

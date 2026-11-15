@@ -53,7 +53,7 @@ class MobileFilesDeleteTest {
     @Test
     fun moveToTrashRunsAtOnceWithoutAConfirmation() {
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = true) }
         }
         openAction("Move to trash")
@@ -71,7 +71,7 @@ class MobileFilesDeleteTest {
     fun aTrashTapQueuedBeforeTrashTurnedOffReachedTheSheetSendsNothing() {
         val events = mutableListOf<FilesBrowserEvent>()
         var trash by mutableStateOf<Boolean?>(true)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = trash) }
         }
         compose.onNodeWithContentDescription("Actions for été 東京.mkv").performClick()
@@ -90,7 +90,7 @@ class MobileFilesDeleteTest {
     @Test
     fun permanentConfirmationIsExplicitAndQueuedClicksSubmitOnlyOnce() {
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = false) }
         }
         openAction("Delete permanently")
@@ -122,7 +122,7 @@ class MobileFilesDeleteTest {
         )))
         var state by mutableStateOf(failedRename)
         val effects = mutableListOf<FilesBrowserEffect>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, { event ->
                     val next = FilesBrowserReducer.reduce(state, event)
@@ -157,7 +157,7 @@ class MobileFilesDeleteTest {
 
     @Test
     fun unknownTrashSettingsLeaveRenameAvailableButBlockDelete() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), {}, {}, confirmedTrashEnabled = null) }
         }
         compose.onNodeWithContentDescription("Actions for été 東京.mkv").performClick()
@@ -171,7 +171,7 @@ class MobileFilesDeleteTest {
     fun trashTurningOnWithdrawsThePermanentConfirmation() {
         var trash by mutableStateOf<Boolean?>(false)
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = trash) }
         }
         openAction("Delete permanently")
@@ -191,7 +191,7 @@ class MobileFilesDeleteTest {
     fun unconfirmedSettingsDiscardTheOldConfirmationEvenWhenModeReturns() {
         var trash by mutableStateOf<Boolean?>(false)
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(loadedRoot(), events::add, {}, confirmedTrashEnabled = trash) }
         }
         openAction("Delete permanently")
@@ -208,7 +208,7 @@ class MobileFilesDeleteTest {
     fun uncertainDeleteOffersReadOnlyStatusRecovery() {
         var state by mutableStateOf(loadedRoot())
         val effects = mutableListOf<FilesBrowserEffect>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, { event ->
                     val next = FilesBrowserReducer.reduce(state, event)
@@ -261,7 +261,7 @@ class MobileFilesDeleteTest {
         )
         val events = mutableListOf<FilesBrowserEvent>()
         val undone = mutableListOf<FilesDeleteOutcome>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(
                     state = state,
@@ -321,7 +321,7 @@ class MobileFilesDeleteTest {
             loadedRoot(items).let { it.copyForTest(stack = listOf(it.current.copy(deleteOutcome = outcome))) }
         var state by mutableStateOf(withOutcome(listOf(folder)))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesScreen(state, events::add, {}, confirmedTrashEnabled = true) }
         }
         val message = "This folder contains too many files. Delete it permanently?"

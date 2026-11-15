@@ -235,7 +235,7 @@ class MobileFilesSelectionTest {
     }
 
     private fun setShell(trashEnabled: Boolean = true) {
-        compose.setContent {
+        compose.setBuiltContent {
             val owner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
             SideEffect { backOwner = owner }
             PutioTheme {

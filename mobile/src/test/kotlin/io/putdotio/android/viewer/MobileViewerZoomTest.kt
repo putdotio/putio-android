@@ -33,7 +33,7 @@ class MobileViewerZoomTest {
     @Test
     fun aDoubleTapZoomsInAndASecondFitsAgain() {
         val zoom = MobileViewerZoom()
-        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        compose.setBuiltContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
 
         compose.onNodeWithTag(PAGE).performTouchInput { doubleClick(center) }
         compose.runOnIdle { assertTrue(zoom.zoomed) }
@@ -48,7 +48,7 @@ class MobileViewerZoomTest {
     @Test
     fun aDoubleTapThatJittersStillFitsAZoomedPage() {
         val zoom = MobileViewerZoom()
-        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        compose.setBuiltContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
         compose.onNodeWithTag(PAGE).performTouchInput { doubleClick(center) }
         compose.runOnIdle { assertTrue(zoom.zoomed) }
 
@@ -67,7 +67,7 @@ class MobileViewerZoomTest {
     @Test
     fun aPinchZoomsIn() {
         val zoom = MobileViewerZoom()
-        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        compose.setBuiltContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
 
         compose.onNodeWithTag(PAGE).performTouchInput {
             pinch(
@@ -84,7 +84,7 @@ class MobileViewerZoomTest {
     @Test
     fun oneFingerAtFitStillSwipesThePager() {
         lateinit var pager: PagerState
-        compose.setContent {
+        compose.setBuiltContent {
             pager = rememberPagerState { 2 }
             HorizontalPager(pager, Modifier.fillMaxSize().testTag(PAGE)) {
                 Box(Modifier.fillMaxSize().viewerZoom(MobileViewerZoom()))
@@ -112,7 +112,7 @@ class MobileViewerZoomTest {
     @Test
     fun aPinchKeepsTheContentUnderAStillFinger() {
         val zoom = MobileViewerZoom()
-        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        compose.setBuiltContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
         val node = compose.onNodeWithTag(PAGE)
         val viewport = node.fetchSemanticsNode().size
         var still = Offset.Zero
@@ -135,7 +135,7 @@ class MobileViewerZoomTest {
     @Test
     fun aZoomedPanMovesTheContentAsFarAsTheFinger() {
         val zoom = MobileViewerZoom()
-        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        compose.setBuiltContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
         val node = compose.onNodeWithTag(PAGE)
         node.performTouchInput { doubleClick(center) }
         val start = compose.runOnIdle { zoom.offset }
@@ -152,7 +152,7 @@ class MobileViewerZoomTest {
     @Test
     fun aPinchThatDropsToOneFingerKeepsPanning() {
         val zoom = MobileViewerZoom()
-        compose.setContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
+        compose.setBuiltContent { Box(Modifier.fillMaxSize().viewerZoom(zoom).testTag(PAGE)) }
         val node = compose.onNodeWithTag(PAGE)
         var before = Offset.Zero
 

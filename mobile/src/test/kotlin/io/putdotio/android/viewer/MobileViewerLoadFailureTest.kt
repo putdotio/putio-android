@@ -33,7 +33,7 @@ class MobileViewerLoadFailureTest {
             if (opens.getAndIncrement() == 0) DroppedStream() else "first line".byteInputStream()
         }
         var openedElsewhere = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTextPage(uri, onOpenWithAnotherApp = { openedElsewhere++ }) }
         }
 

@@ -267,7 +267,7 @@ class MobileNavigationContainerTest {
         var layout by mutableStateOf(MobileNavigationLayout.Bar)
         var created = 0
         var disposed = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileNavigationContainer(layout, MobileDestination.Files, onDestination = {}) {
                     DisposableEffect(Unit) {
@@ -329,7 +329,7 @@ abstract class NavigationShellFixture(fontScale: Float) {
         playbackPlayerFactory: MobilePlayerFactory = NoAudioSessionFactory,
     ) {
         val files = navigationFiles(nested)
-        compose.setContent {
+        compose.setBuiltContent {
             backOwner = checkNotNull(LocalOnBackPressedDispatcherOwner.current)
             host = LocalView.current
             pixelsPerDp = LocalDensity.current.density

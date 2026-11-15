@@ -226,7 +226,7 @@ class MobileKeyboardShortcutsTest {
 
     private fun setShell(filesState: FilesBrowserState = rootState(), trashEnabled: Boolean = true) {
         files = filesState
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.requiredSize(width = 900.dp, height = 700.dp)) {
                     MobileShell(

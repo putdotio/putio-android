@@ -50,7 +50,7 @@ class MobileContinueWatchingRowTest {
     }
 
     private fun setRow() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val pinnedRows = MobilePinnedRows(rememberFilesRowText(emptyList()), MobilePinnedActions(onOpen = {}))
                 LazyColumn {

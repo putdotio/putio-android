@@ -82,7 +82,7 @@ class MobileCastPlaybackTest {
     fun aScreenOnAVideoThatFinishesOnTheReceiverFollowsItToTheNextEpisode() {
         val account = EpisodesAccount()
         cast.autoplay.follow(SESSION, account)
-        compose.setContent {
+        compose.setBuiltContent {
             val state by playback.state.collectAsState()
             PutioTheme {
                 MobilePlayerScreen(
@@ -125,7 +125,7 @@ class MobileCastPlaybackTest {
     @Test
     fun aLookupThatFailsForAMomentCastsOnTryAgain() {
         var lookups = 0
-        compose.setContent {
+        compose.setBuiltContent {
             val state by playback.state.collectAsState()
             PutioTheme {
                 MobilePlayerScreen(
@@ -159,7 +159,7 @@ class MobileCastPlaybackTest {
 
     @Test
     fun aReceiverThatFailsToLoadTheFileLoadsItAgainOnTryAgain() {
-        compose.setContent {
+        compose.setBuiltContent {
             val state by playback.state.collectAsState()
             PutioTheme {
                 MobilePlayerScreen(
@@ -188,7 +188,7 @@ class MobileCastPlaybackTest {
     @Test
     fun anHlsVideoAsksTheReceiverForThePlaylistSubtitleTheAccountSelects() {
         val hls = PlaybackController(Episode1, HlsEpisode, scope)
-        compose.setContent {
+        compose.setBuiltContent {
             val state by hls.state.collectAsState()
             PutioTheme {
                 MobilePlayerScreen(
@@ -228,7 +228,7 @@ class MobileCastPlaybackTest {
             }
         }
         try {
-            compose.setContent {
+            compose.setBuiltContent {
                 val state by audio.state.collectAsState()
                 PutioTheme {
                     MobilePlayerScreen(
@@ -262,7 +262,7 @@ class MobileCastPlaybackTest {
     fun aStreamedOriginalVideoWaitsForItsConversionInsteadOfReachingTheReceiver() {
         val repository = UnconvertedMkv()
         val original = PlaybackController(Mkv, repository, scope)
-        compose.setContent {
+        compose.setBuiltContent {
             val state by original.state.collectAsState()
             PutioTheme {
                 MobilePlayerScreen(
@@ -294,7 +294,7 @@ class MobileCastPlaybackTest {
     fun aDirectPlayOriginalWithNoConvertedCopyCastsAsStandard() {
         val repository = OriginalWithoutConvertedCopy()
         val original = PlaybackController(Mp4, repository, scope)
-        compose.setContent {
+        compose.setBuiltContent {
             val state by original.state.collectAsState()
             PutioTheme {
                 MobilePlayerScreen(
@@ -380,7 +380,7 @@ class MobileCastPlaybackTest {
         playerFactory: MobilePlayerFactory = NoLocalPlayer,
         castMedia: suspend (PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>,
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             val state by playback.state.collectAsState()
             PutioTheme {
                 MobilePlayerScreen(

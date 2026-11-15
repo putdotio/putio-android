@@ -180,7 +180,7 @@ class MobileFilesBarsTest {
         onFilesEvent: (FilesBrowserEvent) -> Unit = {},
         settings: AccountSettingsState = readyAccountSettingsState(),
     ) {
-        setContent {
+        setBuiltContent {
             val configuration = Configuration(LocalConfiguration.current).apply {
                 if (hardwareKeyboard) {
                     keyboard = Configuration.KEYBOARD_QWERTY

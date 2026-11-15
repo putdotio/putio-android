@@ -141,7 +141,7 @@ class MobileLoggedInAppsTest {
     }
 
     private fun show(repository: FakeLoggedInAppsRepository) {
-        compose.setContent {
+        compose.setBuiltContent {
             val scope = rememberCoroutineScope()
             val controller = remember { LoggedInAppsController(repository, scope) }
             PutioTheme { MobileLoggedInAppsRoute(controller, onAuthenticationRequired = {}) }
@@ -150,7 +150,7 @@ class MobileLoggedInAppsTest {
     }
 
     private fun showShell(repository: FakeLoggedInAppsRepository?) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 val scope = rememberCoroutineScope()
                 MobileShell(

@@ -164,7 +164,7 @@ class MobileTransfersScreenTest {
         var current by mutableStateOf(
             transfersTestState(TransfersContent.Ready(listOf(completed), TransfersPaging.Complete)),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersOverflow(current, events::add, MobileAuthSessionId(1L)) }
         }
         compose.onNodeWithContentDescription("More options").performClick()
@@ -343,7 +343,7 @@ class MobileTransfersScreenTest {
         val current = transfersTestState(
             TransfersContent.Ready(listOf(transferRow(1L, AppTransferStatus.Downloading)), TransfersPaging.Complete),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersScreen(state = current, onEvent = {}, sessionId = sessionId) }
         }
 
@@ -360,7 +360,7 @@ class MobileTransfersScreenTest {
     fun theOverflowRefreshesAndClearsCompletedAfterAConfirmOnceTransfersAreListed() {
         val events = mutableListOf<TransfersEvent>()
         var current by mutableStateOf(transfersTestState(TransfersContent.InitialLoading(TransfersRequestId(1L))))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileTransfersOverflow(current, events::add, MobileAuthSessionId(1L)) }
         }
         compose.onNodeWithTag(MOBILE_TRANSFERS_OVERFLOW_TAG).assertDoesNotExist()
@@ -599,11 +599,11 @@ class MobileTransfersScreenTest {
     }
 
     private fun setScreen(state: TransfersState, onEvent: (TransfersEvent) -> Unit) {
-        compose.setContent { PutioTheme { MobileTransfersScreen(state, onEvent) } }
+        compose.setBuiltContent { PutioTheme { MobileTransfersScreen(state, onEvent) } }
     }
 
     private fun setMutableScreen(state: () -> TransfersState, onEvent: (TransfersEvent) -> Unit) {
-        compose.setContent { PutioTheme { MobileTransfersScreen(state(), onEvent) } }
+        compose.setBuiltContent { PutioTheme { MobileTransfersScreen(state(), onEvent) } }
     }
 }
 

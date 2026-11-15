@@ -596,6 +596,7 @@ private fun TvFilesRows(
             rowsShowFocus = rowsShowFocus,
         )
         ready != null || content is FilesContent.Loading -> {
+            if (ready != null) SideEffect { onEntryTarget(skeletonFocus) }
             LaunchedEffect(folderId) { if (paneHasFocus.value) skeletonFocus.requestFocus() }
             TvListSkeleton(modifier.focusRequester(skeletonFocus).focusable())
         }

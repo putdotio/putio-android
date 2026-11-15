@@ -74,7 +74,7 @@ class MobileFilesMoveTest {
         val events = mutableListOf<FilesBrowserEvent>()
         val initial = loadedRoot()
         val repository = destinationRepository()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(initial, repository, events::add, {}, true, {}) }
         }
         openMove()
@@ -98,7 +98,7 @@ class MobileFilesMoveTest {
     fun cancelInvalidatesAQueuedConfirmBeforeThePickerIsDisposed() {
         val events = mutableListOf<FilesBrowserEvent>()
         val repository = destinationRepository()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {}) }
         }
         openMove()
@@ -118,7 +118,7 @@ class MobileFilesMoveTest {
     fun duplicateQueuedConfirmSendsOneMoveAndAFreshPickerCanBeOpened() {
         val events = mutableListOf<FilesBrowserEvent>()
         val repository = destinationRepository()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {}) }
         }
         openMove()
@@ -159,7 +159,7 @@ class MobileFilesMoveTest {
             }
         }
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {}) }
         }
         openMove()
@@ -181,7 +181,7 @@ class MobileFilesMoveTest {
             override suspend fun loadMoveDestinations(folderId: FilesItemId, cursor: FilesCursor?) =
                 PutioResult.Failure(putioRefusal(404, putioErrorBody(404, "not a folder")).toPutioFailure())
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, { true }, {}, true, {}) }
         }
         openMove()
@@ -200,7 +200,7 @@ class MobileFilesMoveTest {
         var state by mutableStateOf(reload(
             reloading.state, checkNotNull(reloading.effect).requestId, FilesPage(listOf(source), null),
         ))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, {}, {}, confirmedTrashEnabled = true) } }
+        compose.setBuiltContent { PutioTheme { MobileFilesScreen(state, {}, {}, confirmedTrashEnabled = true) } }
         compose.onNodeWithText(
             "A file or folder named “${source.name}” already exists there. Choose another folder.",
         ).assertIsDisplayed()
@@ -232,7 +232,7 @@ class MobileFilesMoveTest {
             checkNotNull(checking.effect).requestId, PutioResult.Success(source),
         ))
         val state = reload(reloading.state, checkNotNull(reloading.effect).requestId, FilesPage(listOf(source), null))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, {}, {}, confirmedTrashEnabled = true) } }
+        compose.setBuiltContent { PutioTheme { MobileFilesScreen(state, {}, {}, confirmedTrashEnabled = true) } }
         compose.onNodeWithText(
             "“${source.name}” is not in the selected folder. You can choose a destination again.",
         ).assertIsDisplayed()
@@ -247,7 +247,7 @@ class MobileFilesMoveTest {
             checkNotNull(checking.effect).requestId, failure("offline read"),
         )).state)
         val effects = mutableListOf<FilesBrowserEffect>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, { event ->
                     val next = FilesBrowserReducer.reduce(state, event)
@@ -312,7 +312,7 @@ class MobileFilesMoveTest {
         }
         var repository by mutableStateOf<FilesRepository>(previousRepository)
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {}) }
         }
         openMove()
@@ -343,7 +343,7 @@ class MobileFilesMoveTest {
     fun rejectedConfirmationKeepsThePickerAndDestination() {
         var attempts = 0
         val repository = destinationRepository()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesRoute(loadedRoot(), repository, { event ->
                     if (event is FilesBrowserEvent.Move) attempts += 1
@@ -368,7 +368,7 @@ class MobileFilesMoveTest {
         val loaded = reload(opened.state, checkNotNull(opened.effect).requestId, FilesPage(listOf(child), null))
         var state by mutableStateOf(loaded)
         val repository = destinationRepository()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(state, repository, { true }, {}, true, {}) }
         }
         openMove()
@@ -400,7 +400,7 @@ class MobileFilesMoveTest {
                     PutioFailure.AuthenticationRequired(PutioConfigurationException("Expired picker session")),
                 )
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, { true }, {}, true, { rejections += 1 }) }
         }
         openMove()
@@ -427,7 +427,7 @@ class MobileFilesMoveTest {
                     else -> error("Unexpected destination read")
                 }
         }
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {
                     rejections += 1
@@ -461,7 +461,7 @@ class MobileFilesMoveTest {
     fun rememberTargetFolderIsOffByDefaultAndOnceOnReopensMoveAtTheChosenFolder() {
         val store = InMemoryMoveTargetStore()
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesRoute(loadedRoot(), destinationRepository(), events::add, {}, true, {},
                     moveTargetStore = store)

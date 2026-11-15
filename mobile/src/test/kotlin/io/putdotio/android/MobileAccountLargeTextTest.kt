@@ -84,7 +84,7 @@ class MobileAccountLargeTextTest {
 
     @Test
     fun privacyControlsPageKeepsStrictlyNecessaryReadableAndUntoggleable() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobilePrivacyControlsScreen(settingsState = readyAccountSettingsState(), onSettingsEvent = {})
             }
@@ -218,7 +218,7 @@ class MobileAccountLargeTextTest {
         settingsEvents: MutableList<AccountSettingsEvent> = mutableListOf(),
         configEvents: MutableList<AndroidAppConfigEvent> = mutableListOf(),
     ) {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileAccountScreen(
                     account = MobileAccount(userId = 42, username = "proof", email = "proof@example.com"),

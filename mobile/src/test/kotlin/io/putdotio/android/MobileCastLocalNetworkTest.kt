@@ -128,7 +128,7 @@ class MobileCastLocalNetworkTest {
     }
 
     private fun setButton() {
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(
                 LocalActivityResultRegistryOwner provides object : ActivityResultRegistryOwner {
                     override val activityResultRegistry = registry

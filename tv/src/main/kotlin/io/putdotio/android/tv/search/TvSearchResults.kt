@@ -120,12 +120,12 @@ internal fun TvSearchResultList(
     ) {
         it.rowText(context, currentRows.place(it), System.currentTimeMillis())
     }
-    val shown = rowText.shown(groups, groups.ordered)
+    val shown = rowText.shown(groups to paging, groups.ordered)
     if (shown == null) {
         TvListSkeleton(modifier)
         return
     }
-    TvSearchResultRows(shown, rowText, paging, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier)
+    TvSearchResultRows(shown.first, rowText, shown.second, restoreRowId, rows, onNextPage, onRetry, owner, listFocus, modifier)
 }
 
 @OptIn(ExperimentalComposeUiApi::class)

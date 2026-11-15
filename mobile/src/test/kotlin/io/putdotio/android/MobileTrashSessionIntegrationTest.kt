@@ -153,7 +153,7 @@ class MobileTrashSessionIntegrationTest {
     private fun whileMounted(fixture: TrashSessionRootFixture, block: () -> Unit) {
         var mounted by mutableStateOf(true)
         try {
-            compose.setContent { if (mounted) fixture.Content() }
+            compose.setBuiltContent { if (mounted) fixture.Content() }
             block()
         } finally {
             compose.runOnIdle { mounted = false }

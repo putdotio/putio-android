@@ -162,7 +162,7 @@ class MobileSearchScreensLayoutTest {
                 HistoryPaging.Complete,
             ),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.fillMaxSize().testTag(VIEWPORT)) {
                     if (history != null) {

@@ -77,7 +77,7 @@ class MobileFilesActionsSheetTest {
     @Test
     fun aStartedVideoOffersResumeTheVideoRowsAndTheOwnerActions() {
         val chosen = mutableListOf<String>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     item = started,
@@ -123,7 +123,7 @@ class MobileFilesActionsSheetTest {
         val note = started.copy(id = FilesItemId(9L), name = "notes.txt", type = PutioFileType.TEXT, playback = null)
         val song = started.copy(id = FilesItemId(10L), name = "song.mp3", type = PutioFileType.AUDIO, playback = null)
         var item by mutableStateOf(started)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 key(item.id.value) {
                     MobileFilesActions(
@@ -155,7 +155,7 @@ class MobileFilesActionsSheetTest {
         var item by mutableStateOf(started)
         var setting by mutableStateOf(StreamingMethod.Hls)
         var status by mutableStateOf<DownloadStatus?>(null)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 key(item.id.value, setting, status) {
                     MobileFilesActions(
@@ -200,7 +200,7 @@ class MobileFilesActionsSheetTest {
     fun aFileTheViewerShowsOpensThereFirstAndOffersOtherApps() {
         val chosen = mutableListOf<String>()
         val note = started.copy(id = FilesItemId(8L), name = "notes.txt", type = PutioFileType.TEXT, playback = null)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     item = note,
@@ -227,7 +227,7 @@ class MobileFilesActionsSheetTest {
 
     @Test
     fun theHandleCarryingTheSheetsActionsIsALabelledTouchTarget() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     started, FilesFolder.Root.id, FilesFolderOperation.Idle, null, {}, {},
@@ -245,7 +245,7 @@ class MobileFilesActionsSheetTest {
     fun aFriendsFileKeepsTheTilesAndMakeACopyAndNamesTheSharer() {
         val shared = started.copy(id = FilesItemId(9L), name = "Caminandes - Llama Drama.mp4", isShared = true,
             playback = null)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     item = shared,
@@ -282,7 +282,7 @@ class MobileFilesActionsSheetTest {
     @Test
     fun aSearchResultsSheetLeavesOutWhatActsOnAFolderListing() {
         var played = 0
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileSearchResultActionsHost(
                     results = listOf(started),
@@ -308,7 +308,7 @@ class MobileFilesActionsSheetTest {
     @Test
     fun aVideoPast95PercentReadsAsFinished() {
         var progress by mutableStateOf(FilesPlaybackProgress(startFromSeconds = 2_849.0, durationSeconds = 3_000.0))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     item = started.copy(playback = progress),
@@ -335,7 +335,7 @@ class MobileFilesActionsSheetTest {
 
     @Test
     fun renameSelectsTheNameUpToItsExtension() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(started, FilesFolder.Root.id, FilesFolderOperation.Idle, null, {}, {},
                     confirmedTrashEnabled = true)

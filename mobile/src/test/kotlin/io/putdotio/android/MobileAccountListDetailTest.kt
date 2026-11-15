@@ -35,7 +35,7 @@ class MobileAccountListDetailTest {
     fun crossingTheBreakpointKeepsTheOpenPagesState() {
         var wide by mutableStateOf(false)
         val panes = MobileAccountPanes(listTopBar = {}, pageTopBar = {})
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 Box(Modifier.requiredSize(width = if (wide) 1184.dp else 600.dp, height = 700.dp)) {
                     MobileAccountListDetail(

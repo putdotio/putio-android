@@ -49,7 +49,7 @@ class MobileTrashLayoutTest {
     fun landscapeItemSheetKeepsRestoreAndDeleteReachableAtDoubleFontScale() {
         val item = TrashItem(FilesItemId(7), FilesItemId(8), "Archive 東京 été ".repeat(16), PutioFileType.FOLDER, 0)
         val events = mutableListOf<TrashEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTrashItemSheet(
                     item, TrashState(content = TrashContent.Loaded(listOf(item), null, 1, 0)), events::add, {},
@@ -75,7 +75,7 @@ class MobileTrashLayoutTest {
     private fun assertConfirmationFits() {
         val item = TrashItem(FilesItemId(7), FilesItemId(8), "Archive 東京 été ".repeat(16), PutioFileType.FOLDER, 0)
         val events = mutableListOf<TrashEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTrashScreen(TrashState(content = TrashContent.Loaded(emptyList(), null, 0, 0),
                     actionConfirmation = TrashAction.DeleteItem(item), actionConfirmationId = 1), events::add)

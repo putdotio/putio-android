@@ -73,7 +73,7 @@ class MobilePlaybackConfigIntegrationTest {
         withPlaybackConfigRootFixture { fixture ->
             var mounted by mutableStateOf(true)
             try {
-                compose.setContent { if (mounted) fixture.Content() }
+                compose.setBuiltContent { if (mounted) fixture.Content() }
                 compose.waitUntil(5_000L) { compose.runOnIdle { fixture.confirmedFormat == StreamingMethod.Hls } }
                 compose.waitUntil(5_000L) {
                     compose.onAllNodesWithText("episode.mkv").fetchSemanticsNodes().isNotEmpty()

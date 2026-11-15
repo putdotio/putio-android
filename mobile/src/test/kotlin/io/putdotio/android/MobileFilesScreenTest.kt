@@ -1,5 +1,7 @@
 package io.putdotio.android
 
+import kotlinx.coroutines.Dispatchers
+import io.putdotio.android.design.LocalBuildDispatcher
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -105,7 +107,7 @@ class MobileFilesScreenTest {
     fun landscapeActionSheetKeepsBottomActionReachableAtDoubleFontScale() {
         org.robolectric.RuntimeEnvironment.setFontScale(2f)
         val item = filesItem(7L, "Archive 東京 été ".repeat(16))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesActions(
                     item, FilesItemId(0), FilesFolderOperation.Idle, null, {}, {},
@@ -130,7 +132,7 @@ class MobileFilesScreenTest {
         val sharedFolder = filesItem(12L, "Season 1", PutioFileType.FOLDER).copy(isShared = true)
         val sharedVideo = filesItem(13L, "clip.mkv", PutioFileType.VIDEO).copy(isShared = true)
         val owned = filesItem(14L, "mine.mkv", PutioFileType.VIDEO)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(
                     browserState(
@@ -166,12 +168,14 @@ class MobileFilesScreenTest {
         var state by mutableStateOf(browserState(FilesContent.Ready(listOf(original, sentinel), FilesPaging.Complete)))
         val restoration = StateRestorationTester(compose)
         restoration.setContent {
-            PutioTheme {
-                MobileFilesScreen(
-                    state,
-                    onEvent = { state = FilesBrowserReducer.reduce(state, it).state },
-                    onPlayMedia = {},
-                )
+            CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined) {
+                PutioTheme {
+                    MobileFilesScreen(
+                        state,
+                        onEvent = { state = FilesBrowserReducer.reduce(state, it).state },
+                        onPlayMedia = {},
+                    )
+                }
             }
         }
         compose.onNodeWithContentDescription("Actions for root").assertDoesNotExist()
@@ -198,7 +202,7 @@ class MobileFilesScreenTest {
         val original = filesItem(7L, "old.mkv", PutioFileType.VIDEO)
         var state by mutableStateOf(browserState(FilesContent.Ready(listOf(original), FilesPaging.Complete)))
         val effects = mutableListOf<FilesBrowserEffect>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, onEvent = {
                     val transition = FilesBrowserReducer.reduce(state, it)
@@ -250,7 +254,7 @@ class MobileFilesScreenTest {
         val original = filesItem(7L, "folder", PutioFileType.FOLDER)
         var state by mutableStateOf(browserState(FilesContent.Ready(listOf(original), FilesPaging.Complete)))
         val renamed = mutableListOf<FilesBrowserEffect.Rename>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, onEvent = {
                     val transition = FilesBrowserReducer.reduce(state, it)
@@ -333,7 +337,7 @@ class MobileFilesScreenTest {
             browserState(FilesContent.Loading(FilesRequestId(1L))),
         )
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -391,7 +395,7 @@ class MobileFilesScreenTest {
     fun anEmptyFolderOffersToCreateAFolder() {
         var newFolderRequests = 0
         val state = browserState(FilesContent.Empty(FilesPaging.Complete))
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}, onNewFolder = { newFolderRequests++ })
             }
@@ -407,7 +411,7 @@ class MobileFilesScreenTest {
         val file = filesItem(1L, "movie.mkv").copy(createdAt = "2020-04-20T10:00:00")
         val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2020-04-21T10:00:00")
         val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
+        compose.setBuiltContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
         compose.awaitText("Apr 21, 2020")
         compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2020")).assertIsDisplayed()
         compose.onNode(hasText("Shows") and hasText("Apr 21, 2020")).assertIsDisplayed()
@@ -425,7 +429,7 @@ class MobileFilesScreenTest {
         val plain = filesItem(4L, "plain.txt")
         val items = listOf(partly, finished, unknown, fresh, plain)
         val state = browserState(FilesContent.Ready(items, FilesPaging.Complete))
-        compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
+        compose.setBuiltContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
         compose.awaitText("128 B")
         // Resumable shows no mark of its own, and never the finished eye.
         compose.onNode(hasText("partly.mkv") and hasText("128 B")).assertIsDisplayed()
@@ -449,7 +453,7 @@ class MobileFilesScreenTest {
             "done.mkv" to DownloadStatus.Completed(128L),
             "gone.mkv" to DownloadStatus.Missing,
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 androidx.compose.foundation.layout.Column {
                     rows.forEachIndexed { index, (name, status) ->
@@ -480,7 +484,7 @@ class MobileFilesScreenTest {
     fun aLongNameKeepsItsFullNameForReaders() {
         val name = "Blue.Lights.S04E01.1080p.HDTV.H264-ORGANiC.Extended.Cut.Remastered.mkv"
         val file = filesItem(1L, name, PutioFileType.VIDEO)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 androidx.compose.foundation.layout.Column(Modifier.width(320.dp)) {
                     MobileFilesRow(file, NO_ROW_TEXT, downloadStatus = DownloadStatus.Completed(128L))
@@ -511,7 +515,7 @@ class MobileFilesListTest {
         val available = FilesContent.Ready(items, FilesPaging.Available(FilesCursor("next-page")))
         var state by mutableStateOf(browserState(available))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -558,7 +562,7 @@ class MobileFilesListTest {
         val short = listOf(filesItem(id = 1L, name = "Harbor film.mp4"))
         var state by mutableStateOf(browserState(FilesContent.Empty(FilesPaging.Available(FilesCursor("page-2")))))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -611,7 +615,7 @@ class MobileFilesListTest {
         var latest = shown
         val viewports = MobileFilesViewports { latest.viewportOf(it) }
         var pinned by mutableStateOf(emptyList<FilesItem>())
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 CompositionLocalProvider(LocalMobileFilesViewports provides viewports) {
                     MobileFilesScreen(
@@ -647,7 +651,7 @@ class MobileFilesListTest {
                 sort = FilesSort.NAME_ASCENDING,
             ),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -690,7 +694,7 @@ class MobileFilesListTest {
             ),
         )
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -737,7 +741,7 @@ class MobileFilesListTest {
         )
         var state by mutableStateOf(browserState(ready))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -788,7 +792,7 @@ class MobileFilesListTest {
                 ),
             ),
         )
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = {}, onPlayMedia = {})
             }
@@ -820,7 +824,7 @@ class MobileFilesListTest {
         )
         var state by mutableStateOf(browserState(content))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -863,7 +867,7 @@ class MobileFilesListTest {
             phase = FilesFolderOperationPhase.RELOADING,
         )
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(
                     state = browserState(FilesContent.Ready(listOf(item), FilesPaging.Complete), operation = failed),
@@ -886,7 +890,7 @@ class MobileFilesListTest {
         )
         var state by mutableStateOf(browserState(content))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -927,7 +931,7 @@ class MobileFilesListTest {
         )
         var state by mutableStateOf(browserState(content))
         val events = mutableListOf<FilesBrowserEvent>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(state = state, onEvent = events::add, onPlayMedia = {})
             }
@@ -966,7 +970,7 @@ class MobileFilesListTest {
             filesItem(40L, "Gone", PutioFileType.FOLDER), FilesOpenOrigin.SEARCH,
         ))
         var state by mutableStateOf(opened.state)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileFilesScreen(
                     state = state,
@@ -1000,7 +1004,7 @@ private fun ComposeContentTestRule.setFilesContent(
     onEvent: (FilesBrowserEvent) -> Unit,
     onPlayMedia: (FilesItem) -> Unit = {},
 ) {
-    setContent {
+    setBuiltContent {
         PutioTheme {
             MobileFilesScreen(state = state, onEvent = onEvent, onPlayMedia = onPlayMedia)
         }

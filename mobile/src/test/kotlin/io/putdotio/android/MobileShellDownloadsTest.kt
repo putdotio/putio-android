@@ -161,7 +161,7 @@ class MobileShellDownloadsTest {
         showSubtitles: Boolean = true,
     ) {
         val controller = DownloadsController(store, engine, scope)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     filesStates = rememberUpdatedState(filesState),

@@ -136,7 +136,7 @@ class MobileShellLinkActionsTest {
 
     private fun setShell(draft: MobileTransferDraft = MobileTransferDraft()) {
         val controller = DownloadsController(store, FakeDownloadEngine(), scope)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileShell(
                     filesStates = rememberUpdatedState(FilesBrowserReducer.start().state),

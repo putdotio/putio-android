@@ -34,7 +34,7 @@ class MobileInactiveAccountNoticeTest {
     @Test
     fun deactivatedAccountShowsWebCopyWithTheDeletionCountdown() {
         var days by mutableLongStateOf(14L)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(deletionIn(days))) }
         }
 
@@ -50,7 +50,7 @@ class MobileInactiveAccountNoticeTest {
 
     @Test
     fun withoutADeletionDateOnlyTheTitleShows() {
-        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(null)) } }
+        compose.setBuiltContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.Deactivated(null)) } }
 
         compose.onNodeWithText("Your account has been deactivated 😢").assertIsDisplayed()
         compose.onNodeWithText("Your files are still here", substring = true).assertDoesNotExist()
@@ -59,7 +59,7 @@ class MobileInactiveAccountNoticeTest {
 
     @Test
     fun familyPlanMemberIsToldThePlanExpired() {
-        compose.setContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.FamilyPlanExpired) } }
+        compose.setBuiltContent { PutioTheme { MobileInactiveAccountNotice(InactiveAccountNotice.FamilyPlanExpired) } }
 
         compose.onNodeWithText("Your family plan is no longer active.").assertIsDisplayed()
         assertNoActionOrPaymentWording()

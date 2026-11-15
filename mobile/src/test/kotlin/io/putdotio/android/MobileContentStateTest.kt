@@ -37,7 +37,7 @@ class MobileContentStateTest {
 
     @Test
     fun loadingStateIsAnnounced() {
-        compose.setContent { MobileLoadingState(message = "Loading files") }
+        compose.setBuiltContent { MobileLoadingState(message = "Loading files") }
 
         compose.onAllNodesWithText("Loading files").assertCountEquals(1)
         compose.onAllNodesWithContentDescription("Loading files").assertCountEquals(0)
@@ -49,7 +49,7 @@ class MobileContentStateTest {
     @Test
     fun largeFontInShortViewportKeepsAuthActionReachable() {
         var signedIn = false
-        compose.setContent {
+        compose.setBuiltContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale = 2f)) {
                 Box(Modifier.height(200.dp)) {
                     MobileAuthMessageScreen(

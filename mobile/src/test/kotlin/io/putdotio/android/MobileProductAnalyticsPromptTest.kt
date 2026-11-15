@@ -140,7 +140,7 @@ class MobileProductAnalyticsPromptTest {
 
     @Test
     fun aLaunchThatOpensALinkSkipsTheAsk() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 AskingHost(
                     sessionId = MobileAuthSessionId(1L),
@@ -162,7 +162,7 @@ class MobileProductAnalyticsPromptTest {
         assertEquals(MobileProductAnalyticsPromptMode.Forced, MobileProductAnalyticsPromptMode.of(true, true))
 
         var mode by mutableStateOf(MobileProductAnalyticsPromptMode.Suppressed)
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 key(mode) {
                     CompositionLocalProvider(LocalMobileProductAnalyticsPromptMode provides mode) {
@@ -188,7 +188,7 @@ class MobileProductAnalyticsPromptTest {
 
     @Test
     fun theHostAsksWhileAnalyticsIsOffAndUnanswered() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 AskingHost(
                     sessionId = MobileAuthSessionId(1L),
@@ -205,7 +205,7 @@ class MobileProductAnalyticsPromptTest {
 
     private fun show(): List<Unit> {
         val dismissed = mutableListOf<Unit>()
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileProductAnalyticsPrompt(
                     settingsState = settings,

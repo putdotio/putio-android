@@ -43,7 +43,7 @@ class MobileShortWindowChromeTest {
 
     @Test
     fun compactHeightTitleGivesWayToItsActionsInANarrowWindow() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileTabTitle(
                     title = "Downloads kept on this device",
@@ -66,7 +66,7 @@ class MobileShortWindowChromeTest {
 
     @Test
     fun narrowShortMiniPlayerKeepsTheNameItsWidth() {
-        compose.setContent {
+        compose.setBuiltContent {
             PutioTheme {
                 MobileNowPlayingBar(
                     nowPlaying = NowPlaying(
