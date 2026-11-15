@@ -63,6 +63,8 @@ import java.time.ZoneOffset
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
+import androidx.compose.ui.test.assertCountEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -422,6 +424,46 @@ class TvHistoryScreenTest {
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.runOnIdle { assertEquals(listOf(HistoryEvent.LoadNextPage, HistoryEvent.LoadNextPage), log) }
+    }
+
+    @Test
+    fun aRowKeepsItsOwnTextWhileTheRefreshedListBuilds() {
+        var state by mutableStateOf(
+            historyState(
+                HistoryContent.Ready(
+                    listOf(HistoryItem(HistoryEventId(1), "2026-09-12T05:22:00", HistoryEventKind.File(HistoryFileId(1), "first.mkv"))),
+                    HistoryPaging.Complete,
+                ),
+            ),
+        )
+        val build = StandardTestDispatcher()
+        compose.setTvContent {
+            CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                TvHistoryScreen(state = state, onEvent = { true }, clock = clock)
+            }
+        }
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open first.mkv").assertIsDisplayed()
+
+        compose.runOnIdle {
+            state = historyState(
+                HistoryContent.Ready(
+                    listOf(HistoryItem(HistoryEventId(1), "2026-09-12T09:30:00", HistoryEventKind.File(HistoryFileId(1), "second.mkv"))),
+                    HistoryPaging.Complete,
+                ),
+            )
+        }
+        val mixed = runCatching {
+            compose.waitUntil(1_000) {
+                compose.onAllNodesWithText("09:30", substring = true).fetchSemanticsNodes().isNotEmpty()
+            }
+        }.isSuccess
+        assertFalse("first.mkv shows the time of the refreshed event", mixed)
+        compose.onNodeWithContentDescription("Open first.mkv").assertIsDisplayed()
+
+        compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.onNodeWithContentDescription("Open second.mkv").assertIsDisplayed()
+        compose.onAllNodesWithText("09:30", substring = true).assertCountEquals(1)
     }
 
     private class CountingEvents(private val events: List<HistoryItem>) : List<HistoryItem> by events {
