@@ -227,7 +227,7 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
                 modifier = Modifier.size(HISTORY_GLYPH_SIZE),
             )
         },
-        headline = { MobileMiddleCutText(text.title) },
+        headline = { MobileMiddleCutText(item.title(LocalContext.current)) },
         meta = {
             // The kind gives way at large font sizes; the time always shows.
             Row {
@@ -378,16 +378,23 @@ private fun rememberDayLabels(today: LocalDate, zone: ZoneId): HistoryDayLabels 
     return remember(context, locales, today, zone) { HistoryDayLabels(context, today, zone) }
 }
 
-private data class HistoryRowText(val title: String, val kind: String?, val time: String)
+private data class HistoryRowText(val kind: String?, val time: String)
 
 @Composable
 private fun rememberHistoryRowText(items: List<HistoryItem>): MobileRowText<HistoryItem, HistoryRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val hours24 = DateFormat.is24HourFormat(context)
-    return rememberRowText(items, context, locales, ZoneId.systemDefault(), hours24, key = { it.id.value }) { item ->
+    return rememberRowText(
+        items,
+        context,
+        locales,
+        ZoneId.systemDefault(),
+        hours24,
+        key = { it.id.value },
+        placeholder = HistoryRowText(kind = null, time = ""),
+    ) { item ->
         HistoryRowText(
-            title = item.title(context),
             kind = item.kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
             time = item.timeLabel(context),
         )

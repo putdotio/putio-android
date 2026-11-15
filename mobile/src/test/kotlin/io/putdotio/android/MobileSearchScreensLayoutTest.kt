@@ -179,6 +179,7 @@ class MobileSearchScreensLayoutTest {
                 }
             }
         }
+        if (history != null) compose.awaitText(":", substring = true)
     }
 
     private companion object {

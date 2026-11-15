@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileMiddleCutText
 import io.putdotio.android.MobileRetryButton
+import io.putdotio.android.MobileRowText
 import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.R
 import io.putdotio.android.monoValue
@@ -117,6 +118,11 @@ internal class MobilePinnedActions(
     val onUnpin: ((FilesItem) -> Unit)? = null,
 )
 
+internal class MobilePinnedRows(
+    val text: MobileRowText<FilesItem, FilesRowText>,
+    val actions: MobilePinnedActions,
+)
+
 internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): MobilePinnedActions =
     MobilePinnedActions(onOpen = onOpen, onUnpin = onSetPinned?.let { set -> { item -> set(item, false) } })
 
@@ -126,9 +132,9 @@ internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): 
  */
 internal fun LazyListScope.mobileFilesHeaderItems(
     headers: MobileFilesHeaders,
+    pinnedRows: MobilePinnedRows,
     onPlay: (ContinueWatchingEntry) -> Unit,
     onRemove: ((ContinueWatchingEntry) -> Unit)? = null,
-    pinnedActions: MobilePinnedActions = MobilePinnedActions(onOpen = {}),
     hidden: Boolean = false,
 ) {
     fun header(key: String, type: String, content: @Composable () -> Unit) =
@@ -144,7 +150,7 @@ internal fun LazyListScope.mobileFilesHeaderItems(
     }
     if (headers.pinned.isNotEmpty()) {
         header("pinned", "pinned") {
-            MobilePinnedSection(headers.pinned, pinnedActions, top = if (watching) 12.dp else 20.dp)
+            MobilePinnedSection(headers.pinned, pinnedRows, top = if (watching) 12.dp else 20.dp)
         }
     }
     if (watching || headers.pinned.isNotEmpty()) {
@@ -157,7 +163,11 @@ internal fun LazyListScope.mobileFilesHeaderItems(
 }
 
 @Composable
-private fun MobilePinnedSection(items: List<FilesItem>, actions: MobilePinnedActions, top: Dp) {
+private fun MobilePinnedSection(
+    items: List<FilesItem>,
+    rows: MobilePinnedRows,
+    top: Dp,
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val capped = items.size > PINNED_VISIBLE_ITEMS
     Column(modifier = Modifier.fillMaxWidth().testTag(MOBILE_FILES_PINNED_TAG)) {
@@ -183,16 +193,17 @@ private fun MobilePinnedSection(items: List<FilesItem>, actions: MobilePinnedAct
             },
         )
         val shown = if (expanded || !capped) items else items.take(PINNED_VISIBLE_ITEMS)
-        shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, actions) } }
+        shown.forEach { item -> key(item.id.value) { MobilePinnedRow(item, rows.text[item], rows.actions) } }
     }
 }
 
 @Composable
-private fun MobilePinnedRow(item: FilesItem, actions: MobilePinnedActions) {
+private fun MobilePinnedRow(item: FilesItem, text: FilesRowText, actions: MobilePinnedActions) {
     var menu by remember(item.id) { mutableStateOf(false) }
     Box {
         MobileFilesRow(
             item = item,
+            text = text,
             onClick = { actions.onOpen(item) },
             onClickLabel = stringResource(
                 if (item.isPlayable) R.string.mobile_files_play_media else R.string.mobile_files_open_folder,

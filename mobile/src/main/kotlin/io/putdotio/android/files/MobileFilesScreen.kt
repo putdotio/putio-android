@@ -72,6 +72,7 @@ import io.putdotio.android.RetryWhenOnline
 import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileKeyCommand
+import io.putdotio.android.MobileRowText
 import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.MobileUnhandledKeyEffect
 import io.putdotio.android.PutioFailure
@@ -420,7 +421,9 @@ private fun MobileRefreshableFilesContent(
                         onEvent = onEvent,
                         onNewFolder = onNewFolder,
                     )
-                    is FilesContent.Ready ->
+                    is FilesContent.Ready -> {
+                        val rowText = rememberFilesRowText(content.items)
+                        val pinnedText = rememberFilesRowText(headers.pinned)
                         // The depth tells a folder opened from Search apart from the same folder under it. A
                         // header set that grew or shrank restarts the list from the row-relative viewport.
                         key(
@@ -434,9 +437,13 @@ private fun MobileRefreshableFilesContent(
                                 headers = headers,
                                 onPlayEntry = { onPlayMedia(it.toFilesItem()) },
                                 onRemoveEntry = hideStarted,
-                                pinnedActions = itemActions.pinnedActions { item ->
-                                    openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
-                                },
+                                rowText = rowText,
+                                pinnedRows = MobilePinnedRows(
+                                    pinnedText,
+                                    itemActions.pinnedActions { item ->
+                                        openPinned(item, state.current, fileOpening, onEvent, onPlayMedia)
+                                    },
+                                ),
                                 revealItemId = state.current.revealItemId,
                                 pagingEnabled = operation == FilesFolderOperation.Idle,
                                 onEvent = onEvent,
@@ -458,6 +465,7 @@ private fun MobileRefreshableFilesContent(
                                 onStartSelection = selection.starter { currentState },
                             )
                         }
+                    }
 
                     is FilesContent.Failed,
                     is FilesContent.Loading,
@@ -951,7 +959,8 @@ private fun MobileFilesList(
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
     onRemoveEntry: ((ContinueWatchingEntry) -> Unit)?,
-    pinnedActions: MobilePinnedActions,
+    rowText: MobileRowText<FilesItem, FilesRowText>,
+    pinnedRows: MobilePinnedRows,
     revealItemId: FilesItemId?,
     pagingEnabled: Boolean,
     onEvent: (FilesBrowserEvent) -> Unit,
@@ -982,7 +991,6 @@ private fun MobileFilesList(
     val currentOnEvent by rememberUpdatedState(onEvent)
     val pendingItemIds = operation.pendingItemIds()
     val actionsEnabled = operation.canStartOperation
-    val rowText = rememberFilesRowText(content.items)
 
     LaunchedEffect(listState) {
         // Report only settled positions: per-frame offsets during a fling would
@@ -1019,7 +1027,7 @@ private fun MobileFilesList(
         // toolbar, however tall large fonts make it.
         contentPadding = selection?.let { PaddingValues(top = 8.dp, bottom = it.bottomClearance) } ?: PaddingValues(),
     ) {
-        mobileFilesHeaderItems(headers, onPlayEntry, onRemoveEntry, pinnedActions, hidden = selection != null)
+        mobileFilesHeaderItems(headers, pinnedRows, onPlayEntry, onRemoveEntry, hidden = selection != null)
         itemsIndexed(
             items = content.items,
             key = { _, item -> item.id.value },

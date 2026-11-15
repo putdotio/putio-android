@@ -103,11 +103,15 @@ class MobilePinnedSectionTest {
     private fun setSection() {
         compose.setContent {
             PutioTheme {
+                val rowText = rememberFilesRowText(pins)
                 LazyColumn {
                     mobileFilesHeaderItems(
                         headers = MobileFilesHeaders(pinned = pins),
+                        pinnedRows = MobilePinnedRows(
+                            rowText,
+                            MobilePinnedActions(onOpen = opened::add, onUnpin = unpinned::add),
+                        ),
                         onPlay = {},
-                        pinnedActions = MobilePinnedActions(onOpen = opened::add, onUnpin = unpinned::add),
                     )
                 }
             }

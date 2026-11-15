@@ -6,7 +6,10 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -17,6 +20,7 @@ import kotlinx.coroutines.withContext
 @Stable
 internal class MobileRowText<T : Any, V>(
     private val key: (T) -> Any,
+    private val placeholder: V,
     private val build: (T) -> V,
 ) {
     private class Entry<T, V>(val item: T, val value: V, val refresh: Any?)
@@ -27,28 +31,49 @@ internal class MobileRowText<T : Any, V>(
     @Volatile
     private var refresh: Any? = null
 
-    private val refreshed = mutableIntStateOf(0)
+    private val waiting = ConcurrentHashMap<Any, T>()
+
+    private val prepared = mutableIntStateOf(0)
+
+    private val generation = AtomicLong()
+
+    private val stale = AtomicBoolean()
 
     operator fun get(item: T): V {
-        refreshed.intValue
-        val entry = entries[key(item)]
-        if (entry != null && entry.item == item) return entry.value
-        return build(item).also { entries[key(item)] = Entry(item, it, refresh) }
+        prepared.intValue
+        val key = key(item)
+        val entry = entries[key]?.takeIf { it.item == item } ?: await(key, item)
+        return entry?.value ?: placeholder
+    }
+
+    private fun await(key: Any, item: T): Entry<T, V>? {
+        waiting[key] = item
+        val entry = entries[key]
+        if (entry?.item == item) waiting.remove(key, item)
+        return entry
     }
 
     suspend fun prepare(items: List<T>, refresh: Any?) {
-        val newRefresh = refresh != this.refresh
-        this.refresh = refresh
+        val run = generation.incrementAndGet()
         val known = entries
-        val prepared = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
+        val built = ConcurrentHashMap<Any, Entry<T, V>>(items.size)
         items.forEach { item ->
             currentCoroutineContext().ensureActive()
-            prepared[key(item)] = known[key(item)]?.takeIf { it.item == item && it.refresh == refresh }
+            built[key(item)] = known[key(item)]?.takeIf { it.item == item && it.refresh == refresh }
                 ?: Entry(item, build(item), refresh)
         }
-        currentCoroutineContext().ensureActive()
-        entries = prepared
-        if (newRefresh) refreshed.intValue++
+        val context = currentCoroutineContext()
+        synchronized(generation) {
+            if (run != generation.get() || !context.isActive) return
+            entries = built
+            val newRefresh = refresh != this.refresh
+            this.refresh = refresh
+            if (waiting.entries.removeIf { (key, item) -> built[key]?.item == item } || newRefresh) stale.set(true)
+        }
+    }
+
+    fun recomposeStaleRows() {
+        if (stale.getAndSet(false)) prepared.intValue++
     }
 }
 
@@ -57,11 +82,17 @@ internal fun <T : Any, V> rememberRowText(
     items: List<T>,
     vararg inputs: Any?,
     key: (T) -> Any,
+    placeholder: V,
     refresh: Any? = null,
     build: (T) -> V,
 ): MobileRowText<T, V> {
-    val text = remember(*inputs) { MobileRowText(key, build) }
-    LaunchedEffect(text, items, refresh) { withContext(Dispatchers.Default) { text.prepare(items, refresh) } }
+    val text = remember(*inputs) { MobileRowText(key, placeholder, build) }
+    LaunchedEffect(text, items, refresh) {
+        text.recomposeStaleRows()
+        withContext(Dispatchers.Default) { text.prepare(items, refresh) }
+        withFrameNanos {}
+        text.recomposeStaleRows()
+    }
     return text
 }
 

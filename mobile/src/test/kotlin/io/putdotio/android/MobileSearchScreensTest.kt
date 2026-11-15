@@ -419,6 +419,7 @@ class MobileSearchScreensTest {
                 "Callback transfer" to "Callback failed · ",
             ).forEach { (title, kind) ->
                 compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
+                compose.awaitText(kind, substring = true)
                 compose.onNodeWithText(title).assertIsDisplayed()
                 compose.onNodeWithText(kind, substring = true).assertIsDisplayed()
             }
@@ -455,6 +456,8 @@ class MobileSearchScreensTest {
                 MobileHistoryScreen(historyState = history, onHistoryEvent = actions.onHistoryEvent, today = TODAY)
             }
         }
+        val rows = (history.content as? HistoryContent.Ready)?.items.orEmpty()
+        if (rows.isNotEmpty()) compose.awaitText(":", substring = true)
     }
 
     private fun setScreen(

@@ -8,6 +8,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
@@ -26,6 +27,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -70,6 +72,7 @@ internal const val MOBILE_FILES_DOWNLOAD_FAILED_TAG = "mobile-files-download-fai
 @Composable
 internal fun MobileFilesRow(
     item: FilesItem,
+    text: FilesRowText,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     onClickLabel: String? = null,
@@ -89,7 +92,6 @@ internal fun MobileFilesRow(
     checked: Boolean? = null,
     onCheckedChange: (() -> Unit)? = null,
     playbackBounds: Boolean = true,
-    text: FilesRowText = item.rowText(LocalContext.current, dated = place == MobileFilesRowPlace.Listing),
 ) {
     if (checked != null) {
         MobileFilesSelectableRow(item, text, checked, onCheckedChange, downloadStatus, place, modifier)
@@ -189,7 +191,7 @@ private fun MobileFilesSelectableRow(
 
 internal data class FilesRowText(val size: String?, val date: String?)
 
-internal fun FilesItem.rowText(context: Context, dated: Boolean): FilesRowText =
+private fun FilesItem.rowText(context: Context, dated: Boolean): FilesRowText =
     FilesRowText(
         size = formatFileSize(sizeBytes).takeIf { folderType == PutioFolderType.REGULAR },
         date = if (dated) updatedAgo(System.currentTimeMillis()) ?: createdAt.toDisplayDate(context) else null,
@@ -203,7 +205,15 @@ internal fun rememberFilesRowText(
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
     val minute = if (dated) rememberMinute() else null
-    return rememberRowText(items, context, locales, dated, key = { it.id.value }, refresh = minute) {
+    return rememberRowText(
+        items,
+        context,
+        locales,
+        dated,
+        key = { it.id.value },
+        placeholder = FilesRowText(size = null, date = null),
+        refresh = minute,
+    ) {
         it.rowText(context, dated)
     }
 }
@@ -270,6 +280,7 @@ private fun MobileFilesMeta(
     Row(
         horizontalArrangement = Arrangement.spacedBy(FILES_META_GAP),
         verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.heightIn(min = with(LocalDensity.current) { style.lineHeight.toDp() }),
     ) {
         parts.forEachIndexed { index, part ->
             if (index > 0) Text("·", style = style, color = color, modifier = Modifier.clearAndSetSemantics {})

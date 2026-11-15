@@ -78,6 +78,7 @@ import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_TAG
 import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_FAILED_TAG
 import io.putdotio.android.files.MOBILE_FILES_DOWNLOAD_RING_TAG
 import io.putdotio.android.files.MobileFilesActions
+import io.putdotio.android.files.FilesRowText
 import io.putdotio.android.files.MobileFilesRow
 import io.putdotio.android.files.LocalMobileFilesViewports
 import io.putdotio.android.files.MobileFilesScreen
@@ -317,6 +318,7 @@ class MobileFilesScreenTest {
         compose.onNodeWithText(folder.name).assertIsDisplayed().performClick()
         compose.onNodeWithText(video.name).assertIsDisplayed().performClick()
         compose.onNodeWithText(audio.name).assertIsDisplayed().performClick()
+        compose.awaitText("MB", substring = true)
         compose.onNodeWithText("MB", substring = true).assertIsDisplayed()
 
         assertEquals(FilesBrowserEvent.OpenFolder(folder.id), events.last())
@@ -406,6 +408,7 @@ class MobileFilesScreenTest {
         val folder = filesItem(2L, "Shows", PutioFileType.FOLDER).copy(createdAt = "2020-04-21T10:00:00")
         val state = browserState(FilesContent.Ready(listOf(file, folder), FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
+        compose.awaitText("Apr 21, 2020")
         compose.onNode(hasText("movie.mkv") and hasText("Apr 20, 2020")).assertIsDisplayed()
         compose.onNode(hasText("Shows") and hasText("Apr 21, 2020")).assertIsDisplayed()
     }
@@ -423,6 +426,7 @@ class MobileFilesScreenTest {
         val items = listOf(partly, finished, unknown, fresh, plain)
         val state = browserState(FilesContent.Ready(items, FilesPaging.Complete))
         compose.setContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
+        compose.awaitText("128 B")
         // Resumable shows no mark of its own, and never the finished eye.
         compose.onNode(hasText("partly.mkv") and hasText("128 B")).assertIsDisplayed()
         compose.onNode(hasText("partly.mkv") and hasContentDescription("25% watched")).assertDoesNotExist()
@@ -451,6 +455,7 @@ class MobileFilesScreenTest {
                     rows.forEachIndexed { index, (name, status) ->
                         MobileFilesRow(
                             filesItem(index + 1L, name, PutioFileType.VIDEO),
+                            NO_ROW_TEXT,
                             onClick = { opened += name },
                             downloadStatus = status,
                         )
@@ -478,9 +483,10 @@ class MobileFilesScreenTest {
         compose.setContent {
             PutioTheme {
                 androidx.compose.foundation.layout.Column(Modifier.width(320.dp)) {
-                    MobileFilesRow(file, downloadStatus = DownloadStatus.Completed(128L))
+                    MobileFilesRow(file, NO_ROW_TEXT, downloadStatus = DownloadStatus.Completed(128L))
                     MobileFilesRow(
                         file.copy(id = FilesItemId(2L)),
+                        NO_ROW_TEXT,
                         downloadStatus = DownloadStatus.Downloading(64L, percent = 50f),
                     )
                 }
@@ -1033,3 +1039,5 @@ private fun filesItem(
         sizeBytes = sizeBytes,
         createdAt = "2026-04-20T10:00:00Z",
     )
+
+private val NO_ROW_TEXT = FilesRowText(size = null, date = null)

@@ -345,8 +345,14 @@ private fun TrashItem.rowText(context: Context, today: LocalDate): TrashRowText 
 private fun rememberTrashRowText(items: List<TrashItem>): MobileRowText<TrashItem, TrashRowText> {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
-    val today = LocalDate.now()
-    return rememberRowText(items, context, locales, today, key = { it.id.value }) { it.rowText(context, today) }
+    return rememberRowText(
+        items,
+        context,
+        locales,
+        key = { it.id.value },
+        placeholder = TrashRowText(size = "", goneIn = null),
+        refresh = LocalDate.now(),
+    ) { it.rowText(context, LocalDate.now()) }
 }
 
 /** The section line: what Trash holds in mono, then how long it keeps items. */
