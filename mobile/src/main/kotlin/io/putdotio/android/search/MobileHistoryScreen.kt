@@ -356,7 +356,6 @@ private fun rememberHistoryDays(items: List<HistoryItem>, today: LocalDate): His
     }
 }
 
-/** A stamp the parser cannot read keeps a group of its own, under itself. */
 private fun List<HistoryItem>.historyDays(context: Context, today: LocalDate, zone: ZoneId): List<HistoryDay> =
     groupBy { item -> parsePutioTimestamp(item.createdAt)?.atZone(zone)?.toLocalDate() ?: item.createdAt }
         .map { (day, events) ->
