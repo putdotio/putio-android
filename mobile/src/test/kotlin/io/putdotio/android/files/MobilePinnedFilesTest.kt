@@ -12,7 +12,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -118,7 +118,7 @@ class MobilePinnedFilesTest {
         val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Series, Clip)), resolve, backgroundScope)
         val browser = MutableStateFlow(root())
         backgroundScope.launch { pinned.follow(browser) }
-        advanceUntilIdle()
+        runCurrent()
 
         renamed = true
         browser.value = root(
@@ -127,7 +127,7 @@ class MobilePinnedFilesTest {
                 FilesFolderOperationIntent.Rename(Clip, "renamed.mp4"),
             ),
         )
-        advanceUntilIdle()
+        runCurrent()
 
         assertEquals(listOf("Series", "renamed.mp4"), pinned.items.value.map { it.name })
     }
@@ -137,18 +137,18 @@ class MobilePinnedFilesTest {
         val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Series, Clip)), resolve, backgroundScope)
         val browser = MutableStateFlow(root())
         backgroundScope.launch { pinned.follow(browser) }
-        advanceUntilIdle()
+        runCurrent()
         reads.clear()
 
         val move = FilesFolderOperationIntent.Move(Clip, Series)
         browser.value = root(moveOutcome = FilesMoveOutcome(FilesRequestId(8L), move, "clip.mp4"))
-        advanceUntilIdle()
+        runCurrent()
         assertEquals("A move still being checked reads nothing", emptyList<FilesItemId>(), reads)
 
         browser.value = root(
             moveOutcome = FilesMoveOutcome(FilesRequestId(8L), move, "clip.mp4", status = FilesMoveStatus.MOVED),
         )
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(listOf(Series, Clip), reads)
     }
 
@@ -158,7 +158,7 @@ class MobilePinnedFilesTest {
         val pinned = MobilePinnedFiles(pins, resolve, backgroundScope)
         val browser = MutableStateFlow(root())
         backgroundScope.launch { pinned.follow(browser) }
-        advanceUntilIdle()
+        runCurrent()
 
         val trash = FilesDeleteOutcome(
             requestId = FilesRequestId(9L),
@@ -167,12 +167,12 @@ class MobilePinnedFilesTest {
             status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
         )
         browser.value = root(deleteOutcome = trash)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(listOf("Series"), pinned.items.value.map { it.name })
         assertEquals(listOf(Series, Clip), pins.pins.value)
 
         pinned.trashUndone(trash)
-        advanceUntilIdle()
+        runCurrent()
         assertEquals(listOf("Series", "clip.mp4"), pinned.items.value.map { it.name })
     }
 
@@ -182,7 +182,7 @@ class MobilePinnedFilesTest {
         val pinned = MobilePinnedFiles(FakePinnedFiles(listOf(Clip)), resolve, backgroundScope)
         assertNull(pinned.sessionRejected.value)
 
-        advanceUntilIdle()
+        runCurrent()
 
         assertTrue(pinned.sessionRejected.value is PutioFailure.AuthenticationRequired)
     }
@@ -193,7 +193,7 @@ class MobilePinnedFilesTest {
         val pinned = MobilePinnedFiles(pins, resolve, backgroundScope)
         pins.failure.value = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
 
-        advanceUntilIdle()
+        runCurrent()
 
         assertTrue(pinned.sessionRejected.value is PutioFailure.AuthenticationRequired)
     }
@@ -206,7 +206,7 @@ class MobilePinnedFilesTest {
         stack = listOf(
             FilesFolderState(
                 FilesFolder.Root,
-                FilesContent.Ready(emptyList(), FilesPaging.Complete),
+                FilesContent.Empty(FilesPaging.Complete),
                 renameCompletion = renameCompletion,
                 moveOutcome = moveOutcome,
                 deleteOutcome = deleteOutcome,
