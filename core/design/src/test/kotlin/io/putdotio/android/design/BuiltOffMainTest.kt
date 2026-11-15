@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -54,7 +55,7 @@ class BuiltOffMainTest {
         assertSame(results[0].value, results[1].value)
         assertSame(first, results[1].source)
         assertTrue(results[1].isBuiltFrom(refreshed))
-        assertTrue(!results[1].isBuiltFrom(first))
+        assertFalse(results[1].isBuiltFrom(first))
         collecting.cancel()
     }
 }

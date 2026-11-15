@@ -3,6 +3,7 @@ package io.putdotio.android
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -435,6 +436,7 @@ class MobileSearchScreensTest {
             val firstPage = CountingEvents(listOf(historyEvent(1, "2026-10-25T09:00:00", "file-1.mkv")))
             var history by mutableStateOf(
                 historyState(HistoryContent.Ready(firstPage, HistoryPaging.Available(HistoryEventId(1)))),
+                neverEqualPolicy(),
             )
             val events = mutableListOf<HistoryEvent>()
             val build = StandardTestDispatcher()

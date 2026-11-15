@@ -154,8 +154,8 @@ private fun HistoryItem.rowLabel(title: String, resources: Resources): String =
 private fun Modifier.rowFocus(entry: TvHistoryEntry, requesters: TvItemRequesters): Modifier =
     if (entry is TvHistoryEntry.Event) focusRequester(requesters.of(entry.key)) else this
 
-private fun pagingLanded(built: Boolean, paging: HistoryPaging, pagingHeldFocus: Boolean): Boolean =
-    built && paging !is HistoryPaging.Failed && pagingHeldFocus
+private fun pagingLanded(paging: HistoryPaging, pagingHeldFocus: Boolean): Boolean =
+    paging !is HistoryPaging.Failed && pagingHeldFocus
 
 private fun HistoryPaging.nextPageWhen(built: Boolean): HistoryPaging.Available? =
     (this as? HistoryPaging.Available)?.takeIf { built }
@@ -207,7 +207,7 @@ internal fun TvHistoryList(
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
     val built = history.isBuiltFrom(content.items)
-    if (pagingLanded(built, content.paging, pagingHeldFocus.value)) {
+    if (pagingLanded(content.paging, pagingHeldFocus.value)) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
     }
@@ -227,8 +227,8 @@ internal fun TvHistoryList(
         withFrameNanos {}
         if (paneHasFocus.value) (if (restoreIndex >= 0) restoreRow else listFocus).requestFocus()
     }
-    LaunchedEffect(handOffToLastRow.value) {
-        if (!handOffToLastRow.value) return@LaunchedEffect
+    LaunchedEffect(handOffToLastRow.value, built) {
+        if (!handOffToLastRow.value || !built) return@LaunchedEffect
         listState.bringIntoComposition(entries.last().key, lastIndex)
         withFrameNanos {}
         if (paneHasFocus.value) lastRow.requestFocus()
@@ -244,7 +244,7 @@ internal fun TvHistoryList(
                 .focusRestorer {
                     when {
                         focus.clearHadFocus.value -> focus.clear
-                        handOffToLastRow.value && listState.composes(entries.last().key) -> lastRow
+                        built && handOffToLastRow.value && listState.composes(entries.last().key) -> lastRow
                         listState.composes(entries.getOrNull(restoreIndex)?.key) -> restoreRow
                         else -> rowFocus.firstComposed(listState) { it is Long }
                     }
