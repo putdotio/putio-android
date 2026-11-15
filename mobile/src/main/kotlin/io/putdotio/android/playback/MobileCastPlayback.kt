@@ -237,11 +237,12 @@ internal fun MobileCastPlayback(
     LaunchedEffect(fileId, source, connected, attempt) {
         if (!connected) return@LaunchedEffect
         val startMillis = state.castStartMillis(preferences)
-        if (!cast.holds(fileId) && currentOnOriginalRejected(PlaybackFallbackReason.CastReceiver, startMillis)) {
+        val held = cast.holds(fileId)
+        if (!held && currentOnOriginalRejected(PlaybackFallbackReason.CastReceiver, startMillis)) {
             return@LaunchedEffect
         }
         failed = false
-        played = false
+        if (!held) played = false
         // One player at a time: session audio stops once the receiver takes over, for a video too.
         playerFactory.stopAudio(context)
         val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->

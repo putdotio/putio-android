@@ -1331,13 +1331,13 @@ private fun SubtitlesUnavailableNotice(playerState: ReadyPlayerState, video: Pla
 }
 
 @Composable
-private fun MobilePlayerNotices(notices: Channel<Int>, modifier: Modifier) {
+private fun MobilePlayerNotices(notices: Channel<Int>, shown: Boolean, modifier: Modifier) {
     val resources = LocalResources.current
     val hostState = remember { SnackbarHostState() }
-    LaunchedEffect(notices) {
-        notices.receiveAsFlow().collectLatest { hostState.showSnackbar(resources.getString(it)) }
+    LaunchedEffect(notices, shown) {
+        if (shown) notices.receiveAsFlow().collectLatest { hostState.showSnackbar(resources.getString(it)) }
     }
-    MobileSnackbarHost(hostState, modifier)
+    if (shown) MobileSnackbarHost(hostState, modifier)
 }
 
 @UnstableApi
@@ -1562,6 +1562,7 @@ private fun MobileReadyPlayerContent(
         }
         MobilePlayerNotices(
             playerState.notices,
+            shown = !pictureInPicture,
             Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(3.5f)
