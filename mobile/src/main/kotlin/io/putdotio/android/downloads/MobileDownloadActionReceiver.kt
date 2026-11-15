@@ -271,7 +271,8 @@ internal class DownloadNotificationRetries(
                 decision.failed(userId, entry)
                 DownloadRetryOutcome.UNAVAILABLE
             }
-            else -> startDecided(userId, entry, retry.entry.decidedBy(answer))
+            retry.asksDirectPlay -> startDecided(userId, entry, retry.entry.decidedBy(answer))
+            else -> startDecided(userId, entry, retry.entry)
         }
     }
 

@@ -187,7 +187,8 @@ internal class DownloadsController(
                     (!pending.startup || it.awaitsDirectPlay && !engine.hasRecord(it.fileId))
             } ?: return
             val refused = directPlay.unavailable || pending.redecides && directPlay == null
-            val chosen = pending.replaced?.takeIf { refused } ?: current.decidedBy(directPlay)
+            val decided = if (pending.directPlay == null) current else current.decidedBy(directPlay)
+            val chosen = pending.replaced?.takeIf { refused } ?: decided
             if (chosen != current) store.upsert(chosen)
             if (refused) {
                 engine.notifyFailed(chosen, DownloadFailureReason.UNAVAILABLE)
