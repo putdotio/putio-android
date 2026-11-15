@@ -213,7 +213,8 @@ internal fun TvHistoryList(
     val restoreRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
-    if (content.paging !is HistoryPaging.Failed && pagingHeldFocus.value) {
+    val built = history.items == content.items
+    if (built && content.paging !is HistoryPaging.Failed && pagingHeldFocus.value) {
         pagingHeldFocus.value = false
         handOffToLastRow.value = true
     }
@@ -223,7 +224,7 @@ internal fun TvHistoryList(
     val restoreIndex = remember(entries) { entries.indexOfPick(restoreRowId) }
     val pendingEndIndex = lastIndex.takeIf { content.paging.isPending }
     TvAutoPaging(
-        page = (content.paging as? HistoryPaging.Available).takeIf { history.items == content.items },
+        page = (content.paging as? HistoryPaging.Available).takeIf { built },
         onLoadMore = actions.onNextPage,
         nearEnd = { listState.isNearEnd(lastIndex) },
     )
