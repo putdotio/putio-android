@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,6 +24,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.design.LocalBuildDispatcher
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesItem
@@ -49,6 +51,7 @@ import io.putdotio.android.search.searchState
 import io.putdotio.sdk.files.PutioFileType
 import java.time.LocalDate
 import java.util.TimeZone
+import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -368,6 +371,36 @@ class MobileSearchScreensTest {
                 compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(header))
                 compose.onNodeWithText(header).assertIsDisplayed()
             }
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun aLandingPageGroupsItsDaysOffTheMainThread() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            fun event(id: Long, stamp: String) =
+                HistoryItem(HistoryEventId(id), stamp, HistoryEventKind.File(HistoryFileId(id), "file-$id.mkv"))
+            val firstPage = listOf(event(1, "2026-10-25T09:00:00"))
+            var history by mutableStateOf(historyState(HistoryContent.Ready(firstPage, HistoryPaging.Complete)))
+            val build = StandardTestDispatcher()
+            compose.setContent {
+                CompositionLocalProvider(LocalBuildDispatcher provides build) {
+                    PutioTheme { MobileHistoryScreen(historyState = history, onHistoryEvent = {}, today = TODAY) }
+                }
+            }
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.onNodeWithText("Today").assertIsDisplayed()
+
+            history = historyState(
+                HistoryContent.Ready(firstPage + event(2, "2026-10-24T09:00:00"), HistoryPaging.Complete),
+            )
+            compose.onAllNodesWithText("Yesterday").assertCountEquals(0)
+
+            compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+            compose.onNodeWithText("Yesterday").assertIsDisplayed()
         } finally {
             TimeZone.setDefault(previous)
         }
