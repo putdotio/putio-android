@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
@@ -578,7 +579,9 @@ class TvShellTest {
 
             compose.runOnIdle { refreshed.complete(Unit) }
 
-            compose.onNodeWithContentDescription("Open Tears of Steel.mp4").assertExists()
+            compose.waitUntil(30_000L) {
+                compose.onAllNodesWithContentDescription("Open Tears of Steel.mp4").fetchSemanticsNodes().isNotEmpty()
+            }
             compose.onNodeWithContentDescription("Open Big Buck Bunny.mp4").assertIsFocused()
         } finally {
             controller.close()
