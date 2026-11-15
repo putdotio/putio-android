@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.files.FilesItemId
@@ -183,6 +184,23 @@ class MobileCastPlaybackTest {
         compose.onNodeWithTag(MOBILE_CAST_RETRY_TAG).performClick()
 
         compose.runOnIdle { assertEquals(listOf(1L, 1L), gateway.loads) }
+    }
+
+    @Test
+    fun aSessionThatReconnectsWhileTheReceiverPlaysKeepsSayingItPlays() {
+        setCastScreen(playback) { source, _ ->
+            PlaybackRepositoryResult.Success(requireNotNull(requireNotNull(source).toCastMedia(Episode1, TOKEN)))
+        }
+        compose.runOnIdle { assertEquals(listOf(1L), gateway.loads) }
+        gateway.report(1L, CastRemoteState.Playing)
+
+        compose.runOnIdle { gateway.availability.value = CastAvailability.Connecting("Living room TV") }
+        compose.runOnIdle { gateway.availability.value = CastAvailability.Connected("Living room TV") }
+        gateway.report(1L, CastRemoteState.Buffering)
+
+        compose.onNodeWithText("Playing on Living room TV").assertExists()
+        compose.onNodeWithText("Loading on Living room TV").assertDoesNotExist()
+        compose.runOnIdle { assertEquals(listOf(1L), gateway.loads) }
     }
 
     @Test
