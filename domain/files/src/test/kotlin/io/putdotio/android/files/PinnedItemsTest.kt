@@ -81,7 +81,7 @@ class PinnedItemsTest {
         assertEquals(listOf("Series"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
         assertEquals(listOf(Series, Clip), pins.pins.value)
 
-        home.itemRestored(clip)
+        home.trashRestored()
         assertEquals(listOf("Series", "clip.mp4"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
     }
 
@@ -101,7 +101,7 @@ class PinnedItemsTest {
         assertEquals(listOf(Series, Clip), pins.pins.value)
 
         trashed = false
-        home.itemRestored(clip)
+        home.trashRestored()
         assertEquals(listOf("Series", "clip.mp4"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
     }
 

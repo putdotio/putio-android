@@ -76,13 +76,9 @@ internal class MobilePinnedFiles(
             edit.edited.forEach(resolved::itemEdited)
             edit.removed.forEach(resolved::itemRemoved)
         } else {
-            (previous.removed - edit.removed.toSet()).forEach(resolved::itemRestored)
+            if (previous.removed.any { it !in edit.removed }) resolved.trashRestored()
             (edit.removed - previous.removed.toSet()).forEach(resolved::itemRemoved)
         }
-    }
-
-    fun trashUndone(outcome: FilesDeleteOutcome) {
-        outcome.intent.itemIds.forEach(resolved::itemRestored)
     }
 
     fun trashRestored() {

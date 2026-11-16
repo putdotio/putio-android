@@ -171,7 +171,7 @@ class MobilePinnedFilesTest {
         assertEquals(listOf("Series"), pinned.items.value.map { it.name })
         assertEquals(listOf(Series, Clip), pins.pins.value)
 
-        pinned.trashUndone(trash)
+        pinned.trashRestored()
         runCurrent()
         assertEquals(listOf("Series", "clip.mp4"), pinned.items.value.map { it.name })
     }

@@ -92,11 +92,6 @@ public class PinnedItems(
         if (pins.pins.value?.contains(id) == true && removed.add(id)) refreshes.update { it + 1 }
     }
 
-    public fun itemRestored(id: FilesItemId) {
-        rechecks.remove(id)
-        if (removed.remove(id)) refreshes.update { it + 1 }
-    }
-
     public fun trashRestored() {
         if (removed.isEmpty()) return
         rechecks += removed
@@ -117,10 +112,13 @@ public class PinnedItems(
     }
 
     private suspend fun resolve(id: FilesItemId, fresh: Boolean): Resolved {
-        if (id in rechecks) return read(id)
-        if (id in removed) return Resolved.Gone
         val known = cards[id]?.let(Resolved::Card) ?: Resolved.Gone.takeIf { id in gone }
-        return if (fresh || known == null) read(id) else known
+        return when {
+            id in rechecks -> read(id)
+            id in removed -> Resolved.Gone
+            fresh || known == null -> read(id)
+            else -> known
+        }
     }
 
     private suspend fun read(id: FilesItemId): Resolved =

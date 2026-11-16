@@ -261,7 +261,7 @@ internal fun SignedInMobileRoot(
                             positionWrites = { id, write -> runtime.playbackReporting.supersede(id.value, write) },
                         ),
                         onFilesEvent = { event ->
-                            if (event is FilesBrowserEvent.TrashUndone) pinnedFiles?.trashUndone(event.outcome)
+                            if (event is FilesBrowserEvent.TrashUndone) pinnedFiles?.trashRestored()
                             browser.dispatch(event)
                         },
                         onPositionSaved = { fileId, seconds ->

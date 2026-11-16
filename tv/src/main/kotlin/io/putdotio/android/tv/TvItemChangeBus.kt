@@ -116,7 +116,7 @@ internal fun PinnedItems.hear(change: TvItemChange) {
         is TvItemChange.Edited -> itemEdited(change.item.id)
         is TvItemChange.Renamed -> itemEdited(change.itemId)
         is TvItemChange.Removed -> change.outcome.confirmedGone().forEach(::itemRemoved)
-        is TvItemChange.Restored -> change.outcome.intent.itemIds.forEach(::itemRestored)
+        is TvItemChange.Restored -> trashRestored()
         is TvItemChange.Moved, is TvItemChange.PositionSaved -> Unit
     }
 }
