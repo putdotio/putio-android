@@ -61,6 +61,7 @@ internal class DownloadsController(
     init {
         scope.launch { for (pending in starts) startInOrder(pending) }
         scope.launch {
+            var refusals = emptySet<FilesItemId>()
             store.entries.collect { entries ->
                 val running = entries.filter { it.status is DownloadStatus.Downloading }
                     .mapTo(mutableSetOf()) { it.fileId }
@@ -68,6 +69,14 @@ internal class DownloadsController(
                     val next = mutableState.value.withEntries(entries)
                     mutableState.value = next.copy(speeds = next.speeds.filterKeys { it in running })
                 }
+                val refused = entries.filter { it.status == DIRECT_PLAY_REFUSAL }.mapTo(mutableSetOf()) { it.fileId }
+                entries.filter { it.fileId !in refusals && it.redecidesDirectPlay() }.forEach { redecide(it.fileId) }
+                refusals = refused
+            }
+        }
+        scope.launch {
+            sources.online.collect { online ->
+                if (online) store.entries.value.filter { it.redecidesOnline }.forEach { redecide(it.fileId) }
             }
         }
         enqueue {
@@ -144,11 +153,23 @@ internal class DownloadsController(
         return true
     }
 
+    private fun redecide(fileId: FilesItemId) {
+        enqueue {
+            val refused = store.find(fileId)
+                ?.takeIf { (it.redecidesDirectPlay() || it.redecidesOnline) && accepts(fileId, retry = true) }
+                ?: return@enqueue
+            val queued = refused.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
+            store.upsert(queued)
+            queueStart(queued, decide = true, replaced = refused.copy(directPlayUnanswered = false), redecides = true)
+        }
+    }
+
     private fun queueStart(
         entry: DownloadEntry,
         decide: Boolean,
         replaced: DownloadEntry? = null,
         startup: Boolean = false,
+        redecides: Boolean = false,
     ) {
         val directPlay = if (decide && entry.resolvesDirectPlay) {
             scope.async {
@@ -159,7 +180,7 @@ internal class DownloadsController(
         } else {
             null
         }
-        val pending = PendingStart(entry, directPlay, replaced, startup)
+        val pending = PendingStart(entry, directPlay, replaced, startup, redecides)
         latestStarts[entry.fileId] = pending
         starts.trySend(pending)
     }
@@ -174,10 +195,12 @@ internal class DownloadsController(
                     synchronized(lock) { it.fileId !in mutableState.value.removing } &&
                     (!pending.startup || it.awaitsDirectPlay && !engine.hasRecord(it.fileId))
             } ?: return
-            val chosen = pending.replaced?.takeIf { directPlay.unavailable } ?: current.decidedBy(directPlay)
+            val refused = directPlay.unavailable || pending.redecides && directPlay == null
+            val decided = if (pending.directPlay == null) current else current.decidedBy(directPlay)
+            val chosen = pending.replaced?.takeIf { refused } ?: decided
             if (chosen != current) store.upsert(chosen)
-            if (directPlay.unavailable) {
-                engine.notifyFailed(chosen, DownloadFailureReason.UNAVAILABLE)
+            if (refused) {
+                engine.notifyFailed(chosen, chosen.refusalReason(directPlay))
             } else {
                 engine.start(chosen)
             }
@@ -314,6 +337,7 @@ private class PendingStart(
     val directPlay: Deferred<DirectPlayDownload?>?,
     val replaced: DownloadEntry?,
     val startup: Boolean,
+    val redecides: Boolean,
 )
 
 /** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */

@@ -11,6 +11,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.session.SessionScopedHolder
+import java.io.Closeable
 import kotlinx.coroutines.flow.StateFlow
 
 /** Owns one downloads controller per signed-in user; the index and cache outlive sign-out. */
@@ -41,6 +42,7 @@ internal class MobileDownloadsViewModel(
             ActiveDownloads(
                 DownloadsController(store, engine, viewModelScope, sources = sources),
                 engine,
+                DirectPlayRedeciders.shared.hold(userId),
             )
         }?.controller
 
@@ -51,10 +53,12 @@ internal class MobileDownloadsViewModel(
     private class ActiveDownloads(
         val controller: DownloadsController,
         private val engine: MobileDownloadEngine,
+        private val redecider: Closeable,
     ) {
         fun park() = engine.park()
 
         fun close() {
+            redecider.close()
             controller.close()
             engine.close()
         }

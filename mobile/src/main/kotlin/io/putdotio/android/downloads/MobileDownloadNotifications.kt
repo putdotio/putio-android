@@ -37,6 +37,7 @@ internal sealed interface DownloadOutcome {
 internal class MobileDownloadNotifications(
     private val context: Context,
     private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
+    private val redeciding: (Long) -> Boolean = DirectPlayRedeciders.shared::holds,
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
     override fun onDownloadChanged(
@@ -57,7 +58,10 @@ internal class MobileDownloadNotifications(
         if (download.fallingBackToConverted(finalException)) {
             stores(owner).find(fileId)?.takeUnless { it.removing }?.let { fallBack(downloadManager, owner, it) }
         } else if (owner == signedInUser()) {
-            MobileDownloadStore.peek(context, owner, fileId)?.takeUnless { it.removing }
+            MobileDownloadStore.peek(context, owner, fileId)
+                ?.takeUnless {
+                    it.removing || redeciding(owner) && it.redecidesDirectPlay(download.failedStatus(outcome))
+                }
                 ?.let { post(context, owner, it, outcome) }
         }
     }
@@ -210,6 +214,10 @@ internal fun DownloadFailureReason.message(): Int =
         DownloadFailureReason.STORAGE -> R.string.mobile_downloads_status_failed_storage
         DownloadFailureReason.UNEXPECTED -> R.string.mobile_downloads_status_failed_unexpected
     }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun Download.failedStatus(outcome: DownloadOutcome): DownloadStatus? =
+    (outcome as? DownloadOutcome.Failed)?.let { DownloadStatus.Failed(it.reason, bytesDownloaded) }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun Download.fallingBackToConverted(error: Exception?): Boolean =

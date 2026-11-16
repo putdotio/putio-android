@@ -8,8 +8,11 @@ import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
@@ -125,6 +128,121 @@ class DownloadMethodsTest {
             assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
             engine.await { it.started.size == 1 }
             assertEquals(DownloadArtifact.MP4, engine.started.single().artifact)
+        }
+    }
+
+    @Test
+    fun aConvertedStandInRefusedBeforeItsFirstByteAsksAgainAndDownloadsTheOriginal() = runBlocking {
+        val answers = mutableListOf<DirectPlayDownload?>(null, original(ENGLISH), null)
+        val sources = DownloadSources({ StreamingMethod.File }) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            answers.removeAt(0)
+        }
+        DownloadsController(store, engine, this, sources = sources).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.await { it.started.size == 1 }
+            assertEquals(DownloadArtifact.MP4, engine.started.single().artifact)
+
+            store.report(video.fileId, DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L))
+            engine.await { it.started.size == 2 }
+            val resumed = engine.started.last()
+            assertEquals(DownloadArtifact.ORIGINAL, resumed.artifact)
+            assertEquals(listOf("en-key"), resumed.subtitles.map { it.key })
+            assertTrue(engine.failed.isEmpty())
+
+            store.report(video.fileId, DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L))
+            settle()
+            assertEquals(2, engine.started.size)
+        }
+    }
+
+    @Test
+    fun aConvertedStandInRefusedAgainWithoutAnAnswerStaysFailed() = runBlocking {
+        controller(StreamingMethod.File, emptyMap()).use { controller ->
+            assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+            engine.await { it.started.size == 1 }
+            val refused = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
+            store.report(video.fileId, refused)
+
+            engine.await { it.failed.size == 1 }
+            settle()
+            assertEquals(1, engine.started.size)
+            assertEquals(refused, store.find(video.fileId)?.status)
+            assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
+        }
+    }
+
+    @Test
+    fun aStandInThatLostTheNetworkBeforeItsFirstByteAsksAgainAndDownloadsTheOriginalOnceOnline() = runTest {
+        val online = MutableStateFlow(false)
+        val answers = mutableListOf<DirectPlayDownload?>(null, original(ENGLISH))
+        val sources = DownloadSources({ StreamingMethod.File }, online) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            answers.removeAt(0)
+        }
+        val controller = DownloadsController(store, engine, backgroundScope, sources = sources)
+        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.MP4), engine.started.map { it.artifact })
+
+        store.report(video.fileId, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+        runCurrent()
+        assertEquals(1, engine.started.size)
+
+        online.value = true
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.MP4, DownloadArtifact.ORIGINAL), engine.started.map { it.artifact })
+        assertEquals(listOf("en-key"), engine.started.last().subtitles.map { it.key })
+        assertTrue(engine.failed.isEmpty())
+    }
+
+    @Test
+    fun aStandInThatLostTheNetworkAsksAgainWhenTheAppOpensOnline() = runTest {
+        val lost = failed(DownloadArtifact.MP4, 0L).copy(directPlayUnanswered = true)
+        store.upsert(lost)
+        val sources = DownloadSources({ StreamingMethod.File }, MutableStateFlow(true)) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            original()
+        }
+        DownloadsController(store, engine, backgroundScope, sources = sources)
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.ORIGINAL), engine.started.map { it.artifact })
+    }
+
+    @Test
+    fun aStandInThatLostTheNetworkAndGetsNoAnswerAgainFailsOnceWithoutAskingAgain() = runTest {
+        val online = MutableStateFlow(false)
+        val sources = DownloadSources({ StreamingMethod.File }, online) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            null
+        }
+        val controller = DownloadsController(store, engine, backgroundScope, sources = sources)
+        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        runCurrent()
+        val lost = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
+        store.report(video.fileId, lost)
+        runCurrent()
+
+        for (flip in listOf(true, false, true)) {
+            online.value = flip
+            runCurrent()
+        }
+        assertEquals(1, engine.started.size)
+        assertEquals(1, engine.failed.size)
+        assertEquals(lost, store.find(video.fileId)?.status)
+        assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
+    }
+
+    @Test
+    fun aRefusedRowThatANotificationRetryMarksUnansweredIsNotAskedAgain() = runBlocking {
+        val refused = failed(DownloadArtifact.MP4, 0L).copy(status = DIRECT_PLAY_REFUSAL)
+        store.upsert(refused)
+        controller(StreamingMethod.File, mapOf(video.fileId to original())).use {
+            settle()
+            store.upsert(refused.copy(directPlayUnanswered = true))
+            settle()
+            assertTrue(asked.isEmpty())
+            assertTrue(engine.started.isEmpty())
         }
     }
 
