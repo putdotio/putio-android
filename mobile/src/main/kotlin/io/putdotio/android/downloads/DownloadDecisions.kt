@@ -1,6 +1,9 @@
 package io.putdotio.android.downloads
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.DirectPlayDownload
@@ -12,6 +15,11 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.PutioFileType
 import java.io.Closeable
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emptyFlow
 
 internal fun mobileDirectPlayDownloads(context: Context, client: PutioClient): DirectPlayDownloads =
     DirectPlayDownloads(
@@ -57,6 +65,27 @@ internal fun DownloadEntry.redecidesDirectPlay(failure: DownloadStatus? = status
         failure == DIRECT_PLAY_REFUSAL
 
 internal val DIRECT_PLAY_REFUSAL = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L)
+
+internal val DownloadEntry.redecidesOnline: Boolean
+    get() = directPlayUnanswered && !removing && artifact == DownloadArtifact.MP4 &&
+        status == DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
+
+internal fun validatedNetwork(context: Context): Flow<Boolean> {
+    val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return emptyFlow()
+    return callbackFlow {
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onLost(network: Network) {
+                trySend(false)
+            }
+
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                trySend(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
+            }
+        }
+        connectivity.registerDefaultNetworkCallback(callback)
+        awaitClose { connectivity.unregisterNetworkCallback(callback) }
+    }.distinctUntilChanged()
+}
 
 internal class DirectPlayRedeciders {
     private val holders = mutableMapOf<Long, Int>()

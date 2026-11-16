@@ -6,6 +6,8 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PutioCredentialUrl
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,6 +24,7 @@ internal data class DownloadSubtitle(
 
 internal class DownloadSources(
     val setting: () -> StreamingMethod = { StreamingMethod.Hls },
+    val online: Flow<Boolean> = emptyFlow(),
     val directPlay: suspend (FilesItemId, includeSubtitles: Boolean, chosen: Boolean) -> DirectPlayDownload? =
         { _, _, _ -> null },
 )

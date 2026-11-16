@@ -74,6 +74,11 @@ internal class DownloadsController(
                 refusals = refused
             }
         }
+        scope.launch {
+            sources.online.collect { online ->
+                if (online) store.entries.value.filter { it.redecidesOnline }.forEach { redecide(it.fileId) }
+            }
+        }
         enqueue {
             for (entry in store.entries.value) {
                 if (entry.awaitsDirectPlay) queueStart(entry, decide = true, startup = true)
@@ -150,7 +155,8 @@ internal class DownloadsController(
 
     private fun redecide(fileId: FilesItemId) {
         enqueue {
-            val refused = store.find(fileId)?.takeIf { it.redecidesDirectPlay() && accepts(fileId, retry = true) }
+            val refused = store.find(fileId)
+                ?.takeIf { (it.redecidesDirectPlay() || it.redecidesOnline) && accepts(fileId, retry = true) }
                 ?: return@enqueue
             val queued = refused.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
@@ -194,7 +200,8 @@ internal class DownloadsController(
             val chosen = pending.replaced?.takeIf { refused } ?: decided
             if (chosen != current) store.upsert(chosen)
             if (refused) {
-                engine.notifyFailed(chosen, DownloadFailureReason.UNAVAILABLE)
+                val reason = (chosen.status as? DownloadStatus.Failed)?.reason?.takeUnless { directPlay.unavailable }
+                engine.notifyFailed(chosen, reason ?: DownloadFailureReason.UNAVAILABLE)
             } else {
                 engine.start(chosen)
             }

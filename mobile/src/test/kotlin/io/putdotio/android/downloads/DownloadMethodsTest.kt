@@ -8,8 +8,11 @@ import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
@@ -167,6 +170,67 @@ class DownloadMethodsTest {
             assertEquals(refused, store.find(video.fileId)?.status)
             assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
         }
+    }
+
+    @Test
+    fun aStandInThatLostTheNetworkBeforeItsFirstByteAsksAgainAndDownloadsTheOriginalOnceOnline() = runTest {
+        val online = MutableStateFlow(false)
+        val answers = mutableListOf<DirectPlayDownload?>(null, original(ENGLISH))
+        val sources = DownloadSources({ StreamingMethod.File }, online) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            answers.removeAt(0)
+        }
+        val controller = DownloadsController(store, engine, backgroundScope, sources = sources)
+        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.MP4), engine.started.map { it.artifact })
+
+        store.report(video.fileId, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+        runCurrent()
+        assertEquals(1, engine.started.size)
+
+        online.value = true
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.MP4, DownloadArtifact.ORIGINAL), engine.started.map { it.artifact })
+        assertEquals(listOf("en-key"), engine.started.last().subtitles.map { it.key })
+        assertTrue(engine.failed.isEmpty())
+    }
+
+    @Test
+    fun aStandInThatLostTheNetworkAsksAgainWhenTheAppOpensOnline() = runTest {
+        val lost = failed(DownloadArtifact.MP4, 0L).copy(directPlayUnanswered = true)
+        store.upsert(lost)
+        val sources = DownloadSources({ StreamingMethod.File }, MutableStateFlow(true)) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            original()
+        }
+        DownloadsController(store, engine, backgroundScope, sources = sources)
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.ORIGINAL), engine.started.map { it.artifact })
+    }
+
+    @Test
+    fun aStandInThatLostTheNetworkAndGetsNoAnswerAgainFailsOnceWithoutAskingAgain() = runTest {
+        val online = MutableStateFlow(false)
+        val sources = DownloadSources({ StreamingMethod.File }, online) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            null
+        }
+        val controller = DownloadsController(store, engine, backgroundScope, sources = sources)
+        assertTrue(controller.dispatch(DownloadsEvent.Start(video)))
+        runCurrent()
+        val lost = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
+        store.report(video.fileId, lost)
+        runCurrent()
+
+        for (flip in listOf(true, false, true)) {
+            online.value = flip
+            runCurrent()
+        }
+        assertEquals(1, engine.started.size)
+        assertEquals(1, engine.failed.size)
+        assertEquals(lost, store.find(video.fileId)?.status)
+        assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
     }
 
     @Test

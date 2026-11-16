@@ -34,6 +34,7 @@ import io.putdotio.android.downloads.MobileDownloadsViewModel
 import io.putdotio.android.downloads.OfflinePlaybackRepository
 import io.putdotio.android.downloads.OfflinePositionsResume
 import io.putdotio.android.downloads.OfflineResume
+import io.putdotio.android.downloads.validatedNetwork
 import io.putdotio.android.files.FilesBrowserController
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserState
@@ -220,6 +221,7 @@ internal fun SignedInMobileRoot(
                 val directPlay = mobileDirectPlayDownloads(downloadsContext, runtime.putioClient)
                 val sources = DownloadSources(
                     setting = { config.state.value.confirmedStreamingMethod() },
+                    online = validatedNetwork(downloadsContext),
                     directPlay = { id, subtitles, chosen -> directPlay.resolve(id, subtitles, chosen = chosen) },
                 )
                 downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, sources)
