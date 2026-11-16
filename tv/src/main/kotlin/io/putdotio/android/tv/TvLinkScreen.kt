@@ -85,7 +85,6 @@ internal fun TvLinkScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        TvWordmark(Modifier.padding(top = TV_VERTICAL_MARGIN))
         Column(
             modifier = Modifier.fillMaxWidth().padding(top = STAGE_TOP),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -377,10 +376,10 @@ private fun TvLinkStop.message(): Int =
 
 internal const val TV_LINK_QR_TAG = "tv-link-qr"
 
-private val STAGE_TOP = 75.dp
+private val STAGE_TOP = 71.dp
 private val TITLE_TOP = 20.dp
-private val COLUMNS_TOP = 235.dp
-private val COLUMNS_TOP_EXPIRED = 245.dp
+private val COLUMNS_TOP = 231.dp
+private val COLUMNS_TOP_EXPIRED = 241.dp
 private val COLUMNS_BOTTOM = 27.dp
 private val COLUMN_GAP = 12.dp
 private val ACTION_GAP = 12.dp
@@ -394,7 +393,7 @@ private val STATUS_SPINNER = 14.dp
 private val STATUS_SPINNER_GAP = 8.dp
 private val OR_LINE = 18.sp
 private val OR_PADDING = 6.dp
-private val SESSION_EXPIRED_TOP = 202.dp
+private val SESSION_EXPIRED_TOP = 198.dp
 private val TILE_WIDTH = 48.dp
 private val TILE_HEIGHT = 60.dp
 private val TILE_GAP = 4.dp
