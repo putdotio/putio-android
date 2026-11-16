@@ -70,6 +70,10 @@ internal val DownloadEntry.redecidesOnline: Boolean
     get() = directPlayUnanswered && !removing && artifact == DownloadArtifact.MP4 &&
         status == DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
 
+internal fun DownloadEntry.refusalReason(directPlay: DirectPlayDownload?): DownloadFailureReason =
+    (status as? DownloadStatus.Failed)?.reason?.takeUnless { directPlay.unavailable }
+        ?: DownloadFailureReason.UNAVAILABLE
+
 internal fun validatedNetwork(context: Context): Flow<Boolean> {
     val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return emptyFlow()
     return callbackFlow {
