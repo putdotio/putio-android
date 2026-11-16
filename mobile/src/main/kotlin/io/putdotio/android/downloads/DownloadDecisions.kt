@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.playback.DirectPlayDownload
@@ -76,17 +77,25 @@ internal fun DownloadEntry.refusalReason(directPlay: DirectPlayDownload?): Downl
 
 internal fun validatedNetwork(context: Context): Flow<Boolean> {
     val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return emptyFlow()
+    val request = NetworkRequest.Builder()
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+        .build()
     return callbackFlow {
+        val validated = mutableSetOf<Network>()
         val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onLost(network: Network) {
-                trySend(false)
+            override fun onAvailable(network: Network) {
+                synchronized(validated) { validated += network }
+                trySend(true)
             }
 
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                trySend(capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED))
+            override fun onLost(network: Network) {
+                trySend(synchronized(validated) { validated.apply { remove(network) }.isNotEmpty() })
             }
         }
-        connectivity.registerDefaultNetworkCallback(callback)
+        trySend(false)
+        connectivity.registerNetworkCallback(request, callback)
         awaitClose { connectivity.unregisterNetworkCallback(callback) }
     }.distinctUntilChanged()
 }

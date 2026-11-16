@@ -197,6 +197,44 @@ class DownloadMethodsTest {
     }
 
     @Test
+    fun aStandInThatLostTheNetworkWhileAlreadyOnlineAsksAgainOnceAndDownloadsTheOriginal() = runTest {
+        val answers = mutableListOf<DirectPlayDownload?>(null, original(ENGLISH))
+        val sources = DownloadSources({ StreamingMethod.File }, MutableStateFlow(true)) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            answers.removeAt(0)
+        }
+        DownloadsController(store, engine, backgroundScope, sources = sources).dispatch(DownloadsEvent.Start(video))
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.MP4), engine.started.map { it.artifact })
+
+        store.report(video.fileId, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+        runCurrent()
+        assertEquals(listOf(DownloadArtifact.MP4, DownloadArtifact.ORIGINAL), engine.started.map { it.artifact })
+        assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
+        assertTrue(engine.failed.isEmpty())
+    }
+
+    @Test
+    fun aStandInThatLostTheNetworkWhileOnlineAndGetsNoAnswerAgainFailsOnce() = runTest {
+        val sources = DownloadSources({ StreamingMethod.File }, MutableStateFlow(true)) { fileId, includeSubtitles, _ ->
+            asked += fileId to includeSubtitles
+            null
+        }
+        DownloadsController(store, engine, backgroundScope, sources = sources).dispatch(DownloadsEvent.Start(video))
+        runCurrent()
+        val lost = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
+        store.report(video.fileId, lost)
+        runCurrent()
+        store.report(video.fileId, lost)
+        runCurrent()
+
+        assertEquals(1, engine.started.size)
+        assertEquals(1, engine.failed.size)
+        assertEquals(lost, store.find(video.fileId)?.status)
+        assertEquals(listOf(video.fileId, video.fileId), asked.map { it.first })
+    }
+
+    @Test
     fun aStandInThatLostTheNetworkAsksAgainWhenTheAppOpensOnline() = runTest {
         val lost = failed(DownloadArtifact.MP4, 0L).copy(directPlayUnanswered = true)
         store.upsert(lost)

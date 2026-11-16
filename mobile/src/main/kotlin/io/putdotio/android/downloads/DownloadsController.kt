@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -75,8 +76,12 @@ internal class DownloadsController(
             }
         }
         scope.launch {
-            sources.online.collect { online ->
-                if (online) store.entries.value.filter { it.redecidesOnline }.forEach { redecide(it.fileId) }
+            var lost = emptySet<FilesItemId>()
+            combine(sources.online, store.entries) { online, entries ->
+                if (online) entries.filter { it.redecidesOnline }.mapTo(mutableSetOf()) { it.fileId } else emptySet()
+            }.collect { eligible ->
+                (eligible - lost).forEach(::redecide)
+                lost = eligible
             }
         }
         enqueue {
