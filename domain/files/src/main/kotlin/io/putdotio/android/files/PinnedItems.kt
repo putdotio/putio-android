@@ -93,6 +93,7 @@ public class PinnedItems(
     }
 
     public fun itemRestored(id: FilesItemId) {
+        rechecks.remove(id)
         if (removed.remove(id)) refreshes.update { it + 1 }
     }
 
@@ -116,33 +117,20 @@ public class PinnedItems(
     }
 
     private suspend fun resolve(id: FilesItemId, fresh: Boolean): Resolved {
-        if (id in removed) return if (id in rechecks) recheck(id) else Resolved.Gone
+        if (id in rechecks) return read(id)
+        if (id in removed) return Resolved.Gone
         val known = cards[id]?.let(Resolved::Card) ?: Resolved.Gone.takeIf { id in gone }
         return if (fresh || known == null) read(id) else known
     }
 
-    private suspend fun recheck(id: FilesItemId): Resolved =
-        when (val result = resolver.resolveItem(id)) {
-            is PutioResult.Success -> {
-                removed.remove(id)
-                rechecks.remove(id)
-                shown(id, result.value)
-            }
-            is PutioResult.Failure -> {
-                val failure = result.failure
-                if (failure.isNotFound) rechecks.remove(id)
-                if (failure is PutioFailure.AuthenticationRequired) {
-                    mutableRejected.value = failure
-                    Resolved.Failed(failure)
-                } else {
-                    Resolved.Gone
-                }
-            }
-        }
-
     private suspend fun read(id: FilesItemId): Resolved =
         when (val result = resolver.resolveItem(id)) {
-            is PutioResult.Success -> shown(id, result.value)
+            is PutioResult.Success -> {
+                val card = cardFor(result.value, folderCounts) { mutableRejected.value = it }
+                if (rechecks.remove(id)) removed.remove(id)
+                gone.remove(id)
+                Resolved.Card(card.also { cards[id] = it })
+            }
             is PutioResult.Failure -> {
                 val failure = result.failure
                 when {
@@ -150,21 +138,17 @@ public class PinnedItems(
                         mutableRejected.value = failure
                         Resolved.Failed(failure)
                     }
+                    failure.isNotFound && rechecks.remove(id) -> Resolved.Gone
                     failure.isNotFound -> {
                         cards.remove(id)
                         if (gone.add(id)) pins.unpinGone(id)
                         Resolved.Gone
                     }
+                    id in removed -> Resolved.Gone
                     else -> cards[id]?.let(Resolved::Card) ?: Resolved.Failed(failure)
                 }
             }
         }
-
-    private suspend fun shown(id: FilesItemId, item: FilesItem): Resolved {
-        val card = cardFor(item, folderCounts) { mutableRejected.value = it }
-        gone.remove(id)
-        return Resolved.Card(card.also { cards[id] = it })
-    }
 
     private sealed interface Resolved {
         data class Card(val card: PinnedCard) : Resolved
