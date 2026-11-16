@@ -12,6 +12,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -105,6 +106,7 @@ class TvShellTest {
         }
 
         compose.onNodeWithText("Sign in to put.io").assertIsDisplayed()
+        compose.onAllNodesWithContentDescription("put.io").assertCountEquals(0)
         compose.onNodeWithText("With your phone").assertIsDisplayed()
         compose.onNodeWithText("Scan with your camera and approve.").assertIsDisplayed()
         compose.onNodeWithText("In a browser").assertIsDisplayed()
