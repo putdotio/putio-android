@@ -52,6 +52,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.PlaybackException
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.PutioFailure
@@ -90,11 +91,16 @@ internal fun MobilePlaybackFailureState(
         return
     }
     val needsAnotherPlayer = failure is PlaybackFailure.MediaUnsupported
+    val videoMessage = when {
+        needsAnotherPlayer -> stringResource(R.string.mobile_playback_cant_play_message)
+        failure.playerFault -> stringResource(R.string.mobile_playback_error_player)
+        else -> message
+    }
     MobilePlayerStateBox {
         PutioEmptyState(
             glyph = PutioEmptyGlyph.CantPlay,
             headline = if (needsAnotherPlayer) stringResource(R.string.mobile_playback_cant_play_title) else title,
-            message = if (needsAnotherPlayer) stringResource(R.string.mobile_playback_cant_play_message) else message,
+            message = videoMessage,
             action = when {
                 failure.retryable -> {
                     { MobilePlayerStateAction(stringResource(R.string.mobile_action_retry), onClick = onRetry) }
@@ -422,6 +428,13 @@ internal fun PlaybackMediaType.loadingMessage(): Int =
     } else {
         R.string.mobile_playback_loading
     }
+
+private val PlaybackFailure.playerFault: Boolean
+    get() = putioFailure is PutioFailure.Unexpected && cause is PlaybackException
+
+@StringRes
+internal fun PlaybackContent.Failed.errorTitle(mediaType: PlaybackMediaType): Int =
+    if (conversionStart) R.string.mobile_playback_conversion_start_failed else failure.errorTitle(mediaType)
 
 @StringRes
 internal fun PlaybackFailure.errorTitle(mediaType: PlaybackMediaType): Int =

@@ -249,6 +249,22 @@ class PlaybackConversionReducerTest {
         assertEquals(PlaybackContent.Failed(failure), failed.state.content)
     }
 
+    @Test
+    fun aRefusedConversionStartFailsAsAConversionStartAndAStatusReadDoesNot() {
+        val failure = PlaybackFailure.Putio(PutioFailure.ServerUnavailable(503, PutioConfigurationException("down")))
+        val opening = conversion(PlaybackConversionState.NotAvailable)
+        val again = PlaybackReducer.reduce(conversion(PlaybackConversionState.Failed), PlaybackEvent.StartConversion)
+        assertEquals(PlaybackEffect.StartConversion(Target, PlaybackRequestId(2L)), again.effect)
+        listOf(opening, again.state).forEach { starting ->
+            val failed = PlaybackReducer.reduce(starting, PlaybackEvent.ResolveFailed(PlaybackRequestId(2L), failure))
+            assertEquals(PlaybackContent.Failed(failure, conversionStart = true), failed.state.content)
+        }
+
+        val read = PlaybackReducer.reduce(conversion(PlaybackConversionState.Queued), PlaybackEvent.RefreshConversion)
+        val readFailed = PlaybackReducer.reduce(read.state, PlaybackEvent.ResolveFailed(PlaybackRequestId(2L), failure))
+        assertEquals(PlaybackContent.Failed(failure, conversionStart = false), readFailed.state.content)
+    }
+
     private fun conversion(state: PlaybackConversionState): PlaybackState =
         PlaybackReducer.reduce(
             PlaybackReducer.start(Target).state,

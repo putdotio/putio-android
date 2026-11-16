@@ -112,6 +112,7 @@ internal fun MobileVideoSheets(
     appearance: SubtitleAppearanceStore,
     preferences: RetainedPlayerPreferences,
     onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
+    onAudioSelectionChanged: (AudioSelection) -> Unit,
     stream: PlaybackStreamSwitch?,
     modifier: Modifier,
     panelModifier: Modifier,
@@ -137,7 +138,7 @@ internal fun MobileVideoSheets(
             MobileVideoSheet.Audio -> MobileAudioSheetContent(
                 player = player,
                 snapshot = options,
-                onAudioSelectionChanged = { preferences.audioSelection = it },
+                onAudioSelectionChanged = onAudioSelectionChanged,
                 onDone = close,
             )
             MobileVideoSheet.Subtitles -> MobileSubtitlesSheetContent(

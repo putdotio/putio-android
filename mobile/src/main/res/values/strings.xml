@@ -156,6 +156,10 @@
     <string name="mobile_playback_unsupported_video_message">This device can’t play the original file, and it has no converted version.</string>
     <string name="mobile_playback_error_title">Couldn’t play this video</string>
     <string name="mobile_playback_error_title_audio">Couldn’t play this audio</string>
+    <string name="mobile_playback_error_player">The video could not be played. Try again.</string>
+    <string name="mobile_playback_conversion_start_failed">Could not convert video</string>
+    <string name="mobile_playback_subtitles_failed">Couldn’t load subtitles</string>
+    <string name="mobile_playback_audio_failed">Couldn’t switch audio track</string>
     <string name="mobile_playback_error_connection_lost">Connection lost</string>
     <string name="mobile_playback_error_forbidden">You don’t have access to this file.</string>
     <string name="mobile_playback_error_credential">Playback access expired. Retry to refresh it.</string>
@@ -730,6 +734,7 @@
     <string name="mobile_cast_searching">Looking for devices…</string>
     <string name="mobile_cast_stop">Stop casting</string>
     <string name="mobile_cast_playing_on">Playing on %1$s</string>
+    <string name="mobile_cast_loading_on">Loading on %1$s</string>
     <string name="mobile_cast_failed">Can’t play this on %1$s.</string>
     <string name="mobile_playback_conversion_message">This video can’t play in its original format, so put.io started a conversion. It keeps going if you leave.</string>
     <string name="mobile_share_too_long">This text is too long. Paste fewer links.</string>
@@ -879,6 +884,7 @@
     <string name="mobile_files_mark_unwatched_failed">Couldn’t mark “%1$s” as unwatched. %2$s</string>
     <string name="mobile_files_folder_not_found">File not found</string>
     <string name="mobile_files_vlc_missing">Install VLC to open “%1$s”.</string>
+    <string name="mobile_files_get_vlc">Get VLC</string>
     <string name="mobile_files_vlc_unavailable">Couldn’t prepare “%1$s” for VLC. Sign in again.</string>
     <string name="mobile_files_vlc_failed">Couldn’t prepare “%1$s” for VLC. %2$s</string>
     <plurals name="mobile_files_move_title">

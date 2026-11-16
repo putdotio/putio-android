@@ -1,5 +1,6 @@
 package io.putdotio.android.playback
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -225,6 +226,7 @@ internal fun MobileCastPlayback(
     val fileId = target.fileId.value
     val source = (state.content as? PlaybackContent.Ready)?.source
     var failed by remember(fileId) { mutableStateOf(false) }
+    var played by remember(fileId) { mutableStateOf(false) }
     // Try again reruns the handover: a lookup that failed for a moment never needs a new session.
     var attempt by remember(fileId) { mutableIntStateOf(0) }
     val currentPolicy by rememberUpdatedState(subtitleStartupPolicy)
@@ -235,10 +237,12 @@ internal fun MobileCastPlayback(
     LaunchedEffect(fileId, source, connected, attempt) {
         if (!connected) return@LaunchedEffect
         val startMillis = state.castStartMillis(preferences)
-        if (!cast.holds(fileId) && currentOnOriginalRejected(PlaybackFallbackReason.CastReceiver, startMillis)) {
+        val held = cast.holds(fileId)
+        if (!held && currentOnOriginalRejected(PlaybackFallbackReason.CastReceiver, startMillis)) {
             return@LaunchedEffect
         }
         failed = false
+        if (!held) played = false
         // One player at a time: session audio stops once the receiver takes over, for a video too.
         playerFactory.stopAudio(context)
         val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
@@ -264,10 +268,10 @@ internal fun MobileCastPlayback(
     val current = status?.takeIf { it.fileId == fileId }
     // A receiver that failed to load the file no longer holds it, so another handover sends it again.
     val castFailed = failed || current?.state == CastRemoteState.Failed
-    val label = stringResource(
-        if (castFailed) R.string.mobile_cast_failed else R.string.mobile_cast_playing_on,
-        deviceName,
-    )
+    LaunchedEffect(current?.state) {
+        if (current?.state in PLAYED_STATES) played = true
+    }
+    val label = stringResource(castLabel(castFailed, current?.state, played), deviceName)
     val onRetry: (() -> Unit)? = if (castFailed) ({ attempt++ }) else null
     val seekEnabled = current?.seekable == true
     val intervals = if (target.mediaType == PlaybackMediaType.AUDIO) AudioSeekIntervals else VideoSeekIntervals
@@ -469,3 +473,11 @@ private fun bareItem(fileId: Long, title: String, artist: String): MediaItem =
         .setMediaId(fileId.toString())
         .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist(artist).build())
         .build()
+
+@StringRes
+internal fun castLabel(failed: Boolean, state: CastRemoteState?, played: Boolean): Int =
+    when {
+        failed -> R.string.mobile_cast_failed
+        !played && (state == null || state == CastRemoteState.Buffering) -> R.string.mobile_cast_loading_on
+        else -> R.string.mobile_cast_playing_on
+    }

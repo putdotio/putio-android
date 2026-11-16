@@ -115,6 +115,7 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitles
+import io.putdotio.sdk.files.PlaybackSubtitleFailure
 import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
@@ -492,6 +493,74 @@ class MobilePlayerScreenTest {
     }
 
     @Test
+    fun aFailedAudioSwitchGoesBackToTheTrackThatPlayedWithANotice() {
+        val player = RecordingPlayer()
+        val audio = TrackGroup(
+            Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.AUDIO_AAC).build(),
+            Format.Builder().setId("de").setLanguage("de").setSampleMimeType(MimeTypes.AUDIO_AAC).build(),
+        )
+        var failures = 0
+        compose.setBuiltContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(videoSource())),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> failures += 1 },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> player },
+                )
+            }
+        }
+        compose.runOnIdle {
+            player.updateTracks(
+                Tracks(
+                    listOf(
+                        Tracks.Group(
+                            audio,
+                            false,
+                            intArrayOf(C.FORMAT_HANDLED, C.FORMAT_HANDLED),
+                            booleanArrayOf(true, false),
+                        ),
+                    ),
+                ),
+            )
+        }
+        compose.onNodeWithContentDescription("Audio: English").performClick()
+        compose.onNode(hasText("Deutsch") and isSelectable()).performClick()
+        compose.runOnIdle { assertEquals(listOf(1), player.trackSelectionParameters.overrides[audio]?.trackIndices) }
+
+        compose.runOnIdle {
+            player.fail(PlaybackException("audio", null, PlaybackException.ERROR_CODE_DECODER_INIT_FAILED))
+        }
+
+        compose.onNodeWithText("Couldn’t switch audio track").assertIsDisplayed()
+        compose.runOnIdle {
+            assertEquals(0, failures)
+            assertNull(player.trackSelectionParameters.overrides[audio])
+        }
+    }
+
+    @Test
+    fun aVideoWhoseSubtitlesPutioCannotListSaysSo() {
+        val unavailable = videoSource().copy(
+            subtitles = PlaybackSubtitles.Unavailable(PlaybackSubtitleFailure.InvalidResponse),
+        )
+        compose.setBuiltContent {
+            PutioTheme {
+                MobilePlayerScreen(
+                    state = state(PlaybackContent.Ready(unavailable)),
+                    onRetry = {},
+                    onPlayerFailure = { _, _ -> },
+                    onBack = {},
+                    playerFactory = MobilePlayerFactory { _, _ -> RecordingPlayer() },
+                )
+            }
+        }
+
+        compose.onNodeWithText("Couldn’t load subtitles").assertIsDisplayed()
+    }
+
+    @Test
     fun failureStatesShowTheirCopyAndOfferTryAgainOnlyWhenRetryable() {
         val rows = failureRows()
         var content by mutableStateOf(rows.first().content)
@@ -538,6 +607,25 @@ private fun failureRows(): List<FailureRow> =
         FailureRow(
             PlaybackContent.Failed(PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline")))),
             "Connection lost",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.Failed(
+                PlaybackFailure.Putio(PutioFailure.ServerUnavailable(503, PutioConfigurationException("down"))),
+                conversionStart = true,
+            ),
+            "Could not convert video",
+            retry = true,
+        ),
+        FailureRow(
+            PlaybackContent.Failed(
+                PlaybackFailure.Putio(
+                    PutioFailure.Unexpected(
+                        PlaybackException("renderer", null, PlaybackException.ERROR_CODE_DECODING_FAILED),
+                    ),
+                ),
+            ),
+            "The video could not be played. Try again.",
             retry = true,
         ),
         FailureRow(
@@ -640,7 +728,7 @@ class MobilePlayerLifecycleTest {
         }
 
         compose.runOnIdle { players.single().failDecodingAt(54_321L) }
-        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
+        compose.onNodeWithText("The video could not be played. Try again.").assertIsDisplayed()
         compose.runOnIdle { assertTrue(players.single().released) }
 
         compose.runOnIdle {
@@ -659,7 +747,7 @@ class MobilePlayerLifecycleTest {
         }
         val readyContent = content
         compose.runOnIdle { players.last().failDecodingAt(0L) }
-        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
+        compose.onNodeWithText("The video could not be played. Try again.").assertIsDisplayed()
         compose.runOnIdle { content = readyContent }
         compose.runOnIdle {
             assertEquals(3, players.size)

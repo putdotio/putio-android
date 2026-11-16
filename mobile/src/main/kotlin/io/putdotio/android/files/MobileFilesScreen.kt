@@ -51,6 +51,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.InputMode
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
@@ -701,16 +702,16 @@ internal fun MobileFilesNoticeHost(notices: Flow<MobileFilesNotice>, modifier: M
 @Composable
 private fun MobileFilesNotices(notices: Flow<MobileFilesNotice>, snackbarHostState: SnackbarHostState) {
     val context = LocalContext.current
-    val retryLabel = stringResource(R.string.mobile_action_retry)
+    val resources = LocalResources.current
     LaunchedEffect(notices) {
         notices.collect { notice ->
             snackbarHostState.currentSnackbarData?.dismiss()
             val result = snackbarHostState.showSnackbar(
                 message = notice.text(context),
-                actionLabel = retryLabel.takeIf { notice.retry != null },
+                actionLabel = notice.action?.let { resources.getString(notice.actionLabel) },
                 duration = SnackbarDuration.Long,
             )
-            if (result == SnackbarResult.ActionPerformed) notice.retry?.invoke()
+            if (result == SnackbarResult.ActionPerformed) notice.action?.invoke()
         }
     }
 }

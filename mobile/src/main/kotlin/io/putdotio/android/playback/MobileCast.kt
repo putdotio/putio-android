@@ -587,7 +587,7 @@ private const val RECEIVER_REPORT_WAIT_MILLIS = 10_000L
 
 private const val RECEIVER_LOAD_WAIT_MILLIS = 20_000L
 
-private val PLAYED_STATES = setOf(CastRemoteState.Playing, CastRemoteState.Paused)
+internal val PLAYED_STATES = setOf(CastRemoteState.Playing, CastRemoteState.Paused)
 
 /** Receiver states with the file still playable there. */
 private val LIVE_STATES = setOf(CastRemoteState.Buffering, CastRemoteState.Playing, CastRemoteState.Paused)

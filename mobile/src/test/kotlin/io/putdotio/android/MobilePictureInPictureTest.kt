@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.VideoSize
@@ -37,6 +38,7 @@ import io.putdotio.android.playback.pictureInPictureAspectRatio
 import io.putdotio.android.playback.playbackState
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitleFailure
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import org.junit.Assert.assertEquals
@@ -230,6 +232,30 @@ class MobilePictureInPictureTest {
 
         compose.runOnIdle { activity.pictureInPicture(false) }
         compose.onNodeWithContentDescription("Back").assertIsDisplayed()
+        host.close()
+    }
+
+    @Test
+    fun aNoticeRaisedInTheWindowWaitsUntilItExpands() {
+        val host = launchHost()
+        val activity = host.get()
+        val player = RecordingPlayer()
+        val listed = source(VideoTarget, PlaybackSourceKind.MP4)
+        var state by mutableStateOf(videoState())
+        activity.setContent { PutioTheme { PlayerScreen(state, MobilePlayerFactory { _, _ -> player }) } }
+        compose.onNodeWithContentDescription("Back").assertIsDisplayed()
+
+        compose.runOnIdle { activity.pictureInPicture(true) }
+        compose.runOnIdle {
+            val unlisted = listed.copy(
+                subtitles = PlaybackSubtitles.Unavailable(PlaybackSubtitleFailure.InvalidResponse),
+            )
+            state = videoState(content = PlaybackContent.Ready(unlisted))
+        }
+        compose.onNodeWithText("Couldn’t load subtitles").assertDoesNotExist()
+
+        compose.runOnIdle { activity.pictureInPicture(false) }
+        compose.onNodeWithText("Couldn’t load subtitles").assertIsDisplayed()
         host.close()
     }
 
