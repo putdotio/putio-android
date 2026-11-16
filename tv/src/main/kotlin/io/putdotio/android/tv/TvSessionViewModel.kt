@@ -16,6 +16,7 @@ import io.putdotio.android.files.FilesFolderCounts
 import io.putdotio.android.files.FilesFolderState
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesMoveStatus
+import io.putdotio.android.files.PinnedItems
 import io.putdotio.android.tv.files.TvFilesEdits
 import io.putdotio.android.tv.files.isConfirmedTrash
 import io.putdotio.android.tv.files.TvItemChanges
@@ -32,7 +33,6 @@ import io.putdotio.android.files.FilesSubtitleLanguages
 import io.putdotio.android.files.FilesWatchedRepository
 import io.putdotio.android.files.PinnedFiles
 import io.putdotio.android.files.confirmedGone
-import io.putdotio.android.tv.home.TvHomePins
 import io.putdotio.android.tv.home.TvHomeReturn
 import io.putdotio.android.tv.home.TvMemoryContinueWatchingStore
 import io.putdotio.android.tv.home.TvNoPinnedFiles
@@ -213,7 +213,7 @@ internal class TvSession internal constructor(
 
     val trashUndoOffer = TvTrashUndoOffer(scope, trashUndo::undo)
 
-    val homePins = TvHomePins(pins, dependencies.filesItemResolver, dependencies.folderCounts, scope)
+    val homePins = PinnedItems(pins, dependencies.filesItemResolver, dependencies.folderCounts, scope)
 
     val searchFolderNames = SearchFolderNames(dependencies.filesItemResolver, search.state, scope)
 

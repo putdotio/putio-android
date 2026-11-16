@@ -242,12 +242,12 @@ internal fun SignedInMobileRoot(
     }
     val pinnedFiles = remember(filesViewModel, filesRepository, account.userId, sessionId) {
         filesViewModel.pinnedFilesFor(account.userId, sessionId) { scope ->
-            MobilePinnedFiles(AppConfigPinnedFiles(runtime.putioClient, scope), filesRepository::resolveItem, scope)
+            MobilePinnedFiles(AppConfigPinnedFiles(runtime.putioClient, scope), filesRepository, scope)
         }
     }
     val filesActions =
         remember(
-            filesViewModel, filesController, trashRepository, continueWatching, searchHistorySession,
+            filesViewModel, filesController, trashRepository, continueWatching, pinnedFiles, searchHistorySession,
             account.userId, sessionId,
         ) {
             filesController?.let { browser ->
@@ -260,7 +260,10 @@ internal fun SignedInMobileRoot(
                             trash = trashRepository,
                             positionWrites = { id, write -> runtime.playbackReporting.supersede(id.value, write) },
                         ),
-                        onFilesEvent = browser::dispatch,
+                        onFilesEvent = { event ->
+                            if (event is FilesBrowserEvent.TrashUndone) pinnedFiles?.trashRestored()
+                            browser.dispatch(event)
+                        },
                         onPositionSaved = { fileId, seconds ->
                             // Finished or cleared, the video leaves Continue watching; an offline position follows.
                             continueWatching?.positionSaved(fileId, seconds)
@@ -392,6 +395,8 @@ private fun SignedInMobileSession(
     SavedPositionEffects(
         runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
     )
+    LaunchedEffect(pinnedFiles, filesController) { pinnedFiles?.follow(filesController.state) }
+    val pinsRejected = pinnedFiles?.sessionRejected?.collectAsStateWithLifecycle()?.value
     val trashState = trashController.state.collectAsStateWithLifecycle()
     val filesStates = filesController.collectStateIgnoringViewports()
     val accountSettingsState by accountSettingsController.state.collectAsStateWithLifecycle()
@@ -434,6 +439,7 @@ private fun SignedInMobileSession(
         recentSearchSessionFailure,
         navigationFailure?.takeIf { it is PutioFailure.AuthenticationRequired },
         folderNameFailure,
+        pinsRejected,
     ).firstOrNull()
 
     AuthoritativeSessionFailureEffect(

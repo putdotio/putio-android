@@ -24,6 +24,8 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.files.PinnedCard
+import io.putdotio.android.files.PinnedRow
 import io.putdotio.android.tv.SNACKBAR_MILLIS
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.android.tv.setTvContent
@@ -55,13 +57,13 @@ class TvHomeScreenTest {
 
     @Test
     fun bothRowsEmptyShowsWhatHomeIsForAndBrowsesFiles() {
-        var pinned by mutableStateOf<TvPinnedRow>(TvPinnedRow.Loading)
+        var pinned by mutableStateOf<PinnedRow>(PinnedRow.Loading)
         compose.setTvContent {
             TvHomeScreen(emptyList(), pinned, actions, remember { FocusRequester() }, onShown = {})
         }
         compose.onAllNodesWithText("Nothing here yet.").assertCountEquals(0)
 
-        pinned = TvPinnedRow.Ready(emptyList())
+        pinned = PinnedRow.Ready(emptyList())
 
         compose.onNodeWithText("Nothing here yet.").assertIsDisplayed()
         compose.onNodeWithText("Add files at put.io").assertIsDisplayed()
@@ -75,7 +77,7 @@ class TvHomeScreenTest {
         compose.setTvContent {
             TvHomeScreen(
                 listOf(entry),
-                TvPinnedRow.Ready(emptyList()),
+                PinnedRow.Ready(emptyList()),
                 actions,
                 remember { FocusRequester() },
                 onShown = {},
@@ -96,7 +98,7 @@ class TvHomeScreenTest {
         compose.setTvContent {
             TvHomeScreen(
                 listOf(entry),
-                TvPinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+                PinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
                 actions,
                 remember { FocusRequester() },
                 onShown = {},
@@ -110,8 +112,8 @@ class TvHomeScreenTest {
 
     @Test
     fun aSuccessfulPinnedRetryHandsFocusToThePinnedRow() {
-        var pinned by mutableStateOf<TvPinnedRow>(
-            TvPinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+        var pinned by mutableStateOf<PinnedRow>(
+            PinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
         )
         val paneFocus = FocusRequester()
         compose.setTvContent { TvHomeScreen(listOf(entry), pinned, actions, paneFocus, onShown = {}) }
@@ -121,22 +123,22 @@ class TvHomeScreenTest {
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(1, retried)
 
-        compose.runOnIdle { pinned = TvPinnedRow.Ready(listOf(TvPinnedCard(bunny, itemCount = 3))) }
+        compose.runOnIdle { pinned = PinnedRow.Ready(listOf(PinnedCard(bunny, itemCount = 3))) }
         compose.onNodeWithContentDescription("Big Buck Bunny").assertIsFocused()
     }
 
     @Test
     fun aPinnedRetryThatFindsNoPinsHandsFocusToBrowseFiles() {
-        var pinned by mutableStateOf<TvPinnedRow>(
-            TvPinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+        var pinned by mutableStateOf<PinnedRow>(
+            PinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
         )
         val paneFocus = FocusRequester()
         compose.setTvContent { TvHomeScreen(emptyList(), pinned, actions, paneFocus, onShown = {}) }
         compose.runOnIdle { paneFocus.requestFocus() }
         compose.onNodeWithText("Try again").assertIsFocused().performKeyInput { pressCenter() }
 
-        compose.runOnIdle { pinned = TvPinnedRow.Loading }
-        compose.runOnIdle { pinned = TvPinnedRow.Ready(emptyList()) }
+        compose.runOnIdle { pinned = PinnedRow.Loading }
+        compose.runOnIdle { pinned = PinnedRow.Ready(emptyList()) }
         compose.onNodeWithText("Browse your files").assertIsFocused()
     }
 
@@ -153,7 +155,7 @@ class TvHomeScreenTest {
         compose.setTvContent {
             TvHomeScreen(
                 emptyList(),
-                TvPinnedRow.Ready(listOf(TvPinnedCard(folder, itemCount = 3))),
+                PinnedRow.Ready(listOf(PinnedCard(folder, itemCount = 3))),
                 actions,
                 remember { FocusRequester() },
                 onShown = {},
@@ -178,12 +180,12 @@ class TvHomeScreenTest {
             folderType = folderType,
         )
         val cards = listOf(
-            TvPinnedCard(folder(1L, "Series"), itemCount = 12, folderCount = 12),
-            TvPinnedCard(folder(2L, "Big Buck Bunny"), itemCount = 3, folderCount = 0),
-            TvPinnedCard(folder(3L, "Items shared with you", PutioFolderType.SHARED_ROOT), itemCount = 2),
+            PinnedCard(folder(1L, "Series"), itemCount = 12, folderCount = 12),
+            PinnedCard(folder(2L, "Big Buck Bunny"), itemCount = 3, folderCount = 0),
+            PinnedCard(folder(3L, "Items shared with you", PutioFolderType.SHARED_ROOT), itemCount = 2),
         )
         compose.setTvContent {
-            TvHomeScreen(emptyList(), TvPinnedRow.Ready(cards), actions, remember { FocusRequester() }, onShown = {})
+            TvHomeScreen(emptyList(), PinnedRow.Ready(cards), actions, remember { FocusRequester() }, onShown = {})
         }
 
         compose.onNodeWithText("12 folders").assertIsDisplayed()
@@ -200,7 +202,7 @@ class TvHomeScreenTest {
         compose.setTvContent {
             TvHomeScreen(
                 continueWatching,
-                TvPinnedRow.Ready(emptyList()),
+                PinnedRow.Ready(emptyList()),
                 removing { removed += it.fileId },
                 paneFocus,
                 onShown = {},
@@ -225,7 +227,7 @@ class TvHomeScreenTest {
         var continueWatching by mutableStateOf(listOf(entry))
         val paneFocus = FocusRequester()
         compose.setTvContent {
-            TvHomeScreen(continueWatching, TvPinnedRow.Ready(emptyList()), removing {}, paneFocus, onShown = {})
+            TvHomeScreen(continueWatching, PinnedRow.Ready(emptyList()), removing {}, paneFocus, onShown = {})
         }
         compose.runOnIdle { paneFocus.requestFocus() }
         compose.onNodeWithContentDescription(resume(entry.name)).performSemanticsAction(SemanticsActions.OnLongClick)
@@ -241,7 +243,7 @@ class TvHomeScreenTest {
         var continueWatching by mutableStateOf(entries)
         val paneFocus = FocusRequester()
         compose.setTvContent {
-            TvHomeScreen(continueWatching, TvPinnedRow.Ready(emptyList()), removing {}, paneFocus, onShown = {})
+            TvHomeScreen(continueWatching, PinnedRow.Ready(emptyList()), removing {}, paneFocus, onShown = {})
         }
         compose.runOnIdle { paneFocus.requestFocus() }
         compose.onNodeWithContentDescription(resume("clip-1.mkv")).performKeyInput { pressKey(Key.Menu) }
@@ -264,7 +266,7 @@ class TvHomeScreenTest {
         compose.setTvContent {
             TvHomeScreen(
                 listOf(entry),
-                TvPinnedRow.Ready(emptyList()),
+                PinnedRow.Ready(emptyList()),
                 actions,
                 paneFocus,
                 onShown = {},
@@ -290,9 +292,9 @@ class TvHomeScreenTest {
     fun aLongPressedPinOffersUnpinAndFocusMovesToTheNextCard() {
         val unpinned = mutableListOf<FilesItemId>()
         val cards = (1L..3L).map { id ->
-            TvPinnedCard(bunny.copy(id = FilesItemId(id), name = "folder-$id"), itemCount = 1)
+            PinnedCard(bunny.copy(id = FilesItemId(id), name = "folder-$id"), itemCount = 1)
         }
-        var pinned by mutableStateOf<TvPinnedRow>(TvPinnedRow.Ready(cards))
+        var pinned by mutableStateOf<PinnedRow>(PinnedRow.Ready(cards))
         compose.setTvContent {
             TvHomeScreen(
                 emptyList(),
@@ -312,16 +314,16 @@ class TvHomeScreenTest {
         compose.onNodeWithContentDescription("folder-2").performSemanticsAction(SemanticsActions.OnLongClick)
         compose.onNodeWithText("Unpin from Home").assertIsFocused().performKeyInput { pressCenter() }
         assertEquals(listOf(FilesItemId(2L)), unpinned)
-        compose.runOnIdle { pinned = TvPinnedRow.Ready(cards.filterNot { it.item.id == FilesItemId(2L) }) }
+        compose.runOnIdle { pinned = PinnedRow.Ready(cards.filterNot { it.item.id == FilesItemId(2L) }) }
         compose.onNodeWithContentDescription("folder-3").assertIsFocused()
     }
 
     @Test
     fun anUnpinThatLandsAfterFocusMovedOnLeavesFocusWhereItIs() {
         val cards = (1L..3L).map { id ->
-            TvPinnedCard(bunny.copy(id = FilesItemId(id), name = "folder-$id"), itemCount = 1)
+            PinnedCard(bunny.copy(id = FilesItemId(id), name = "folder-$id"), itemCount = 1)
         }
-        var pinned by mutableStateOf<TvPinnedRow>(TvPinnedRow.Ready(cards))
+        var pinned by mutableStateOf<PinnedRow>(PinnedRow.Ready(cards))
         compose.setTvContent {
             TvHomeScreen(
                 listOf(entry),
@@ -338,7 +340,7 @@ class TvHomeScreenTest {
             pressKey(Key.DirectionUp)
         }
         compose.onNodeWithContentDescription(resume(entry.name)).assertIsFocused()
-        compose.runOnIdle { pinned = TvPinnedRow.Ready(cards.filterNot { it.item.id == FilesItemId(2L) }) }
+        compose.runOnIdle { pinned = PinnedRow.Ready(cards.filterNot { it.item.id == FilesItemId(2L) }) }
 
         compose.onNodeWithContentDescription(resume(entry.name)).assertIsFocused()
     }
@@ -346,7 +348,7 @@ class TvHomeScreenTest {
     @Test
     fun returningFromThePlayerFocusesTheCardThatPlayed() {
         val cards = (1L..8L).map { id ->
-            TvPinnedCard(
+            PinnedCard(
                 FilesItem(
                     id = FilesItemId(100L + id),
                     parentId = FilesItemId(0L),
@@ -362,7 +364,7 @@ class TvHomeScreenTest {
         compose.setTvContent {
             TvHomeScreen(
                 listOf(entry),
-                TvPinnedRow.Ready(cards),
+                PinnedRow.Ready(cards),
                 actions,
                 remember { FocusRequester() },
                 onShown = {},

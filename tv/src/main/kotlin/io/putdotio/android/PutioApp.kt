@@ -505,10 +505,16 @@ internal fun TvSessionShell(
 @Composable
 private fun InvalidateFilesOnRestore(session: TvSession, trashState: TrashState) {
     LaunchedEffect(session, trashState.restoredVersion) {
-        trashState.lastRestoredItem?.let { session.files.dispatch(FilesBrowserEvent.InvalidateRestoredItem(it)) }
+        trashState.lastRestoredItem?.let {
+            session.homePins.trashRestored()
+            session.files.dispatch(FilesBrowserEvent.InvalidateRestoredItem(it))
+        }
     }
     LaunchedEffect(session, trashState.bulkRestoreVersion) {
-        if (trashState.bulkRestoreVersion > 0L) session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
+        if (trashState.bulkRestoreVersion > 0L) {
+            session.homePins.trashRestored()
+            session.files.dispatch(FilesBrowserEvent.InvalidateAllFolders)
+        }
     }
 }
 

@@ -479,6 +479,7 @@ internal fun MobileNavHost(
                         )
                         // Over the player, which paints its own background.
                         filesActions?.let { MobileFilesNoticeHost(it.notices, Modifier.align(Alignment.BottomCenter)) }
+                        pinnedFiles?.let { MobileFilesNoticeHost(it.notices, Modifier.align(Alignment.BottomCenter)) }
                     }
                 }
             }

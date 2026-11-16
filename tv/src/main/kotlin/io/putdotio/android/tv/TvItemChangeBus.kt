@@ -8,6 +8,7 @@ import io.putdotio.android.files.FilesDeleteOutcome
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesRequestId
+import io.putdotio.android.files.PinnedItems
 import io.putdotio.android.files.confirmedGone
 import io.putdotio.android.search.SearchContent
 import io.putdotio.android.search.SearchController
@@ -18,7 +19,6 @@ import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashEvent
 import io.putdotio.android.tv.files.isConfirmedTrash
 import io.putdotio.android.tv.history.TvHistoryFiles
-import io.putdotio.android.tv.home.TvHomePins
 import io.putdotio.android.tv.watchnext.TvWatchNextPlayback
 import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
 import io.putdotio.android.tv.watchnext.toWatchNextMedia
@@ -111,12 +111,12 @@ internal fun TvHistoryFiles.hear(change: TvItemChange) {
     }
 }
 
-internal fun TvHomePins.hear(change: TvItemChange) {
+internal fun PinnedItems.hear(change: TvItemChange) {
     when (change) {
         is TvItemChange.Edited -> itemEdited(change.item.id)
         is TvItemChange.Renamed -> itemEdited(change.itemId)
         is TvItemChange.Removed -> change.outcome.confirmedGone().forEach(::itemRemoved)
-        is TvItemChange.Restored -> change.outcome.intent.itemIds.forEach(::itemRestored)
+        is TvItemChange.Restored -> trashRestored()
         is TvItemChange.Moved, is TvItemChange.PositionSaved -> Unit
     }
 }

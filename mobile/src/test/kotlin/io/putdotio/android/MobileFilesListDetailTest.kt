@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +49,8 @@ import io.putdotio.android.files.MOBILE_FILES_DETAIL_TAG
 import io.putdotio.android.files.MOBILE_FILES_LIST_PANE_TAG
 import io.putdotio.android.files.MOBILE_FILES_SHARE_ACTION_TAG
 import io.putdotio.android.files.MobileFileOpener
+import io.putdotio.android.files.MobileFilesItemActions
+import io.putdotio.android.files.MobileFilesNotice
 import io.putdotio.android.files.MobileFilesRoute
 import io.putdotio.android.files.filesBrowserState
 import io.putdotio.android.files.folderPath
@@ -64,6 +67,8 @@ import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_POSITION_TAG
 import io.putdotio.android.viewer.MOBILE_FILE_VIEWER_TAG
 import io.putdotio.android.viewer.LocalMobileFileViewerIo
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -166,6 +171,33 @@ class MobileFilesListDetailTest {
 
         compose.onNode(hasContentDescription("2 of 2 or more")).assertExists()
         compose.runOnIdle { assertEquals(listOf(FilesBrowserEvent.Retry), events) }
+    }
+
+    @Test
+    fun aPinRefusedFromTheViewerShowsItsNoticeOverTheViewer() {
+        val pinNotices = MutableSharedFlow<MobileFilesNotice>(extraBufferCapacity = 1)
+        compose.setBuiltContent {
+            PutioTheme {
+                CompositionLocalProvider(LocalMobileFileViewerIo provides Dispatchers.Unconfined) {
+                    MobilePinNoticeRoute(MobileFilesItemActions(pinNotices = pinNotices))
+                }
+            }
+        }
+        compose.onNodeWithText(SECOND_IMAGE.name).performClick()
+        compose.waitForIdle()
+
+        pinNotices.tryEmit(
+            MobileFilesNotice(
+                R.string.mobile_files_pin_failed,
+                SECOND_IMAGE.name,
+                PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")),
+            ),
+        )
+
+        compose.onNode(
+            hasText("Couldn’t update pins for “${SECOND_IMAGE.name}”", substring = true) and
+                hasAnyAncestor(hasTestTag(MOBILE_FILE_VIEWER_TAG)),
+        ).assertExists()
     }
 
     @Test
@@ -400,6 +432,42 @@ class MobileFilesListDetailTest {
             type = type,
             sizeBytes = 3_200_000_000L,
             createdAt = "2026-10-13T10:00:00",
+        )
+    }
+}
+
+@Composable
+private fun MobilePinNoticeRoute(itemActions: MobileFilesItemActions) {
+    Box(Modifier.requiredSize(width = 400.dp, height = 700.dp)) {
+        MobileFilesRoute(
+            state = filesBrowserState(
+                stack = listOf(
+                    FilesFolderState(
+                        FilesFolder(FilesItemId(11L), "Blue Lights"),
+                        FilesContent.Ready(
+                            listOf(
+                                FilesItem(
+                                    id = FilesItemId(4L),
+                                    parentId = FilesItemId(11L),
+                                    name = "Belém at noon.jpg",
+                                    type = PutioFileType.IMAGE,
+                                    sizeBytes = 3_200_000L,
+                                    createdAt = "2026-10-13T10:00:00",
+                                ),
+                            ),
+                            FilesPaging.Complete,
+                        ),
+                    ),
+                ),
+                nextRequestValue = 2L,
+            ),
+            repository = null,
+            onEvent = { true },
+            onPlayMedia = {},
+            confirmedTrashEnabled = true,
+            onAuthenticationRequired = {},
+            fileOpener = MobileFileOpener(userId = 42L),
+            itemActions = itemActions,
         )
     }
 }
