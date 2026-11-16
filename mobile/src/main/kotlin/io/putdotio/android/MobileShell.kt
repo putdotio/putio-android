@@ -301,7 +301,7 @@ internal fun MobileShell(
     val trashStates = trashController?.state?.collectAsStateWithLifecycle()
     val trashMutating by remember(trashStates) { derivedStateOf { trashStates?.value?.hasPendingMutation == true } }
     val trashSelection = rememberTrashSelection(sessionId)
-    TrashRestoreEffects(trashStates, onFilesEvent)
+    TrashRestoreEffects(trashStates, pinnedFiles, onFilesEvent)
     val stateNavigationBlocked by remember(filesStates, transfersStates) {
         derivedStateOf { shareNavigationBlocked(filesStates.value, transfersStates.value) }
     }
@@ -612,19 +612,26 @@ private fun MobileShellKeyboardEffect(searchEnabled: Boolean, onSearch: () -> Un
 @Composable
 private fun TrashRestoreEffects(
     trashStates: State<TrashState>?,
+    pinnedFiles: MobilePinnedFiles?,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
 ) {
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
     LaunchedEffect(trashStates) {
         val states = trashStates ?: return@LaunchedEffect
         snapshotFlow { states.value.restoredVersion to states.value.lastRestoredItem }.collect { (_, item) ->
-            item?.let { currentOnFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it)) }
+            item?.let {
+                pinnedFiles?.trashRestored()
+                currentOnFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it))
+            }
         }
     }
     LaunchedEffect(trashStates) {
         val states = trashStates ?: return@LaunchedEffect
         snapshotFlow { states.value.bulkRestoreVersion }.collect { version ->
-            if (version > 0L) currentOnFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
+            if (version > 0L) {
+                pinnedFiles?.trashRestored()
+                currentOnFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
+            }
         }
     }
 }

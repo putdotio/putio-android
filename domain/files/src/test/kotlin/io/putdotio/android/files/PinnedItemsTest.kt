@@ -12,6 +12,7 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TestTimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -102,6 +103,47 @@ class PinnedItemsTest {
         trashed = false
         home.itemRestored(clip)
         assertEquals(listOf("Series", "clip.mp4"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
+    }
+
+    @Test
+    fun aTrashRestoreShowsThePinsBackAndKeepsOnesStillInTrashPinnedAndHidden() = runTest {
+        val clip = FilesItemId(Clip.value)
+        val movie = FilesItemId(4L)
+        val trashed = mutableSetOf<FilesItemId>()
+        val trash = object : FilesItemResolver {
+            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> = when (itemId) {
+                in trashed -> PutioResult.Failure(notFound())
+                movie -> PutioResult.Success(item(movie, "movie.mkv", PutioFileType.VIDEO))
+                else -> resolver.resolveItem(itemId)
+            }
+        }
+        val pinned = FakePinnedFiles(listOf(Series, clip, movie))
+        val home = PinnedItems(pinned, trash, counts, backgroundScope, clock)
+        runCurrent()
+
+        home.itemRemoved(clip)
+        home.itemRemoved(movie)
+        trashed += listOf(clip, movie)
+        runCurrent()
+        assertEquals(listOf("Series"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
+
+        trashed -= clip
+        home.trashRestored()
+        runCurrent()
+        assertEquals(listOf("Series", "clip.mp4"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
+        assertEquals("A pin still in Trash stays pinned", listOf(Series, clip, movie), pinned.pins.value)
+
+        home.itemEdited(FilesItemId(Series.value))
+        runCurrent()
+        assertEquals(listOf(Series, clip, movie), pinned.pins.value)
+
+        trashed -= movie
+        home.trashRestored()
+        runCurrent()
+        assertEquals(
+            listOf("Series", "clip.mp4", "movie.mkv"),
+            (home.row.value as PinnedRow.Ready).cards.map { it.item.name },
+        )
     }
 
     @Test

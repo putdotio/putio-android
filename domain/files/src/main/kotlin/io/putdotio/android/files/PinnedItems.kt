@@ -39,6 +39,7 @@ public class PinnedItems(
     private val cards = mutableMapOf<FilesItemId, PinnedCard>()
     private val gone = mutableSetOf<FilesItemId>()
     private val removed = mutableSetOf<FilesItemId>()
+    private val rechecks = mutableSetOf<FilesItemId>()
     private val refreshes = MutableStateFlow(0)
     private var resolvedRefresh = 0
     private val mutableRow = MutableStateFlow<PinnedRow>(PinnedRow.Loading)
@@ -71,6 +72,7 @@ public class PinnedItems(
 
     public fun retry() {
         removed.clear()
+        rechecks.clear()
         gone.clear()
         readAgain()
     }
@@ -78,6 +80,7 @@ public class PinnedItems(
     public fun pinned(item: FilesItem) {
         gone.remove(item.id)
         removed.remove(item.id)
+        rechecks.remove(item.id)
         cards[item.id] = cards[item.id]?.copy(item = item) ?: PinnedCard(item, itemCount = null)
     }
 
@@ -91,6 +94,12 @@ public class PinnedItems(
 
     public fun itemRestored(id: FilesItemId) {
         if (removed.remove(id)) refreshes.update { it + 1 }
+    }
+
+    public fun trashRestored() {
+        if (removed.isEmpty()) return
+        rechecks += removed
+        refreshes.update { it + 1 }
     }
 
     private fun readAgain() {
@@ -107,18 +116,33 @@ public class PinnedItems(
     }
 
     private suspend fun resolve(id: FilesItemId, fresh: Boolean): Resolved {
-        if (id in removed) return Resolved.Gone
+        if (id in removed) return if (id in rechecks) recheck(id) else Resolved.Gone
         val known = cards[id]?.let(Resolved::Card) ?: Resolved.Gone.takeIf { id in gone }
         return if (fresh || known == null) read(id) else known
     }
 
-    private suspend fun read(id: FilesItemId): Resolved =
+    private suspend fun recheck(id: FilesItemId): Resolved =
         when (val result = resolver.resolveItem(id)) {
             is PutioResult.Success -> {
-                val card = cardFor(result.value, folderCounts) { mutableRejected.value = it }
-                gone.remove(id)
-                Resolved.Card(card.also { cards[id] = it })
+                removed.remove(id)
+                rechecks.remove(id)
+                shown(id, result.value)
             }
+            is PutioResult.Failure -> {
+                val failure = result.failure
+                if (failure.isNotFound) rechecks.remove(id)
+                if (failure is PutioFailure.AuthenticationRequired) {
+                    mutableRejected.value = failure
+                    Resolved.Failed(failure)
+                } else {
+                    Resolved.Gone
+                }
+            }
+        }
+
+    private suspend fun read(id: FilesItemId): Resolved =
+        when (val result = resolver.resolveItem(id)) {
+            is PutioResult.Success -> shown(id, result.value)
             is PutioResult.Failure -> {
                 val failure = result.failure
                 when {
@@ -135,6 +159,12 @@ public class PinnedItems(
                 }
             }
         }
+
+    private suspend fun shown(id: FilesItemId, item: FilesItem): Resolved {
+        val card = cardFor(item, folderCounts) { mutableRejected.value = it }
+        gone.remove(id)
+        return Resolved.Card(card.also { cards[id] = it })
+    }
 
     private sealed interface Resolved {
         data class Card(val card: PinnedCard) : Resolved

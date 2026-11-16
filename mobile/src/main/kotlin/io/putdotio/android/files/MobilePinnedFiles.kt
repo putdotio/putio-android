@@ -85,6 +85,10 @@ internal class MobilePinnedFiles(
         outcome.intent.itemIds.forEach(resolved::itemRestored)
     }
 
+    fun trashRestored() {
+        resolved.trashRestored()
+    }
+
     override fun close() {
         pins.close()
         scope.cancel()
