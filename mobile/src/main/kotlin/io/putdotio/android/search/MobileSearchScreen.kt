@@ -33,9 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -62,7 +64,6 @@ import io.putdotio.android.design.RowText
 import io.putdotio.android.design.shown
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioEmptyState
-import io.putdotio.android.design.putioMono
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
@@ -82,7 +83,7 @@ internal const val MOBILE_SEARCH_FILTERS_TAG = "mobile-search-filters"
 
 /**
  * Expanded search under its bar: type chips, then recent searches while the query is empty, or the
- * results grouped into Folders and Files with their counts. A search that finds nothing of any
+ * results under put.io's match total, grouped into Folders and Files. A search that finds nothing of any
  * type gives the whole screen to its empty state, as there is nothing a chip could narrow.
  */
 @Composable
@@ -413,6 +414,9 @@ private fun MobileSearchResultList(
     val listState = rememberLazyListState()
     LoadNextPageNearEnd(listState, nextPage = content.paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     LazyColumn(state = listState, modifier = modifier.testTag(MOBILE_SEARCH_RESULTS_TAG)) {
+        content.total?.let { total ->
+            item(key = "search-total", contentType = "total") { MobileSearchTotal(total) }
+        }
         resultGroup(R.string.mobile_search_group_folders, "folders", folders) { item ->
             MobileSearchResultRow(item, rows, rootName, rowText[item])
         }
@@ -427,7 +431,19 @@ private fun MobileSearchResultList(
     }
 }
 
-/** A group's label with the count loaded so far in mono, then its rows; an empty group shows nothing. */
+@Composable
+private fun MobileSearchTotal(total: SearchTotal) {
+    val shown = total.shown(LocalConfiguration.current.locales[0])
+    Text(
+        text = pluralStringResource(R.plurals.mobile_search_total, total.count, shown),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+    )
+}
+
 private fun LazyListScope.resultGroup(
     @StringRes title: Int,
     key: String,
@@ -436,10 +452,7 @@ private fun LazyListScope.resultGroup(
 ) {
     if (items.isEmpty()) return
     item(key = "group-$key", contentType = "header") {
-        MobileSectionLabel(
-            text = stringResource(title),
-            trailing = { Text(items.size.toString(), style = MaterialTheme.typography.bodySmall.putioMono()) },
-        )
+        MobileSectionLabel(text = stringResource(title))
     }
     items(items, key = { it.id.value }, contentType = { "row" }) { row(it) }
 }

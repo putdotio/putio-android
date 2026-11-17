@@ -416,9 +416,15 @@ private fun SearchState.withInitialPage(
 ): SearchState {
     val items = page.items.filter(filter::accepts).distinctBy(FilesItem::id)
     val paging = page.nextCursor?.let(SearchPaging::Available) ?: SearchPaging.Complete
+    val capped = page.total >= SEARCH_TOTAL_CAP
+    val total = totalOf(items, paging, page.total, capped)
     val content =
-        if (items.isEmpty()) SearchContent.Empty(term, paging) else SearchContent.Ready(term, items, paging)
-    return copy(content = content, consumedCursors = emptySet())
+        if (items.isEmpty()) {
+            SearchContent.Empty(term, paging, total)
+        } else {
+            SearchContent.Ready(term, items, paging, total)
+        }
+    return copy(content = content, consumedCursors = emptySet(), capped = capped)
 }
 
 private fun SearchState.withNextPage(
@@ -434,8 +440,14 @@ private fun SearchState.withNextPage(
             is SearchContent.Ready -> current.term
             else -> error("Paging requires loaded search content")
         }
+    val matched = content.total()?.count ?: 0
+    val total = totalOf(items, paging, matched, capped)
     val nextContent =
-        if (items.isEmpty()) SearchContent.Empty(term, paging) else SearchContent.Ready(term, items, paging)
+        if (items.isEmpty()) {
+            SearchContent.Empty(term, paging, total)
+        } else {
+            SearchContent.Ready(term, items, paging, total)
+        }
     return copy(content = nextContent, consumedCursors = consumed)
 }
 

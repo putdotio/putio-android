@@ -365,6 +365,10 @@
     <string name="mobile_search_filter_subtitles">Subtitles</string>
     <string name="mobile_search_group_folders">Folders</string>
     <string name="mobile_search_group_files">Files</string>
+    <plurals name="mobile_search_total">
+        <item quantity="one">%1$s result</item>
+        <item quantity="other">%1$s results</item>
+    </plurals>
     <string name="mobile_search_loading">Searching</string>
     <string name="mobile_search_loading_more">Loading more results</string>
     <string name="mobile_search_paging_error">Couldn’t load more results.</string>

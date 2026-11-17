@@ -373,7 +373,7 @@ private fun TvSearchReady(
     undoSnackbar: TvUndoSnackbar,
     modifier: Modifier = Modifier,
 ) {
-    val groups = remember(Identity(content.items)) { TvSearchGroups(content.items) }
+    val groups = remember(Identity(content.items), content.total) { TvSearchGroups(content.items, content.total) }
     val rootName = stringResource(R.string.tv_files_title)
     val rowText = rememberTvSearchRowText(groups, detail.folderNames, rootName)
     val source = groups to content.paging
