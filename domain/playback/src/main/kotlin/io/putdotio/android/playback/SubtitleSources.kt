@@ -8,7 +8,8 @@ public class SubtitleSources(public val sidecar: List<PlaybackSubtitle>, public 
 public fun PlaybackSubtitles.sources(): SubtitleSources =
     SubtitleSources(sidecarTracks(), originsKnown = this !is PlaybackSubtitles.Embedded)
 
-internal fun PlaybackSubtitle.fileStem(): String = name.trim().replace(SUBTITLE_EXTENSION, "")
-
-private val SUBTITLE_EXTENSION =
-    Regex("\\.(srt|vtt|webvtt|ass|ssa|sub|smi|sbv|ttml|dfxp|txt)$", RegexOption.IGNORE_CASE)
+internal fun PlaybackSubtitle.fileStem(): String {
+    val dot = name.lastIndexOf('.')
+    val extended = dot > 0 && name.substring(0, dot).any { it != '.' }
+    return (if (extended) name.substring(0, dot) else name).replace('"', '\'')
+}

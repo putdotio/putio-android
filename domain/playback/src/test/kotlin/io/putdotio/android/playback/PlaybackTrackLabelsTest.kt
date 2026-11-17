@@ -125,16 +125,27 @@ class PlaybackTrackLabelsTest {
     }
 
     @Test
-    fun labelsDropOnlyASubtitleExtension() {
-        val track = tracks(embedded("0:a", "en", MimeTypes.APPLICATION_SUBRIP), embedded("0:b", "en", null))
-        val sidecar = listOf(
-            subtitle("a", "folder", name = "Sample.Show.720p.webvtt"),
-            subtitle("b", "folder", name = "Sample.Show.720p"),
+    fun sidecarLabelsFollowTheManifestNamingRule() {
+        val names = listOf(
+            "Sample.Show.720p.webvtt", "Sample.Show.720p", ".hidden", "Sample.Show.srt", "say \"hi\".srt", "",
         )
+        val formats = names.indices.map { embedded("0:s$it", "en", MimeTypes.APPLICATION_SUBRIP) }
+        val tracks = tracks(*formats.toTypedArray())
+        val sidecar = names.mapIndexed { index, name -> subtitle("s$index", "folder", name = name) } +
+            subtitle("und", "folder", name = "notes.srt").copy(language = "", languageCode = "und")
+        val withUnknown = tracks + tracks(embedded("0:und", null, MimeTypes.APPLICATION_SUBRIP))
 
         assertEquals(
-            listOf("English - Sample.Show.720p", "English - Sample.Show.720p"),
-            resources.subtitleTrackLabels(track, sidecar, inFile = true).map { it.substringBefore(" (") },
+            listOf(
+                "English - Sample.Show.720p",
+                "English - Sample.Show",
+                "English - .hidden",
+                "English - Sample.Show (2)",
+                "English - say 'hi'",
+                "English",
+                "Unknown - notes",
+            ),
+            resources.subtitleTrackLabels(withUnknown, sidecar, inFile = true),
         )
     }
 

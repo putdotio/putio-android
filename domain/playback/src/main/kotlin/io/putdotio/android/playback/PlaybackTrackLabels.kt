@@ -8,7 +8,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import io.putdotio.sdk.files.PlaybackSubtitle
-import io.putdotio.android.isUnknownLanguageName
 import java.util.Locale
 
 public const val TRACK_DETAIL_SEPARATOR: String = " · "
@@ -62,22 +61,23 @@ internal fun Resources.subtitleTrackLabels(
     tracks: List<PlaybackSubtitleTrack>,
     sidecar: List<PlaybackSubtitle>,
     inFile: Boolean,
-): List<String> =
-    numberRepeatedRows(
-        names = tracks.mapIndexed { index, track ->
-            subtitleTrackName(track, track.putioSubtitle(sidecar), inFile, index)
-        },
-        details = tracks.map { subtitleTrackDetails(it, it.putioSubtitle(sidecar), inFile) },
+): List<String> {
+    val subtitles = tracks.map { it.putioSubtitle(sidecar) }
+    val putioNames = subtitles.map { it?.let { subtitle -> putioSubtitleName(subtitle) } }.numberedRepeats()
+    return numberRepeatedRows(
+        names = tracks.mapIndexed { index, track -> subtitleTrackName(track, putioNames[index], inFile, index) },
+        details = tracks.mapIndexed { index, track -> subtitleTrackDetails(track, subtitles[index], inFile) },
     )
+}
 
 private fun Resources.subtitleTrackName(
     track: PlaybackSubtitleTrack,
-    subtitle: PlaybackSubtitle?,
+    putioName: String?,
     inFile: Boolean,
     index: Int,
 ): String {
     val manifestName = track.identity.label?.trim()?.takeIf { !inFile && it.isNotEmpty() }
-    val name = subtitle?.let { putioSubtitleName(track, it) } ?: manifestName ?: track.knownName()
+    val name = putioName ?: manifestName ?: track.knownName()
         ?: track.formatName() ?: getString(R.string.playback_subtitle_number, index + 1)
     return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
         name + TRACK_DETAIL_SEPARATOR + getString(R.string.playback_subtitle_sdh)
@@ -86,13 +86,21 @@ private fun Resources.subtitleTrackName(
     }
 }
 
-private fun Resources.putioSubtitleName(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle): String {
-    val language = subtitle.language.trim()
-        .takeUnless { it.isUnknownLanguageName() || subtitle.languageCode == C.LANGUAGE_UNDETERMINED }
-        ?: languageName(track.identity.language)
+private fun Resources.putioSubtitleName(subtitle: PlaybackSubtitle): String {
+    val language = subtitle.language.takeUnless { it.isBlank() || subtitle.languageCode == C.LANGUAGE_UNDETERMINED }
         ?: getString(R.string.playback_subtitle_unknown)
-    val stem = subtitle.fileStem()
-    return if (stem.isBlank()) language else "$language - $stem"
+    return if (subtitle.name.isEmpty()) language else "$language - ${subtitle.fileStem()}"
+}
+
+private fun List<String?>.numberedRepeats(): List<String?> {
+    val seen = mutableMapOf<String, Int>()
+    return map { name ->
+        name?.let {
+            val count = seen.getOrDefault(it, 0) + 1
+            seen[it] = count
+            if (count > 1) "$it ($count)" else it
+        }
+    }
 }
 
 /**
