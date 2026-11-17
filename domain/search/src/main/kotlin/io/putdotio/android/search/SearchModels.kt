@@ -6,7 +6,6 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.sdk.files.PutioFileType
-import java.text.NumberFormat
 import java.util.Locale
 import kotlinx.coroutines.flow.StateFlow
 
@@ -103,25 +102,6 @@ public data class SearchPage(
     val nextCursor: FilesCursor?,
     val total: Int,
 )
-
-public sealed interface SearchTotal {
-    public val count: Int
-
-    public fun shown(locale: Locale): String {
-        val number = NumberFormat.getIntegerInstance(locale).format(count)
-        return if (this is AtLeast) "$number+" else number
-    }
-
-    public data class Exact(
-        override val count: Int,
-    ) : SearchTotal
-
-    public data class AtLeast(
-        override val count: Int,
-    ) : SearchTotal
-}
-
-internal const val SEARCH_TOTAL_CAP = 1000
 
 public sealed interface SearchPaging {
     public data object Complete : SearchPaging
@@ -293,10 +273,4 @@ internal fun SearchContent.withRestoredItem(item: FilesItem, index: Int, term: S
         is SearchContent.Empty ->
             if (this.term == term) SearchContent.Ready(term, listOf(item), paging, total?.plus(1)) else null
         else -> null
-    }
-
-private fun SearchTotal.plus(change: Int): SearchTotal =
-    when (this) {
-        is SearchTotal.Exact -> SearchTotal.Exact((count + change).coerceAtLeast(0))
-        is SearchTotal.AtLeast -> this
     }

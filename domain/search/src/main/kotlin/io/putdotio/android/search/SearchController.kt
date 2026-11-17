@@ -451,30 +451,6 @@ private fun SearchState.withNextPage(
     return copy(content = nextContent, consumedCursors = consumed)
 }
 
-private fun SearchState.totalOf(
-    items: List<FilesItem>,
-    paging: SearchPaging,
-    matched: Int,
-    capped: Boolean,
-): SearchTotal? {
-    val complete = paging == SearchPaging.Complete
-    return when {
-        filter == SearchFilter.Subtitles && !complete -> null
-        filter == SearchFilter.Subtitles && capped -> SearchTotal.AtLeast(items.size)
-        filter == SearchFilter.Subtitles -> SearchTotal.Exact(items.size)
-        capped -> SearchTotal.AtLeast(maxOf(SEARCH_TOTAL_CAP, items.size))
-        complete -> SearchTotal.Exact(items.size)
-        else -> SearchTotal.Exact(maxOf(matched, items.size))
-    }
-}
-
-private fun SearchContent.total(): SearchTotal? =
-    when (this) {
-        is SearchContent.Ready -> total
-        is SearchContent.Empty -> total
-        else -> null
-    }
-
 private fun SearchState.withPaging(paging: SearchPaging): SearchState =
     when (val current = content) {
         is SearchContent.Empty -> copy(content = current.copy(paging = paging))
