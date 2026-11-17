@@ -440,7 +440,7 @@ private fun SearchState.withNextPage(
             is SearchContent.Ready -> current.term
             else -> error("Paging requires loaded search content")
         }
-    val matched = (content.total() as? SearchTotal.Exact)?.count ?: 0
+    val matched = content.total()?.count ?: 0
     val total = totalOf(items, paging, matched, capped)
     val nextContent =
         if (items.isEmpty()) {

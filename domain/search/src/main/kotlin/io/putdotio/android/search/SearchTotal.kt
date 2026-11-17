@@ -34,7 +34,7 @@ internal fun SearchState.totalOf(
         filter == SearchFilter.Subtitles && !complete -> null
         filter == SearchFilter.Subtitles && capped -> SearchTotal.AtLeast(items.size)
         filter == SearchFilter.Subtitles -> SearchTotal.Exact(items.size)
-        capped -> SearchTotal.AtLeast(maxOf(SEARCH_TOTAL_CAP, items.size))
+        capped -> SearchTotal.AtLeast(maxOf(matched, items.size))
         complete -> SearchTotal.Exact(items.size)
         else -> SearchTotal.Exact(maxOf(matched, items.size))
     }
@@ -50,5 +50,5 @@ internal fun SearchContent.total(): SearchTotal? =
 internal fun SearchTotal.plus(change: Int): SearchTotal =
     when (this) {
         is SearchTotal.Exact -> SearchTotal.Exact((count + change).coerceAtLeast(0))
-        is SearchTotal.AtLeast -> this
+        is SearchTotal.AtLeast -> SearchTotal.AtLeast((count + change).coerceAtLeast(0))
     }

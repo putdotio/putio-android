@@ -128,6 +128,27 @@ class SearchTotalTest {
         }
 
     @Test
+    fun removingAResultLowersACappedTotalThroughLaterPages() =
+        runTest(StandardTestDispatcher()) {
+            val repository = FakeSearchRepository(
+                search = { _, _ -> page(SEARCH_TOTAL_CAP, cursor = "next", item(1L), item(2L)) },
+                next = { page(SEARCH_TOTAL_CAP, cursor = null, item(3L)) },
+            )
+            searchController(repository).use { controller ->
+                controller.updateQuery("mkv")
+                controller.submit()
+                advanceUntilIdle()
+
+                assertTrue(controller.itemRemoved(FilesItemId(1L)))
+                assertEquals(SearchTotal.AtLeast(999), controller.ready().total)
+
+                controller.loadNextPage()
+                advanceUntilIdle()
+                assertEquals(SearchTotal.AtLeast(999), controller.ready().total)
+            }
+        }
+
+    @Test
     fun aCompleteSearchCountsWhatItLoaded() =
         runTest(StandardTestDispatcher()) {
             val repository = FakeSearchRepository(search = { _, _ -> page(3, cursor = null, item(1L), item(1L)) })
