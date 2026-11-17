@@ -244,6 +244,10 @@
     <string name="tv_search_filter_subtitles">Subtitles</string>
     <string name="tv_search_group_folders">Folders</string>
     <string name="tv_search_group_files">Files</string>
+    <plurals name="tv_search_total">
+        <item quantity="one">%1$s result</item>
+        <item quantity="other">%1$s results</item>
+    </plurals>
     <string name="tv_search_no_results_title">Nothing matches.</string>
     <string name="tv_search_no_results_message">No files or folders named “%1$s”. Try fewer words.</string>
     <string name="tv_search_error_title">Couldn’t search.</string>

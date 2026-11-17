@@ -3,7 +3,6 @@ package io.putdotio.android.tv.search
 import androidx.annotation.StringRes
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,12 +26,13 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -45,6 +45,7 @@ import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.search.SearchPaging
+import io.putdotio.android.search.SearchTotal
 import io.putdotio.android.tv.TvListSkeleton
 import io.putdotio.android.tv.ProvideMiddleCuts
 import io.putdotio.android.tv.TvAutoPaging
@@ -92,7 +93,7 @@ private fun searchPlace(
         item.parentId?.let { parent -> if (parent == FilesFolder.Root.id) rootName else folderNames[parent] },
     )
 
-internal class TvSearchGroups(items: List<FilesItem>) {
+internal class TvSearchGroups(items: List<FilesItem>, val total: SearchTotal? = null) {
     val folders: List<FilesItem> = items.filter(FilesItem::isFolder)
     val files: List<FilesItem> = items.filterNot(FilesItem::isFolder)
     val ordered: List<FilesItem> = folders + files
@@ -100,8 +101,10 @@ internal class TvSearchGroups(items: List<FilesItem>) {
     fun lazyIndexOf(id: Long): Int {
         val index = ordered.indexOfFirst { it.id.value == id }
         if (index < 0) return -1
+        val totalLabel = if (total == null) 0 else 1
         val folderLabel = if (folders.isEmpty()) 0 else 1
-        return if (index < folders.size) index + folderLabel else index + folderLabel + 1
+        val before = totalLabel + folderLabel
+        return if (index < folders.size) index + before else index + before + 1
     }
 }
 
@@ -224,12 +227,16 @@ private fun TvSearchResultRows(
             val row: @Composable (FilesItem) -> Unit = { item ->
                 TvSearchResultRow(item, rowText[item], rows, requesters)
             }
-            resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = true, row = row)
+            groups.total?.let { total ->
+                item(key = "search-total", contentType = "total") { TvSearchTotal(total) }
+            }
+            val untitled = groups.total == null
+            resultGroup(R.string.tv_search_group_folders, "folders", groups.folders, first = untitled, row = row)
             resultGroup(
                 R.string.tv_search_group_files,
                 "files",
                 groups.files,
-                first = groups.folders.isEmpty(),
+                first = untitled && groups.folders.isEmpty(),
                 row = row,
             )
             if (paging != SearchPaging.Complete) {
@@ -311,13 +318,27 @@ private fun LazyListScope.resultGroup(
 ) {
     if (items.isEmpty()) return
     item(key = "group-$key", contentType = "header") {
-        TvSearchGroupLabel(stringResource(title), items.size, first)
+        TvSearchGroupLabel(stringResource(title), first)
     }
     items(items, key = { it.id.value }, contentType = { "row" }) { row(it) }
 }
 
 @Composable
-private fun TvSearchGroupLabel(title: String, count: Int, first: Boolean) {
+private fun TvSearchTotal(total: SearchTotal) {
+    val shown = total.shown(LocalConfiguration.current.locales[0])
+    Text(
+        text = pluralStringResource(R.plurals.tv_search_total, total.count, shown),
+        style = PutioTypeScale.tvLabel,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = LABEL_INSET)
+            .height(TV_SEARCH_LABEL_HEIGHT),
+    )
+}
+
+@Composable
+private fun TvSearchGroupLabel(title: String, first: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -325,12 +346,10 @@ private fun TvSearchGroupLabel(title: String, count: Int, first: Boolean) {
             .padding(bottom = TV_SEARCH_LABEL_GAP + LABEL_BASELINE_SLACK)
             .height(TV_SEARCH_LABEL_HEIGHT)
             .semantics(mergeDescendants = true) { heading() },
-        horizontalArrangement = Arrangement.spacedBy(LABEL_COUNT_GAP),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val color = MaterialTheme.colorScheme.onSurfaceVariant
         Text(title, style = PutioTypeScale.tvLabel, color = color)
-        Text(count.toString(), style = LABEL_COUNT, color = color)
     }
 }
 
@@ -339,6 +358,4 @@ internal val TV_SEARCH_LABEL_GAP = 4.dp
 private val LABEL_INSET = 12.dp
 private val LABEL_SPACE_ABOVE = 8.dp
 private val LABEL_BASELINE_SLACK = 0.5.dp
-private val LABEL_COUNT_GAP = 8.dp
-private val LABEL_COUNT = PutioTypeScale.tvMono.copy(fontWeight = FontWeight.Medium)
 internal const val TV_SEARCH_PAGING_KEY = "tv-search-paging"

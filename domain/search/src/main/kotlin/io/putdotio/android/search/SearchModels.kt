@@ -6,6 +6,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.sdk.files.PutioFileType
+import java.text.NumberFormat
 import java.util.Locale
 import kotlinx.coroutines.flow.StateFlow
 
@@ -103,6 +104,25 @@ public data class SearchPage(
     val total: Int,
 )
 
+public sealed interface SearchTotal {
+    public val count: Int
+
+    public fun shown(locale: Locale): String {
+        val number = NumberFormat.getIntegerInstance(locale).format(count)
+        return if (this is AtLeast) "$number+" else number
+    }
+
+    public data class Exact(
+        override val count: Int,
+    ) : SearchTotal
+
+    public data class AtLeast(
+        override val count: Int,
+    ) : SearchTotal
+}
+
+internal const val SEARCH_TOTAL_CAP = 1000
+
 public sealed interface SearchPaging {
     public data object Complete : SearchPaging
 
@@ -137,12 +157,14 @@ public sealed interface SearchContent {
     public data class Empty(
         val term: SearchTerm,
         val paging: SearchPaging,
+        val total: SearchTotal? = null,
     ) : SearchContent
 
     public data class Ready(
         val term: SearchTerm,
         val items: List<FilesItem>,
         val paging: SearchPaging,
+        val total: SearchTotal? = null,
     ) : SearchContent {
         init {
             require(items.isNotEmpty()) { "Ready search content must contain at least one item" }
@@ -168,6 +190,7 @@ public data class SearchState internal constructor(
     val scope: SearchScope? = null,
     /** The type chip in force: put.io filters by it, and Subtitles filters on the device. */
     val filter: SearchFilter = SearchFilter.All,
+    internal val capped: Boolean = false,
 )
 
 public object SearchReducer {
@@ -255,8 +278,8 @@ internal fun SearchContent.Ready.withItem(updated: FilesItem): SearchContent.Rea
 internal fun SearchContent.Ready.withoutItem(itemId: FilesItemId): SearchContent? =
     when {
         items.none { it.id == itemId } -> null
-        items.size == 1 -> SearchContent.Empty(term, paging)
-        else -> copy(items = items.filterNot { it.id == itemId })
+        items.size == 1 -> SearchContent.Empty(term, paging, total?.plus(-1))
+        else -> copy(items = items.filterNot { it.id == itemId }, total = total?.plus(-1))
     }
 
 internal fun SearchContent.withRestoredItem(item: FilesItem, index: Int, term: SearchTerm): SearchContent.Ready? =
@@ -265,8 +288,15 @@ internal fun SearchContent.withRestoredItem(item: FilesItem, index: Int, term: S
             null
         } else {
             val before = items.take(index.coerceIn(0, items.size))
-            copy(items = before + item + items.drop(before.size))
+            copy(items = before + item + items.drop(before.size), total = total?.plus(1))
         }
-        is SearchContent.Empty -> if (this.term == term) SearchContent.Ready(term, listOf(item), paging) else null
+        is SearchContent.Empty ->
+            if (this.term == term) SearchContent.Ready(term, listOf(item), paging, total?.plus(1)) else null
         else -> null
+    }
+
+private fun SearchTotal.plus(change: Int): SearchTotal =
+    when (this) {
+        is SearchTotal.Exact -> SearchTotal.Exact((count + change).coerceAtLeast(0))
+        is SearchTotal.AtLeast -> this
     }

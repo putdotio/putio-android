@@ -49,6 +49,7 @@ import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchPaging
 import io.putdotio.android.search.SearchState
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.search.SearchTotal
 import io.putdotio.android.search.searchState
 import io.putdotio.sdk.files.PutioFileType
 import java.time.LocalDate
@@ -93,7 +94,7 @@ class MobileSearchScreensTest {
     }
 
     @Test
-    fun resultsGroupIntoFoldersAndFilesWithCountsAndNameTheirFolderOnceKnown() {
+    fun resultsShowTheMatchTotalOnceGroupIntoFoldersAndFilesAndNameTheirFolderOnceKnown() {
         val items = listOf(
             fileItem().copy(id = FilesItemId(1L), name = "Big Buck Bunny.mp4", parentId = FilesItemId(30L)),
             fileItem().copy(
@@ -105,15 +106,22 @@ class MobileSearchScreensTest {
             fileItem().copy(id = FilesItemId(2L), name = "Big Buck Bunny.en.srt", parentId = FilesItemId(40L)),
         )
         setScreen(
-            search = searchState(SearchContent.Ready(SearchTerm("bunny"), items, SearchPaging.Complete)),
+            search = searchState(
+                SearchContent.Ready(
+                    SearchTerm("bunny"),
+                    items,
+                    SearchPaging.Available(FilesCursor("next")),
+                    SearchTotal.AtLeast(1000),
+                ),
+            ),
             folderNames = mapOf(FilesItemId(30L) to "Big Buck Bunny"),
         )
 
         val labels = compose.onAllNodes(isHeading()).fetchSemanticsNodes()
             .map { it.config[SemanticsProperties.Text].joinToString() }
         assertEquals(listOf("Folders", "Files"), labels)
-        compose.onNodeWithText("1").assertIsDisplayed()
-        compose.onNodeWithText("2").assertIsDisplayed()
+        compose.onNodeWithText("1,000+ results").assertIsDisplayed()
+        compose.onAllNodesWithText("2").assertCountEquals(0)
         // The folder sits at the root, named Files under the Files label; the video sits in a folder the
         // session has named; the subtitle's folder isn't known yet, so its row names none.
         compose.onAllNodesWithText("Files", useUnmergedTree = true).assertCountEquals(2)
