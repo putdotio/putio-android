@@ -102,12 +102,11 @@ import io.putdotio.android.playback.PlaybackTrackRecovery
 import io.putdotio.android.playback.PlaybackTrackRecoveryStep
 import io.putdotio.android.playback.manifestSubtitleUris
 import io.putdotio.android.playback.sidecarSubtitleUris
-import io.putdotio.android.playback.subtitleSources
+import io.putdotio.android.playback.sources
 import io.putdotio.android.playback.toTrackFailure
 import io.putdotio.android.playback.withAudioOf
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
-import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.android.R
 import io.putdotio.android.tv.TvSnackbarHost
 import io.putdotio.android.tv.TvSnackbarMessage
@@ -148,7 +147,6 @@ internal fun TvPlayerScreen(
     onBackground: (() -> Unit)? = null,
     onForeground: () -> Unit = {},
     miniPlayer: TvMiniPlayerState? = null,
-    manifestSubtitles: List<PlaybackSubtitle>? = null,
     notices: TvSnackbarState? = null,
 ) {
     BackHandler(enabled = !background && state.content !is PlaybackContent.Ready, onBack = onBack)
@@ -188,7 +186,6 @@ internal fun TvPlayerScreen(
                     optionsState = options,
                     playIntent = playIntent,
                     backgroundAudio = TvBackgroundAudio(background, onBackground, miniPlayer),
-                    manifestSubtitles = manifestSubtitles,
                     snackbar = playerNotices,
                 )
 
@@ -307,7 +304,6 @@ private fun TvReadyPlayer(
     optionsState: MutableState<TvPlaybackOptions>,
     playIntent: MutableState<Boolean>,
     backgroundAudio: TvBackgroundAudio,
-    manifestSubtitles: List<PlaybackSubtitle>?,
     snackbar: TvSnackbarState,
 ) {
     val context = LocalContext.current
@@ -560,9 +556,7 @@ private fun TvReadyPlayer(
 
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitles = remember(source) { source.playerSubtitles() }
-    val subtitleSources = remember(subtitles, manifestSubtitles, choices.subtitles) {
-        subtitleSources(subtitles, manifestSubtitles, choices.subtitles)
-    }
+    val subtitleSources = remember(subtitles) { subtitles.sources() }
     TvSubtitlesUnavailableNotice(source, target, snackbar)
     val subtitlesHidden = choices.subtitlesHidden
     val stream = streamSwitch(source, target, player, currentOnOriginalRejected, onOriginalChosen)

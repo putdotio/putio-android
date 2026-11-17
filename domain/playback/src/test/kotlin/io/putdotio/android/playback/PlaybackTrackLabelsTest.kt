@@ -14,9 +14,6 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
-import io.putdotio.android.PutioFailure
-import io.putdotio.android.files.FilesItemId
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -101,96 +98,30 @@ class PlaybackTrackLabelsTest {
     }
 
     @Test
-    fun manifestTracksTakePutiosLabelsWhereTheirLanguageCountsAgree() {
-        val tracks = tracks(
-            manifest("subs0:English 1", "en"),
-            manifest("subs0:English 2", "en"),
-            manifest("subs0:Turkish", "tr"),
-        )
-        val listed = listOf(
-            subtitle("en-in-file", "mkv", name = "Sample.Show.en.srt"),
-            subtitle("en-styled", "folder", name = "Sample.Show.en.ass").copy(format = "ass"),
-            subtitle("en-found", "opensubtitles_rest", name = "sample_show_s01e01.SRT"),
-            subtitle("tr-found", "opensubtitles_rest", name = "Sample.Show.tr.vtt")
-                .copy(language = "Turkish", languageCode = "tur", format = "webvtt"),
-        )
-
-        val keyed = listed.keyedToManifest(tracks)
-
-        assertEquals(
-            listOf("English - Sample.Show.en", "English - sample_show_s01e01", "Turkish - Sample.Show.tr"),
-            resources.subtitleTrackLabels(tracks, keyed, inFile = true),
-        )
-        assertEquals(
-            listOf(SubtitleOrigin.File, SubtitleOrigin.OpenSubtitles, SubtitleOrigin.OpenSubtitles),
-            tracks.map { it.putioSubtitle(keyed).origin() },
-        )
-        assertEquals(
-            listOf("SRT", "OpenSubtitles", "OpenSubtitles"),
-            tracks.map { resources.subtitleTrackDetails(it, it.putioSubtitle(keyed), inFile = true) },
-        )
-    }
-
-    @Test
-    fun aLanguageWhoseCountsDisagreeKeepsTheManifestNamesAndTheOthersStillKey() {
-        val tracks = tracks(
-            manifest("subs0:English 1", "en"),
-            manifest("subs0:English 2", "en"),
-            manifest("subs0:Turkish", "tr"),
-        )
-        val listed = listOf(
-            subtitle("en-found", "opensubtitles_rest", name = "Sample.Show.en.srt"),
-            subtitle("tr-found", "opensubtitles_rest", name = "Sample.Show.tr.srt")
-                .copy(language = "Turkish", languageCode = "tur"),
-        )
-
-        val sources = subtitleSources(PlaybackSubtitles.Embedded, listed, tracks)
-
-        assertEquals(listOf("Sample.Show.tr.srt"), sources.sidecar.map { it.name })
-        assertEquals(false, sources.originsKnown)
-        assertEquals(
-            listOf("English 1", "English 2", "Turkish - Sample.Show.tr"),
-            resources.subtitleTrackLabels(tracks, sources.sidecar, sources.originsKnown),
-        )
-    }
-
-    @Test
-    fun manifestTracksWithoutIdsAreKeyedByTheirNames() {
-        val tracks = tracks(unnamed("English 1", "en"), unnamed("English 2", "en"))
-        val listed = listOf(subtitle("en-in-file", "mkv"), subtitle("en-found", "opensubtitles_rest"))
-
-        val keyed = listed.keyedToManifest(tracks)
-
-        assertEquals(
-            listOf(SubtitleOrigin.File, SubtitleOrigin.OpenSubtitles),
-            tracks.map { it.putioSubtitle(keyed).origin() },
-        )
-        assertEquals(
-            emptyList<PlaybackSubtitle>(),
-            listed.keyedToManifest(tracks(unnamed("English", "en"), unnamed("English", "en"))),
-        )
-    }
-
-    @Test
-    fun anUndeterminedSubtitleKeysToTheManifestsUnknownTrack() {
-        val tracks = tracks(manifest("subs0:Unknown", "und"))
-        val listed = listOf(subtitle("und", "folder", name = "notes.srt").copy(language = "", languageCode = "und"))
-
-        assertEquals(
-            listOf("Unknown - notes"),
-            resources.subtitleTrackLabels(tracks, listed.keyedToManifest(tracks), inFile = true),
-        )
-    }
-
-    @Test
     fun directPlaySidecarsTakePutiosLabels() {
         val sidecar = subtitle("os-en", "opensubtitles", name = "Sample.Show.en.srt")
         val subtitles = PlaybackSubtitles.Sidecar(listOf(sidecar))
         val track = tracks(embedded("0:os-en", "en", MimeTypes.APPLICATION_SUBRIP))
 
-        val sources = subtitleSources(subtitles, null, track)
+        val sources = subtitles.sources()
 
         assertEquals(listOf("English - Sample.Show.en"), resources.subtitleTrackLabels(track, sources.sidecar, true))
+    }
+
+    @Test
+    fun manifestTracksShowTheirManifestNamesInOneList() {
+        val tracks = tracks(
+            manifest("subs0:English - Sample.Show.S01E02-eng", "en"),
+            manifest("subs0:English - Sample.Show.S01E02-eng (2)", "en"),
+            manifest("subs0:Unknown - notes", "und"),
+        )
+        val sources = PlaybackSubtitles.Embedded.sources()
+
+        assertEquals(false, sources.originsKnown)
+        assertEquals(
+            listOf("English - Sample.Show.S01E02-eng", "English - Sample.Show.S01E02-eng (2)", "Unknown - notes"),
+            resources.subtitleTrackLabels(tracks, sources.sidecar, sources.originsKnown),
+        )
     }
 
     @Test
@@ -207,37 +138,6 @@ class PlaybackTrackLabelsTest {
         )
     }
 
-    @Test
-    fun aFailedSubtitleListIsAskedForAgainABoundedNumberOfTimes() = runTest {
-        val listed = listOf(subtitle("en", "folder"))
-        val target = PlaybackTarget(FilesItemId(42L), "Sample.Show.mkv")
-        val offline = PlaybackRepositoryResult.Failure(
-            PlaybackFailure.Putio(PutioFailure.Unexpected(IllegalStateException("offline"))),
-        )
-        var calls = 0
-        val recovers = findManifestSubtitles(target, {
-            calls++
-            if (calls < 3) offline else PlaybackRepositoryResult.Success(listed)
-        }) {}
-        assertEquals(listed, recovers)
-        assertEquals(3, calls)
-
-        calls = 0
-        assertNull(findManifestSubtitles(target, { calls++; offline }) {})
-        assertEquals(3, calls)
-
-        calls = 0
-        var signedOut = false
-        val rejected = PlaybackRepositoryResult.Failure(
-            PlaybackFailure.Putio(
-                PutioFailure.AuthenticationRequired(io.putdotio.sdk.errors.PutioConfigurationException("401")),
-            ),
-        )
-        assertNull(findManifestSubtitles(target, { calls++; rejected }) { signedOut = true })
-        assertEquals(1, calls)
-        assertEquals(true, signedOut)
-    }
-
     private fun tracks(vararg formats: Format): List<PlaybackSubtitleTrack> {
         val group = TrackGroup("text", *formats)
         return formats.indices.map { PlaybackSubtitleTrack(group, it, label = null, selected = false) }
@@ -249,14 +149,6 @@ class PlaybackTrackLabelsTest {
             .setLanguage(language ?: C.LANGUAGE_UNDETERMINED)
             .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
             .setCodecs(codecs)
-            .build()
-
-    private fun unnamed(label: String, language: String): Format =
-        Format.Builder()
-            .setLanguage(language)
-            .setLabel(label)
-            .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
-            .setCodecs(MimeTypes.TEXT_VTT)
             .build()
 
     private fun manifest(id: String, language: String): Format =

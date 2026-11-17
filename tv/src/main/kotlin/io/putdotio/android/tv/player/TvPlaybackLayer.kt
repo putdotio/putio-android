@@ -20,7 +20,6 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
-import io.putdotio.android.playback.PlaybackFindSubtitles
 import io.putdotio.android.playback.PlaybackFindNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackState
@@ -30,7 +29,6 @@ import io.putdotio.android.playback.originalFallbackTelemetry
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberFolderNeighbours
-import io.putdotio.android.playback.rememberManifestSubtitles
 import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.telemetry.AnalyticsEvent
@@ -94,10 +92,8 @@ internal fun TvPlaybackRoute(
     onBackground: (() -> Unit)? = null,
     onForeground: () -> Unit = {},
     miniPlayer: TvMiniPlayerState? = null,
-    findSubtitles: PlaybackFindSubtitles? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
-    val manifestSubtitles = rememberManifestSubtitles(state, findSubtitles, onSessionRejected)
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
     val upNext = rememberUpNext(state, findUpNext.takeIf { autoplayNextVideo }, onSessionRejected)
     val neighbours = rememberFolderNeighbours(state, findUpNext, onSessionRejected)
@@ -161,7 +157,6 @@ internal fun TvPlaybackRoute(
             onBackground = onBackground,
             onForeground = onForeground,
             miniPlayer = miniPlayer,
-            manifestSubtitles = manifestSubtitles,
             notices = snackbar,
         )
         if (!background) {

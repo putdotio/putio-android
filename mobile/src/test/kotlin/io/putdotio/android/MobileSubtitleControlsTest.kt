@@ -67,7 +67,6 @@ import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.MobileSubtitleAppearanceContent
 import io.putdotio.android.playback.MobileSubtitlesChip
 import io.putdotio.android.playback.MobileSubtitlesSheetContent
-import io.putdotio.android.playback.SubtitleCatalog
 import io.putdotio.android.playback.SubtitleTextSize
 import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
 import io.putdotio.sdk.files.PlaybackSubtitle
@@ -252,7 +251,7 @@ class MobileSubtitleControlsTest {
         PutioTheme {
             val options = rememberPlayerOptionsSnapshot(player)
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                val catalog = SubtitleCatalog(PlaybackSubtitles.Sidecar(sidecar))
+                val catalog = PlaybackSubtitles.Sidecar(sidecar)
                 MobileSubtitlesChip(options, catalog, {})
                 MobileSubtitlesSheetContent(
                     player = player,

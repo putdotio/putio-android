@@ -50,7 +50,6 @@ import io.putdotio.android.design.putioMono
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.SubtitleView
-import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitles
 
 /** The track the viewer picked, else the one showing; null when subtitles are off. */
@@ -61,19 +60,15 @@ private fun PlayerOptionsSnapshot.currentSubtitle(): PlaybackSubtitleTrack? {
     } ?: subtitleTracks.firstOrNull { it.selected }
 }
 
-internal data class SubtitleCatalog(val subtitles: PlaybackSubtitles, val listed: List<PlaybackSubtitle>? = null) {
-    fun sources(tracks: List<PlaybackSubtitleTrack>): SubtitleSources = subtitleSources(subtitles, listed, tracks)
-}
-
 @Composable
 internal fun MobileSubtitlesChip(
     snapshot: PlayerOptionsSnapshot,
-    subtitles: SubtitleCatalog,
+    subtitles: PlaybackSubtitles,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = snapshot.currentSubtitle()
-    val sources = remember(subtitles, snapshot.subtitleTracks) { subtitles.sources(snapshot.subtitleTracks) }
+    val sources = remember(subtitles) { subtitles.sources() }
     val names = subtitleTrackLabels(snapshot.subtitleTracks, sources.sidecar, sources.originsKnown)
     val label = current?.let { names[snapshot.subtitleTracks.indexOf(it)] }
         ?: stringResource(R.string.mobile_playback_subtitles_disabled)
@@ -97,7 +92,7 @@ internal fun MobileSubtitlesSheetContent(
     player: Media3Player,
     snapshot: PlayerOptionsSnapshot,
     defaultTrackSelection: TrackSelectionParameters,
-    subtitles: SubtitleCatalog,
+    subtitles: PlaybackSubtitles,
     textSize: SubtitleTextSize,
     offsetMillis: Long,
     onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
@@ -118,7 +113,7 @@ internal fun MobileSubtitlesSheetContent(
     }
     val current = snapshot.currentSubtitle()
     val enabled = snapshot.canSelectTracks
-    val sources = remember(subtitles, snapshot.subtitleTracks) { subtitles.sources(snapshot.subtitleTracks) }
+    val sources = remember(subtitles) { subtitles.sources() }
     val originsKnown = sources.originsKnown
     val tracks = snapshot.subtitleTracks.mapIndexed { index, track ->
         Triple(index, track, track.putioSubtitle(sources.sidecar))

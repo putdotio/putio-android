@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
-import io.putdotio.sdk.files.PlaybackSubtitle
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -144,7 +143,6 @@ internal fun MobilePlayerScreen(
     upNext: PlaybackUpNextLookup = PlaybackUpNextLookup.Off,
     onPlayUpNext: (PlaybackTarget) -> Unit = {},
     neighbours: PlaybackNeighbours = PlaybackNeighbours(),
-    manifestSubtitles: List<PlaybackSubtitle>? = null,
     onPlay: (PlaybackTarget) -> Unit = {},
     /** Hands the original to VLC when this player can't play it; null where VLC isn't offered. */
     onOpenInVlc: (() -> Unit)? = null,
@@ -194,7 +192,6 @@ internal fun MobilePlayerScreen(
             upNext = upNext.whenAutoplaying(autoplayNextVideo, state.target.mediaType),
             onPlayUpNext = onPlayUpNext,
             neighbours = neighbours,
-            manifestSubtitles = manifestSubtitles,
             onPlay = onPlay,
         )
     }
@@ -342,7 +339,6 @@ private fun MobileReadyContent(
     upNext: PlaybackUpNextLookup,
     onPlayUpNext: (PlaybackTarget) -> Unit,
     neighbours: PlaybackNeighbours,
-    manifestSubtitles: List<PlaybackSubtitle>?,
     onPlay: (PlaybackTarget) -> Unit,
 ) {
     val casting = playerCast.casting
@@ -407,10 +403,7 @@ private fun MobileReadyContent(
             onBack = onBack,
             onVideoAspectRatio = onVideoAspectRatio,
             pictureInPicture = pictureInPicture,
-            subtitleCatalog = SubtitleCatalog(
-                ready?.source?.playerSubtitles() ?: PlaybackSubtitles.None,
-                manifestSubtitles,
-            ),
+            playerSubtitles = ready?.source?.playerSubtitles() ?: PlaybackSubtitles.None,
             nextEpisode = nextEpisode,
             onNextEpisode = onNextEpisode,
             upNext = upNext,
@@ -495,7 +488,7 @@ private fun MobileReadyPlayer(
     onBack: () -> Unit,
     onVideoAspectRatio: (Float) -> Unit,
     pictureInPicture: State<Boolean>,
-    subtitleCatalog: SubtitleCatalog,
+    playerSubtitles: PlaybackSubtitles,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
     upNext: PlaybackUpNextLookup,
@@ -683,7 +676,7 @@ private fun MobileReadyPlayer(
         onPointerNavigation = onPointerNavigation,
         onBack = onBack,
         pictureInPicture = pictureInPicture.value,
-        subtitleCatalog = subtitleCatalog,
+        playerSubtitles = playerSubtitles,
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
         upNextCard = upNextEnd.counting(upNext, pictureInPicture.value),
@@ -1369,7 +1362,7 @@ private fun MobileReadyPlayerContent(
     onPointerNavigation: () -> Unit,
     onBack: () -> Unit,
     pictureInPicture: Boolean,
-    subtitleCatalog: SubtitleCatalog,
+    playerSubtitles: PlaybackSubtitles,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
     upNextCard: PlaybackUpNext?,
@@ -1523,7 +1516,7 @@ private fun MobileReadyPlayerContent(
                 settings = {
                     MobileVideoChips(
                         options = options,
-                        subtitleCatalog = subtitleCatalog,
+                        playerSubtitles = playerSubtitles,
                         subtitleStartupPolicy = subtitleStartupPolicy,
                         stream = stream?.current,
                         onSheet = { sheet = it },
@@ -1556,7 +1549,7 @@ private fun MobileReadyPlayerContent(
                 player = player,
                 options = options,
                 defaultTrackSelection = playerState.defaultTrackSelection,
-                subtitleCatalog = subtitleCatalog,
+                playerSubtitles = playerSubtitles,
                 appearance = appearance,
                 preferences = preferences,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,
