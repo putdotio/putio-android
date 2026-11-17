@@ -22,6 +22,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +51,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.SubtitleView
 import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.sdk.files.PlaybackSubtitles
 
 /** The track the viewer picked, else the one showing; null when subtitles are off. */
 private fun PlayerOptionsSnapshot.currentSubtitle(): PlaybackSubtitleTrack? {
@@ -59,15 +61,20 @@ private fun PlayerOptionsSnapshot.currentSubtitle(): PlaybackSubtitleTrack? {
     } ?: subtitleTracks.firstOrNull { it.selected }
 }
 
+internal data class SubtitleCatalog(val subtitles: PlaybackSubtitles, val listed: List<PlaybackSubtitle>? = null) {
+    fun sources(tracks: List<PlaybackSubtitleTrack>): SubtitleSources = subtitleSources(subtitles, listed, tracks)
+}
+
 @Composable
 internal fun MobileSubtitlesChip(
     snapshot: PlayerOptionsSnapshot,
-    sidecar: List<PlaybackSubtitle>,
+    subtitles: SubtitleCatalog,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val current = snapshot.currentSubtitle()
-    val names = subtitleTrackLabels(snapshot.subtitleTracks, sidecar)
+    val sources = remember(subtitles, snapshot.subtitleTracks) { subtitles.sources(snapshot.subtitleTracks) }
+    val names = subtitleTrackLabels(snapshot.subtitleTracks, sources.sidecar, sources.originsKnown)
     val label = current?.let { names[snapshot.subtitleTracks.indexOf(it)] }
         ?: stringResource(R.string.mobile_playback_subtitles_disabled)
     MobilePlayerChip(
@@ -90,7 +97,7 @@ internal fun MobileSubtitlesSheetContent(
     player: Media3Player,
     snapshot: PlayerOptionsSnapshot,
     defaultTrackSelection: TrackSelectionParameters,
-    sidecar: List<PlaybackSubtitle>,
+    subtitles: SubtitleCatalog,
     textSize: SubtitleTextSize,
     offsetMillis: Long,
     onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
@@ -111,8 +118,10 @@ internal fun MobileSubtitlesSheetContent(
     }
     val current = snapshot.currentSubtitle()
     val enabled = snapshot.canSelectTracks
+    val sources = remember(subtitles, snapshot.subtitleTracks) { subtitles.sources(snapshot.subtitleTracks) }
+    val originsKnown = sources.originsKnown
     val tracks = snapshot.subtitleTracks.mapIndexed { index, track ->
-        Triple(index, track, track.putioSubtitle(sidecar))
+        Triple(index, track, track.putioSubtitle(sources.sidecar))
     }
     Column(Modifier.selectableGroup()) {
         MobileSideSheetOption(
@@ -129,22 +138,27 @@ internal fun MobileSubtitlesSheetContent(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             )
         }
-        val names = subtitleTrackLabels(snapshot.subtitleTracks, sidecar)
+        val names = subtitleTrackLabels(snapshot.subtitleTracks, sources.sidecar, originsKnown)
         val inFile = tracks.filter { it.third.origin() == SubtitleOrigin.File }
         val found = tracks.filter { it.third.origin() != SubtitleOrigin.File }.sortedBy { it.third.origin() }
-        listOf(
-            PlaybackR.string.playback_subtitles_in_file to inFile,
-            PlaybackR.string.playback_subtitles_found to found,
-        )
+        val groups = if (originsKnown) {
+            listOf(
+                PlaybackR.string.playback_subtitles_in_file to inFile,
+                PlaybackR.string.playback_subtitles_found to found,
+            )
+        } else {
+            listOf(null to tracks)
+        }
+        groups
             .filter { it.second.isNotEmpty() }
             .forEach { (heading, group) ->
-                MobileSideSheetLabel(stringResource(heading))
+                heading?.let { MobileSideSheetLabel(stringResource(it)) }
                 group.forEach { (index, track, subtitle) ->
                     MobileSideSheetOption(
                         label = names[index],
                         selected = track == current,
                         enabled = enabled,
-                        supporting = subtitleTrackDetails(track, subtitle, inFile = true)?.let { { Text(it) } },
+                        supporting = subtitleTrackDetails(track, subtitle, originsKnown)?.let { { Text(it) } },
                         onClick = { select(SubtitleSelection.Track(track.identity)) },
                     )
                 }

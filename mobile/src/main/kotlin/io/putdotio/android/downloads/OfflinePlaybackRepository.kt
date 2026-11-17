@@ -14,6 +14,7 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.confirmedResumePlayback
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackStreamFormat
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
@@ -144,6 +145,9 @@ internal class OfflinePlaybackRepository(
 
     override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
         delegate.findNeighbours(target)
+
+    override suspend fun listSubtitles(target: PlaybackTarget): PlaybackRepositoryResult<List<PlaybackSubtitle>> =
+        delegate.listSubtitles(target)
 }
 
 private val DownloadArtifact.isOriginal: Boolean

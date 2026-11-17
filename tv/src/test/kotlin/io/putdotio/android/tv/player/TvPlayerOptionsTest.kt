@@ -99,7 +99,7 @@ class TvPlayerOptionsTest {
 
         compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 2), text = oneText()) }
         settle()
-        chip(AUDIO).assertIsDisplayed().assert(describedAs("Audio: Italiano"))
+        chip(AUDIO).assertIsDisplayed().assert(describedAs("Audio: Italian"))
         chip(SPEED).assertIsDisplayed().assert(describedAs("Playback speed 1×"))
     }
 
@@ -327,7 +327,7 @@ class TvPlayerOptionsTest {
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
 
         key(Key.DirectionCenter)
-        choose("Deutsch")
+        choose("German")
         settle()
         compose.runOnIdle { player.replaceTracks(audio = twoAudio(period = 3), text = twoText(period = 3)) }
         settle()
@@ -366,7 +366,7 @@ class TvPlayerOptionsTest {
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertIsDisplayed()
 
         key(Key.DirectionCenter)
-        choose("Deutsch")
+        choose("German")
         settle()
         compose.onNodeWithTag(SUBTITLE_CUES_TAG).assertDoesNotExist()
     }
@@ -516,14 +516,14 @@ class TvPlayerOptionsTest {
         var policy by mutableStateOf<SubtitleStartupPolicy?>(null)
         show(player, policyProvider = { policy })
         openSheet(SUBTITLES, rightPresses = 1)
-        choose("Deutsch")
+        choose("German")
         compose.runOnIdle { assertEquals(1, player.selectedTextIndex()) }
         key(Key.DirectionCenter)
-        compose.onNode(hasText("Deutsch") and hasClickAction()).assertExists()
+        compose.onNode(hasText("German") and hasClickAction()).assertExists()
 
         policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true)
         settle()
-        compose.onNode(hasText("Deutsch") and hasClickAction()).assertDoesNotExist()
+        compose.onNode(hasText("German") and hasClickAction()).assertDoesNotExist()
         chip(SUBTITLES).assertDoesNotExist()
         compose.runOnIdle {
             assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)

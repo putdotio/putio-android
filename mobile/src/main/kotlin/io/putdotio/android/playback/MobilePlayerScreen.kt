@@ -144,6 +144,7 @@ internal fun MobilePlayerScreen(
     upNext: PlaybackUpNextLookup = PlaybackUpNextLookup.Off,
     onPlayUpNext: (PlaybackTarget) -> Unit = {},
     neighbours: PlaybackNeighbours = PlaybackNeighbours(),
+    manifestSubtitles: List<PlaybackSubtitle>? = null,
     onPlay: (PlaybackTarget) -> Unit = {},
     /** Hands the original to VLC when this player can't play it; null where VLC isn't offered. */
     onOpenInVlc: (() -> Unit)? = null,
@@ -193,6 +194,7 @@ internal fun MobilePlayerScreen(
             upNext = upNext.whenAutoplaying(autoplayNextVideo, state.target.mediaType),
             onPlayUpNext = onPlayUpNext,
             neighbours = neighbours,
+            manifestSubtitles = manifestSubtitles,
             onPlay = onPlay,
         )
     }
@@ -340,6 +342,7 @@ private fun MobileReadyContent(
     upNext: PlaybackUpNextLookup,
     onPlayUpNext: (PlaybackTarget) -> Unit,
     neighbours: PlaybackNeighbours,
+    manifestSubtitles: List<PlaybackSubtitle>?,
     onPlay: (PlaybackTarget) -> Unit,
 ) {
     val casting = playerCast.casting
@@ -404,7 +407,10 @@ private fun MobileReadyContent(
             onBack = onBack,
             onVideoAspectRatio = onVideoAspectRatio,
             pictureInPicture = pictureInPicture,
-            sidecarSubtitles = ready?.source?.playerSubtitles().sidecarTracks(),
+            subtitleCatalog = SubtitleCatalog(
+                ready?.source?.playerSubtitles() ?: PlaybackSubtitles.None,
+                manifestSubtitles,
+            ),
             nextEpisode = nextEpisode,
             onNextEpisode = onNextEpisode,
             upNext = upNext,
@@ -489,7 +495,7 @@ private fun MobileReadyPlayer(
     onBack: () -> Unit,
     onVideoAspectRatio: (Float) -> Unit,
     pictureInPicture: State<Boolean>,
-    sidecarSubtitles: List<PlaybackSubtitle>,
+    subtitleCatalog: SubtitleCatalog,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
     upNext: PlaybackUpNextLookup,
@@ -677,7 +683,7 @@ private fun MobileReadyPlayer(
         onPointerNavigation = onPointerNavigation,
         onBack = onBack,
         pictureInPicture = pictureInPicture.value,
-        sidecarSubtitles = sidecarSubtitles,
+        subtitleCatalog = subtitleCatalog,
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
         upNextCard = upNextEnd.counting(upNext, pictureInPicture.value),
@@ -1363,7 +1369,7 @@ private fun MobileReadyPlayerContent(
     onPointerNavigation: () -> Unit,
     onBack: () -> Unit,
     pictureInPicture: Boolean,
-    sidecarSubtitles: List<PlaybackSubtitle>,
+    subtitleCatalog: SubtitleCatalog,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
     upNextCard: PlaybackUpNext?,
@@ -1517,7 +1523,7 @@ private fun MobileReadyPlayerContent(
                 settings = {
                     MobileVideoChips(
                         options = options,
-                        sidecarSubtitles = sidecarSubtitles,
+                        subtitleCatalog = subtitleCatalog,
                         subtitleStartupPolicy = subtitleStartupPolicy,
                         stream = stream?.current,
                         onSheet = { sheet = it },
@@ -1550,7 +1556,7 @@ private fun MobileReadyPlayerContent(
                 player = player,
                 options = options,
                 defaultTrackSelection = playerState.defaultTrackSelection,
-                sidecarSubtitles = sidecarSubtitles,
+                subtitleCatalog = subtitleCatalog,
                 appearance = appearance,
                 preferences = preferences,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,

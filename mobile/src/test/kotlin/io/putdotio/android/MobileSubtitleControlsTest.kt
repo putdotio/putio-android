@@ -67,9 +67,11 @@ import io.putdotio.android.playback.SubtitleSelection
 import io.putdotio.android.playback.MobileSubtitleAppearanceContent
 import io.putdotio.android.playback.MobileSubtitlesChip
 import io.putdotio.android.playback.MobileSubtitlesSheetContent
+import io.putdotio.android.playback.SubtitleCatalog
 import io.putdotio.android.playback.SubtitleTextSize
 import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
 import io.putdotio.sdk.files.PlaybackSubtitle
+import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
@@ -154,27 +156,33 @@ class MobileSubtitleControlsTest {
         compose.onNodeWithText("No captions available").assertDoesNotExist()
 
         val rows = listOf(
-            "English" to "SRT", "English · SDH" to "VTT", "Deutsch" to "This folder", "Türkçe" to "OpenSubtitles",
+            "English - Sample.Show.en" to "SRT",
+            "English · SDH" to "VTT",
+            "German - Sample.Show.de" to "This folder",
+            "Turkish - Sample.Show.tr" to "OpenSubtitles",
         )
         rows.forEach { (name, details) ->
             compose.onNode(hasText(name) and hasText(details) and isSelectable())
                 .assertIsDisplayed()
                 .assertIsNotSelected()
         }
-        val order = listOf("Off", "In this file", "English", "English · SDH", "Found by put.io", "Deutsch", "Türkçe")
+        val order = listOf(
+            "Off", "In this file", "English - Sample.Show.en", "English · SDH", "Found by put.io",
+            "German - Sample.Show.de", "Turkish - Sample.Show.tr",
+        )
         val tops = order.map { text ->
             compose.onAllNodes(hasText(text)).fetchSemanticsNodes().maxOf { it.boundsInRoot.top }
         }
         assertEquals(tops.sorted(), tops)
         compose.onNodeWithText("Français").assertDoesNotExist()
 
-        compose.onNode(hasText("Türkçe") and isSelectable()).performClick()
+        compose.onNode(hasText("Turkish - Sample.Show.tr") and isSelectable()).performClick()
         compose.runOnIdle {
             assertEquals(SubtitleSelection.Track(group.getFormat(0).toSubtitleTrackIdentity()), selection)
             assertEquals(listOf(0), player.trackSelectionParameters.overrides.getValue(group).trackIndices)
         }
-        compose.onNode(hasText("Türkçe") and isSelectable()).assertIsSelected()
-        compose.onNodeWithContentDescription("Subtitles: Türkçe").assertIsDisplayed()
+        compose.onNode(hasText("Turkish - Sample.Show.tr") and isSelectable()).assertIsSelected()
+        compose.onNodeWithContentDescription("Subtitles: Turkish - Sample.Show.tr").assertIsDisplayed()
         compose.onNode(hasText("Off") and isSelectable()).assertIsNotSelected().performClick()
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
         compose.onNode(hasText("English · SDH") and isSelectable()).performClick()
@@ -244,12 +252,13 @@ class MobileSubtitleControlsTest {
         PutioTheme {
             val options = rememberPlayerOptionsSnapshot(player)
             Column(Modifier.verticalScroll(rememberScrollState())) {
-                MobileSubtitlesChip(options, sidecar, {})
+                val catalog = SubtitleCatalog(PlaybackSubtitles.Sidecar(sidecar))
+                MobileSubtitlesChip(options, catalog, {})
                 MobileSubtitlesSheetContent(
                     player = player,
                     snapshot = options,
                     defaultTrackSelection = defaults,
-                    sidecar = sidecar,
+                    subtitles = catalog,
                     textSize = SubtitleTextSize.Medium,
                     offsetMillis = 0L,
                     onSubtitleSelectionChanged = onSelection,
@@ -287,7 +296,7 @@ class MobileSubtitleControlsTest {
             key = key,
             language = language,
             languageCode = code,
-            name = language,
+            name = "Sample.Show.$code.$format",
             source = source,
             url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
                 .newInstance("https://example.com/$key.srt"),

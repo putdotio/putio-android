@@ -20,10 +20,9 @@ import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
+import io.putdotio.android.playback.PlaybackFindSubtitles
 import io.putdotio.android.playback.PlaybackFindNeighbours
-import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNextResult
-import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
@@ -31,6 +30,7 @@ import io.putdotio.android.playback.originalFallbackTelemetry
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberFolderNeighbours
+import io.putdotio.android.playback.rememberManifestSubtitles
 import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.telemetry.AnalyticsEvent
@@ -43,8 +43,6 @@ import io.putdotio.android.tv.TvSnackbarHost
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.files.hasVlc
-import io.putdotio.sdk.files.PlaybackSourceKind
-import io.putdotio.sdk.files.PlaybackSubtitle
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -96,7 +94,7 @@ internal fun TvPlaybackRoute(
     onBackground: (() -> Unit)? = null,
     onForeground: () -> Unit = {},
     miniPlayer: TvMiniPlayerState? = null,
-    findSubtitles: TvFindSubtitles? = null,
+    findSubtitles: PlaybackFindSubtitles? = null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val manifestSubtitles = rememberManifestSubtitles(state, findSubtitles, onSessionRejected)
@@ -172,33 +170,6 @@ internal fun TvPlaybackRoute(
             }
         }
     }
-}
-
-internal typealias TvFindSubtitles = suspend (PlaybackTarget) -> PlaybackRepositoryResult<List<PlaybackSubtitle>>
-
-@Composable
-private fun rememberManifestSubtitles(
-    state: PlaybackState,
-    findSubtitles: TvFindSubtitles?,
-    onAuthenticationRequired: suspend () -> Unit,
-): List<PlaybackSubtitle>? {
-    val content = state.content as? PlaybackContent.Ready
-    val manifest = content != null &&
-        content.source.kind == PlaybackSourceKind.HLS &&
-        state.target.mediaType == PlaybackMediaType.VIDEO &&
-        !content.subtitlesHidden
-    var listed by remember(state.target.fileId) { mutableStateOf<List<PlaybackSubtitle>?>(null) }
-    LaunchedEffect(state.target.fileId, manifest, findSubtitles) {
-        val find = findSubtitles?.takeIf { manifest && listed == null } ?: return@LaunchedEffect
-        listed = when (val found = find(state.target)) {
-            is PlaybackRepositoryResult.Success -> found.value
-            is PlaybackRepositoryResult.Failure -> {
-                if (found.failure.putioFailure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
-                null
-            }
-        }
-    }
-    return listed.takeIf { manifest }
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"

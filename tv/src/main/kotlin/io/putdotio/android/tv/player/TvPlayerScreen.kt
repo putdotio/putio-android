@@ -102,6 +102,7 @@ import io.putdotio.android.playback.PlaybackTrackRecovery
 import io.putdotio.android.playback.PlaybackTrackRecoveryStep
 import io.putdotio.android.playback.manifestSubtitleUris
 import io.putdotio.android.playback.sidecarSubtitleUris
+import io.putdotio.android.playback.subtitleSources
 import io.putdotio.android.playback.toTrackFailure
 import io.putdotio.android.playback.withAudioOf
 import io.putdotio.sdk.files.PlaybackSource
@@ -560,7 +561,7 @@ private fun TvReadyPlayer(
     val choices = TvTrackChoices(tracks, parameters, subtitleStartupPolicy)
     val subtitles = remember(source) { source.playerSubtitles() }
     val subtitleSources = remember(subtitles, manifestSubtitles, choices.subtitles) {
-        tvSubtitleSources(subtitles, manifestSubtitles, choices.subtitles)
+        subtitleSources(subtitles, manifestSubtitles, choices.subtitles)
     }
     TvSubtitlesUnavailableNotice(source, target, snackbar)
     val subtitlesHidden = choices.subtitlesHidden

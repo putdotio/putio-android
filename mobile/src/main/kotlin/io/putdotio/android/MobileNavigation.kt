@@ -82,12 +82,14 @@ import io.putdotio.android.playback.PlaybackFallbackReason
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
+import io.putdotio.android.playback.PlaybackFindSubtitles
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.rememberNextEpisode
 import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.rememberFolderNeighbours
+import io.putdotio.android.playback.rememberManifestSubtitles
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.confirmedAutoplayNextVideo
 import io.putdotio.android.playback.confirmedRotateToLandscape
@@ -461,6 +463,7 @@ internal fun MobileNavHost(
                             findNextEpisode = playbackRepository::findNextVideo
                                 .takeIf { accountSettingsState.nextEpisodeEnabled() },
                             findNeighbours = playbackRepository::findNeighbours,
+                            findSubtitles = playbackRepository::listSubtitles,
                             // Another file replaces this route, so Back still returns to the screen below.
                             onPlay = { next ->
                                 navController.navigateToPlayback(
@@ -579,6 +582,7 @@ private fun MobilePlaybackRoute(
     playerFactory: MobilePlayerFactory,
     findNextEpisode: (suspend (PlaybackTarget) -> PlaybackNextResult)? = null,
     findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)? = null,
+    findSubtitles: PlaybackFindSubtitles? = null,
     onPlay: (PlaybackTarget) -> Unit = {},
     onOpenInVlc: ((PlaybackTarget) -> Unit)? = null,
     cast: MobileCastController? = null,
@@ -591,6 +595,7 @@ private fun MobilePlaybackRoute(
     val nextEpisode = rememberNextEpisode(state, findNextEpisode) { currentOnAuthenticationRequired() }
     val neighbours = rememberFolderNeighbours(state, findNeighbours) { currentOnAuthenticationRequired() }
         ?: PlaybackNeighbours()
+    val manifestSubtitles = rememberManifestSubtitles(state, findSubtitles) { currentOnAuthenticationRequired() }
     val upNext = rememberUpNext(state, findNeighbours.takeIf { autoplayNextVideo }) {
         currentOnAuthenticationRequired()
     }
@@ -645,6 +650,7 @@ private fun MobilePlaybackRoute(
         upNext = upNext,
         onPlayUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
         neighbours = neighbours,
+        manifestSubtitles = manifestSubtitles,
         onPlay = onPlay,
         onOpenInVlc = onOpenInVlc?.let { open -> { open(state.target) } },
         cast = cast,

@@ -526,7 +526,7 @@ class MobilePlayerScreenTest {
             )
         }
         compose.onNodeWithContentDescription("Audio: English").performClick()
-        compose.onNode(hasText("Deutsch") and isSelectable()).performClick()
+        compose.onNode(hasText("German") and isSelectable()).performClick()
         compose.runOnIdle { assertEquals(listOf(1), player.trackSelectionParameters.overrides[audio]?.trackIndices) }
 
         compose.runOnIdle {

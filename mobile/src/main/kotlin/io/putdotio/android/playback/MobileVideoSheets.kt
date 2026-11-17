@@ -21,7 +21,6 @@ import io.putdotio.android.MobileKeyCommand
 import io.putdotio.android.MobileShortcutScope
 import io.putdotio.android.R
 import io.putdotio.android.mobileKeyCommand
-import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.android.MobileIconButton
 
 internal val MobileVideoSheet.isSubtitles: Boolean
@@ -31,7 +30,7 @@ internal val MobileVideoSheet.isSubtitles: Boolean
 @Composable
 internal fun MobileVideoChips(
     options: PlayerOptionsSnapshot,
-    sidecarSubtitles: List<PlaybackSubtitle>,
+    subtitleCatalog: SubtitleCatalog,
     subtitleStartupPolicy: SubtitleStartupPolicy?,
     stream: PlaybackStream?,
     onSheet: (MobileVideoSheet) -> Unit,
@@ -39,7 +38,7 @@ internal fun MobileVideoChips(
 ) {
     MobileAudioChip(options, { onSheet(MobileVideoSheet.Audio) }, modifier)
     if (subtitleStartupPolicy?.showSubtitles != false) {
-        MobileSubtitlesChip(options, sidecarSubtitles, { onSheet(MobileVideoSheet.Subtitles) }, modifier)
+        MobileSubtitlesChip(options, subtitleCatalog, { onSheet(MobileVideoSheet.Subtitles) }, modifier)
     }
     MobileSpeedChip(options, { onSheet(MobileVideoSheet.Speed) }, modifier)
     if (stream != null) {
@@ -108,7 +107,7 @@ internal fun MobileVideoSheets(
     player: Media3Player,
     options: PlayerOptionsSnapshot,
     defaultTrackSelection: TrackSelectionParameters,
-    sidecarSubtitles: List<PlaybackSubtitle>,
+    subtitleCatalog: SubtitleCatalog,
     appearance: SubtitleAppearanceStore,
     preferences: RetainedPlayerPreferences,
     onSubtitleSelectionChanged: (SubtitleSelection) -> Unit,
@@ -145,7 +144,7 @@ internal fun MobileVideoSheets(
                 player = player,
                 snapshot = options,
                 defaultTrackSelection = defaultTrackSelection,
-                sidecar = sidecarSubtitles,
+                subtitles = subtitleCatalog,
                 textSize = appearance.textSize,
                 offsetMillis = preferences.subtitleOffsetMillis,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,

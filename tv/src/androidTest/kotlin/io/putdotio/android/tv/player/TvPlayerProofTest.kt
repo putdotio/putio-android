@@ -423,7 +423,7 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { selectedAudioLanguage(it) == "tr" }
         elapse(DIALOG_EXIT_MILLIS)
-        compose.onNodeWithContentDescription("Audio: Türkçe").assertIsSelected()
+        compose.onNodeWithContentDescription("Audio: Turkish").assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("AAC · stereo").fetchSemanticsNodes().isNotEmpty() }
         press(KeyEvent.KEYCODE_DPAD_UP)
