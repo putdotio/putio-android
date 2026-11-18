@@ -71,8 +71,7 @@ public class PinnedItems(
     }
 
     public fun retry() {
-        removed.clear()
-        rechecks.clear()
+        rechecks += removed
         gone.clear()
         readAgain()
     }
