@@ -423,7 +423,7 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { selectedAudioLanguage(it) == "tr" }
         elapse(DIALOG_EXIT_MILLIS)
-        compose.onNodeWithContentDescription("Audio: Türkçe").assertIsSelected()
+        compose.onNodeWithContentDescription("Audio: Turkish").assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithText("AAC · stereo").fetchSemanticsNodes().isNotEmpty() }
         press(KeyEvent.KEYCODE_DPAD_UP)
@@ -724,13 +724,8 @@ class TvPlayerProofTest {
             ),
         )
         val standard = localSource(requireNotNull(hls)).copy(subtitles = PlaybackSubtitles.Embedded)
-        val listed = listOf(
-            listedSubtitle(key = "in-file-en", source = "mkv", name = "episode.mkv"),
-            listedSubtitle(key = "found-en", source = "opensubtitles_rest", name = "episode.en.srt"),
-        )
         val factory = ProofPlayerFactory()
         var content by mutableStateOf<PlaybackContent>(PlaybackContent.Ready(empty))
-        var manifest by mutableStateOf<List<PlaybackSubtitle>?>(null)
         compose.setContent {
             PutioTvTheme {
                 TvPlayerScreen(
@@ -744,7 +739,6 @@ class TvPlayerProofTest {
                     onPlayerFailure = { failure, _ -> error("Local playback failed: $failure") },
                     playerFactory = factory,
                     subtitleStartupPolicy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = false),
-                    manifestSubtitles = manifest,
                 )
             }
         }
@@ -772,15 +766,14 @@ class TvPlayerProofTest {
         screenshot("androidtv-650-subtitles-failed")
 
         compose.runOnIdle {
-            manifest = listed
             content = PlaybackContent.Ready(standard)
         }
         awaitPlayer(factory) { it.isPlaying && it.currentTracks.playbackSubtitleTracks().size == 2 }
         openSubtitlesSheet()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("In this file").fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(10_000) { compose.onAllNodesWithText("Size and timing").fetchSemanticsNodes().isNotEmpty() }
         elapse(DIALOG_EXIT_MILLIS)
         screenshot("androidtv-650-standard-sources")
-        assertTrue(compose.onAllNodesWithText("OpenSubtitles", substring = true).fetchSemanticsNodes().isNotEmpty())
+        assertTrue(compose.onAllNodesWithText("In this file").fetchSemanticsNodes().isEmpty())
         compose.onNode(hasText("Size and timing") and hasClickAction()).performSemanticsAction(SemanticsActions.OnClick)
         compose.waitUntil(10_000) { compose.onAllNodesWithText(CAPTION_FOOTNOTE).fetchSemanticsNodes().isNotEmpty() }
         elapse(DIALOG_EXIT_MILLIS)
@@ -801,17 +794,6 @@ class TvPlayerProofTest {
         compose.onNode(subtitlesChip).assertExists()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
     }
-
-    private fun listedSubtitle(key: String, source: String, name: String) = PlaybackSubtitle(
-        format = "srt",
-        key = key,
-        language = "English",
-        languageCode = "eng",
-        name = name,
-        source = source,
-        url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
-            .newInstance("https://api.put.io/v2/files/$FIXTURE_FILE_ID/subtitles/$key"),
-    )
 
     private fun foundSubtitle(path: String): PlaybackSubtitle {
         val file = File(path).canonicalFile

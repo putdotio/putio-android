@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
-import io.putdotio.sdk.files.PlaybackSubtitle
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -404,7 +403,7 @@ private fun MobileReadyContent(
             onBack = onBack,
             onVideoAspectRatio = onVideoAspectRatio,
             pictureInPicture = pictureInPicture,
-            sidecarSubtitles = ready?.source?.playerSubtitles().sidecarTracks(),
+            playerSubtitles = ready?.source?.playerSubtitles() ?: PlaybackSubtitles.None,
             nextEpisode = nextEpisode,
             onNextEpisode = onNextEpisode,
             upNext = upNext,
@@ -489,7 +488,7 @@ private fun MobileReadyPlayer(
     onBack: () -> Unit,
     onVideoAspectRatio: (Float) -> Unit,
     pictureInPicture: State<Boolean>,
-    sidecarSubtitles: List<PlaybackSubtitle>,
+    playerSubtitles: PlaybackSubtitles,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
     upNext: PlaybackUpNextLookup,
@@ -677,7 +676,7 @@ private fun MobileReadyPlayer(
         onPointerNavigation = onPointerNavigation,
         onBack = onBack,
         pictureInPicture = pictureInPicture.value,
-        sidecarSubtitles = sidecarSubtitles,
+        playerSubtitles = playerSubtitles,
         nextEpisode = nextEpisode,
         onNextEpisode = onNextEpisode,
         upNextCard = upNextEnd.counting(upNext, pictureInPicture.value),
@@ -1363,7 +1362,7 @@ private fun MobileReadyPlayerContent(
     onPointerNavigation: () -> Unit,
     onBack: () -> Unit,
     pictureInPicture: Boolean,
-    sidecarSubtitles: List<PlaybackSubtitle>,
+    playerSubtitles: PlaybackSubtitles,
     nextEpisode: PlaybackTarget?,
     onNextEpisode: () -> Unit,
     upNextCard: PlaybackUpNext?,
@@ -1517,7 +1516,7 @@ private fun MobileReadyPlayerContent(
                 settings = {
                     MobileVideoChips(
                         options = options,
-                        sidecarSubtitles = sidecarSubtitles,
+                        playerSubtitles = playerSubtitles,
                         subtitleStartupPolicy = subtitleStartupPolicy,
                         stream = stream?.current,
                         onSheet = { sheet = it },
@@ -1550,7 +1549,7 @@ private fun MobileReadyPlayerContent(
                 player = player,
                 options = options,
                 defaultTrackSelection = playerState.defaultTrackSelection,
-                sidecarSubtitles = sidecarSubtitles,
+                playerSubtitles = playerSubtitles,
                 appearance = appearance,
                 preferences = preferences,
                 onSubtitleSelectionChanged = onSubtitleSelectionChanged,

@@ -27,44 +27,19 @@ class PlaybackTrackLabelsTest {
     private val resources: Resources = ApplicationProvider.getApplicationContext<Context>().resources
 
     @Test
-    fun unlabelledTracksInAFileTakeTheirFormatElseANumber() {
+    fun subtitleRowsCarryNoFormatOrRoleTags() {
         val tracks = tracks(
             embedded("1", "en", MimeTypes.APPLICATION_SUBRIP),
             embedded("2", null, MimeTypes.APPLICATION_SUBRIP),
             embedded("3", null, MimeTypes.TEXT_SSA),
-            embedded("4", null, null),
+            Format.Builder().setId("4").setLanguage("en").setRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND)
+                .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES).setCodecs(MimeTypes.TEXT_VTT).build(),
         )
 
         assertEquals(
-            listOf("English", "SRT", "SSA", "Subtitle 4"),
+            listOf("English (track 1)", "Subtitle 2", "Subtitle 3", "English (track 4)"),
             resources.subtitleTrackLabels(tracks, emptyList(), inFile = true),
         )
-        assertEquals(
-            listOf("SRT", "Embedded", "Embedded", "Embedded"),
-            tracks.map { resources.subtitleTrackDetails(it, null, inFile = true) },
-        )
-    }
-
-    @Test
-    fun unlabelledTracksOfOneFormatTakeTheirTrackNumbers() {
-        val tracks = tracks(
-            embedded("1", null, MimeTypes.APPLICATION_SUBRIP),
-            embedded("2", null, MimeTypes.APPLICATION_SUBRIP),
-            embedded("3", "tr", MimeTypes.APPLICATION_SUBRIP),
-        )
-
-        assertEquals(
-            listOf("SRT (track 1)", "SRT (track 2)", "Türkçe"),
-            resources.subtitleTrackLabels(tracks, emptyList(), inFile = true),
-        )
-    }
-
-    @Test
-    fun anUnlabelledManifestTrackNamesItsFormatOnce() {
-        val track = tracks(embedded("1", null, MimeTypes.TEXT_VTT)).single()
-
-        assertEquals(listOf("VTT"), resources.subtitleTrackLabels(listOf(track), emptyList(), inFile = false))
-        assertNull(resources.subtitleTrackDetails(track, null, inFile = false))
     }
 
     @Test
@@ -98,57 +73,55 @@ class PlaybackTrackLabelsTest {
     }
 
     @Test
-    fun manifestTracksTakeTheSourcesPutioListsInOrderWithinEachLanguage() {
+    fun directPlaySidecarsTakePutiosLabels() {
+        val sidecar = subtitle("os-en", "opensubtitles", name = "Sample.Show.en.srt")
+        val subtitles = PlaybackSubtitles.Sidecar(listOf(sidecar))
+        val track = tracks(embedded("0:os-en", "en", MimeTypes.APPLICATION_SUBRIP))
+
+        val sources = subtitles.sources()
+
+        assertEquals(listOf("English - Sample.Show.en"), resources.subtitleTrackLabels(track, sources.sidecar, true))
+    }
+
+    @Test
+    fun manifestTracksShowTheirManifestNamesInOneList() {
         val tracks = tracks(
-            manifest("subs0:English 1", "en"),
-            manifest("subs0:English 2", "en"),
-            manifest("subs0:Turkish", "tr"),
+            manifest("subs0:English - Sample.Show.S01E02-eng", "en"),
+            manifest("subs0:English - Sample.Show.S01E02-eng (2)", "en"),
+            manifest("subs0:Unknown - notes", "und"),
         )
-        val listed = listOf(
-            subtitle("en-in-file", "mkv"),
-            subtitle("en-found", "opensubtitles_rest"),
-            subtitle("tr-found", "opensubtitles_rest").copy(language = "Turkish", languageCode = "tur"),
-        )
+        val sources = PlaybackSubtitles.Embedded.sources()
 
-        val keyed = listed.keyedToManifest(tracks)
-
+        assertEquals(false, sources.originsKnown)
         assertEquals(
-            listOf(SubtitleOrigin.File, SubtitleOrigin.OpenSubtitles, SubtitleOrigin.OpenSubtitles),
-            tracks.map { it.putioSubtitle(keyed).origin() },
-        )
-        assertEquals(
-            listOf("SRT", "OpenSubtitles", "OpenSubtitles"),
-            tracks.map { resources.subtitleTrackDetails(it, it.putioSubtitle(keyed), inFile = true) },
-        )
-        assertEquals(emptyList<PlaybackSubtitle>(), listed.drop(1).keyedToManifest(tracks))
-    }
-
-    @Test
-    fun manifestTracksWithoutIdsAreKeyedByTheirNames() {
-        val tracks = tracks(unnamed("English", "en"), unnamed("English 2", "en"))
-        val listed = listOf(subtitle("en-in-file", "mkv"), subtitle("en-found", "opensubtitles_rest"))
-
-        val keyed = listed.keyedToManifest(tracks)
-
-        assertEquals(
-            listOf(SubtitleOrigin.File, SubtitleOrigin.OpenSubtitles),
-            tracks.map { it.putioSubtitle(keyed).origin() },
-        )
-        assertEquals(
-            emptyList<PlaybackSubtitle>(),
-            listed.keyedToManifest(tracks(unnamed("English", "en"), unnamed("English", "en"))),
+            listOf("English - Sample.Show.S01E02-eng", "English - Sample.Show.S01E02-eng (2)", "Unknown - notes"),
+            resources.subtitleTrackLabels(tracks, sources.sidecar, sources.originsKnown),
         )
     }
 
     @Test
-    fun aManifestTrackWithoutAListedLanguageLeavesEveryOriginUnknown() {
-        val tracks = tracks(manifest("subs0:English", "en"), manifest("subs0:Portuguese", "pt-BR"))
-        val listed = listOf(
-            subtitle("en-found", "opensubtitles_rest"),
-            subtitle("pob-found", "opensubtitles_rest").copy(language = "Portuguese", languageCode = "pob"),
+    fun sidecarLabelsFollowTheManifestNamingRule() {
+        val names = listOf(
+            "Sample.Show.720p.webvtt", "Sample.Show.720p", ".hidden", "Sample.Show.srt", "say \"hi\".srt", "",
         )
+        val formats = names.indices.map { embedded("0:s$it", "en", MimeTypes.APPLICATION_SUBRIP) }
+        val tracks = tracks(*formats.toTypedArray())
+        val sidecar = names.mapIndexed { index, name -> subtitle("s$index", "folder", name = name) } +
+            subtitle("und", "folder", name = "notes.srt").copy(language = "", languageCode = "und")
+        val withUnknown = tracks + tracks(embedded("0:und", null, MimeTypes.APPLICATION_SUBRIP))
 
-        assertEquals(emptyList<PlaybackSubtitle>(), listed.keyedToManifest(tracks))
+        assertEquals(
+            listOf(
+                "English - Sample.Show.720p",
+                "English - Sample.Show",
+                "English - .hidden",
+                "English - Sample.Show (2)",
+                "English - say 'hi'",
+                "English",
+                "Unknown - notes",
+            ),
+            resources.subtitleTrackLabels(withUnknown, sidecar, inFile = true),
+        )
     }
 
     private fun tracks(vararg formats: Format): List<PlaybackSubtitleTrack> {
@@ -162,14 +135,6 @@ class PlaybackTrackLabelsTest {
             .setLanguage(language ?: C.LANGUAGE_UNDETERMINED)
             .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
             .setCodecs(codecs)
-            .build()
-
-    private fun unnamed(label: String, language: String): Format =
-        Format.Builder()
-            .setLanguage(language)
-            .setLabel(label)
-            .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES)
-            .setCodecs(MimeTypes.TEXT_VTT)
             .build()
 
     private fun manifest(id: String, language: String): Format =
@@ -190,13 +155,13 @@ class PlaybackTrackLabelsTest {
             subtitles = subtitles,
         )
 
-    private fun subtitle(key: String, source: String) =
+    private fun subtitle(key: String, source: String, name: String = "episode.srt") =
         PlaybackSubtitle(
             format = "srt",
             key = key,
             language = "English",
             languageCode = "eng",
-            name = "episode.srt",
+            name = name,
             source = source,
             url = PutioCredentialUrl.of("https://api.put.io/v2/files/42/subtitles/$key"),
         )

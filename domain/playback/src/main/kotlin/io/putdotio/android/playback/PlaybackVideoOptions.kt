@@ -47,7 +47,7 @@ private val AUDIO_CODEC_NAMES = mapOf(
 public fun languageName(tag: String?): String? {
     val locale = tag?.takeUnless { it.isBlank() || it == C.LANGUAGE_UNDETERMINED }?.let(Locale::forLanguageTag)
         ?: return null
-    return locale.getDisplayLanguage(locale)
+    return locale.getDisplayLanguage(Locale.ENGLISH)
         .takeUnless { it.isBlank() || it.equals(locale.language, ignoreCase = true) }
-        ?.replaceFirstChar { it.titlecase(locale) }
+        ?.replaceFirstChar { it.titlecase(Locale.ENGLISH) }
 }

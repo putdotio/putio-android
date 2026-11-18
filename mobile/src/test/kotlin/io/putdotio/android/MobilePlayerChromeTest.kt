@@ -60,6 +60,7 @@ import io.putdotio.android.playback.MobileSpeedChip
 import io.putdotio.android.playback.MobileSubtitlesChip
 import io.putdotio.android.playback.TabletopFold
 import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
+import io.putdotio.sdk.files.PlaybackSubtitles
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -107,7 +108,7 @@ class MobilePlayerChromeTest {
                             settings = {
                                 val options = rememberPlayerOptionsSnapshot(player)
                                 MobileAudioChip(options, {})
-                                MobileSubtitlesChip(options, emptyList(), {})
+                                MobileSubtitlesChip(options, PlaybackSubtitles.None, {})
                                 MobileSpeedChip(options, {})
                             },
                             topActions = { MobilePictureInPictureButton({}, Modifier) },
