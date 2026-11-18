@@ -27,44 +27,20 @@ class PlaybackTrackLabelsTest {
     private val resources: Resources = ApplicationProvider.getApplicationContext<Context>().resources
 
     @Test
-    fun unlabelledTracksInAFileTakeTheirFormatElseANumber() {
+    fun subtitleRowsCarryNoFormatOrRoleTags() {
         val tracks = tracks(
             embedded("1", "en", MimeTypes.APPLICATION_SUBRIP),
             embedded("2", null, MimeTypes.APPLICATION_SUBRIP),
             embedded("3", null, MimeTypes.TEXT_SSA),
-            embedded("4", null, null),
+            Format.Builder().setId("4").setLanguage("en").setRoleFlags(C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND)
+                .setSampleMimeType(MimeTypes.APPLICATION_MEDIA3_CUES).setCodecs(MimeTypes.TEXT_VTT).build(),
         )
 
         assertEquals(
-            listOf("English", "SRT", "SSA", "Subtitle 4"),
+            listOf("English (track 1)", "Subtitle 2", "Subtitle 3", "English (track 4)"),
             resources.subtitleTrackLabels(tracks, emptyList(), inFile = true),
         )
-        assertEquals(
-            listOf("SRT", "Embedded", "Embedded", "Embedded"),
-            tracks.map { resources.subtitleTrackDetails(it, null, inFile = true) },
-        )
-    }
-
-    @Test
-    fun unlabelledTracksOfOneFormatTakeTheirTrackNumbers() {
-        val tracks = tracks(
-            embedded("1", null, MimeTypes.APPLICATION_SUBRIP),
-            embedded("2", null, MimeTypes.APPLICATION_SUBRIP),
-            embedded("3", "tr", MimeTypes.APPLICATION_SUBRIP),
-        )
-
-        assertEquals(
-            listOf("SRT (track 1)", "SRT (track 2)", "Turkish"),
-            resources.subtitleTrackLabels(tracks, emptyList(), inFile = true),
-        )
-    }
-
-    @Test
-    fun anUnlabelledManifestTrackNamesItsFormatOnce() {
-        val track = tracks(embedded("1", null, MimeTypes.TEXT_VTT)).single()
-
-        assertEquals(listOf("VTT"), resources.subtitleTrackLabels(listOf(track), emptyList(), inFile = false))
-        assertNull(resources.subtitleTrackDetails(track, null, inFile = false))
+        assertNull(resources.subtitleOriginDetail(null))
     }
 
     @Test

@@ -8,7 +8,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import io.putdotio.sdk.files.PlaybackSubtitle
-import java.util.Locale
 
 public const val TRACK_DETAIL_SEPARATOR: String = " · "
 
@@ -66,7 +65,7 @@ internal fun Resources.subtitleTrackLabels(
     val putioNames = subtitles.map { it?.let { subtitle -> putioSubtitleName(subtitle) } }.numberedRepeats()
     return numberRepeatedRows(
         names = tracks.mapIndexed { index, track -> subtitleTrackName(track, putioNames[index], inFile, index) },
-        details = tracks.mapIndexed { index, track -> subtitleTrackDetails(track, subtitles[index], inFile) },
+        details = subtitles.map(::subtitleOriginDetail),
     )
 }
 
@@ -77,13 +76,7 @@ private fun Resources.subtitleTrackName(
     index: Int,
 ): String {
     val manifestName = track.identity.label?.trim()?.takeIf { !inFile && it.isNotEmpty() }
-    val name = putioName ?: manifestName ?: track.knownName()
-        ?: track.formatName() ?: getString(R.string.playback_subtitle_number, index + 1)
-    return if (track.identity.roleFlags and C.ROLE_FLAG_DESCRIBES_MUSIC_AND_SOUND != 0) {
-        name + TRACK_DETAIL_SEPARATOR + getString(R.string.playback_subtitle_sdh)
-    } else {
-        name
-    }
+    return putioName ?: manifestName ?: track.knownName() ?: getString(R.string.playback_subtitle_number, index + 1)
 }
 
 private fun Resources.putioSubtitleName(subtitle: PlaybackSubtitle): String {
@@ -103,29 +96,15 @@ private fun List<String?>.numberedRepeats(): List<String?> {
     }
 }
 
-/**
- * Where a subtitle comes from, else its format. [inFile] is false when the source cannot tell a
- * track embedded in the file from one put.io added, as in an HLS manifest.
- */
 @Composable
-public fun subtitleTrackDetails(track: PlaybackSubtitleTrack, subtitle: PlaybackSubtitle?, inFile: Boolean): String? =
-    LocalResources.current.subtitleTrackDetails(track, subtitle, inFile)
+public fun subtitleOriginDetail(subtitle: PlaybackSubtitle?): String? =
+    LocalResources.current.subtitleOriginDetail(subtitle)
 
-internal fun Resources.subtitleTrackDetails(
-    track: PlaybackSubtitleTrack,
-    subtitle: PlaybackSubtitle?,
-    inFile: Boolean,
-): String? =
+internal fun Resources.subtitleOriginDetail(subtitle: PlaybackSubtitle?): String? =
     when (subtitle.origin()) {
         SubtitleOrigin.Folder -> getString(R.string.playback_subtitles_from_folder)
         SubtitleOrigin.OpenSubtitles -> getString(R.string.playback_subtitles_from_opensubtitles)
-        SubtitleOrigin.File ->
-            if (inFile && subtitle == null && languageName(track.identity.language) == null) {
-                getString(R.string.playback_subtitles_embedded)
-            } else {
-                subtitle?.format?.takeIf { it.isNotBlank() }?.uppercase(Locale.ROOT)
-                    ?: track.formatName()?.takeIf { track.knownName() != null }
-            }
+        SubtitleOrigin.File -> null
     }
 
 private fun Resources.numberRepeatedRows(names: List<String>, details: List<String?>): List<String> {

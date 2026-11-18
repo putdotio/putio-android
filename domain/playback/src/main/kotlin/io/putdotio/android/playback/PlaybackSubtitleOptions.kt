@@ -12,34 +12,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.util.UnstableApi
 import io.putdotio.sdk.files.PlaybackSubtitle
 import io.putdotio.sdk.files.PlaybackSubtitles
 import java.util.Locale
 import kotlin.math.abs
-
-internal fun subtitleFormatName(mimeType: String?): String? =
-    when (mimeType) {
-        MimeTypes.APPLICATION_SUBRIP -> "SRT"
-        MimeTypes.TEXT_VTT -> "VTT"
-        MimeTypes.TEXT_SSA -> "SSA"
-        MimeTypes.APPLICATION_TTML -> "TTML"
-        MimeTypes.APPLICATION_PGS -> "PGS"
-        MimeTypes.APPLICATION_VOBSUB -> "VobSub"
-        MimeTypes.APPLICATION_DVBSUBS -> "DVB"
-        MimeTypes.APPLICATION_TX3G -> "TX3G"
-        MimeTypes.APPLICATION_CEA608, MimeTypes.APPLICATION_MP4CEA608 -> "CEA-608"
-        MimeTypes.APPLICATION_CEA708 -> "CEA-708"
-        else -> null
-    }
-
-@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun PlaybackSubtitleTrack.formatName(): String? =
-    group.getFormat(trackIndex).let { format ->
-        subtitleFormatName(format.codecs)
-            ?: subtitleFormatName(format.codecs?.let(MimeTypes::getTextMediaMimeType) ?: format.sampleMimeType)
-    }
 
 public enum class SubtitleOrigin { File, Folder, OpenSubtitles }
 

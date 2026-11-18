@@ -153,7 +153,7 @@ internal fun MobileSubtitlesSheetContent(
                         label = names[index],
                         selected = track == current,
                         enabled = enabled,
-                        supporting = subtitleTrackDetails(track, subtitle, originsKnown)?.let { { Text(it) } },
+                        supporting = subtitleOriginDetail(subtitle)?.let { { Text(it) } },
                         onClick = { select(SubtitleSelection.Track(track.identity)) },
                     )
                 }

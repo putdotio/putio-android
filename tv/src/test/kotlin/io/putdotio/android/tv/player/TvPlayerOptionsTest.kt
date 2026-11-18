@@ -264,7 +264,7 @@ class TvPlayerOptionsTest {
     }
 
     @Test
-    fun unlabelledInFileSubtitlesTakeTheirFormatName() {
+    fun inFileSubtitlesShowNoFormatTags() {
         val player = TrackPlayer(
             text = TrackGroup(
                 "text-in-file",
@@ -279,10 +279,9 @@ class TvPlayerOptionsTest {
         )
         show(player)
         openSheet(SUBTITLES, rightPresses = 1)
-        compose.onNodeWithText("SRT").assertIsDisplayed()
-        compose.onNodeWithText("VTT").assertIsDisplayed()
-        compose.onNodeWithText("Embedded").assertIsDisplayed()
-        compose.onNodeWithText("Unknown").assertDoesNotExist()
+        compose.onNodeWithText("English").assertIsDisplayed()
+        compose.onNodeWithText("Subtitle 2").assertIsDisplayed()
+        listOf("SRT", "VTT", "Embedded", "Unknown").forEach { compose.onNodeWithText(it).assertDoesNotExist() }
     }
 
     @Test

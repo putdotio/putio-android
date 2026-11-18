@@ -33,6 +33,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
@@ -155,18 +157,20 @@ class MobileSubtitleControlsTest {
         compose.onNodeWithText("No captions available").assertDoesNotExist()
 
         val rows = listOf(
-            "English - Sample.Show.en" to "SRT",
-            "English · SDH" to "VTT",
+            "English - Sample.Show.en" to null,
+            "English" to null,
             "German - Sample.Show.de" to "This folder",
             "Turkish - Sample.Show.tr" to "OpenSubtitles",
         )
         rows.forEach { (name, details) ->
-            compose.onNode(hasText(name) and hasText(details) and isSelectable())
-                .assertIsDisplayed()
-                .assertIsNotSelected()
+            val row = details?.let { hasText(name) and hasText(it) } ?: hasText(name)
+            compose.onNode(row and isSelectable()).assertIsDisplayed().assertIsNotSelected()
+        }
+        listOf("SRT", "VTT", "SDH").forEach { tag ->
+            compose.onAllNodesWithText(tag, substring = true).assertCountEquals(0)
         }
         val order = listOf(
-            "Off", "In this file", "English - Sample.Show.en", "English · SDH", "Found by put.io",
+            "Off", "In this file", "English - Sample.Show.en", "English", "Found by put.io",
             "German - Sample.Show.de", "Turkish - Sample.Show.tr",
         )
         val tops = order.map { text ->
@@ -184,7 +188,7 @@ class MobileSubtitleControlsTest {
         compose.onNodeWithContentDescription("Subtitles: Turkish - Sample.Show.tr").assertIsDisplayed()
         compose.onNode(hasText("Off") and isSelectable()).assertIsNotSelected().performClick()
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
-        compose.onNode(hasText("English · SDH") and isSelectable()).performClick()
+        compose.onNode(hasText("English") and isSelectable()).performClick()
         compose.runOnIdle {
             // Subtitle choices leave the audio preference alone.
             assertEquals(listOf("de"), player.trackSelectionParameters.preferredAudioLanguages)

@@ -13,8 +13,6 @@
     <string name="playback_audio_commentary">Commentary</string>
     <string name="playback_subtitles_from_folder">This folder</string>
     <string name="playback_subtitles_from_opensubtitles">OpenSubtitles</string>
-    <string name="playback_subtitles_embedded">Embedded</string>
-    <string name="playback_subtitle_sdh">SDH</string>
     <string name="playback_next_episode">Next episode</string>
     <string name="playback_audio_chip">Audio: %1$s</string>
     <string name="playback_subtitles_chip">Subtitles: %1$s</string>

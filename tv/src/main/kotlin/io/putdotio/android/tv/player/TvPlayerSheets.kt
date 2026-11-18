@@ -77,7 +77,7 @@ import io.putdotio.android.playback.playbackAudioTracks
 import io.putdotio.android.playback.playbackSubtitleTracks
 import io.putdotio.android.playback.playbackSpeedStop
 import io.putdotio.android.playback.putioSubtitle
-import io.putdotio.android.playback.subtitleTrackDetails
+import io.putdotio.android.playback.subtitleOriginDetail
 import io.putdotio.android.playback.subtitleTrackLabels
 import io.putdotio.android.tv.TvButton
 import io.putdotio.android.tv.TvFocus
@@ -290,7 +290,7 @@ private fun ColumnScope.TvSubtitlesSheet(
                     group.forEach { (index, track, subtitle) ->
                         TvSheetOption(
                             label = labels[index],
-                            detail = subtitleTrackDetails(track, subtitle, originsKnown)?.let(::AnnotatedString),
+                            detail = subtitleOriginDetail(subtitle)?.let(::AnnotatedString),
                             selected = track == current,
                             onClick = { actions.onSubtitles(SubtitleSelection.Track(track.identity)) },
                             modifier = if (track == current && focusTracks) focusRow else Modifier,
