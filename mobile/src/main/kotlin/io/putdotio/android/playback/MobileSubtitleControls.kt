@@ -148,12 +148,11 @@ internal fun MobileSubtitlesSheetContent(
             .filter { it.second.isNotEmpty() }
             .forEach { (heading, group) ->
                 heading?.let { MobileSideSheetLabel(stringResource(it)) }
-                group.forEach { (index, track, subtitle) ->
+                group.forEach { (index, track, _) ->
                     MobileSideSheetOption(
                         label = names[index],
                         selected = track == current,
                         enabled = enabled,
-                        supporting = subtitleOriginDetail(subtitle)?.let { { Text(it) } },
                         onClick = { select(SubtitleSelection.Track(track.identity)) },
                     )
                 }

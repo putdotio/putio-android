@@ -40,7 +40,6 @@ class PlaybackTrackLabelsTest {
             listOf("English (track 1)", "Subtitle 2", "Subtitle 3", "English (track 4)"),
             resources.subtitleTrackLabels(tracks, emptyList(), inFile = true),
         )
-        assertNull(resources.subtitleOriginDetail(null))
     }
 
     @Test

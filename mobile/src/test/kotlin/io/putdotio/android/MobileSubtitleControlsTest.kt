@@ -159,14 +159,14 @@ class MobileSubtitleControlsTest {
         val rows = listOf(
             "English - Sample.Show.en" to null,
             "English" to null,
-            "German - Sample.Show.de" to "This folder",
-            "Turkish - Sample.Show.tr" to "OpenSubtitles",
+            "German - Sample.Show.de" to null,
+            "Turkish - Sample.Show.tr" to null,
         )
         rows.forEach { (name, details) ->
             val row = details?.let { hasText(name) and hasText(it) } ?: hasText(name)
             compose.onNode(row and isSelectable()).assertIsDisplayed().assertIsNotSelected()
         }
-        listOf("SRT", "VTT", "SDH").forEach { tag ->
+        listOf("SRT", "VTT", "SDH", "This folder", "OpenSubtitles").forEach { tag ->
             compose.onAllNodesWithText(tag, substring = true).assertCountEquals(0)
         }
         val order = listOf(

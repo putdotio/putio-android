@@ -65,7 +65,7 @@ internal fun Resources.subtitleTrackLabels(
     val putioNames = subtitles.map { it?.let { subtitle -> putioSubtitleName(subtitle) } }.numberedRepeats()
     return numberRepeatedRows(
         names = tracks.mapIndexed { index, track -> subtitleTrackName(track, putioNames[index], inFile, index) },
-        details = subtitles.map(::subtitleOriginDetail),
+        details = List(tracks.size) { null },
     )
 }
 
@@ -95,17 +95,6 @@ private fun List<String?>.numberedRepeats(): List<String?> {
         }
     }
 }
-
-@Composable
-public fun subtitleOriginDetail(subtitle: PlaybackSubtitle?): String? =
-    LocalResources.current.subtitleOriginDetail(subtitle)
-
-internal fun Resources.subtitleOriginDetail(subtitle: PlaybackSubtitle?): String? =
-    when (subtitle.origin()) {
-        SubtitleOrigin.Folder -> getString(R.string.playback_subtitles_from_folder)
-        SubtitleOrigin.OpenSubtitles -> getString(R.string.playback_subtitles_from_opensubtitles)
-        SubtitleOrigin.File -> null
-    }
 
 private fun Resources.numberRepeatedRows(names: List<String>, details: List<String?>): List<String> {
     val rows = names.zip(details)
