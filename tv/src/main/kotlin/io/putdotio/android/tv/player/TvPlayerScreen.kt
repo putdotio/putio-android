@@ -127,6 +127,8 @@ internal fun TvPlayerScreen(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
+    /** The player showed the current source's first frame. */
+    onFirstFrame: () -> Unit = {},
     onOriginalChosen: (Long) -> Boolean = { false },
     onRefreshConversion: () -> Unit = {},
     onStartConversion: () -> Unit = {},
@@ -172,6 +174,7 @@ internal fun TvPlayerScreen(
                     reporter = reporter,
                     onPlayerFailure = onPlayerFailure,
                     onOriginalRejected = onOriginalRejected,
+                    onFirstFrame = onFirstFrame,
                     onOriginalChosen = onOriginalChosen.takeIf { state.offersOriginal },
                     onExit = onBack,
                     autoplayNextVideo = autoplayNextVideo,
@@ -290,6 +293,7 @@ private fun TvReadyPlayer(
     reporter: TvPlaybackReporter,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onFirstFrame: () -> Unit,
     onOriginalChosen: ((Long) -> Boolean)?,
     onExit: () -> Unit,
     autoplayNextVideo: Boolean,
@@ -328,6 +332,7 @@ private fun TvReadyPlayer(
     val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
     val currentOnOriginalRejected by rememberUpdatedState(onOriginalRejected)
+    val currentOnFirstFrame by rememberUpdatedState(onFirstFrame)
     val currentOnExit by rememberUpdatedState(onExit)
     val currentAutoplayNextVideo by rememberUpdatedState(autoplayNextVideo)
     val currentOnPlaybackEnded by rememberUpdatedState(onPlaybackEnded)
@@ -459,6 +464,7 @@ private fun TvReadyPlayer(
 
             override fun onRenderedFirstFrame() {
                 firstFrameShown = true
+                currentOnFirstFrame()
             }
         }
         player.addListener(listener)

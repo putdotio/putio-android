@@ -105,6 +105,52 @@ class SentryBoundaryTest {
     }
 
     @Test
+    fun aSharedPlaybackReportLeavesAsAMessageWithOnlyItsTagsAndNoUser() {
+        val failure = TelemetryFailure(
+            type = "playback_failure",
+            reasons = listOf("decode", "decoding_failed"),
+            tags = mapOf(
+                "platform" to "android_tv",
+                "video_profile" to "main 10",
+                "container_family" to "mpeg-ts",
+                "file_id" to "42",
+                "video_codec" to FILE_NAME,
+                "audio_codec" to RELEASE_NAME,
+                "source_request_status" to TOKEN,
+                "video_hdr" to LEAK,
+            ),
+            shared = SharedTelemetry(
+                message = "playback failed: decode",
+                fingerprint = listOf("android_tv", "failed", "decode", "decoding_failed"),
+            ),
+        )
+        val hint = Hint().apply { set(SentryBoundary.FAILURE_HINT, failure) }
+        val options = configured(SentryBoundary.open(launch = true), files())
+
+        val sent = checkNotNull(options.beforeSend?.execute(leakyEvent(), hint))
+
+        val json = StringWriter().also { JsonSerializer(SentryOptions()).serialize(sent, it) }.toString()
+        assertEquals(json, emptyList<String>(), (LEAKS + RELEASE_NAME).filter(json::contains))
+        assertNull(sent.user)
+        assertTrue(sent.exceptions.isNullOrEmpty())
+        assertEquals("playback failed: decode", sent.message?.formatted)
+        assertEquals(listOf("android_tv", "failed", "decode", "decoding_failed"), sent.fingerprints)
+        assertEquals(
+            mapOf(
+                "platform" to "android_tv",
+                "video_profile" to "main 10",
+                "container_family" to "mpeg-ts",
+                "file_id" to "42",
+                "video_codec" to "unknown",
+                "audio_codec" to "unknown",
+                "source_request_status" to "unknown",
+                "video_hdr" to "unknown",
+            ),
+            sent.tags,
+        )
+    }
+
+    @Test
     fun switchingOffSendsNothingRecordedBefore() {
         val files = files()
         val pending = File(files.cache, "outbox/pending").apply { parentFile?.mkdirs() }

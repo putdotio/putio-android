@@ -134,8 +134,10 @@ internal fun MediaItem?.sourceKind(): PlaybackSourceKind? =
     this?.mediaMetadata?.extras?.getString(SOURCE_KIND_KEY)
         ?.let { name -> PlaybackSourceKind.entries.find { it.name == name } }
 
+internal fun MediaItem?.offline(): Boolean = this?.mediaMetadata?.extras?.getBoolean(OFFLINE_KEY) == true
+
 private fun MediaItem?.playback(): AnalyticsEvent.Playback =
-    playback(PlaybackMediaType.AUDIO, sourceKind(), this?.mediaMetadata?.extras?.getBoolean(OFFLINE_KEY) == true, LOCAL)
+    playback(PlaybackMediaType.AUDIO, sourceKind(), offline(), LOCAL)
 
 private fun PlaybackState.playback(player: AnalyticsEvent.Player): AnalyticsEvent.Playback =
     playback(target.mediaType, content as? PlaybackContent.Ready, player)

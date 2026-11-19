@@ -16,6 +16,7 @@ import io.sentry.protocol.DebugImage
 import io.sentry.protocol.DebugMeta
 import io.sentry.protocol.Device
 import io.sentry.protocol.Mechanism
+import io.sentry.protocol.Message
 import io.sentry.protocol.OperatingSystem
 import io.sentry.protocol.SdkVersion
 import io.sentry.protocol.SentryException
@@ -180,9 +181,16 @@ private fun allowlisted(event: SentryEvent, installation: String?, surface: Stri
         environment = event.environment
         dist = event.dist
         sdk = event.sdk?.let { SdkVersion(it.name, it.version) }
-        user = installation?.let { User().apply { id = it } }
-        tags = mapOf("surface" to surface) + failure?.tags.orEmpty()
-        exceptions = failure?.let { listOf(it.exception()) } ?: event.exceptions?.map(::allowlisted)
+        val shared = failure?.shared
+        user = installation?.takeIf { shared == null }?.let { User().apply { id = it } }
+        tags = if (shared != null) failure.tags else mapOf("surface" to surface) + failure?.tags.orEmpty()
+        message = shared?.let { Message().apply { formatted = it.message } }
+        fingerprints = shared?.fingerprint
+        exceptions = when {
+            failure == null -> event.exceptions?.map(::allowlisted)
+            shared == null -> listOf(failure.exception())
+            else -> null
+        }
         debugMeta = event.debugMeta?.images?.filter { it.type in SYMBOLICATED_IMAGES }?.let { images ->
             DebugMeta().apply { this.images = images.map(::allowlisted) }
         }

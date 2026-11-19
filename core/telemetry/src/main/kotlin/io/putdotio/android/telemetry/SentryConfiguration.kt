@@ -3,7 +3,7 @@ package io.putdotio.android.telemetry
 public class SentryConfiguration private constructor(
     internal val dsn: String,
     internal val environment: String,
-    /** `mobile` or `tv`, sent as the `surface` tag on every event. */
+    /** `mobile` or `tv`, sent as the `surface` tag on every event but an anonymous report. */
     internal val surface: String,
 ) {
     public companion object {

@@ -7,6 +7,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.DeviceInfo
+import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player as Media3Player
 import androidx.media3.common.util.UnstableApi
@@ -25,6 +26,7 @@ import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobileSleepTimer
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackPlatform
 import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.telemetry.PutioDiagnostics
@@ -43,6 +45,7 @@ class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var local: Media3Player? = null
     private var taskRemoved = false
+    private var audioStarted = false
     private var positionObserver: PlaybackPositionObserver? = null
     private var analyticsObserver: Closeable? = null
     private val scope = MainScope()
@@ -63,8 +66,18 @@ class MobilePlaybackService : MediaSessionService() {
                     if (taskRemoved && player.stopsWithTask()) stopSelf()
                 }
 
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying) audioStarted = true
+                }
+
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    audioStarted = false
+                }
+
                 override fun onPlayerError(error: PlaybackException) {
-                    PutioDiagnostics.capture(player.playerFailureTelemetry(error, PlaybackMediaType.AUDIO))
+                    val audio = PlaybackMediaType.AUDIO
+                    val telemetry = player.playerFailureTelemetry(error, audio, PlaybackPlatform.Mobile, audioStarted)
+                    PutioDiagnostics.capture(telemetry)
                 }
             },
         )

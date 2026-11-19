@@ -124,6 +124,8 @@ internal fun MobilePlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
+    /** The player showed the current source's first frame. */
+    onFirstFrame: () -> Unit = {},
     onOriginalChosen: ((Long) -> Unit)? = null,
     autoplayNextVideo: Boolean = false,
     rotateToLandscape: Boolean = true,
@@ -178,6 +180,7 @@ internal fun MobilePlayerScreen(
             keyboardNavigation = keyboardNavigation,
             onPlayerFailure = onPlayerFailure,
             onOriginalRejected = onOriginalRejected,
+            onFirstFrame = onFirstFrame,
             onOriginalChosen = onOriginalChosen,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
@@ -325,6 +328,7 @@ private fun MobileReadyContent(
     keyboardNavigation: MutableState<Boolean>,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onFirstFrame: () -> Unit,
     onOriginalChosen: ((Long) -> Unit)?,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
@@ -393,6 +397,7 @@ private fun MobileReadyContent(
             onPointerNavigation = { keyboardNavigation.value = false },
             onPlayerFailure = onPlayerFailure,
             onOriginalRejected = onOriginalRejected,
+            onFirstFrame = onFirstFrame,
             onOriginalChosen = onOriginalChosen,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = onPlaybackEnded,
@@ -478,6 +483,7 @@ private fun MobileReadyPlayer(
     onPointerNavigation: () -> Unit,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onFirstFrame: () -> Unit,
     onOriginalChosen: ((Long) -> Unit)?,
     autoplayNextVideo: Boolean,
     onPlaybackEnded: () -> Unit,
@@ -528,6 +534,7 @@ private fun MobileReadyPlayer(
     }
     val currentOnPlayerFailure = rememberUpdatedState(onPlayerFailure)
     val currentOnOriginalRejected = rememberUpdatedState(onOriginalRejected)
+    val currentOnFirstFrame = rememberUpdatedState(onFirstFrame)
     val currentAutoplayNextVideo = rememberUpdatedState(autoplayNextVideo)
     val currentOnReachedEnd = rememberUpdatedState<() -> Unit> { analytics.reachedEnd() }
     val currentOnPlaybackRetained = rememberUpdatedState(onPlaybackRetained)
@@ -630,6 +637,7 @@ private fun MobileReadyPlayer(
         currentOnReachedEnd = currentOnReachedEnd,
         currentOnPlayerFailure = currentOnPlayerFailure,
         currentOnOriginalRejected = currentOnOriginalRejected,
+        currentOnFirstFrame = currentOnFirstFrame,
         currentOnPlaybackRetained = currentOnPlaybackRetained,
         currentOnPositionChanged = currentOnPositionChanged,
         pictureInPicture = pictureInPicture,
@@ -1109,6 +1117,7 @@ private fun PlayerListenerEffect(
     currentOnReachedEnd: State<() -> Unit>,
     currentOnPlayerFailure: State<(PlaybackFailure, Long) -> Unit>,
     currentOnOriginalRejected: State<(PlaybackFallbackReason, Long) -> Boolean>,
+    currentOnFirstFrame: State<() -> Unit>,
     currentOnPlaybackRetained: State<(RetainedPlayback) -> Unit>,
     currentOnPositionChanged: State<(Long) -> Unit>,
     pictureInPicture: State<Boolean>,
@@ -1165,6 +1174,7 @@ private fun PlayerListenerEffect(
 
                 override fun onRenderedFirstFrame() {
                     playerState.firstFrameRendered = true
+                    currentOnFirstFrame.value()
                 }
 
                 override fun onCues(cueGroup: CueGroup) {

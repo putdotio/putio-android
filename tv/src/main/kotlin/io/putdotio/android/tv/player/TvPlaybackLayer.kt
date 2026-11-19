@@ -22,11 +22,13 @@ import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackFindNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
+import io.putdotio.android.playback.PlaybackPlatform
 import io.putdotio.android.playback.PlaybackState
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.SubtitleStartupPolicy
 import io.putdotio.android.playback.originalFallbackTelemetry
 import io.putdotio.android.playback.playerFailureTelemetry
+import io.putdotio.android.playback.readySource
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberFolderNeighbours
 import io.putdotio.android.playback.rememberNextEpisode
@@ -41,6 +43,7 @@ import io.putdotio.android.tv.TvSnackbarHost
 import io.putdotio.android.tv.TvSnackbarState
 import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.files.hasVlc
+import io.putdotio.sdk.files.PlaybackSource
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -100,6 +103,7 @@ internal fun TvPlaybackRoute(
     val vlcScope = rememberCoroutineScope()
     var vlcNotice by remember { mutableStateOf<Int?>(null) }
     var vlcHandoff by remember { mutableStateOf<Job?>(null) }
+    var firstFrameSource by remember { mutableStateOf<PlaybackSource?>(null) }
     val snackbar = remember { TvSnackbarState() }
     TvBriefShown(vlcNotice?.let { TvBrief(stringResource(it)) { vlcNotice = null } }, snackbar)
     val failure = when (val content = state.content) {
@@ -125,14 +129,16 @@ internal fun TvPlaybackRoute(
             onBack = onExit,
             onRetry = { controller.dispatch(PlaybackEvent.Retry) },
             onPlayerFailure = { failure, positionMillis ->
-                val telemetry = controller.state.value.playerFailureTelemetry(failure)
+                val playing = controller.state.value
+                val telemetry = playing.playerFailureTelemetry(failure, PlaybackPlatform.Tv, firstFrameSource)
                 if (controller.showsPlayerFailure(failure, positionMillis)) {
                     val id = PutioDiagnostics.capture(telemetry)
                     failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
                 }
             },
+            onFirstFrame = { firstFrameSource = controller.state.value.readySource },
             onOriginalRejected = { reason, positionMillis ->
-                val telemetry = controller.state.value.originalFallbackTelemetry(reason)
+                val telemetry = controller.state.value.originalFallbackTelemetry(reason, PlaybackPlatform.Tv)
                 controller.dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis)).also { consumed ->
                     if (consumed) telemetry?.let(PutioDiagnostics::capture)
                 }
