@@ -88,6 +88,20 @@ class OriginalPlaybackDecisionTest {
     }
 
     @Test
+    fun directPlayHonorsTheProbedHevcCodecLevel() {
+        val main10Level4 = CodecProfileLevel.HEVCProfileMain10 to CodecProfileLevel.HEVCMainTierLevel4
+        val decoders = FakeDecoderInventory(PHONE) { format ->
+            format.sampleMimeType == MimeTypes.VIDEO_H265 &&
+                CodecSpecificDataUtil.getCodecProfileAndLevel(format)?.let { it.first to it.second } != main10Level4
+        }
+        val decision = OriginalPlaybackDecision(decoders)
+        val video = video("hevc", profile = "Main 10", level = 120)
+            .copy(bitDepth = 10, isHdr = false, rfc6381Codec = "hvc1.2.4.L120.B0")
+
+        assertNull(decision.reason(mediaInfo(video, audio("aac")).copy(format = MP4)))
+    }
+
+    @Test
     fun anInventoryThatRejectsVp9Profile2PicksConverted() {
         val rejectsProfile2 = FakeDecoderInventory(PHONE) { format ->
             format.sampleMimeType == MimeTypes.VIDEO_VP9 &&
@@ -262,6 +276,7 @@ class OriginalPlaybackDecisionTest {
 
     private companion object {
         val MATROSKA = PutioMediaFormat(name = "matroska")
+        val MP4 = PutioMediaFormat(name = "mp4")
         val PHONE = setOf(
             MimeTypes.VIDEO_H264,
             MimeTypes.VIDEO_H265,

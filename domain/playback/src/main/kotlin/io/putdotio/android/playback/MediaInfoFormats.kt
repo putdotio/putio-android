@@ -37,8 +37,8 @@ internal object MediaInfoFormats {
     }
 
     private fun videoFormat(codec: String, stream: PutioMediaStream): Format? {
-        val rfcCodecs = stream.rfc6381Codec?.takeIf(String::isNotBlank)?.lowercase(Locale.ROOT)
-        val dolbyCodecs = rfcCodecs?.takeIf { it.substringBefore('.') in DOLBY_VISION_CODEC_IDS }
+        val rfcCodecs = stream.rfc6381Codec?.takeIf(String::isNotBlank)
+        val dolbyCodecs = rfcCodecs?.takeIf { it.substringBefore('.').lowercase(Locale.ROOT) in DOLBY_VISION_CODEC_IDS }
         val dolbyVision = stream.dolbyVisionProfile != null || dolbyCodecs != null
         val mimeType = if (dolbyVision) MimeTypes.VIDEO_DOLBY_VISION else VIDEO_MIME_TYPES[codec] ?: return null
         val codecs = if (dolbyVision) {
