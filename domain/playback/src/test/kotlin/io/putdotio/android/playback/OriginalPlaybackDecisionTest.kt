@@ -1,10 +1,11 @@
 package io.putdotio.android.playback
 
 import android.media.MediaCodecInfo.CodecProfileLevel
+import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.CodecSpecificDataUtil
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.playback.PlaybackFallbackReason.AudioUnsupported
 import io.putdotio.android.playback.PlaybackFallbackReason.CodecUnmapped
@@ -69,23 +70,42 @@ class OriginalPlaybackDecisionTest {
     }
 
     @Test
-    fun anInventoryThatRejectsHevcMain10PicksConverted() {
+    fun anInventoryWithoutHdrRejectsHdrAndLegacyMain10() {
         val rejectsMain10 = FakeDecoderInventory(PHONE) { format ->
             format.sampleMimeType == MimeTypes.VIDEO_H265 &&
-                MediaCodecUtil.getCodecProfileAndLevel(format)?.first == CodecProfileLevel.HEVCProfileMain10
+                CodecSpecificDataUtil.getCodecProfileAndLevel(format)?.first == CodecProfileLevel.HEVCProfileMain10HDR10
         }
         val decision = OriginalPlaybackDecision(rejectsMain10)
 
-        assertEquals(VideoUnsupported, decision.reason(captured("hevc-main10-aac.mkv")))
+        val legacy = captured("hevc-main10-aac.mkv")
+        val main10Sdr = video("hevc", profile = "Main 10", level = 120).copy(bitDepth = 10, isHdr = false)
+        val main10Hdr = main10Sdr.copy(isHdr = true)
+        assertEquals(VideoUnsupported, decision.reason(legacy))
+        assertEquals(VideoUnsupported, decision.reason(mediaInfo(main10Hdr, audio("aac"))))
+        assertNull(decision.reason(mediaInfo(main10Sdr, audio("aac"))))
         assertNull(decision.reason(captured("h264-high-aac.mkv")))
         assertNull(decision.reason(mediaInfo(video("hevc", profile = "Main", level = 120), audio("aac"))))
+    }
+
+    @Test
+    fun directPlayHonorsTheProbedHevcCodecLevel() {
+        val main10Level4 = CodecProfileLevel.HEVCProfileMain10 to CodecProfileLevel.HEVCMainTierLevel4
+        val decoders = FakeDecoderInventory(PHONE) { format ->
+            format.sampleMimeType == MimeTypes.VIDEO_H265 &&
+                CodecSpecificDataUtil.getCodecProfileAndLevel(format)?.let { it.first to it.second } != main10Level4
+        }
+        val decision = OriginalPlaybackDecision(decoders)
+        val video = video("hevc", profile = "Main 10", level = 120)
+            .copy(bitDepth = 10, isHdr = false, rfc6381Codec = "hvc1.2.4.L120.B0")
+
+        assertNull(decision.reason(mediaInfo(video, audio("aac")).copy(format = MP4)))
     }
 
     @Test
     fun anInventoryThatRejectsVp9Profile2PicksConverted() {
         val rejectsProfile2 = FakeDecoderInventory(PHONE) { format ->
             format.sampleMimeType == MimeTypes.VIDEO_VP9 &&
-                MediaCodecUtil.getCodecProfileAndLevel(format)?.first == CodecProfileLevel.VP9Profile2
+                CodecSpecificDataUtil.getCodecProfileAndLevel(format)?.first == CodecProfileLevel.VP9Profile2
         }
         val decision = OriginalPlaybackDecision(rejectsProfile2)
 
@@ -94,16 +114,54 @@ class OriginalPlaybackDecisionTest {
     }
 
     @Test
-    fun oneDecodableOrPassedThroughAudioStreamIsEnough() {
+    fun anEightBitAv1DecoderAcceptsProbedEightBitButRejectsLegacy() {
+        val eightBitOnly = FakeDecoderInventory(PHONE + MimeTypes.VIDEO_AV1) { format ->
+            format.sampleMimeType == MimeTypes.VIDEO_AV1 &&
+                CodecSpecificDataUtil.getCodecProfileAndLevel(format)?.first != CodecProfileLevel.AV1ProfileMain8
+        }
+        val decision = OriginalPlaybackDecision(eightBitOnly)
+        val legacy = video("av1", profile = "Main", level = 12)
+        val sdr = legacy.copy(bitDepth = 8, isHdr = false)
+
+        assertEquals(VideoUnsupported, decision.reason(mediaInfo(legacy, audio("aac"))))
+        assertNull(decision.reason(mediaInfo(sdr, audio("aac"))))
+        assertEquals(VideoUnsupported, decision.reason(mediaInfo(sdr.copy(bitDepth = 10), audio("aac"))))
+
+        val rfcSdr = sdr.copy(rfc6381Codec = "av01.0.12M.08")
+        assertNull(decision.reason(mediaInfo(rfcSdr, audio("aac"))))
+    }
+
+    @Test
+    fun dolbyVisionDoesNotPassAsPlainHevc() {
+        val decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE))
+        val hdr = video("hevc", profile = "Main 10", level = 120).copy(bitDepth = 10, isHdr = true)
+
+        assertNull(decision.reason(mediaInfo(hdr, audio("aac"))))
+        assertEquals(VideoUnsupported, decision.reason(mediaInfo(hdr.copy(dolbyVisionProfile = 5), audio("aac"))))
+        val mp4 = hdr.copy(rfc6381Codec = "dvh1.05.06")
+        val format = format(mediaInfo(mp4), "video")
+        assertEquals(MimeTypes.VIDEO_DOLBY_VISION, format.sampleMimeType)
+        assertEquals(
+            CodecProfileLevel.DolbyVisionProfileDvheStn,
+            CodecSpecificDataUtil.getCodecProfileAndLevel(format)?.first,
+        )
+    }
+
+    @Test
+    fun onlyTheFirstFlaggedAudioStreamMustDecode() {
         val tv = FakeDecoderInventory(PHONE + MimeTypes.AUDIO_E_AC3)
         val decision = OriginalPlaybackDecision(tv)
+        val video = video("h264")
+        val aac = audio("aac")
+        val dts = audio("dts")
+        val eac3 = audio("eac3")
 
-        assertNull(decision.reason(captured("hevc-main10-4k-dts-eac3-truehd.mkv")))
-        assertEquals(
-            listOf(MimeTypes.VIDEO_H265, MimeTypes.AUDIO_DTS, MimeTypes.AUDIO_E_AC3),
-            tv.asked.map { it.sampleMimeType },
-        )
-        assertNull(decision.reason(mediaInfo(video("h264"))))
+        assertNull(decision.reason(mediaInfo(video, dts, eac3.copy(isDefault = true), dts.copy(isDefault = true))))
+        assertEquals(listOf(MimeTypes.VIDEO_H264, MimeTypes.AUDIO_E_AC3), tv.asked.map { it.sampleMimeType })
+        assertEquals(AudioUnsupported, decision.reason(mediaInfo(video, aac, dts.copy(isDefault = true))))
+        assertEquals(CodecUnmapped, decision.reason(mediaInfo(video, aac, audio("wmav2").copy(isDefault = true))))
+        assertEquals(AudioUnsupported, decision.reason(captured("hevc-main10-4k-dts-eac3-truehd.mkv")))
+        assertNull(decision.reason(mediaInfo(video)))
     }
 
     @Test
@@ -155,19 +213,24 @@ class OriginalPlaybackDecisionTest {
         assertEquals(1276 to 720, h264.width to h264.height)
         assertEquals(
             CodecProfileLevel.AVCProfileHigh to CodecProfileLevel.AVCLevel31,
-            MediaCodecUtil.getCodecProfileAndLevel(h264)?.let { it.first to it.second },
+            CodecSpecificDataUtil.getCodecProfileAndLevel(h264)?.let { it.first to it.second },
         )
         assertEquals(
-            CodecProfileLevel.HEVCProfileMain10 to CodecProfileLevel.HEVCMainTierLevel4,
-            MediaCodecUtil.getCodecProfileAndLevel(hevc)?.let { it.first to it.second },
+            CodecProfileLevel.HEVCProfileMain10HDR10 to CodecProfileLevel.HEVCMainTierLevel4,
+            CodecSpecificDataUtil.getCodecProfileAndLevel(hevc)?.let { it.first to it.second },
         )
         assertEquals("avc1.42001e", mp4.codecs)
         assertEquals(
-            CodecProfileLevel.AV1ProfileMain10 to CodecProfileLevel.AV1Level5,
-            MediaCodecUtil.getCodecProfileAndLevel(av1)?.let { it.first to it.second },
+            CodecProfileLevel.AV1ProfileMain10HDR10 to CodecProfileLevel.AV1Level5,
+            CodecSpecificDataUtil.getCodecProfileAndLevel(av1)?.let { it.first to it.second },
         )
         assertEquals(MimeTypes.VIDEO_MP4V, format(captured("mpeg4-asp-mp3.avi"), "video").sampleMimeType)
         assertNull(format(captured("vp8-vorbis-future-issue.webm"), "video").codecs)
+
+        val vp9 = format(mediaInfo(video("vp9", profile = "Profile 2").copy(bitDepth = 10, isHdr = false)), "video")
+        assertEquals("vp09.02.10.10", vp9.codecs)
+        assertEquals(10, vp9.colorInfo?.lumaBitdepth)
+        assertEquals(C.COLOR_TRANSFER_SDR, vp9.colorInfo?.colorTransfer)
 
         val audio = captured("hevc-main10-4k-dts-eac3-truehd.mkv").streams.orEmpty()
             .filter { it.codecType == "audio" }
@@ -213,6 +276,7 @@ class OriginalPlaybackDecisionTest {
 
     private companion object {
         val MATROSKA = PutioMediaFormat(name = "matroska")
+        val MP4 = PutioMediaFormat(name = "mp4")
         val PHONE = setOf(
             MimeTypes.VIDEO_H264,
             MimeTypes.VIDEO_H265,

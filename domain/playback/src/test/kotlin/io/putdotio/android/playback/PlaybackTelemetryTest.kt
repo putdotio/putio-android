@@ -15,6 +15,7 @@ import io.putdotio.sdk.files.PutioMediaFormat
 import io.putdotio.sdk.files.PutioMediaInfo
 import io.putdotio.sdk.files.PutioMediaStream
 import java.io.IOException
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -102,14 +103,41 @@ class PlaybackTelemetryTest {
                 "video_codec" to "hevc",
                 "video_profile" to "main 10",
                 "video_level" to "150",
-                "video_bit_depth" to "unknown",
+                "video_bit_depth" to "10",
                 "video_resolution" to "3840x2160",
-                "video_hdr" to "unknown",
-                "audio_codec" to "eac3",
-                "audio_channels" to "6",
+                "video_hdr" to "true",
+                "audio_codec" to "aac",
+                "audio_channels" to "2",
             ),
             telemetry.tags,
         )
+    }
+
+    @Test
+    fun playbackReportsDistinguishSdrFromLegacyAndUseTheFirstAudioWithoutAFlag() {
+        val failure = PlaybackException(TITLE, IOException(SIGNED_URL), PlaybackException.ERROR_CODE_DECODING_FAILED)
+            .toPlaybackFailure()
+        fun tags(videoFields: String): Map<String, String> {
+            val json = """
+                {"format":{"name":"matroska"},"streams":[
+                    {"codec_type":"video","codec_name":"h264"$videoFields},
+                    {"codec_type":"audio","codec_name":"eac3","channels":6},
+                    {"codec_type":"audio","codec_name":"aac","channels":2}
+                ]}
+            """.trimIndent()
+            val media = Json.decodeFromString(PutioMediaInfo.serializer(), json)
+            return playing(PlaybackSourceKind.ORIGINAL, media)
+                .playerFailureTelemetry(failure, PlaybackPlatform.Mobile, firstFrameSource = null).tags
+        }
+
+        val sdr = tags(""","bit_depth":8,"hdr":false""")
+        assertEquals("8", sdr["video_bit_depth"])
+        assertEquals("false", sdr["video_hdr"])
+        val legacy = tags("")
+        assertEquals("unknown", legacy["video_bit_depth"])
+        assertEquals("unknown", legacy["video_hdr"])
+        assertEquals("eac3", legacy["audio_codec"])
+        assertEquals("6", legacy["audio_channels"])
     }
 
     @Test
@@ -190,9 +218,11 @@ class PlaybackTelemetryTest {
                     height = 2160,
                     profile = "Main 10",
                     level = 150,
+                    bitDepth = 10,
+                    isHdr = true,
                 ),
-                PutioMediaStream(codecType = "audio", codecName = "eac3", channels = 6),
-                PutioMediaStream(codecType = "audio", codecName = "aac", channels = 2),
+                PutioMediaStream(codecType = "audio", codecName = "eac3", channels = 6, isDefault = false),
+                PutioMediaStream(codecType = "audio", codecName = "aac", channels = 2, isDefault = true),
             ),
         )
     }
