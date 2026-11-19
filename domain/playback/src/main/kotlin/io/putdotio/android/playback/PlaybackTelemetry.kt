@@ -3,74 +3,180 @@ package io.putdotio.android.playback
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import io.putdotio.android.PutioFailure
+import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.telemetry.AnalyticsEvent
+import io.putdotio.android.telemetry.SharedTelemetry
 import io.putdotio.android.telemetry.TelemetryFailure
 import io.putdotio.android.telemetry.TelemetrySeverity
+import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
+import io.putdotio.sdk.files.PlaybackStreamFormat
+import java.util.Locale
 
 /**
- * A player failure as putio-web's `playback_failure` report (schema 1), in codes only: the
- * exception's message and cause chain can quote media URLs.
+ * A player failure as put.io's `playback_failure` report (schema 2), in codes only: the
+ * exception's message and cause chain can quote media URLs. [firstFrameSource] is the last
+ * [readySource] whose first frame the player showed.
  */
-public fun PlaybackState.playerFailureTelemetry(failure: PlaybackFailure): TelemetryFailure =
-    playbackFailureTelemetry(
-        failure = failure,
-        fileId = target.fileId.value,
-        mediaType = target.mediaType,
-        sourceKind = (content as? PlaybackContent.Ready)?.source?.kind,
-    )
+public fun PlaybackState.playerFailureTelemetry(
+    failure: PlaybackFailure,
+    platform: PlaybackPlatform,
+    firstFrameSource: PlaybackSource?,
+): TelemetryFailure {
+    val ready = content as? PlaybackContent.Ready
+    val offline = ready?.offline == true
+    val played = PlayedSource(target.fileId.value, target.mediaType, ready?.source, offline, target.method)
+    val started = ready != null && ready.source === firstFrameSource
+    return playbackFailureTelemetry(failure, platform, played, started)
+}
+
+/** The source this state plays, to name the one whose first frame showed. */
+public val PlaybackState.readySource: PlaybackSource?
+    get() = (content as? PlaybackContent.Ready)?.source
 
 /** The same report for a player no [PlaybackState] follows, such as the background audio service's. */
-public fun Player.playerFailureTelemetry(error: PlaybackException, mediaType: PlaybackMediaType): TelemetryFailure {
+public fun Player.playerFailureTelemetry(
+    error: PlaybackException,
+    mediaType: PlaybackMediaType,
+    platform: PlaybackPlatform,
+    started: Boolean,
+): TelemetryFailure {
     val item = currentMediaItem
-    val fileId = item?.mediaId?.toLongOrNull()
-    return playbackFailureTelemetry(error.toPlaybackFailure(), fileId, mediaType, item.sourceKind())
+    val played = PlayedSource(item?.mediaId?.toLongOrNull(), mediaType, null, item.offline(), null, item.sourceKind())
+    return playbackFailureTelemetry(error.toPlaybackFailure(), platform, played, started)
 }
 
 /**
- * A rejected original as a non-terminal report in the same schema: the converted stream takes
- * over, so only the reason's code goes, as a warning. A viewer's own switch and Cast's Standard
- * rescue nothing, so they report nothing.
+ * A rejected original as a rescue in the same report: the converted file takes over before the
+ * first frame, so it goes as a warning with the reason's code. A viewer's own switch and Cast's
+ * Standard rescue nothing, so they report nothing.
  */
-public fun PlaybackState.originalFallbackTelemetry(reason: PlaybackFallbackReason): TelemetryFailure? {
+public fun PlaybackState.originalFallbackTelemetry(
+    reason: PlaybackFallbackReason,
+    platform: PlaybackPlatform,
+): TelemetryFailure? {
     if (reason == PlaybackFallbackReason.UserSwitched || reason == PlaybackFallbackReason.CastReceiver) return null
-    val tags = mapOf(
-        "telemetry_event" to EVENT,
-        "schema_version" to "1",
-        "player" to "media3",
-        "playback_outcome" to "fallback",
-        "playback_terminal" to "false",
-        "playback_fallback_reason" to reason.code,
-        "source_kind" to PlaybackSourceKind.ORIGINAL.tagValue(),
-        "media_type" to target.mediaType.name.lowercase(),
-        "file_id" to "${target.fileId.value}",
+    val ready = content as? PlaybackContent.Ready
+    val played = PlayedSource(
+        target.fileId.value,
+        target.mediaType,
+        ready?.source,
+        ready?.offline == true,
+        target.method,
+        PlaybackSourceKind.ORIGINAL,
     )
-    return TelemetryFailure(EVENT, listOf("fallback", reason.code), tags, TelemetrySeverity.Warning)
+    val code = reason.rescueReason
+    // The rejection keeps only its reason, not the engine error or response behind it.
+    val tags = played.tags(platform, RESCUED, started = false) + mapOf(
+        "failure_mode" to reason.failureMode,
+        "rescue_reason" to code,
+        "rescue_to" to "converted",
+        "engine_error_domain" to NONE,
+        "engine_error_category" to UNKNOWN,
+        "engine_error_code" to UNKNOWN,
+        "source_request_status" to UNKNOWN,
+    )
+    return report(platform, RESCUED, code, UNKNOWN, tags, TelemetrySeverity.Warning)
 }
 
 private fun playbackFailureTelemetry(
     failure: PlaybackFailure,
-    fileId: Long?,
-    mediaType: PlaybackMediaType,
-    sourceKind: PlaybackSourceKind?,
+    platform: PlaybackPlatform,
+    played: PlayedSource,
+    started: Boolean,
 ): TelemetryFailure {
     val (exception, status) = failure.engineFacts()
     val mode = failureMode(failure, exception?.errorCode, status)
-    val code = exception?.errorCodeName?.removePrefix("ERROR_CODE_")?.lowercase() ?: "none"
-    val tags = mapOf(
-        "telemetry_event" to EVENT,
-        "schema_version" to "1",
-        "player" to "media3",
-        "playback_outcome" to "failed",
-        "playback_terminal" to "true",
-        "playback_failure_mode" to mode,
-        "engine_error_category" to (exception?.errorCode?.let(::errorCategory) ?: "none"),
+    val code = exception?.errorCodeName?.removePrefix("ERROR_CODE_")?.lowercase(Locale.ROOT) ?: NONE
+    val tags = played.tags(platform, FAILED, started) + mapOf(
+        "failure_mode" to mode,
+        "rescue_reason" to NONE,
+        "rescue_to" to NONE,
+        "engine_error_domain" to NONE,
+        "engine_error_category" to (exception?.errorCode?.let(::errorCategory) ?: NONE),
         "engine_error_code" to code,
-        "source_kind" to sourceKind.tagValue(),
-        "media_type" to mediaType.name.lowercase(),
-    ) + listOfNotNull(status?.let { "source_request_status" to "$it" }, fileId?.let { "file_id" to "$it" })
-    return TelemetryFailure(EVENT, listOf(mode, code), tags)
+        "source_request_status" to (status?.toString() ?: NONE),
+    )
+    return report(platform, FAILED, mode, code, tags, TelemetrySeverity.Error)
 }
+
+@Suppress("LongParameterList")
+private fun report(
+    platform: PlaybackPlatform,
+    outcome: String,
+    reason: String,
+    engineCode: String,
+    tags: Map<String, String>,
+    severity: TelemetrySeverity,
+): TelemetryFailure =
+    TelemetryFailure(
+        type = EVENT,
+        reasons = listOf(reason, engineCode),
+        tags = tags,
+        severity = severity,
+        shared = SharedTelemetry(
+            message = "playback $outcome: $reason",
+            fingerprint = listOf(platform.tag, outcome, reason, engineCode),
+        ),
+    )
+
+/** What the resolved plan played; [kind] stands in for a [source] the caller can't see. */
+private class PlayedSource(
+    val fileId: Long?,
+    val mediaType: PlaybackMediaType,
+    val source: PlaybackSource?,
+    val offline: Boolean,
+    val method: StreamingMethod?,
+    val kind: PlaybackSourceKind? = source?.kind,
+) {
+    fun tags(platform: PlaybackPlatform, outcome: String, started: Boolean): Map<String, String> =
+        mapOf(
+            "telemetry_event" to EVENT,
+            "schema_version" to SCHEMA_VERSION,
+            "platform" to platform.tag,
+            "player" to "media3",
+            "playback_outcome" to outcome,
+            "playback_terminal" to "${outcome == FAILED}",
+            "playback_started" to "$started",
+            "streaming_method" to streamingMethod(),
+            "source_kind" to sourceKind(),
+            "device_check" to deviceCheck(),
+            "file_id" to (fileId?.toString() ?: UNKNOWN),
+        ) + mediaFacts(source?.mediaInfo)
+
+    // Standard plays HLS only and Direct play the file stream only, so a video's format names its
+    // method; audio plays the original file with both.
+    private fun streamingMethod(): String =
+        method?.wireValue ?: when {
+            source == null || offline || mediaType == PlaybackMediaType.AUDIO -> UNKNOWN
+            source.format == PlaybackStreamFormat.HLS -> StreamingMethod.Hls.wireValue
+            else -> StreamingMethod.File.wireValue
+        }
+
+    private fun sourceKind(): String =
+        when {
+            offline -> "local_file"
+            kind == PlaybackSourceKind.HLS -> "hls"
+            kind == PlaybackSourceKind.MP4 -> "converted"
+            kind == PlaybackSourceKind.ORIGINAL -> "original"
+            else -> UNKNOWN
+        }
+
+    // An original video streams only after the device check passed it; audio and downloads skip it.
+    private fun deviceCheck(): String =
+        when {
+            kind == null -> UNKNOWN
+            !offline && mediaType == PlaybackMediaType.VIDEO && kind == PlaybackSourceKind.ORIGINAL -> "pass"
+            else -> "skipped"
+        }
+}
+
+/** Android's reason codes in the Streaming contract's terms. */
+private val PlaybackFallbackReason.rescueReason: String
+    get() = if (this == PlaybackFallbackReason.NoMediaInfo) "not_ready" else code
+
+private val PlaybackFallbackReason.failureMode: String
+    get() = if (this == PlaybackFallbackReason.DecoderError) "decode" else "unsupported_source"
 
 private fun PlaybackFailure.engineFacts(): Pair<PlaybackException?, Int?> {
     val causes = cause.causeChain()
@@ -89,7 +195,7 @@ internal fun PlaybackFailure.analyticsError(): AnalyticsEvent.PlaybackError {
     }
 }
 
-// The web contract's failure modes; a definitive source status outranks the player's own code.
+// The report's failure modes; a definitive source status outranks the player's own code.
 @Suppress("CyclomaticComplexMethod", "MagicNumber")
 private fun failureMode(failure: PlaybackFailure, code: Int?, status: Int?): String =
     when {
@@ -100,11 +206,11 @@ private fun failureMode(failure: PlaybackFailure, code: Int?, status: Int?): Str
         failure is PlaybackFailure.MediaUnsupported -> "unsupported_source"
         failure.putioFailure is PutioFailure.NetworkUnavailable ||
             failure.putioFailure is PutioFailure.Timeout -> "network"
-        code == null -> "unknown"
+        code == null -> UNKNOWN
         code / 1000 == 2 -> "load"
         code / 1000 == 3 || code / 1000 == 4 -> "decode"
         code / 1000 == 6 -> "drm"
-        else -> "unknown"
+        else -> UNKNOWN
     }
 
 // Media3 groups its error codes by thousands.
@@ -121,12 +227,9 @@ private fun errorCategory(code: Int): String =
         else -> "other"
     }
 
-private fun PlaybackSourceKind?.tagValue(): String =
-    when (this) {
-        PlaybackSourceKind.HLS -> "hls"
-        PlaybackSourceKind.MP4 -> "direct"
-        PlaybackSourceKind.ORIGINAL -> "original"
-        null -> "unknown"
-    }
-
 private const val EVENT = "playback_failure"
+private const val SCHEMA_VERSION = "2"
+private const val FAILED = "failed"
+private const val RESCUED = "rescued"
+private const val NONE = "none"
+private const val UNKNOWN = "unknown"

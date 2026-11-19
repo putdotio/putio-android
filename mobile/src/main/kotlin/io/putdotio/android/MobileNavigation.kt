@@ -10,6 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -82,6 +83,7 @@ import io.putdotio.android.playback.PlaybackFallbackReason
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
+import io.putdotio.android.playback.PlaybackPlatform
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.rememberNextEpisode
@@ -97,6 +99,7 @@ import io.putdotio.android.playback.mobilePlaybackViewModelFactory
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.originalFallbackTelemetry
 import io.putdotio.android.playback.playerFailureTelemetry
+import io.putdotio.android.playback.readySource
 import io.putdotio.android.playback.putioFailure
 import io.putdotio.android.playback.rememberPictureInPictureMode
 import io.putdotio.android.playback.subtitleStartupPolicy
@@ -586,6 +589,7 @@ private fun MobilePlaybackRoute(
         null,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
+    val firstFrameSource = remember { mutableStateOf<PlaybackSource?>(null) }
     // The lookups outlive a recomposition; a rejection reaches the current session's handler.
     val currentOnAuthenticationRequired by rememberUpdatedState(onAuthenticationRequired)
     val nextEpisode = rememberNextEpisode(state, findNextEpisode) { currentOnAuthenticationRequired() }
@@ -622,8 +626,12 @@ private fun MobilePlaybackRoute(
                 controller.state.value.content is PlaybackContent.Failed &&
                 playing.target.mediaType == PlaybackMediaType.VIDEO
             ) {
-                PutioDiagnostics.capture(playing.playerFailureTelemetry(failure))
+                val shown = firstFrameSource.value
+                PutioDiagnostics.capture(playing.playerFailureTelemetry(failure, PlaybackPlatform.Mobile, shown))
             }
+        },
+        onFirstFrame = {
+            firstFrameSource.value = controller.state.value.readySource
         },
         onOriginalRejected = controller::rejectOriginal,
         onOriginalChosen = { positionMillis: Long ->
@@ -656,7 +664,7 @@ private fun MobilePlaybackRoute(
 private fun PlaybackController.rejectOriginal(reason: PlaybackFallbackReason, positionMillis: Long): Boolean {
     val playing = state.value
     val consumed = dispatch(PlaybackEvent.OriginalRejected(reason, positionMillis))
-    if (consumed) playing.originalFallbackTelemetry(reason)?.let(PutioDiagnostics::capture)
+    if (consumed) playing.originalFallbackTelemetry(reason, PlaybackPlatform.Mobile)?.let(PutioDiagnostics::capture)
     return consumed
 }
 

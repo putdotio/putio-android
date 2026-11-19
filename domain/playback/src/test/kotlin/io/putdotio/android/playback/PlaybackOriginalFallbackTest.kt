@@ -313,48 +313,76 @@ class PlaybackOriginalFallbackTest {
         PlaybackEvent.ResolveSucceeded(PlaybackRequestId(2L), resolution)
 
     @Test
-    fun aViewersOwnSwitchAndCastsStandardReportNothingAndEveryRescueIsAWarningWithItsCode() {
+    fun aViewersOwnSwitchAndCastsStandardReportNothingAndEveryRescueIsAWarningWithTheContractsCode() {
         val state = ready(source(PlaybackSourceKind.ORIGINAL))
         val expected = setOf(PlaybackFallbackReason.UserSwitched, PlaybackFallbackReason.CastReceiver)
+        val contractCodes = mapOf(
+            PlaybackFallbackReason.PlaybackIssue to "playback_issue",
+            PlaybackFallbackReason.NoMediaInfo to "not_ready",
+            PlaybackFallbackReason.CodecUnmapped to "codec_unmapped",
+            PlaybackFallbackReason.VideoUnsupported to "video_unsupported",
+            PlaybackFallbackReason.AudioUnsupported to "audio_unsupported",
+            PlaybackFallbackReason.ContainerUnsupported to "container_unsupported",
+            PlaybackFallbackReason.DecoderError to "decoder_error",
+        )
 
-        expected.forEach { assertNull(state.originalFallbackTelemetry(it)) }
-        (PlaybackFallbackReason.entries - expected).forEach { reason ->
-            val telemetry = checkNotNull(state.originalFallbackTelemetry(reason))
+        expected.forEach { assertNull(state.originalFallbackTelemetry(it, PlaybackPlatform.Mobile)) }
+        assertEquals(PlaybackFallbackReason.entries.toSet() - expected, contractCodes.keys)
+        contractCodes.forEach { (reason, code) ->
+            val telemetry = checkNotNull(state.originalFallbackTelemetry(reason, PlaybackPlatform.Mobile))
             assertEquals(TelemetrySeverity.Warning, telemetry.severity)
-            assertEquals("fallback, ${reason.code}", telemetry.code)
+            assertEquals("playback rescued: $code", telemetry.shared?.message)
+            assertEquals(code, telemetry.tags["rescue_reason"])
         }
     }
 
     @Test
-    fun aFallbackReportsItsReasonAsANonTerminalOutcome() {
+    fun aRescueIsTheSameReportAsANonTerminalOutcome() {
         val state = ready(source(PlaybackSourceKind.ORIGINAL))
-        val telemetry = checkNotNull(state.originalFallbackTelemetry(PlaybackFallbackReason.AudioUnsupported))
+        val telemetry = checkNotNull(
+            state.originalFallbackTelemetry(PlaybackFallbackReason.AudioUnsupported, PlaybackPlatform.Tv),
+        )
 
-        assertEquals("fallback, audio_unsupported", telemetry.code)
+        assertEquals("playback rescued: audio_unsupported", telemetry.shared?.message)
+        assertEquals(listOf("android_tv", "rescued", "audio_unsupported", "unknown"), telemetry.shared?.fingerprint)
         assertEquals(TelemetrySeverity.Warning, telemetry.severity)
         assertEquals(
             mapOf(
                 "telemetry_event" to "playback_failure",
-                "schema_version" to "1",
+                "schema_version" to "2",
+                "platform" to "android_tv",
                 "player" to "media3",
-                "playback_outcome" to "fallback",
+                "playback_outcome" to "rescued",
                 "playback_terminal" to "false",
-                "playback_fallback_reason" to "audio_unsupported",
+                "playback_started" to "false",
+                "failure_mode" to "unsupported_source",
+                "streaming_method" to "file",
                 "source_kind" to "original",
-                "media_type" to "video",
+                "device_check" to "pass",
+                "rescue_reason" to "audio_unsupported",
+                "rescue_to" to "converted",
+                "engine_error_domain" to "none",
+                "engine_error_category" to "unknown",
+                "engine_error_code" to "unknown",
+                "source_request_status" to "unknown",
                 "file_id" to "42",
+                "container_family" to "unknown",
+                "video_codec" to "unknown",
+                "video_profile" to "unknown",
+                "video_level" to "unknown",
+                "video_bit_depth" to "unknown",
+                "video_resolution" to "unknown",
+                "video_hdr" to "unknown",
+                "audio_codec" to "unknown",
+                "audio_channels" to "unknown",
             ),
             telemetry.tags,
         )
         val failure = PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("synthetic")))
-        assertEquals(
-            "original",
-            ready(source(PlaybackSourceKind.ORIGINAL)).playerFailureTelemetry(failure).tags["source_kind"],
-        )
-        assertEquals(
-            "direct",
-            ready(source(PlaybackSourceKind.MP4)).playerFailureTelemetry(failure).tags["source_kind"],
-        )
+        fun kind(kind: PlaybackSourceKind) =
+            ready(source(kind)).playerFailureTelemetry(failure, PlaybackPlatform.Tv, null).tags["source_kind"]
+        assertEquals("original", kind(PlaybackSourceKind.ORIGINAL))
+        assertEquals("converted", kind(PlaybackSourceKind.MP4))
     }
 
     @Test
