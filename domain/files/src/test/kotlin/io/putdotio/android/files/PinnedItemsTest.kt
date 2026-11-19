@@ -106,6 +106,27 @@ class PinnedItemsTest {
     }
 
     @Test
+    fun tryAgainWhileAPinIsInTrashKeepsItPinnedForUndo() = runTest(UnconfinedTestDispatcher()) {
+        val clip = FilesItemId(Clip.value)
+        var trashed = false
+        val trash = object : FilesItemResolver {
+            override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
+                if (trashed && itemId == clip) PutioResult.Failure(notFound()) else resolver.resolveItem(itemId)
+        }
+        val home = PinnedItems(pins, trash, counts, backgroundScope, clock)
+
+        home.itemRemoved(clip)
+        trashed = true
+        home.retry()
+        assertEquals(listOf("Series"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
+        assertEquals(listOf(Series, Clip), pins.pins.value)
+
+        trashed = false
+        home.trashRestored()
+        assertEquals(listOf("Series", "clip.mp4"), (home.row.value as PinnedRow.Ready).cards.map { it.item.name })
+    }
+
+    @Test
     fun aTrashRestoreShowsThePinsBackAndKeepsOnesStillInTrashPinnedAndHidden() = runTest {
         val clip = FilesItemId(Clip.value)
         val movie = FilesItemId(4L)
