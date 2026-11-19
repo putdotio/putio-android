@@ -1,12 +1,17 @@
 package io.putdotio.android.playback
 
 import android.content.Context
+import android.media.MediaCodecInfo.CodecProfileLevel
+import android.os.Build
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.ColorInfo
 import androidx.media3.common.Format
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.CodecSpecificDataUtil
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.decoder.ffmpeg.FfmpegLibrary
 import androidx.media3.exoplayer.audio.AudioCapabilities
+import androidx.media3.exoplayer.mediacodec.MediaCodecInfo
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import io.putdotio.sdk.files.OriginalVideoDecision
@@ -44,15 +49,15 @@ internal class OriginalPlaybackDecision(
     }
 
     private fun streamReason(streams: List<PutioMediaStream>): PlaybackFallbackReason? {
-        val videoFormat = MediaInfoFormats.videoStreams(streams).firstOrNull()?.let(MediaInfoFormats::toFormat)
-        val audio = MediaInfoFormats.audioStreams(streams)
-        val audioFormats = audio.mapNotNull(MediaInfoFormats::toFormat)
+        val videoFormat = streams.firstVideoStream()?.let(MediaInfoFormats::toFormat)
+        val audio = streams.defaultAudioStream()
+        val audioFormat = audio?.let(MediaInfoFormats::toFormat)
         return when {
             videoFormat == null -> PlaybackFallbackReason.CodecUnmapped
             !decoders.plays(videoFormat) -> PlaybackFallbackReason.VideoUnsupported
-            audio.isEmpty() -> null
-            audioFormats.isEmpty() -> PlaybackFallbackReason.CodecUnmapped
-            audioFormats.none(decoders::plays) -> PlaybackFallbackReason.AudioUnsupported
+            audio == null -> null
+            audioFormat == null -> PlaybackFallbackReason.CodecUnmapped
+            !decoders.plays(audioFormat) -> PlaybackFallbackReason.AudioUnsupported
             else -> null
         }
     }
@@ -74,13 +79,41 @@ public class MediaCodecDecoderInventory internal constructor(
             MimeTypes.isAudio(mimeType) && (passesThrough(format) || softwareAudio(mimeType))
     }
 
-    private fun decodes(format: Format): Boolean =
-        try {
-            MediaCodecUtil.getDecoderInfosSoftMatch(MediaCodecSelector.DEFAULT, format, false, false)
-                .any { it.isFormatSupported(context, format) }
+    private fun decodes(format: Format): Boolean {
+        return try {
+            val mimeType = format.sampleMimeType
+            val decoders = if (mimeType == MimeTypes.VIDEO_DOLBY_VISION) {
+                if (CodecSpecificDataUtil.getCodecProfileAndLevel(format) == null) return false
+                MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, false, false)
+            } else {
+                MediaCodecUtil.getDecoderInfosSoftMatch(MediaCodecSelector.DEFAULT, format, false, false)
+            }
+            decoders.any { it.isFormatSupported(context, format) && it.supportsVp9Hdr(format) }
         } catch (_: MediaCodecUtil.DecoderQueryException) {
             false
         }
+    }
+
+    private fun MediaCodecInfo.supportsVp9Hdr(format: Format): Boolean {
+        if (format.sampleMimeType != MimeTypes.VIDEO_VP9 || !ColorInfo.isTransferHdr(format.colorInfo)) return true
+        val profileAndLevel = CodecSpecificDataUtil.getCodecProfileAndLevel(format)
+        val hdrProfiles = vp9HdrProfiles(profileAndLevel?.first)
+        return profileAndLevel != null &&
+            profileLevels.any { it.profile in hdrProfiles && it.level >= profileAndLevel.second }
+    }
+
+    private fun vp9HdrProfiles(profile: Int?): Set<Int> = buildSet {
+        when (profile) {
+            CodecProfileLevel.VP9Profile2 -> {
+                add(CodecProfileLevel.VP9Profile2HDR)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) add(CodecProfileLevel.VP9Profile2HDR10Plus)
+            }
+            CodecProfileLevel.VP9Profile3 -> {
+                add(CodecProfileLevel.VP9Profile3HDR)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) add(CodecProfileLevel.VP9Profile3HDR10Plus)
+            }
+        }
+    }
 
     private fun passesThrough(format: Format): Boolean =
         AudioCapabilities.getCapabilities(context, AudioAttributes.DEFAULT, null)
