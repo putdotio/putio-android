@@ -134,6 +134,7 @@ private class QueueStreams : PostHogEncryption {
     private val open = mutableSetOf<Closeable>()
     private var queued = 0
     private var started = 0
+    private var stopping = false
     private var closed = false
 
     fun queued() {
@@ -159,7 +160,10 @@ private class QueueStreams : PostHogEncryption {
     }
 
     override fun decrypt(inputStream: InputStream): InputStream {
-        lock.withLock { open(inputStream) }
+        lock.withLock {
+            if (stopping) refuse(inputStream)
+            open(inputStream)
+        }
         return object : FilterInputStream(inputStream) {
             override fun close() {
                 lock.withLock { open -= inputStream }
@@ -170,6 +174,7 @@ private class QueueStreams : PostHogEncryption {
 
     fun closeAll(timeoutMillis: Long) {
         val left = lock.withLock {
+            stopping = true
             var nanos = TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
             try {
                 while (started < queued && nanos > 0) nanos = writeStarted.awaitNanos(nanos)
@@ -183,10 +188,12 @@ private class QueueStreams : PostHogEncryption {
     }
 
     private fun open(stream: Closeable) {
-        if (closed) {
-            stream.close()
-            throw IOException("PostHog storage is stopping")
-        }
+        if (closed) refuse(stream)
         open += stream
+    }
+
+    private fun refuse(stream: Closeable): Nothing {
+        stream.close()
+        throw IOException("PostHog storage is stopping")
     }
 }
