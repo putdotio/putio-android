@@ -103,9 +103,8 @@ posix_modes() {
     MINGW* | MSYS* | CYGWIN*) ;;
     *) return 0 ;;
   esac
-  local probe="${tmpdir}/mode-probe"
-  : > "${probe}"
-  chmod 600 "${probe}"
+  local probe
+  probe="$(umask 077 && mktemp "${tmpdir}/mode-probe.XXXXXX")"
   [[ "$(file_mode "${probe}")" == 600 ]]
 }
 
