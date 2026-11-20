@@ -12,11 +12,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackFindNeighbours
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
@@ -26,6 +29,7 @@ import io.putdotio.android.playback.awaitsFolderNeighbours
 import io.putdotio.android.playback.neighboursOf
 import io.putdotio.android.playback.preparePlayback
 import io.putdotio.android.playback.previousAt
+import io.putdotio.android.playback.toPlaybackFailure
 import io.putdotio.sdk.files.PlaybackSource
 import java.io.Closeable
 import kotlinx.coroutines.CoroutineScope
@@ -36,12 +40,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @MainThread
+@Suppress("LongParameterList") // Constructed once from TvPlaybackRoute, which owns each collaborator.
 internal class TvPlaybackQueue(
     private val context: Context,
     private val factory: TvPlayerFactory,
@@ -49,6 +54,8 @@ internal class TvPlaybackQueue(
     private val lifecycle: Lifecycle,
     private val controller: PlaybackController,
     private val folder: TvFolderLookup,
+    private val analytics: PlaybackAnalyticsReporter,
+    private val onFailure: (PlaybackFailure, Long) -> Unit,
 ) : RememberObserver {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var current by mutableStateOf<Queued?>(null)
@@ -58,9 +65,16 @@ internal class TvPlaybackQueue(
     private val stopped = LifecycleEventObserver { _, event ->
         if (event == Lifecycle.Event.ON_STOP) loadWhileStopped(controller.state.value)
     }
-    private val endListener = object : Player.Listener {
+    private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
-            if (playbackState == Player.STATE_ENDED) advanceIfEnded()
+            if (playbackState != Player.STATE_ENDED) return
+            analytics.reachedEnd()
+            advanceIfEnded()
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            val player = current?.player ?: return
+            if (screen?.player !== player) onFailure(error.toPlaybackFailure(), player.currentPosition.coerceAtLeast(0L))
         }
     }
 
@@ -71,7 +85,7 @@ internal class TvPlaybackQueue(
 
     fun take(source: PlaybackSource, target: PlaybackTarget, player: Player) {
         val previous = current
-        player.addListener(endListener)
+        player.addListener(listener)
         val queued = Queued(source, target.fileId, player, reporter.observe(player))
         current = queued
         val published = tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = queued::setPlaying)
@@ -87,7 +101,7 @@ internal class TvPlaybackQueue(
 
     override fun onRemembered() {
         lifecycle.addObserver(stopped)
-        scope.launch { controller.state.map { it.target }.distinctUntilChanged().collectLatest(folder::lookUp) }
+        scope.launch { controller.state.map { it.target }.distinctUntilChangedBy { it.fileId }.collectLatest(folder::lookUp) }
         scope.launch {
             controller.state.collect { playing ->
                 val held = current
@@ -174,7 +188,7 @@ internal class TvPlaybackQueue(
 
         fun release() {
             positions.close()
-            player.removeListener(endListener)
+            player.removeListener(listener)
             player.release()
         }
     }

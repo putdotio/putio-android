@@ -28,6 +28,8 @@ import androidx.media3.session.MediaSession
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.PlaybackAnalyticsReporter
+import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
@@ -356,10 +358,7 @@ class TvNowPlayingTest {
 
     @Test
     fun backgroundAudioMovesThroughTheFolderWhileTheAppIsStoppedAndTheScreenReturnsToIt() {
-        val owner = object : LifecycleOwner {
-            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
-            override val lifecycle: Lifecycle get() = registry
-        }
+        val owner = stoppableOwner()
         val controller = showFolder(start = SECOND, lifecycleOwner = owner, onBackground = {})
 
         compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
@@ -379,6 +378,49 @@ class TvNowPlayingTest {
         compose.runOnIdle {
             assertEquals(3, players.size)
             assertTrue(players.last().playWhenReady)
+        }
+    }
+
+    @Test
+    fun tracksThatEndWhileTheAppIsStoppedEachReportTheirEnd() {
+        val ended = mutableListOf<FilesItemId>()
+        lateinit var controller: PlaybackController
+        val analytics = object : PlaybackAnalyticsReporter {
+            override fun reachedEnd() {
+                ended += controller.state.value.target.fileId
+            }
+        }
+        val owner = stoppableOwner()
+        controller = showFolder(start = SECOND, lifecycleOwner = owner, onBackground = {}, analytics = analytics)
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        compose.runOnIdle { players.last().end() }
+        idleSession()
+        assertQueued(controller, THIRD)
+        compose.runOnIdle { players.last().end() }
+        idleSession()
+
+        compose.runOnIdle { assertEquals(listOf(SECOND.fileId, THIRD.fileId), ended.distinct()) }
+    }
+
+    @Test
+    fun aQueuedTrackThatFailsWhileTheAppIsStoppedShowsTheFailure() {
+        val owner = stoppableOwner()
+        val controller = showFolder(start = SECOND, lifecycleOwner = owner, onBackground = {})
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        compose.runOnIdle { players.last().end() }
+        idleSession()
+        assertQueued(controller, THIRD)
+        compose.runOnIdle { players.last().fail(positionMillis = 1_000L) }
+        idleSession()
+
+        compose.runOnIdle {
+            assertEquals(THIRD.fileId, controller.state.value.target.fileId)
+            assertTrue(controller.state.value.content is PlaybackContent.Failed)
+            assertTrue(players.last().released)
         }
     }
 
@@ -416,6 +458,7 @@ class TvNowPlayingTest {
         lifecycleOwner: LifecycleOwner? = null,
         findUpNext: Boolean = true,
         onBackground: (() -> Unit)? = null,
+        analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
     ): PlaybackController {
         val controller = PlaybackController(
             start,
@@ -431,6 +474,7 @@ class TvNowPlayingTest {
                     playerFactory = playerFactory,
                     findUpNext = if (findUpNext) folder::findNeighbours else null,
                     onBackground = onBackground,
+                    analytics = analytics,
                 )
             }
         }
@@ -459,6 +503,11 @@ class TvNowPlayingTest {
             assertEquals(target.fileId.value.toString(), players.last().currentMediaItem?.mediaId)
         }
         compose.onNodeWithText(target.name).assertIsDisplayed()
+    }
+
+    private fun stoppableOwner() = object : LifecycleOwner {
+        val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
     }
 
     private fun assertQueued(controller: PlaybackController, target: PlaybackTarget) = compose.runOnIdle {
