@@ -110,6 +110,21 @@ class TvPlayerMediaSessionTest {
     }
 
     @Test
+    fun systemControlsSkipAsFarAsTheRemoteBothWays() {
+        val player = DefaultTvPlayerFactory.create(compose.activity, PlaybackMediaType.VIDEO)
+        val session = tvMediaSession(compose.activity, player).build()
+        try {
+            val controller = connect(session)
+            assertEquals(TV_SKIP_MILLIS, controller.seekBackIncrement)
+            assertEquals(TV_SKIP_MILLIS, controller.seekForwardIncrement)
+            controller.release()
+        } finally {
+            session.release()
+            player.release()
+        }
+    }
+
+    @Test
     fun aSystemPauseAfterASkipHoldsAndBackOnlyHidesTheControls() {
         val player = FakePlayer()
         val sessions = mutableListOf<MediaSession>()
