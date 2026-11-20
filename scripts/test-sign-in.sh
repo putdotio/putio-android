@@ -3,8 +3,8 @@
 # setup failures stop before the device, the dry run precedes the approval, the
 # account must match, a cached token replaces the code, and no token reaches the
 # output. Touches no device: before each case runs, putio, python3 and the SDK
-# root must resolve to the fakes, and a call that reaches a tool outside them
-# stops the run.
+# root must resolve to the fakes, and a putio or adb lookup on PATH that misses
+# them hits a trap that stops the run.
 
 set -euo pipefail
 
