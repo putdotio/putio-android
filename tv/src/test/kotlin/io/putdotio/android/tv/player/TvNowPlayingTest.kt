@@ -355,6 +355,34 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun backgroundAudioMovesThroughTheFolderWhileTheAppIsStoppedAndTheScreenReturnsToIt() {
+        val owner = object : LifecycleOwner {
+            val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+            override val lifecycle: Lifecycle get() = registry
+        }
+        val controller = showFolder(start = SECOND, lifecycleOwner = owner, onBackground = {})
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        compose.runOnIdle { players.last().end() }
+        idleSession()
+        assertQueued(controller, THIRD)
+
+        val session = connect(sessions.last())
+        session.seekToPrevious()
+        idleSession()
+        assertQueued(controller, SECOND)
+        session.release()
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
+        assertPlaying(controller, SECOND)
+        compose.runOnIdle {
+            assertEquals(3, players.size)
+            assertTrue(players.last().playWhenReady)
+        }
+    }
+
+    @Test
     fun theSystemsSkipControlsMoveThroughTheFolder() {
         val controller = showFolder(start = SECOND)
         val session = connect(sessions.last())
@@ -421,6 +449,13 @@ class TvNowPlayingTest {
             assertEquals(target.fileId.value.toString(), players.last().currentMediaItem?.mediaId)
         }
         compose.onNodeWithText(target.name).assertIsDisplayed()
+    }
+
+    private fun assertQueued(controller: PlaybackController, target: PlaybackTarget) = compose.runOnIdle {
+        assertEquals(target.fileId, controller.state.value.target.fileId)
+        assertEquals(target.fileId.value.toString(), players.last().currentMediaItem?.mediaId)
+        assertTrue(players.last().playWhenReady)
+        assertTrue(players.dropLast(1).all { it.released })
     }
 
     private fun connect(session: MediaSession): MediaController {
