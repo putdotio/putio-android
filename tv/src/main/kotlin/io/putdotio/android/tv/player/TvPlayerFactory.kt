@@ -43,6 +43,8 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
                 .setAudioAttributes(mediaType.audioAttributes(), true)
                 .setHandleAudioBecomingNoisy(true)
                 .setWakeMode(if (mediaType == PlaybackMediaType.AUDIO) C.WAKE_MODE_NETWORK else C.WAKE_MODE_NONE)
+                .setSeekBackIncrementMs(TV_SKIP_MILLIS)
+                .setSeekForwardIncrementMs(TV_SKIP_MILLIS)
         }
 
     override fun publish(context: Context, player: Player): Closeable {
