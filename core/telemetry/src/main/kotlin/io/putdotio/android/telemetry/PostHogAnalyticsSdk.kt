@@ -5,13 +5,23 @@ import android.content.res.Configuration
 import android.os.Build
 import com.posthog.PersonProfiles
 import com.posthog.PostHogBootstrapConfig
+import com.posthog.PostHogEncryption
 import com.posthog.PostHogEvent
 import com.posthog.PostHogInterface
 import com.posthog.android.PostHogAndroid
 import com.posthog.android.PostHogAndroidConfig
 import com.posthog.internal.PostHogMemoryPreferences
+import java.io.Closeable
 import java.io.File
+import java.io.FilterInputStream
+import java.io.FilterOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.Date
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 import okhttp3.OkHttpClient
 
 internal class PostHogAnalyticsSdk(
@@ -20,26 +30,29 @@ internal class PostHogAnalyticsSdk(
     private val httpClient: OkHttpClient? = null,
 ) : AnalyticsSdk {
     private var client: PostHogInterface? = null
+    private var streams: QueueStreams? = null
     private var common: Map<String, Any> = emptyMap()
 
     override fun start(accountId: Long) {
         common = commonProperties()
-        client = PostHogAndroid.with(context, config(accountId))
+        val streams = QueueStreams().also { streams = it }
+        client = PostHogAndroid.with(context, config(accountId, streams))
     }
 
     override fun capture(name: String, properties: Map<String, String>, timestampMillis: Long) {
         client?.capture(name, properties = common + properties, timestamp = Date(timestampMillis))
     }
 
-    // close() sends what is queued, so the queue goes first; close may write again, so it goes after too.
     override fun stop() {
+        streams?.closeAll(STOP_TIMEOUT_MILLIS)
+        streams = null
         storageDir(context).deleteRecursively()
         client?.close()
         client = null
         storageDir(context).deleteRecursively()
     }
 
-    private fun config(accountId: Long): PostHogAndroidConfig {
+    private fun config(accountId: Long, streams: QueueStreams): PostHogAndroidConfig {
         val storage = storageDir(context)
         return PostHogAndroidConfig(
             projectToken = configuration.token,
@@ -69,7 +82,8 @@ internal class PostHogAnalyticsSdk(
             // A session has few events; each goes when captured instead of waiting for 20.
             flushAt = 1
             httpClient = this@PostHogAnalyticsSdk.httpClient
-            addBeforeSend(::allowlisted)
+            encryption = streams
+            addBeforeSend { event -> allowlisted(event)?.also { streams.queued() } }
         }
     }
 
@@ -101,6 +115,7 @@ internal class PostHogAnalyticsSdk(
         /** put.io's forward-only proxy to PostHog Cloud EU. */
         const val HOST = "https://burrow.put.io"
         const val TABLET_MIN_WIDTH_DP = 600
+        const val STOP_TIMEOUT_MILLIS = 5_000L
 
         fun storageDir(context: Context) = File(context.noBackupFilesDir, "io.put.analytics")
     }
@@ -110,4 +125,63 @@ internal class PostHogAnalyticsSdk(
 private fun allowlisted(event: PostHogEvent): PostHogEvent? {
     val kept = AnalyticsAllowlist.allowedProperties(event.event, event.properties.orEmpty()) ?: return null
     return event.copy(properties = kept.toMutableMap(), set = null)
+}
+
+private class QueueStreams : PostHogEncryption {
+    private val lock = ReentrantLock()
+    private val writeStarted = lock.newCondition()
+    private val open = mutableSetOf<Closeable>()
+    private var queued = 0
+    private var started = 0
+    private var closed = false
+
+    fun queued() {
+        lock.withLock { queued++ }
+    }
+
+    override fun encrypt(outputStream: OutputStream): OutputStream {
+        lock.withLock {
+            started++
+            writeStarted.signalAll()
+            open(outputStream)
+        }
+        return object : FilterOutputStream(outputStream) {
+            override fun write(b: ByteArray, off: Int, len: Int) {
+                out.write(b, off, len)
+            }
+
+            override fun close() {
+                lock.withLock { open -= outputStream }
+                super.close()
+            }
+        }
+    }
+
+    override fun decrypt(inputStream: InputStream): InputStream {
+        lock.withLock { open(inputStream) }
+        return object : FilterInputStream(inputStream) {
+            override fun close() {
+                lock.withLock { open -= inputStream }
+                super.close()
+            }
+        }
+    }
+
+    fun closeAll(timeoutMillis: Long) {
+        val left = lock.withLock {
+            var nanos = TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
+            while (started < queued && nanos > 0) nanos = writeStarted.awaitNanos(nanos)
+            closed = true
+            open.toList().also { open.clear() }
+        }
+        left.forEach { runCatching(it::close) }
+    }
+
+    private fun open(stream: Closeable) {
+        if (closed) {
+            stream.close()
+            throw IOException("PostHog storage is stopping")
+        }
+        open += stream
+    }
 }
