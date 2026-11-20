@@ -71,6 +71,7 @@ class TvNowPlayingTest {
     private var exits = 0
     private val folderRead = CompletableDeferred(Unit)
     private val repository = FolderRepository(folderRead)
+    private var analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None
 
     @Test
     fun nextAndPreviousMoveThroughTheFolderAndPreviousRestartsAPlayingTrack() {
@@ -385,13 +386,13 @@ class TvNowPlayingTest {
     fun tracksThatEndWhileTheAppIsStoppedEachReportTheirEnd() {
         val ended = mutableListOf<FilesItemId>()
         lateinit var controller: PlaybackController
-        val analytics = object : PlaybackAnalyticsReporter {
+        analytics = object : PlaybackAnalyticsReporter {
             override fun reachedEnd() {
                 ended += controller.state.value.target.fileId
             }
         }
         val owner = stoppableOwner()
-        controller = showFolder(start = SECOND, lifecycleOwner = owner, onBackground = {}, analytics = analytics)
+        controller = showFolder(start = SECOND, lifecycleOwner = owner, onBackground = {})
 
         compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
         compose.waitForIdle()
@@ -458,7 +459,6 @@ class TvNowPlayingTest {
         lifecycleOwner: LifecycleOwner? = null,
         findUpNext: Boolean = true,
         onBackground: (() -> Unit)? = null,
-        analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
     ): PlaybackController {
         val controller = PlaybackController(
             start,

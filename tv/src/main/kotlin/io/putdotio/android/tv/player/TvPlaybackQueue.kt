@@ -73,8 +73,8 @@ internal class TvPlaybackQueue(
         }
 
         override fun onPlayerError(error: PlaybackException) {
-            val player = current?.player ?: return
-            if (screen?.player !== player) onFailure(error.toPlaybackFailure(), player.currentPosition.coerceAtLeast(0L))
+            val player = current?.player?.takeIf { it !== screen?.player } ?: return
+            onFailure(error.toPlaybackFailure(), player.currentPosition.coerceAtLeast(0L))
         }
     }
 
@@ -101,7 +101,9 @@ internal class TvPlaybackQueue(
 
     override fun onRemembered() {
         lifecycle.addObserver(stopped)
-        scope.launch { controller.state.map { it.target }.distinctUntilChangedBy { it.fileId }.collectLatest(folder::lookUp) }
+        scope.launch {
+            controller.state.map { it.target }.distinctUntilChangedBy { it.fileId }.collectLatest(folder::lookUp)
+        }
         scope.launch {
             controller.state.collect { playing ->
                 val held = current
