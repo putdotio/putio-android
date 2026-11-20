@@ -3,8 +3,9 @@
 # setup failures stop before the device, the dry run precedes the approval, the
 # account must match, a cached token replaces the code, and no token reaches the
 # output. Touches no device: before each case runs, putio, python3 and the SDK
-# root must resolve to the fakes, and a putio or adb lookup on PATH that misses
-# them hits a trap that stops the run.
+# root must resolve to the fakes, so a host with putio in /usr/bin or /bin
+# fails the suite; in cases with a fake CLI, a putio lookup that misses it hits
+# a trap that stops the run.
 
 set -euo pipefail
 
@@ -21,10 +22,8 @@ CACHED_TOKEN="fake-cached-app-token"
 STALE_TOKEN="fake-stale-app-token"
 ACCOUNT=306077
 mkdir -p "${tmpdir}/sdk/platform-tools" "${tmpdir}/cli" "${tmpdir}/nocli" "${tmpdir}/tools" "${tmpdir}/trap"
-for tool in putio adb; do
-  printf '#!/bin/sh\necho "%s $*" >> "%s/escaped"\nexit 97\n' "${tool}" "${tmpdir}" > "${tmpdir}/trap/${tool}"
-  chmod +x "${tmpdir}/trap/${tool}"
-done
+printf '#!/bin/sh\necho "putio $*" >> %q\nexit 97\n' "${tmpdir}/escaped" > "${tmpdir}/trap/putio"
+chmod +x "${tmpdir}/trap/putio"
 # The interpreter itself, not a version-manager shim that needs the real HOME.
 printf '#!/bin/sh\nexec %q "$@"\n' "$(python3 -c 'import sys; print(sys.executable)')" > "${tmpdir}/tools/python3"
 chmod +x "${tmpdir}/tools/python3"
@@ -102,7 +101,7 @@ fail() { echo "FAIL ${case_name}: $*" >&2; failures=$((failures + 1)); }
 
 isolation_error() {
   local resolved expected
-  resolved="$(env -i HOME="${tmpdir}" PATH="$1" ANDROID_HOME="${tmpdir}/sdk" bash -c '
+  resolved="$(env -i HOME="${tmpdir}" PATH="$1" ANDROID_HOME="${3:-${tmpdir}/sdk}" bash -c '
     source "$1/scripts/lib.sh"
     printf "putio=%s python3=%s sdk=%s" "$(command -v putio || true)" "$(command -v python3 || true)" "$(resolve_sdk_root || true)"
   ' _ "${REPO_ROOT}" 2>&1 || true)"
@@ -167,6 +166,12 @@ case_name="isolation-guard"
   fail "accepted a PATH whose putio is not the fake"
 [[ -n "$(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "")" ]] ||
   fail "accepted a PATH with a putio although the case expects none"
+[[ -n "$(isolation_error "${tmpdir}/cli:${tmpdir}/nocli:/usr/bin:/bin" "${tmpdir}/cli/putio")" ]] ||
+  fail "accepted a PATH whose python3 is not the shim"
+[[ -n "$(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio" "${tmpdir}/missing-sdk")" ]] ||
+  fail "accepted an SDK root other than the fake"
+[[ -z "$(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio")" ]] ||
+  fail "rejected the fakes: $(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio")"
 ((failures == 0)) || exit 1
 
 case_name="escape-tripwire"
