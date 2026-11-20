@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
@@ -1727,6 +1728,8 @@ private fun BoxScope.MobileVideoLayers(
         player = player,
         modifier = Modifier
             .videoArea(fold)
+            // Letterbox and pillarbox bars are black like every video player, not the app's surface.
+            .background(Color.Black)
             .onGloballyPositioned {
                 // Inside the window these are its own bounds; the next window still starts from full screen.
                 if (!currentPictureInPicture) playerState.videoFrame = it.boundsInWindow()
