@@ -171,7 +171,11 @@ private class QueueStreams : PostHogEncryption {
     fun closeAll(timeoutMillis: Long) {
         val left = lock.withLock {
             var nanos = TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
-            while (started < queued && nanos > 0) nanos = writeStarted.awaitNanos(nanos)
+            try {
+                while (started < queued && nanos > 0) nanos = writeStarted.awaitNanos(nanos)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
             closed = true
             open.toList().also { open.clear() }
         }
