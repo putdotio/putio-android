@@ -49,7 +49,7 @@ internal class TvPlaybackQueue(
 ) : RememberObserver {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var current: Queued? = null
-    private var session: Closeable? = null
+    private var session: TvQueueSession? = null
     private var screen: Screen? = null
     private var advancedFrom: Player? = null
     private val stopped = LifecycleEventObserver { _, event ->
@@ -67,14 +67,11 @@ internal class TvPlaybackQueue(
 
     fun take(source: PlaybackSource, target: PlaybackTarget, player: Player) {
         val previous = current
-        val previousSession = session
         player.addListener(endListener)
         current = Queued(source, target.fileId, player, reporter.observe(player))
-        session = factory.publishInBackground(
-            context,
-            tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = ::setPlaying),
-        )
-        previous?.release(previousSession)
+        val published = tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = ::setPlaying)
+        session?.swap(published) ?: run { session = factory.publishQueue(context, published) }
+        previous?.release()
     }
 
     fun attach(player: Player, skip: (Boolean) -> Unit, setPlaying: (Boolean) -> Unit): Closeable {
@@ -96,9 +93,10 @@ internal class TvPlaybackQueue(
         scope.cancel()
         lifecycle.removeObserver(stopped)
         screen = null
-        current?.release(session)
-        current = null
+        session?.close()
         session = null
+        current?.release()
+        current = null
     }
 
     private fun loadWhileStopped(playing: PlaybackState) {
@@ -154,9 +152,8 @@ internal class TvPlaybackQueue(
         val player: Player,
         private val positions: Closeable,
     ) {
-        fun release(session: Closeable?) {
+        fun release() {
             positions.close()
-            session?.close()
             player.removeListener(endListener)
             player.release()
         }

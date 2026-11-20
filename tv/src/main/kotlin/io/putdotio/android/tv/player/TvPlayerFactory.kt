@@ -29,6 +29,22 @@ internal fun interface TvPlayerFactory {
     fun publish(context: Context, player: Player): Closeable = Closeable {}
 
     fun publishInBackground(context: Context, player: Player): Closeable = publish(context, player)
+
+    fun publishQueue(context: Context, player: Player): TvQueueSession = object : TvQueueSession {
+        private var published = publishInBackground(context, player)
+
+        override fun swap(player: Player) {
+            val previous = published
+            published = publishInBackground(context, player)
+            previous.close()
+        }
+
+        override fun close() = published.close()
+    }
+}
+
+internal interface TvQueueSession : Closeable {
+    fun swap(player: Player)
 }
 
 /**
@@ -54,6 +70,18 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
 
     override fun publishInBackground(context: Context, player: Player): Closeable =
         TvBackgroundSessions.host(context, launchingSession(context, player))
+
+    override fun publishQueue(context: Context, player: Player): TvQueueSession {
+        val session = launchingSession(context, player)
+        val hosted = TvBackgroundSessions.host(context, session)
+        return object : TvQueueSession {
+            override fun swap(player: Player) {
+                session.player = player
+            }
+
+            override fun close() = hosted.close()
+        }
+    }
 
     private fun launchingSession(context: Context, player: Player): MediaSession {
         val launch = (
