@@ -222,7 +222,7 @@ class FilesCopyTest {
             listFolder = { _, _ -> error("Unexpected listing") },
             continueListing = { _, _ -> error("Unexpected continuation") },
             setSort = { _, _ -> error("Unexpected sort") },
-            getFile = { error("Unexpected item lookup") },
+            getFile = { _, _ -> error("Unexpected item lookup") },
             mutations = SdkFilesMutations(
                 rename = { _, _ -> error("Unexpected rename") },
                 delete = { _, _ -> error("Unexpected delete") },

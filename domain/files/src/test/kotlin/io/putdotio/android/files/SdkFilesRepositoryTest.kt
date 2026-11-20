@@ -7,6 +7,7 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
+import io.putdotio.sdk.files.FileDetailsQuery
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
@@ -139,7 +140,7 @@ class SdkFilesRepositoryTest {
             var requestedFileId: Long? = null
             val repository =
                 repository(
-                    getFile = { fileId ->
+                    getFile = { fileId, _ ->
                         requestedFileId = fileId
                         sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
                     },
@@ -305,7 +306,7 @@ class SdkFilesRepositoryTest {
             error("Unexpected continuation")
         },
         setSort: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected sort") },
-        getFile: suspend (Long) -> PutioFile = { error("Unexpected file resolution") },
+        getFile: suspend (Long, FileDetailsQuery) -> PutioFile = { _, _ -> error("Unexpected file resolution") },
         rename: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected rename") },
     ) = SdkFilesRepository(
         listFolder = listFolder,
@@ -323,7 +324,7 @@ class SdkFilesRepositoryTest {
         listFolder = { _, _ -> error("Unexpected folder load") },
         continueListing = { _, _ -> error("Unexpected continuation") },
         setSort = { _, _ -> error("Unexpected sort") },
-        getFile = { error("Unexpected file resolution") },
+        getFile = { _, _ -> error("Unexpected file resolution") },
         mutations = SdkFilesMutations(
             rename = { _, _ -> error("Unexpected rename") },
             delete = { _, _ -> error("Unexpected delete") },
@@ -342,7 +343,7 @@ class SdkFilesRepositoryTest {
                 delete = { _, _ -> throw error },
                 move = { _, _ -> throw error },
             ),
-            getFile = { throw error },
+            getFile = { _, _ -> throw error },
         )
 
     private fun apiFailure(
