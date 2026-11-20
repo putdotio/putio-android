@@ -39,6 +39,11 @@ internal object MediaInfoFormats {
     private fun videoFormat(codec: String, stream: PutioMediaStream): Format? {
         val rfcCodecs = stream.rfc6381Codec?.takeIf(String::isNotBlank)
         val dolbyCodecs = rfcCodecs?.takeIf { it.substringBefore('.').lowercase(Locale.ROOT) in DOLBY_VISION_CODEC_IDS }
+            ?: stream.dolbyVisionProfile?.let { profile ->
+                DOLBY_VISION_CODEC_IDS_BY_BASE[codec]?.let {
+                    "$it.%02d.%02d".format(Locale.ROOT, profile, DOLBY_VISION_LOWEST_LEVEL)
+                }
+            }
         val dolbyVision = stream.dolbyVisionProfile != null || dolbyCodecs != null
         val mimeType = if (dolbyVision) MimeTypes.VIDEO_DOLBY_VISION else VIDEO_MIME_TYPES[codec] ?: return null
         val codecs = if (dolbyVision) {
@@ -139,8 +144,11 @@ internal object MediaInfoFormats {
     private const val VP9_MAX_BIT_DEPTH = 12
     private const val CODEC_BIT_DEPTH_INDEX = 3
 
+    private const val DOLBY_VISION_LOWEST_LEVEL = 1
+
     private val BIT_DEPTH_CODECS = setOf(AV1, VP9)
     private val DOLBY_VISION_CODEC_IDS = setOf("dvh1", "dvhe", "dva1", "dvav", "dav1")
+    private val DOLBY_VISION_CODEC_IDS_BY_BASE = mapOf(HEVC to "dvhe", H264 to "dvav", AV1 to "dav1")
 
     private val PLAYABLE_CONTAINERS = setOf(
         "matroska", "webm", "mp4", "mov", "m4a", "m4v", "3gp", "3g2", "avi", "mpegts", "flv", "ogg", "mpeg",

@@ -82,8 +82,10 @@ public class MediaCodecDecoderInventory internal constructor(
     private fun decodes(format: Format): Boolean {
         return try {
             val mimeType = format.sampleMimeType
-            val decoders = if (mimeType == MimeTypes.VIDEO_DOLBY_VISION) {
-                if (CodecSpecificDataUtil.getCodecProfileAndLevel(format) == null) return false
+            val decoders = if (mimeType == MimeTypes.VIDEO_DOLBY_VISION &&
+                (CodecSpecificDataUtil.getCodecProfileAndLevel(format) ?: return false).first ==
+                CodecProfileLevel.DolbyVisionProfileDvav110
+            ) {
                 MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, false, false)
             } else {
                 MediaCodecUtil.getDecoderInfosSoftMatch(MediaCodecSelector.DEFAULT, format, false, false)
