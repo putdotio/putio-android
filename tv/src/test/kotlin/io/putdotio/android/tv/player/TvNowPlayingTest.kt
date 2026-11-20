@@ -383,6 +383,16 @@ class TvNowPlayingTest {
     }
 
     @Test
+    fun aBackgroundTrackStopsWhenTheNextOneFailsToOpen() {
+        showFolder(start = SECOND, folder = FolderRepository(folderRead, unplayable = THIRD.fileId), onBackground = {})
+
+        player().performKeyInput { pressKey(Key.MediaNext) }
+        compose.waitForIdle()
+
+        compose.runOnIdle { assertTrue(players.single().released) }
+    }
+
+    @Test
     fun theSystemsSkipControlsMoveThroughTheFolder() {
         val controller = showFolder(start = SECOND)
         val session = connect(sessions.last())
@@ -473,6 +483,7 @@ class TvNowPlayingTest {
         private val read: CompletableDeferred<Unit>,
         private val savedSeconds: Double = 0.0,
         private val rejected: Boolean = false,
+        private val unplayable: FilesItemId? = null,
     ) : PlaybackRepository {
         private val folder = listOf(FIRST, SECOND, THIRD)
 
@@ -480,12 +491,18 @@ class TvNowPlayingTest {
             target: PlaybackTarget,
             convertedOnly: Boolean,
         ): PlaybackRepositoryResult<PlaybackResolution> =
-            PlaybackRepositoryResult.Success(
-                PlaybackResolution.Ready(
-                    source(startFromSeconds = savedSeconds, fileId = target.fileId.value),
-                    useStartFrom = savedSeconds > 0.0,
-                ),
-            )
+            if (target.fileId == unplayable) {
+                PlaybackRepositoryResult.Failure(
+                    PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
+                )
+            } else {
+                PlaybackRepositoryResult.Success(
+                    PlaybackResolution.Ready(
+                        source(startFromSeconds = savedSeconds, fileId = target.fileId.value),
+                        useStartFrom = savedSeconds > 0.0,
+                    ),
+                )
+            }
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
 

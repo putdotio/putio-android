@@ -4,7 +4,10 @@ import android.content.Context
 import androidx.annotation.MainThread
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.RememberObserver
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -48,7 +51,7 @@ internal class TvPlaybackQueue(
     private val folder: TvFolderLookup,
 ) : RememberObserver {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var current: Queued? = null
+    private var current by mutableStateOf<Queued?>(null)
     private var session: TvQueueSession? = null
     private var screen: Screen? = null
     private var advancedFrom: Player? = null
@@ -63,7 +66,8 @@ internal class TvPlaybackQueue(
 
     val neighbours: StateFlow<PlaybackNeighbours?> = folder.neighbours
 
-    fun playing(source: PlaybackSource): Player? = current?.takeIf { it.source == source }?.player
+    fun playing(source: PlaybackSource): Player? =
+        current?.takeIf { it.source == source && it.player.playerError == null }?.player
 
     fun take(source: PlaybackSource, target: PlaybackTarget, player: Player) {
         val previous = current
@@ -83,7 +87,12 @@ internal class TvPlaybackQueue(
     override fun onRemembered() {
         lifecycle.addObserver(stopped)
         scope.launch { controller.state.map { it.target }.distinctUntilChanged().collectLatest(folder::lookUp) }
-        scope.launch { controller.state.collect(::loadWhileStopped) }
+        scope.launch {
+            controller.state.collect { playing ->
+                follow(playing)
+                loadWhileStopped(playing)
+            }
+        }
         scope.launch { folder.neighbours.collect { advanceIfEnded() } }
     }
 
@@ -93,10 +102,23 @@ internal class TvPlaybackQueue(
         scope.cancel()
         lifecycle.removeObserver(stopped)
         screen = null
+        drop()
+    }
+
+    private fun drop() {
         session?.close()
         session = null
         current?.release()
         current = null
+    }
+
+    private fun follow(playing: PlaybackState) {
+        val held = current ?: return
+        when (playing.content) {
+            is PlaybackContent.Failed -> drop()
+            is PlaybackContent.Ready -> if (playing.target.mediaType != PlaybackMediaType.AUDIO) drop()
+            else -> if (playing.target.fileId != held.fileId) held.player.pause()
+        }
     }
 
     private fun loadWhileStopped(playing: PlaybackState) {
@@ -215,9 +237,12 @@ internal fun rememberHeldPlayer(
     mediaType: PlaybackMediaType,
 ): TvHeldPlayer {
     val context = LocalContext.current
-    return remember(source, factory, queue) {
-        val queued = queue?.playing(source)
+    val queued = queue?.playing(source)
+    val held = remember(source, factory, queue) {
         TvHeldPlayer(queued ?: factory.create(context, mediaType), queue, adopted = queued != null)
+    }
+    return remember(held, queued) {
+        if (queued == null || queued === held.player) held else TvHeldPlayer(queued, queue, adopted = true)
     }
 }
 
