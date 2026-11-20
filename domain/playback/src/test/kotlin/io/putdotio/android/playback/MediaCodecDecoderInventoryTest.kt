@@ -60,6 +60,19 @@ class MediaCodecDecoderInventoryTest {
         assertEquals(PlaybackFallbackReason.VideoUnsupported, decision.fallbackReason(dolbyVision(profile = 8)))
     }
 
+    @Test
+    fun dolbyVisionProfile10RequiresDolbyVisionWithoutBaseLayerCompatibility() {
+        addVideoDecoder(
+            MimeTypes.VIDEO_AV1,
+            CodecProfileLevel.AV1ProfileMain10 to CodecProfileLevel.AV1Level62,
+        )
+
+        assertEquals(
+            PlaybackFallbackReason.VideoUnsupported,
+            decision.fallbackReason(dolbyVision(profile = 10, codec = "av1")),
+        )
+    }
+
     private fun addVideoDecoder(mimeType: String, vararg profileLevels: Pair<Int, Int>) {
         val reported = profileLevels.map { (profile, level) ->
             CodecProfileLevel().apply {
@@ -83,13 +96,13 @@ class MediaCodecDecoderInventoryTest {
         )
     }
 
-    private fun dolbyVision(profile: Int): PutioMediaInfo =
+    private fun dolbyVision(profile: Int, codec: String = "hevc"): PutioMediaInfo =
         PutioMediaInfo(
             format = PutioMediaFormat(name = "matroska,webm"),
             streams = listOf(
                 PutioMediaStream(
                     codecType = "video",
-                    codecName = "hevc",
+                    codecName = codec,
                     rfc6381Codec = "",
                     width = UHD_WIDTH,
                     height = UHD_HEIGHT,
