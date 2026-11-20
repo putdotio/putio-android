@@ -2,20 +2,28 @@
 # Contract tests for sign-in-devs-auto.sh over a fake adb and a fake putio CLI:
 # setup failures stop before the device, the dry run precedes the approval, the
 # account must match, a cached token replaces the code, and no token reaches the
-# output. Touches no device.
+# output. Touches no device: before each case runs, putio, python3 and the SDK
+# root must resolve to the fakes, so a host with putio in /usr/bin or /bin
+# fails the suite; in cases with a fake CLI, a putio lookup that misses it hits
+# a trap that stops the run.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
+if [[ "${tmpdir}" == *:* ]] && command -v cygpath >/dev/null 2>&1; then
+  tmpdir="$(cygpath -u "${tmpdir}")"
+fi
 
 SECRET="fake-ambient-token-value"
 APP_TOKEN="fake-app-token-from-approval"
 CACHED_TOKEN="fake-cached-app-token"
 STALE_TOKEN="fake-stale-app-token"
 ACCOUNT=306077
-mkdir -p "${tmpdir}/sdk/platform-tools" "${tmpdir}/cli" "${tmpdir}/nocli" "${tmpdir}/tools"
+mkdir -p "${tmpdir}/sdk/platform-tools" "${tmpdir}/cli" "${tmpdir}/nocli" "${tmpdir}/tools" "${tmpdir}/trap"
+printf '#!/bin/sh\necho "putio $*" >> %q\nexit 97\n' "${tmpdir}/escaped" > "${tmpdir}/trap/putio"
+chmod +x "${tmpdir}/trap/putio"
 # The interpreter itself, not a version-manager shim that needs the real HOME.
 printf '#!/bin/sh\nexec %q "$@"\n' "$(python3 -c 'import sys; print(sys.executable)')" > "${tmpdir}/tools/python3"
 chmod +x "${tmpdir}/tools/python3"
@@ -90,6 +98,22 @@ chmod +x "${tmpdir}/cli/putio" "${tmpdir}/sdk/platform-tools/adb"
 
 failures=0
 fail() { echo "FAIL ${case_name}: $*" >&2; failures=$((failures + 1)); }
+summarize() {
+  if ((failures > 0)); then
+    echo "sign-in contract: ${failures} failure(s)" >&2
+    exit 1
+  fi
+}
+
+isolation_error() {
+  local resolved expected
+  resolved="$(env -i HOME="${tmpdir}" PATH="$1" ANDROID_HOME="${3:-${tmpdir}/sdk}" bash -c '
+    source "$1/scripts/lib.sh"
+    printf "putio=%s python3=%s sdk=%s" "$(command -v putio || true)" "$(command -v python3 || true)" "$(resolve_sdk_root || true)"
+  ' _ "${REPO_ROOT}" 2>&1 || true)"
+  expected="putio=$2 python3=${tmpdir}/tools/python3 sdk=${tmpdir}/sdk"
+  [[ "${resolved}" == "${expected}" ]] || printf 'resolves %s, expected %s' "${resolved}" "${expected}"
+}
 
 # Runs the script in a fresh state dir; sets $status, $out (stdout) and $err (stderr).
 run_case() {
@@ -106,8 +130,15 @@ run_case() {
       *) touch "${state}/${flag}" ;;
     esac
   done
-  local path="${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin"
-  [[ -e "${state}/no-cli" ]] && path="${tmpdir}/nocli:${tmpdir}/tools:/usr/bin:/bin"
+  local cli="${tmpdir}/cli" putio="${tmpdir}/cli/putio"
+  [[ -e "${state}/no-cli" ]] && cli="${tmpdir}/nocli" putio=""
+  local path="${cli}:${tmpdir}/tools:${tmpdir}/trap:/usr/bin:/bin" isolation
+  [[ -z "${putio}" ]] && path="${cli}:${tmpdir}/tools:/usr/bin:/bin"
+  isolation="$(isolation_error "${path}" "${putio}")"
+  if [[ -n "${isolation}" ]]; then
+    fail "not isolated from real tools, so no case ran: ${isolation}"
+    summarize
+  fi
   status=0
   home="${tmpdir}/home-${case_name}"
   cache="${home}/.cache/putio-android/devs-auto/io.put.putio.mobile.debug.token"
@@ -116,6 +147,10 @@ run_case() {
     PUTIO_CLI_TOKEN="${SECRET}" PUTIO_SIGN_IN_TIMEOUT=3 PUTIO_SIGN_IN_POLL=0 \
     bash "${REPO_ROOT}/scripts/sign-in-devs-auto.sh" emulator-5554 \
     > "${state}/out" 2> "${state}/err" || status=$?
+  if [[ -s "${tmpdir}/escaped" ]]; then
+    fail "called a tool outside its fakes, so the run stopped: $(cat "${tmpdir}/escaped")"
+    summarize
+  fi
   out="$(cat "${state}/out")"
   err="$(cat "${state}/err")"
   if grep -qE "${SECRET}|fake-[a-z-]*app-token" "${state}/out" "${state}/err" "${state}/adb-calls" 2>/dev/null; then
@@ -131,6 +166,28 @@ expect_failure() {
   [[ "${err}" == *"$1"* ]] || fail "stderr lacks '$1': ${err}"
   [[ "${out}" != *"PROOF PASS"* ]] || fail "printed PROOF PASS"
 }
+
+case_name="isolation-guard"
+[[ -n "$(isolation_error "${tmpdir}/nocli:${tmpdir}/tools:${tmpdir}/trap:/usr/bin:/bin" "${tmpdir}/cli/putio")" ]] ||
+  fail "accepted a PATH whose putio is not the fake"
+[[ -n "$(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "")" ]] ||
+  fail "accepted a PATH with a putio although the case expects none"
+[[ -n "$(isolation_error "${tmpdir}/cli:${tmpdir}/nocli:/usr/bin:/bin" "${tmpdir}/cli/putio")" ]] ||
+  fail "accepted a PATH whose python3 is not the shim"
+[[ -n "$(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio" "${tmpdir}/missing-sdk")" ]] ||
+  fail "accepted an SDK root other than the fake"
+[[ -z "$(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio")" ]] ||
+  fail "rejected the fakes: $(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio")"
+summarize
+
+case_name="escape-tripwire"
+env -i HOME="${tmpdir}" PATH="${tmpdir}/nocli:${tmpdir}/tools:${tmpdir}/trap:/usr/bin:/bin" \
+  ANDROID_HOME="${tmpdir}/sdk" PUTIO_SIGN_IN_TIMEOUT=3 PUTIO_SIGN_IN_POLL=0 \
+  bash "${REPO_ROOT}/scripts/sign-in-devs-auto.sh" emulator-5554 >/dev/null 2>&1 || true
+[[ -s "${tmpdir}/escaped" ]] ||
+  fail "a putio outside the fakes went unnoticed"
+rm -f "${tmpdir}/escaped"
+summarize
 
 run_case approves-code
 [[ "${status}" == 0 ]] || fail "exit ${status}: ${err}"
@@ -196,8 +253,5 @@ help="$(env -i PATH=/usr/bin:/bin bash "${REPO_ROOT}/scripts/sign-in-devs-auto.s
 [[ "${help}" == "Usage: scripts/sign-in-devs-auto.sh <serial> [package]"* && "${help}" == *Prerequisites:* ]] ||
   fail "--help: ${help}"
 
-if ((failures > 0)); then
-  echo "sign-in contract: ${failures} failure(s)" >&2
-  exit 1
-fi
+summarize
 echo "sign-in contract: all cases passed"
