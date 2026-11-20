@@ -96,7 +96,20 @@ esac
 EOF
 chmod +x "${tmpdir}/cli/putio" "${tmpdir}/sdk/platform-tools/adb"
 
+file_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
+
+posix_modes() {
+  case "$(uname -s)" in
+    *_NT*) ;;
+    *) return 0 ;;
+  esac
+  local probe="${tmpdir}/mode-probe"
+  { : > "${probe}" && chmod 640 "${probe}"; } || { fail "could not create the mode probe"; return 0; }
+  [[ "$(file_mode "${probe}")" == 640 ]]
+}
+
 failures=0
+skipped=()
 fail() { echo "FAIL ${case_name}: $*" >&2; failures=$((failures + 1)); }
 summarize() {
   if ((failures > 0)); then
@@ -197,7 +210,11 @@ approvals="$(grep '^auth approve' "${state}/putio-calls" || true)"
   fail "approvals: ${approvals}"
 [[ "${out}${err}" != *ABC123* ]] || fail "the activation code reached the output"
 [[ "$(cat "${cache}" 2>/dev/null)" == "${APP_TOKEN}" ]] || fail "the approved app's token was not cached"
-[[ "$(stat -c %a "${cache}" 2>/dev/null || stat -f %Lp "${cache}")" == 600 ]] || fail "the cached token is not 0600"
+if posix_modes; then
+  [[ "$(file_mode "${cache}")" == 600 ]] || fail "the cached token is not 0600"
+else
+  skipped+=("${case_name} 0600 check: this filesystem keeps no POSIX modes")
+fi
 
 run_case uses-cached-token "cache=${CACHED_TOKEN}"
 [[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
@@ -254,4 +271,8 @@ help="$(env -i PATH=/usr/bin:/bin bash "${REPO_ROOT}/scripts/sign-in-devs-auto.s
   fail "--help: ${help}"
 
 summarize
-echo "sign-in contract: all cases passed"
+if ((${#skipped[@]} > 0)); then
+  echo "sign-in contract: all cases passed; skipped: $(IFS=';'; echo "${skipped[*]}")"
+else
+  echo "sign-in contract: all cases passed"
+fi
