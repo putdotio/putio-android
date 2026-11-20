@@ -103,12 +103,13 @@ posix_modes() {
     MINGW* | MSYS* | CYGWIN*) ;;
     *) return 0 ;;
   esac
-  local probe
-  probe="$(umask 077 && mktemp "${tmpdir}/mode-probe.XXXXXX")"
-  [[ "$(file_mode "${probe}")" == 600 ]]
+  local probe="${tmpdir}/mode-probe"
+  { : > "${probe}" && chmod 640 "${probe}"; } || { fail "could not create the mode probe"; return 0; }
+  [[ "$(file_mode "${probe}")" == 640 ]]
 }
 
 failures=0
+skipped=()
 fail() { echo "FAIL ${case_name}: $*" >&2; failures=$((failures + 1)); }
 summarize() {
   if ((failures > 0)); then
@@ -212,7 +213,7 @@ approvals="$(grep '^auth approve' "${state}/putio-calls" || true)"
 if posix_modes; then
   [[ "$(file_mode "${cache}")" == 600 ]] || fail "the cached token is not 0600"
 else
-  echo "skip ${case_name} 0600 check: this filesystem keeps no POSIX modes" >&2
+  skipped+=("${case_name} 0600 check: this filesystem keeps no POSIX modes")
 fi
 
 run_case uses-cached-token "cache=${CACHED_TOKEN}"
@@ -270,4 +271,8 @@ help="$(env -i PATH=/usr/bin:/bin bash "${REPO_ROOT}/scripts/sign-in-devs-auto.s
   fail "--help: ${help}"
 
 summarize
-echo "sign-in contract: all cases passed"
+if ((${#skipped[@]} > 0)); then
+  echo "sign-in contract: all cases passed; skipped: $(IFS=';'; echo "${skipped[*]}")"
+else
+  echo "sign-in contract: all cases passed"
+fi

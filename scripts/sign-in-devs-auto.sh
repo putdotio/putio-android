@@ -30,9 +30,10 @@ app's account ID and compare it with the CLI's, then open MainActivity and
 wait for Files. An app already signed in as devs-auto passes with no approval.
 
 Token cache: the first approval on a host caches the app's token in
-$PUTIO_DEVS_AUTO_CACHE (default ~/.cache/putio-android/devs-auto), one 0600
-file per package. Later runs push it into the app with run-as and request no
-device code; put.io limits code requests per IP. A cached token put.io
+$PUTIO_DEVS_AUTO_CACHE (default ~/.cache/putio-android/devs-auto), one file
+per package, 0600 where the filesystem keeps POSIX modes. Later runs push it
+into the app with run-as and request no device code; put.io limits code
+requests per IP. A cached token put.io
 rejects is dropped and replaced by one new approval. Signing out in the app
 revokes the cached token for every run on the host.
 
