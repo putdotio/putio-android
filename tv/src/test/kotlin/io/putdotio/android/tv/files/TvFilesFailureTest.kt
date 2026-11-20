@@ -83,7 +83,7 @@ class TvFilesFailureTest {
         val failure = putioRefusal(404, putioErrorBody(404, "NOT_FOUND")).toPutioFailure()
         compose.showFiles(state = { state(FilesContent.Failed(failure)) })
         compose.onNodeWithText("File not found").assertIsDisplayed()
-        compose.onNodeWithText("This file may have been deleted.").assertIsDisplayed()
+        compose.onNodeWithText("It may have been moved or deleted.").assertIsDisplayed()
     }
 
     @Test

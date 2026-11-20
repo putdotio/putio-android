@@ -218,8 +218,8 @@
     <string name="tv_error_rate_limited_recovery">Please try again in a moment.</string>
     <string name="tv_error_rate_limited">Too many requests. Please try again in a moment.</string>
     <string name="tv_error_not_found_title">File not found</string>
-    <string name="tv_error_not_found_recovery">This file may have been deleted.</string>
-    <string name="tv_error_not_found">File not found. This file may have been deleted.</string>
+    <string name="tv_error_not_found_recovery">It may have been moved or deleted.</string>
+    <string name="tv_error_not_found">File not found. It may have been moved or deleted.</string>
     <string name="tv_error_server_title">Something went wrong on our end</string>
     <string name="tv_error_server_recovery">Try again in a few minutes, then contact support.</string>
     <string name="tv_error_unexpected_title">Something unexpected happened</string>

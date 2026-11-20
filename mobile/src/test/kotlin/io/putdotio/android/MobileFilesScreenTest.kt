@@ -1036,7 +1036,7 @@ class MobileFilesListTest {
         }
 
         compose.onNodeWithText("Shows").assertIsDisplayed()
-        compose.onNodeWithText("File not found").assertIsDisplayed()
+        compose.onNodeWithText("File not found\nIt may have been moved or deleted.").assertIsDisplayed()
     }
 }
 

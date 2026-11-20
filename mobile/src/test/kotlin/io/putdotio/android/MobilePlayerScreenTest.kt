@@ -580,6 +580,7 @@ class MobilePlayerScreenTest {
         for (row in rows) {
             compose.runOnIdle { content = row.content }
             compose.onNodeWithText(row.copy).assertIsDisplayed()
+            row.absent?.let { compose.onNodeWithText(it).assertDoesNotExist() }
             val retriesBefore = retries
             if (row.retry) {
                 compose.onNodeWithText("Try again").performClick()
@@ -629,6 +630,12 @@ private fun failureRows(): List<FailureRow> =
             retry = true,
         ),
         FailureRow(
+            PlaybackContent.Failed(putioRefusal(404, putioErrorBody(404, "File not found")).toPlaybackFailure()),
+            "It may have been moved or deleted.",
+            retry = false,
+            absent = "File not found",
+        ),
+        FailureRow(
             PlaybackContent.Failed(PlaybackFailure.MediaUnsupported(IllegalStateException("codec"))),
             "Can’t play this here",
             retry = false,
@@ -655,6 +662,7 @@ private data class FailureRow(
     val copy: String,
     val retry: Boolean,
     val checkBack: Boolean = false,
+    val absent: String? = null,
 )
 
 @RunWith(AndroidJUnit4::class)

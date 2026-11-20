@@ -65,6 +65,7 @@
     <string name="mobile_state_error_forbidden">You don’t have access to this folder.</string>
     <string name="mobile_state_error_rate_limited">put.io is receiving too many requests. Try again shortly.</string>
     <string name="mobile_state_error_unavailable">put.io is temporarily unavailable. Try again.</string>
+    <string name="mobile_state_error_not_found">It may have been moved or deleted.</string>
     <string name="mobile_action_retry">Try again</string>
     <string name="mobile_action_cancel">Cancel</string>
     <string name="mobile_action_ok">OK</string>
@@ -734,6 +735,7 @@
     <string name="mobile_cast">Cast</string>
     <string name="mobile_cast_casting_to">Casting to %1$s</string>
     <string name="mobile_cast_to">Cast to</string>
+    <string name="mobile_cast_unnamed_receiver">Chromecast</string>
     <string name="mobile_cast_audio_only">Audio only</string>
     <string name="mobile_cast_searching">Looking for devices…</string>
     <string name="mobile_cast_stop">Stop casting</string>

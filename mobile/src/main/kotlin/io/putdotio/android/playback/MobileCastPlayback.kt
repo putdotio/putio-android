@@ -151,7 +151,7 @@ internal fun rememberPlayerCast(
         button = { modifier ->
             MobileCastButton(availability, onOpenPicker, askLocalNetwork, modifier)
         },
-        casting = if (device == null) null else CastingTarget(cast, castMedia, device),
+        casting = if (device == null) null else CastingTarget(cast, castMedia, castReceiverName(device)),
         session = availability.casting,
     )
 }
