@@ -22,6 +22,8 @@ class SdkFilesItemDetailsQueryTest {
         val result = SdkFilesRepository(client(requests)).resolveItem(FilesItemId(42L))
 
         val item = (result as PutioResult.Success).value
+        assertEquals(FilesItemId(42L), item.id)
+        assertEquals("movie.mkv", item.name)
         assertEquals(12.5, item.playback?.startFromSeconds)
         val request = requests.single()
         assertEquals("/v2/files/42", request.encodedPath)

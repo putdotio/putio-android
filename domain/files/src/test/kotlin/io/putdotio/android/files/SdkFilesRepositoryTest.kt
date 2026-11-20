@@ -7,7 +7,6 @@ import io.putdotio.sdk.errors.PutioOperationException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioRequestData
 import io.putdotio.sdk.errors.PutioTransportException
-import io.putdotio.sdk.files.FileDetailsQuery
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FilesListQuery
 import io.putdotio.sdk.files.FilesListResponse
@@ -287,13 +286,12 @@ class SdkFilesRepositoryTest {
             error("Unexpected continuation")
         },
         setSort: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected sort") },
-        getFile: suspend (Long, FileDetailsQuery) -> PutioFile = { _, _ -> error("Unexpected file resolution") },
         rename: suspend (Long, String) -> Unit = { _, _ -> error("Unexpected rename") },
     ) = SdkFilesRepository(
         listFolder = listFolder,
         continueListing = continueListing,
         setSort = setSort,
-        getFile = getFile,
+        getFile = { _, _ -> error("Unexpected file resolution") },
         mutations = SdkFilesMutations(
             rename = rename,
             delete = { _, _ -> error("Unexpected delete") },
