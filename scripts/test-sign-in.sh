@@ -100,7 +100,7 @@ file_mode() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
 
 posix_modes() {
   case "$(uname -s)" in
-    MINGW* | MSYS* | CYGWIN*) ;;
+    *_NT*) ;;
     *) return 0 ;;
   esac
   local probe="${tmpdir}/mode-probe"
