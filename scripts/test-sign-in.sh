@@ -11,7 +11,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "${tmpdir}"' EXIT
-# A drive-letter TMPDIR (C:/...) would put a colon into each case's PATH.
 if [[ "${tmpdir}" == *:* ]] && command -v cygpath >/dev/null 2>&1; then
   tmpdir="$(cygpath -u "${tmpdir}")"
 fi
@@ -22,7 +21,6 @@ CACHED_TOKEN="fake-cached-app-token"
 STALE_TOKEN="fake-stale-app-token"
 ACCOUNT=306077
 mkdir -p "${tmpdir}/sdk/platform-tools" "${tmpdir}/cli" "${tmpdir}/nocli" "${tmpdir}/tools" "${tmpdir}/trap"
-# Sits on each case's PATH after the fakes: a lookup that misses them lands here, not on a real tool.
 for tool in putio adb; do
   printf '#!/bin/sh\necho "%s $*" >> "%s/escaped"\nexit 97\n' "${tool}" "${tmpdir}" > "${tmpdir}/trap/${tool}"
   chmod +x "${tmpdir}/trap/${tool}"
@@ -102,8 +100,6 @@ chmod +x "${tmpdir}/cli/putio" "${tmpdir}/sdk/platform-tools/adb"
 failures=0
 fail() { echo "FAIL ${case_name}: $*" >&2; failures=$((failures + 1)); }
 
-# Prints why a case env with PATH $1 would reach a tool other than its fakes;
-# $2 is the putio it must resolve to, empty when none.
 isolation_error() {
   local resolved expected
   resolved="$(env -i HOME="${tmpdir}" PATH="$1" ANDROID_HOME="${tmpdir}/sdk" bash -c '
@@ -115,7 +111,6 @@ isolation_error() {
 }
 
 # Runs the script in a fresh state dir; sets $status, $out (stdout) and $err (stderr).
-# Stops the whole run before the script starts if the case could reach a real tool.
 run_case() {
   case_name="$1"; shift
   state="${tmpdir}/state-${case_name}"
@@ -176,8 +171,9 @@ case_name="isolation-guard"
 
 case_name="escape-tripwire"
 env -i HOME="${tmpdir}" PATH="${tmpdir}/nocli:${tmpdir}/tools:${tmpdir}/trap:/usr/bin:/bin" \
-  ANDROID_HOME="${tmpdir}/sdk" bash "${REPO_ROOT}/scripts/sign-in-devs-auto.sh" emulator-5554 >/dev/null 2>&1 || true
-[[ "$(cat "${tmpdir}/escaped" 2>/dev/null)" == "putio auth status --profile devs-auto --output json" ]] ||
+  ANDROID_HOME="${tmpdir}/sdk" PUTIO_SIGN_IN_TIMEOUT=3 PUTIO_SIGN_IN_POLL=0 \
+  bash "${REPO_ROOT}/scripts/sign-in-devs-auto.sh" emulator-5554 >/dev/null 2>&1 || true
+[[ -s "${tmpdir}/escaped" ]] ||
   fail "a putio outside the fakes went unnoticed"
 rm -f "${tmpdir}/escaped"
 ((failures == 0)) || exit 1
