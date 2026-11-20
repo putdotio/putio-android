@@ -44,12 +44,18 @@ internal class PostHogAnalyticsSdk(
     }
 
     override fun stop() {
-        streams?.closeAll(STOP_TIMEOUT_MILLIS)
+        val closing = runCatching { streams?.closeAll(STOP_TIMEOUT_MILLIS) }
         streams = null
         storageDir(context).deleteRecursively()
         client?.close()
         client = null
-        storageDir(context).deleteRecursively()
+        val storage = storageDir(context)
+        if (!storage.deleteRecursively()) {
+            throw IOException("PostHog storage survived stop: $storage").apply {
+                closing.exceptionOrNull()?.let(::addSuppressed)
+            }
+        }
+        closing.getOrThrow()
     }
 
     private fun config(accountId: Long, streams: QueueStreams): PostHogAndroidConfig {
@@ -168,13 +174,19 @@ private class QueueStreams : PostHogEncryption {
     }
 
     fun closeAll(timeoutMillis: Long) {
+        var unstarted = 0
         val left = lock.withLock {
             var nanos = TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
             while (started < queued && nanos > 0) nanos = writeStarted.awaitNanos(nanos)
+            unstarted = queued - started
             closed = true
             open.toList().also { open.clear() }
         }
-        left.forEach { runCatching(it::close) }
+        val failures = left.mapNotNull { runCatching(it::close).exceptionOrNull() }
+        if (unstarted > 0 || failures.isNotEmpty()) {
+            val message = "PostHog queue: $unstarted writes never started, ${failures.size} streams failed to close"
+            throw IOException(message).apply { failures.forEach(::addSuppressed) }
+        }
     }
 
     private fun open(stream: Closeable) {
