@@ -98,6 +98,12 @@ chmod +x "${tmpdir}/cli/putio" "${tmpdir}/sdk/platform-tools/adb"
 
 failures=0
 fail() { echo "FAIL ${case_name}: $*" >&2; failures=$((failures + 1)); }
+summarize() {
+  if ((failures > 0)); then
+    echo "sign-in contract: ${failures} failure(s)" >&2
+    exit 1
+  fi
+}
 
 isolation_error() {
   local resolved expected
@@ -131,7 +137,7 @@ run_case() {
   isolation="$(isolation_error "${path}" "${putio}")"
   if [[ -n "${isolation}" ]]; then
     fail "not isolated from real tools, so no case ran: ${isolation}"
-    exit 1
+    summarize
   fi
   status=0
   home="${tmpdir}/home-${case_name}"
@@ -143,7 +149,7 @@ run_case() {
     > "${state}/out" 2> "${state}/err" || status=$?
   if [[ -s "${tmpdir}/escaped" ]]; then
     fail "called a tool outside its fakes, so the run stopped: $(cat "${tmpdir}/escaped")"
-    exit 1
+    summarize
   fi
   out="$(cat "${state}/out")"
   err="$(cat "${state}/err")"
@@ -172,7 +178,7 @@ case_name="isolation-guard"
   fail "accepted an SDK root other than the fake"
 [[ -z "$(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio")" ]] ||
   fail "rejected the fakes: $(isolation_error "${tmpdir}/cli:${tmpdir}/tools:/usr/bin:/bin" "${tmpdir}/cli/putio")"
-((failures == 0)) || exit 1
+summarize
 
 case_name="escape-tripwire"
 env -i HOME="${tmpdir}" PATH="${tmpdir}/nocli:${tmpdir}/tools:${tmpdir}/trap:/usr/bin:/bin" \
@@ -181,7 +187,7 @@ env -i HOME="${tmpdir}" PATH="${tmpdir}/nocli:${tmpdir}/tools:${tmpdir}/trap:/us
 [[ -s "${tmpdir}/escaped" ]] ||
   fail "a putio outside the fakes went unnoticed"
 rm -f "${tmpdir}/escaped"
-((failures == 0)) || exit 1
+summarize
 
 run_case approves-code
 [[ "${status}" == 0 ]] || fail "exit ${status}: ${err}"
@@ -247,8 +253,5 @@ help="$(env -i PATH=/usr/bin:/bin bash "${REPO_ROOT}/scripts/sign-in-devs-auto.s
 [[ "${help}" == "Usage: scripts/sign-in-devs-auto.sh <serial> [package]"* && "${help}" == *Prerequisites:* ]] ||
   fail "--help: ${help}"
 
-if ((failures > 0)); then
-  echo "sign-in contract: ${failures} failure(s)" >&2
-  exit 1
-fi
+summarize
 echo "sign-in contract: all cases passed"
