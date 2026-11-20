@@ -578,6 +578,7 @@ class TvTrashScreenTest {
             }
         }
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
+        compose.runOnIdle { events.clear() }
 
         compose.runOnIdle { state = TrashState(content = page("new", 300, "c2")) }
         compose.onNodeWithTag(TV_TRASH_LIST_TAG).performScrollToIndex(39)
