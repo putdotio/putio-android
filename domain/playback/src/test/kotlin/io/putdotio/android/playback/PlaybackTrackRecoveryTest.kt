@@ -152,6 +152,20 @@ class PlaybackTrackRecoveryTest {
     }
 
     @Test
+    fun anAudioLoadFailureFromBeforeTheSwitchLeavesTheVideosFailuresItsOwn() {
+        val recovery = PlaybackTrackRecovery(emptySet())
+        val badStatus = PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+
+        recovery.loadFailed(C.TRACK_TYPE_AUDIO, AUDIO_SEGMENT, gaveUp = false, atMillis = 0L)
+        recovery.audioSwitching(
+            PlaybackAudioSwitch(TrackSelectionParameters.Builder().build(), AudioSelection.Automatic),
+            atMillis = 1_000L,
+        )
+        assertNull(recovery.fail(PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED, atMillis = 1_500L))
+        assertNull(recovery.recover(PlaybackTrackFailure(badStatus, uri = AUDIO_SEGMENT), atMillis = 2_000L))
+    }
+
+    @Test
     fun aVideoRequestThatFailsWhileASubtitleRetriesIsTheVideosOwn() {
         val recovery = PlaybackTrackRecovery(setOf(FOUND))
 

@@ -80,6 +80,7 @@ public class PlaybackTrackRecovery(
     public fun audioSwitching(from: PlaybackAudioSwitch, atMillis: Long) {
         audioSwitch = from
         audioSwitchedAtMillis = atMillis
+        failingAudio.clear()
     }
 
     public fun audioPlaying() {
