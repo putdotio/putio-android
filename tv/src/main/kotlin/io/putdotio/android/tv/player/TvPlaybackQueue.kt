@@ -72,8 +72,9 @@ internal class TvPlaybackQueue(
     fun take(source: PlaybackSource, target: PlaybackTarget, player: Player) {
         val previous = current
         player.addListener(endListener)
-        current = Queued(source, target.fileId, player, reporter.observe(player))
-        val published = tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = ::setPlaying)
+        val queued = Queued(source, target.fileId, player, reporter.observe(player))
+        current = queued
+        val published = tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = queued::setPlaying)
         session?.swap(published) ?: run { session = factory.publishQueue(context, published) }
         previous?.release()
     }
@@ -89,7 +90,14 @@ internal class TvPlaybackQueue(
         scope.launch { controller.state.map { it.target }.distinctUntilChanged().collectLatest(folder::lookUp) }
         scope.launch {
             controller.state.collect { playing ->
-                follow(playing)
+                val held = current
+                val ready = playing.content is PlaybackContent.Ready
+                when {
+                    held == null -> Unit
+                    playing.content is PlaybackContent.Failed -> drop()
+                    ready && playing.target.mediaType != PlaybackMediaType.AUDIO -> drop()
+                    !ready && playing.target.fileId != held.fileId -> held.player.pause()
+                }
                 loadWhileStopped(playing)
             }
         }
@@ -110,15 +118,6 @@ internal class TvPlaybackQueue(
         session = null
         current?.release()
         current = null
-    }
-
-    private fun follow(playing: PlaybackState) {
-        val held = current ?: return
-        when (playing.content) {
-            is PlaybackContent.Failed -> drop()
-            is PlaybackContent.Ready -> if (playing.target.mediaType != PlaybackMediaType.AUDIO) drop()
-            else -> if (playing.target.fileId != held.fileId) held.player.pause()
-        }
     }
 
     private fun loadWhileStopped(playing: PlaybackState) {
@@ -158,22 +157,21 @@ internal class TvPlaybackQueue(
         if (!skipped && !forward) playing.player.seekTo(0L)
     }
 
-    private fun setPlaying(play: Boolean) {
-        val playing = current ?: return
-        val attached = screen?.takeIf { it.player === playing.player }
-        when {
-            attached != null -> attached.setPlaying(play)
-            play -> playing.player.play()
-            else -> playing.player.pause()
-        }
-    }
-
     private inner class Queued(
         val source: PlaybackSource,
         val fileId: FilesItemId,
         val player: Player,
         private val positions: Closeable,
     ) {
+        fun setPlaying(play: Boolean) {
+            val attached = screen?.takeIf { it.player === player }
+            when {
+                attached != null -> attached.setPlaying(play)
+                play -> player.play()
+                else -> player.pause()
+            }
+        }
+
         fun release() {
             positions.close()
             player.removeListener(endListener)
