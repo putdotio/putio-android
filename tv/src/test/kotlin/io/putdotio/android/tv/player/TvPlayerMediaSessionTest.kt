@@ -110,6 +110,27 @@ class TvPlayerMediaSessionTest {
     }
 
     @Test
+    fun theBackgroundQueueKeepsOneSystemSessionAcrossTracks() {
+        val first = FakePlayer().apply { setMediaItem(item("9")) }
+        val second = FakePlayer().apply { setMediaItem(item("10")) }
+        val queue = DefaultTvPlayerFactory.publishQueue(compose.activity, first)
+        try {
+            val hosted = checkNotNull(TvBackgroundSessions.hosted)
+            val controller = connect(hosted)
+
+            queue.swap(second)
+            idleSession()
+
+            assertTrue(TvBackgroundSessions.hosted === hosted)
+            assertTrue(controller.isConnected)
+            assertEquals("10", controller.currentMediaItem?.mediaId)
+            controller.release()
+        } finally {
+            queue.close()
+        }
+    }
+
+    @Test
     fun systemControlsSkipAsFarAsTheRemoteBothWays() {
         val player = DefaultTvPlayerFactory.create(compose.activity, PlaybackMediaType.VIDEO)
         val session = tvMediaSession(compose.activity, player).build()
@@ -230,6 +251,8 @@ class TvPlayerMediaSessionTest {
             return java.io.Closeable { session.release() }
         }
     }
+
+    private fun item(id: String) = MediaItem.Builder().setMediaId(id).setUri(SOURCE_URL).build()
 
     private fun connect(session: MediaSession): MediaController {
         val pending = MediaController.Builder(compose.activity, session.token).buildAsync()

@@ -201,6 +201,21 @@ class TvTrashScreenTest {
     }
 
     @Test
+    fun anEmptyTrashFocusesRefreshWhichReloadsItAndIsIgnoredWhileItRuns() {
+        val empty = loaded.copy(items = emptyList(), total = 0, trashSizeBytes = 0)
+        var state by mutableStateOf(TrashState(content = empty))
+        show { state }
+
+        compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events)
+
+        compose.runOnIdle { state = state.copy(content = empty.copy(isRefreshing = true)) }
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<TrashEvent>(TrashEvent.Refresh), events)
+    }
+
+    @Test
     fun refreshInTheListHeaderReloadsTrashAndIsIgnoredWhileItRuns() {
         var state by mutableStateOf(TrashState(content = loaded))
         show { state }
@@ -310,7 +325,7 @@ class TvTrashScreenTest {
         compose.onNodeWithText("When you send files to trash, we keep them here for 14 days.").assertIsDisplayed()
         compose.onAllNodes(hasText("Restore all") and hasClickAction()).assertCountEquals(0)
         compose.onAllNodes(hasText("Empty trash") and hasClickAction()).assertCountEquals(0)
-        compose.onNodeWithText("Your trash is empty").assertIsFocused().performKeyInput {
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }
         compose.onNodeWithText("OK").assertIsFocused().performKeyInput { pressCenter() }

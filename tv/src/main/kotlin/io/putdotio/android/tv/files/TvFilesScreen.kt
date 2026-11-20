@@ -685,18 +685,14 @@ private fun TvFilesStatePane(
                     glyph = PutioEmptyGlyph.EmptyFolder,
                     headline = stringResource(R.string.tv_files_empty_title),
                     message = stringResource(R.string.tv_files_empty_message),
-                    modifier = Modifier
-                        .weight(1f)
-                        .then(
-                            if (!failed) {
-                                Modifier
-                                    .focusRequester(emptyFocus)
-                                    .semantics(mergeDescendants = true) {}
-                                    .focusable()
-                            } else {
-                                Modifier
-                            },
-                        ),
+                    modifier = Modifier.weight(1f),
+                    action = TvEmptyStateAction(
+                        label = stringResource(R.string.tv_refresh),
+                        onClick = { if (enabled) onEvent(FilesBrowserEvent.Refresh) },
+                        icon = R.drawable.ic_ph_arrows_clockwise,
+                    ),
+                    actionFocus = emptyFocus,
+                    claimFocus = false,
                 )
                 LaunchedEffect(failed) {
                     if (paneHasFocus.value) (if (failed) pagingFocus else emptyFocus).requestFocus()
@@ -1061,7 +1057,7 @@ private fun TvFilesMissingFolderAnnouncement(
     onEvent: (FilesBrowserEvent) -> Boolean,
 ) {
     val missing = state.missingFolder
-    val text = stringResource(R.string.tv_error_not_found_title)
+    val text = stringResource(R.string.tv_error_not_found)
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(missing) {
         val notice = missing ?: return@LaunchedEffect

@@ -100,6 +100,7 @@ import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.PlaybackAudioSwitch
 import io.putdotio.android.playback.PlaybackTrackRecovery
 import io.putdotio.android.playback.PlaybackTrackRecoveryStep
+import io.putdotio.android.playback.manifestAudioUris
 import io.putdotio.android.playback.manifestSubtitleUris
 import io.putdotio.android.playback.sidecarSubtitleUris
 import io.putdotio.android.playback.sources
@@ -111,6 +112,7 @@ import io.putdotio.android.R
 import io.putdotio.android.tv.TvSnackbarHost
 import io.putdotio.android.tv.TvSnackbarMessage
 import io.putdotio.android.tv.TvSnackbarState
+import java.io.Closeable
 import java.io.IOException
 import java.util.UUID
 import kotlinx.coroutines.delay
@@ -150,6 +152,7 @@ internal fun TvPlayerScreen(
     onForeground: () -> Unit = {},
     miniPlayer: TvMiniPlayerState? = null,
     notices: TvSnackbarState? = null,
+    queue: TvPlaybackQueue? = null,
 ) {
     BackHandler(enabled = !background && state.content !is PlaybackContent.Ready, onBack = onBack)
     val nowPlayingFocus = remember { mutableStateOf(TvPlayerControl.SeekBar) }
@@ -190,6 +193,7 @@ internal fun TvPlayerScreen(
                     playIntent = playIntent,
                     backgroundAudio = TvBackgroundAudio(background, onBackground, miniPlayer),
                     snackbar = playerNotices,
+                    queue = queue,
                 )
 
             background -> TvBackgroundInterstitial(content, onEnded = onBack, onShow = onForeground)
@@ -309,6 +313,7 @@ private fun TvReadyPlayer(
     playIntent: MutableState<Boolean>,
     backgroundAudio: TvBackgroundAudio,
     snackbar: TvSnackbarState,
+    queue: TvPlaybackQueue?,
 ) {
     val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
@@ -320,13 +325,18 @@ private fun TvReadyPlayer(
     }
     var options by optionsState
     val subtitleMemory = rememberSubtitleLanguageStore()
-    val player = remember(source, playerFactory) { playerFactory.create(context, target.mediaType) }
+    val held = rememberHeldPlayer(queue.takeIf { keepsPlaying }, source, playerFactory, target.mediaType)
+    val player = held.player
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
     val recovery = remember(player) {
-        PlaybackTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris)
+        PlaybackTrackRecovery(
+            sidecarUris = prepared.mediaItem.sidecarSubtitleUris(),
+            manifestAudioUris = player::manifestAudioUris,
+            manifestSubtitleUris = player::manifestSubtitleUris,
+        )
     }
     val subtitlesFailed by rememberUpdatedState(stringResource(R.string.tv_player_subtitles_failed))
     val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))
@@ -363,7 +373,7 @@ private fun TvReadyPlayer(
             }
         }
     }
-    var playWhenReady by remember(player) { mutableStateOf(startsPlaying) }
+    var playWhenReady by remember(player) { mutableStateOf(held.playsAtStart(startsPlaying)) }
     var playbackState by remember(player) { mutableIntStateOf(player.playbackState) }
     var tracks by remember(player) { mutableStateOf(player.currentTracks) }
     var parameters by remember(player) { mutableStateOf(player.trackSelectionParameters) }
@@ -508,29 +518,30 @@ private fun TvReadyPlayer(
                 remembered = subtitleMemory.remembered,
             ).withAudioSelection(options.audio, emptyList())
         player.setPlaybackSpeed(options.speed)
-        player.setMediaItem(
+        held.start(
             prepared.mediaItem.leasedBy(reporter, target.fileId.value, useStartFrom),
             prepared.startPositionMillis,
+            startsPlaying,
         )
-        player.playWhenReady = startsPlaying
-        player.prepare()
-        val positions = reporter.observe(player)
-        val session = playerFactory.publishSession(
-            context,
-            lifecycle.sessionPlayer(
-                player,
-                keepsPlaying,
-                onSkip = { forward: Boolean -> apply(overlay.skipTrack(forward)) }.takeIf { nowPlaying },
-                onPlaying = { play -> apply(overlay.sessionPlaying(play)) },
-            ),
-            inBackground = keepsPlaying,
-        )
+        val skip = { forward: Boolean -> apply(overlay.skipTrack(forward)) }
+        val sessionPlaying = { play: Boolean -> apply(overlay.sessionPlaying(play)) }
+        val published = held.publish(source, target, skip, sessionPlaying) {
+            val positions = reporter.observe(player)
+            val session = playerFactory.publishSession(
+                context,
+                lifecycle.sessionPlayer(player, keepsPlaying, onSkip = skip.takeIf { nowPlaying }, sessionPlaying),
+                inBackground = keepsPlaying,
+            )
+            Closeable {
+                positions.close()
+                session.close()
+                player.release()
+            }
+        }
         onDispose {
-            positions.close()
-            session.close()
             player.removeListener(listener)
             (player as? ExoPlayer)?.removeAnalyticsListener(loads)
-            player.release()
+            published.close()
         }
     }
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
@@ -656,7 +667,9 @@ private fun TvReadyPlayer(
     ) {
         TvUpNextOverlay(overlay, upNext) { step -> apply(step(overlay)) }
     }
-    TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours) { next -> apply(overlay.queueEnded(next)) }
+    TvQueueEndEffect(overlay, playbackState, playWhenReady, neighbours, advancesItself = held.queue != null) { next ->
+        apply(overlay.queueEnded(next))
+    }
 
     val closeSheet = { apply(overlay.closeSheet()) }
     TvPlayerSheets(
@@ -885,6 +898,7 @@ private fun TvQueueEndEffect(
     playbackState: Int,
     playWhenReady: Boolean,
     neighbours: PlaybackNeighbours?,
+    advancesItself: Boolean,
     onQueueEnd: (PlaybackTarget?) -> Unit,
 ) {
     val started by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
@@ -893,7 +907,7 @@ private fun TvQueueEndEffect(
     val currentOnQueueEnd by rememberUpdatedState(onQueueEnd)
     LaunchedEffect(ended, neighbours) {
         val queue = neighbours ?: return@LaunchedEffect
-        if (ended) currentOnQueueEnd(queue.next)
+        if (ended && !(advancesItself && queue.next != null)) currentOnQueueEnd(queue.next)
     }
 }
 
@@ -905,7 +919,7 @@ private fun tvPlayerOverlay(nowPlaying: Boolean, nowPlayingFocus: TvPlayerContro
     focus = if (nowPlaying) nowPlayingFocus else TvPlayerControl.PlayPause,
 )
 
-private fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useStartFrom: Boolean): MediaItem {
+internal fun MediaItem.leasedBy(reporter: TvPlaybackReporter, fileId: Long, useStartFrom: Boolean): MediaItem {
     val lease = if (useStartFrom) reporter.lease(fileId) else null
     return lease?.let(this::withReportingLease) ?: this
 }

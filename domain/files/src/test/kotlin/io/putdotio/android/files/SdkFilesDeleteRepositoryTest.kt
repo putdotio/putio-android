@@ -72,7 +72,7 @@ class SdkFilesDeleteRepositoryTest {
         listFolder = { _, _ -> error("Unexpected folder load") },
         continueListing = { _, _ -> error("Unexpected page") },
         setSort = { _, _ -> error("Unexpected sort") },
-        getFile = { error("Unexpected file read") },
+        getFile = { _, _ -> error("Unexpected file read") },
         mutations = SdkFilesMutations(
             rename = { _, _ -> error("Unexpected rename") },
             delete = deleteFile,

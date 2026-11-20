@@ -164,7 +164,7 @@ class TvShellBackTest {
             },
         )
         compose.openTab(TvDestination.Files)
-        compose.onNodeWithText("No files whatsoever!").assertIsFocused()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
 
         compose.pressBack()
         assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.NavigateBack), events)
@@ -259,7 +259,7 @@ class TvShellBackTest {
         }
         compose.onNodeWithText("Manage your trash").assertIsFocused().performKeyInput { pressCenter() }
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
-        compose.onNodeWithText("Your trash is empty").assertIsFocused().performKeyInput {
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput {
             pressKey(Key.DirectionUp)
         }
 
@@ -272,7 +272,7 @@ class TvShellBackTest {
         }
         compose.onNodeWithText("Your trash is empty").assertIsDisplayed()
         compose.onTab("Account").performKeyInput { pressKey(Key.DirectionDown) }
-        compose.onNodeWithText("Your trash is empty").assertIsFocused()
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused()
 
         compose.pressBack()
         compose.onNodeWithText("Manage your trash").assertIsFocused()

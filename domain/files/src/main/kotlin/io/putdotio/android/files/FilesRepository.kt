@@ -4,6 +4,7 @@ import io.putdotio.android.PutioResult
 import io.putdotio.android.displayableApiReason
 import io.putdotio.android.putioRequest
 import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.files.FileDetailsQuery
 import io.putdotio.sdk.files.FilesContinueQuery
 import io.putdotio.sdk.files.FileMoveError
 import io.putdotio.sdk.files.PutioFileType
@@ -96,7 +97,7 @@ public class SdkFilesRepository internal constructor(
     private val listFolder: suspend (Long, FilesListQuery) -> FilesListResponse,
     private val continueListing: suspend (String, FilesContinueQuery) -> FilesListResponse,
     private val setSort: suspend (Long, String) -> Unit,
-    private val getFile: suspend (Long) -> PutioFile,
+    private val getFile: suspend (Long, FileDetailsQuery) -> PutioFile,
     private val mutations: SdkFilesMutations,
     copies: SdkFilesCopies = SdkFilesCopies(
         start = { _, _ -> error("Copies are not wired") },
@@ -110,7 +111,7 @@ public class SdkFilesRepository internal constructor(
             client.files.setSortBy(fileId = folderId, sortBy = sort)
             Unit
         },
-        getFile = { fileId -> client.files.get(fileId) },
+        getFile = { fileId, query -> client.files.get(fileId, query) },
         mutations = SdkFilesMutations(
             rename = { fileId, name ->
                 client.files.rename(fileId, name)
@@ -177,7 +178,7 @@ public class SdkFilesRepository internal constructor(
     ): PutioResult<Unit> = putioRequest { setSort(folderId.value, sort.apiValue) }
 
     override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> =
-        putioRequest { getFile(itemId.value).toFilesItem() }
+        putioRequest { getFile(itemId.value, ITEM_DETAILS_QUERY).toFilesItem() }
 
     override suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit> =
         putioRequest { mutations.rename(itemId.value, name) }
@@ -238,3 +239,10 @@ private fun PutioFile.toPlaybackProgress(): FilesPlaybackProgress? {
 }
 
 private const val FILES_PAGE_SIZE = 50
+
+private val ITEM_DETAILS_QUERY = FileDetailsQuery(
+    mp4Size = false,
+    startFrom = true,
+    streamUrl = false,
+    mp4StreamUrl = false,
+)

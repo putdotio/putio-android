@@ -130,12 +130,26 @@ class TvFilesScreenTest {
     }
 
     @Test
-    fun anEmptyFolderHoldsFocusOnItsEmptyStateWithoutControls() {
-        compose.showFiles(state = { state(FilesContent.Empty(FilesPaging.Complete)) })
-        compose.onNodeWithText("No files whatsoever!").assertIsDisplayed().assertIsFocused()
+    fun anEmptyFolderFocusesRefreshWhichReloadsItAndIsIgnoredWhileItReloads() {
+        var operation by mutableStateOf<FilesFolderOperation>(FilesFolderOperation.Idle)
+        val events = mutableListOf<FilesBrowserEvent>()
+        compose.showFiles(
+            state = { state(FilesContent.Empty(FilesPaging.Complete), operation = operation) },
+            onEvent = { events += it; true },
+        )
+        compose.onNodeWithText("No files whatsoever!").assertIsDisplayed()
         compose.onNodeWithText("Files you add to this folder on put.io show up here.").assertIsDisplayed()
         compose.onAllNodesWithText("Sort").assertCountEquals(0)
-        compose.onAllNodesWithText("Refresh").assertCountEquals(0)
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
+
+        operation = FilesFolderOperation.Loading(
+            FilesRequestId(3),
+            FilesFolderOperationIntent.Refresh,
+            FilesFolderOperationPhase.RELOADING,
+        )
+        compose.onNode(hasText("Refresh") and hasClickAction()).assertIsFocused().performKeyInput { pressCenter() }
+        assertEquals(listOf<FilesBrowserEvent>(FilesBrowserEvent.Refresh), events)
     }
 
     @Test

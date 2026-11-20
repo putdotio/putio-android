@@ -14,10 +14,7 @@ public fun rememberFolderNeighbours(
     findNeighbours: (suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours>)?,
     onAuthenticationRequired: suspend () -> Unit,
 ): PlaybackNeighbours? {
-    val audioReady by rememberUpdatedState(
-        state.target.mediaType == PlaybackMediaType.AUDIO &&
-            (state.content is PlaybackContent.Ready || state.content == PlaybackContent.Session),
-    )
+    val audioReady by rememberUpdatedState(state.awaitsFolderNeighbours)
     val target by rememberUpdatedState(state.target)
     val currentFind by rememberUpdatedState(findNeighbours)
     val currentOnAuthenticationRequired by rememberUpdatedState(onAuthenticationRequired)
@@ -29,17 +26,25 @@ public fun rememberFolderNeighbours(
         }
         snapshotFlow { audioReady }.first { it }
         val find = currentFind ?: return@produceState
-        value = when (val result = find(target)) {
-            is PlaybackRepositoryResult.Success -> result.value
-            is PlaybackRepositoryResult.Failure -> PlaybackNeighbours().also {
-                if (result.failure.putioFailure is PutioFailure.AuthenticationRequired) {
-                    currentOnAuthenticationRequired()
-                }
-            }
-        }
+        value = find.neighboursOf(target) { currentOnAuthenticationRequired() }
     }
     return neighbours
 }
+
+public suspend fun PlaybackFindNeighbours.neighboursOf(
+    target: PlaybackTarget,
+    onAuthenticationRequired: suspend () -> Unit,
+): PlaybackNeighbours =
+    when (val result = this(target)) {
+        is PlaybackRepositoryResult.Success -> result.value
+        is PlaybackRepositoryResult.Failure -> PlaybackNeighbours().also {
+            if (result.failure.putioFailure is PutioFailure.AuthenticationRequired) onAuthenticationRequired()
+        }
+    }
+
+public val PlaybackState.awaitsFolderNeighbours: Boolean
+    get() = target.mediaType == PlaybackMediaType.AUDIO &&
+        (content is PlaybackContent.Ready || content == PlaybackContent.Session)
 
 public fun PlaybackNeighbours.previousAt(positionMillis: Long): PlaybackTarget? =
     previous?.takeIf { positionMillis < PREVIOUS_RESTARTS_AFTER_MILLIS }

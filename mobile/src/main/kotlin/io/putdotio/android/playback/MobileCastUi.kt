@@ -98,7 +98,8 @@ internal fun MobileCastButton(
     if (!availability.showsButton) return
     val device = availability.connectedDevice
     MobileIconButton(
-        device?.let { stringResource(R.string.mobile_cast_casting_to, it) } ?: stringResource(R.string.mobile_cast),
+        device?.let { stringResource(R.string.mobile_cast_casting_to, castReceiverName(it)) }
+            ?: stringResource(R.string.mobile_cast),
         R.drawable.ic_ph_screencast,
         onClick = { if (availability == CastAvailability.NeedsLocalNetwork) onAskLocalNetwork() else onClick() },
         modifier = modifier.testTag(MOBILE_CAST_BUTTON_TAG),
@@ -107,6 +108,10 @@ internal fun MobileCastButton(
         ),
     )
 }
+
+@Composable
+internal fun castReceiverName(name: String): String =
+    name.ifBlank { stringResource(R.string.mobile_cast_unnamed_receiver) }
 
 @Composable
 internal fun rememberLocalNetworkRequest(onAnswer: () -> Unit, onGranted: () -> Unit): () -> Unit {
@@ -232,7 +237,7 @@ private fun MobileCastDeviceRow(device: CastDevice, onClick: () -> Unit) {
             CastDeviceKind.Speaker -> R.drawable.ic_ph_speaker_hifi
             CastDeviceKind.Other -> R.drawable.ic_ph_television_simple
         },
-        title = device.name,
+        title = castReceiverName(device.name),
         supporting = if (device.audioOnly) stringResource(R.string.mobile_cast_audio_only) else device.model,
         selected = device.selected,
         onClick = onClick,

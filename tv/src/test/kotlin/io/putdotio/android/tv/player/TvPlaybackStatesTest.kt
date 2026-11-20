@@ -284,8 +284,8 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("Go back").assertIsFocused()
         change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "NOT_A_VIDEO")).toPlaybackFailure()))
         compose.onNodeWithText("put.io couldn’t prepare this file for playback.").assertIsDisplayed()
-        change(PlaybackContent.Failed(putioRefusal(404, putioErrorBody(404, "NOT_FOUND")).toPlaybackFailure()))
-        compose.onNodeWithText("File not found. This file may have been deleted.").assertIsDisplayed()
+        change(PlaybackContent.Failed(putioRefusal(404, putioErrorBody(404, "File not found")).toPlaybackFailure()))
+        compose.onNodeWithText("File not found. It may have been moved or deleted.").assertIsDisplayed()
     }
 
     @Test

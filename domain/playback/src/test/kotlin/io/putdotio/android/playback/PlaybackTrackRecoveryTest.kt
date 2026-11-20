@@ -122,6 +122,50 @@ class PlaybackTrackRecoveryTest {
     }
 
     @Test
+    fun anAudioRenditionThatFailsToLoadAfterASwitchRestoresTheTrackThatPlayed() {
+        val recovery = PlaybackTrackRecovery(emptySet(), manifestAudioUris = { setOf(AUDIO_PLAYLIST) })
+        val before = PlaybackAudioSwitch(TrackSelectionParameters.Builder().build(), AudioSelection.Automatic)
+        val badStatus = PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+
+        recovery.audioSwitching(before, atMillis = 0L)
+        assertNull(
+            "A video request that fails after the switch is the video's own",
+            recovery.recover(PlaybackTrackFailure(badStatus, uri = VIDEO), atMillis = 500L),
+        )
+        val playlist = recovery.recover(PlaybackTrackFailure(badStatus, uri = AUDIO_PLAYLIST), atMillis = 1_000L)
+        assertSame(before, (playlist as PlaybackTrackRecoveryStep.RestoreAudio).switch)
+
+        recovery.audioSwitching(before, atMillis = 2_000L)
+        assertNull(recovery.loadFailed(C.TRACK_TYPE_AUDIO, AUDIO_SEGMENT, gaveUp = false, atMillis = 2_500L))
+        val segment = recovery.recover(PlaybackTrackFailure(badStatus, uri = AUDIO_SEGMENT), atMillis = 3_000L)
+        assertSame(before, (segment as PlaybackTrackRecoveryStep.RestoreAudio).switch)
+
+        recovery.audioSwitching(before, atMillis = 3_500L)
+        recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, AUDIO_PLAYLIST, gaveUp = false, atMillis = 3_600L)
+        val unreadable = recovery.fail(PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND, atMillis = 3_700L)
+        assertSame(before, (unreadable as PlaybackTrackRecoveryStep.RestoreAudio).switch)
+
+        assertNull(
+            "Without a switch, a failing rendition is the playback's own",
+            recovery.recover(PlaybackTrackFailure(badStatus, uri = AUDIO_PLAYLIST), atMillis = 4_000L),
+        )
+    }
+
+    @Test
+    fun anAudioLoadFailureFromBeforeTheSwitchLeavesTheVideosFailuresItsOwn() {
+        val recovery = PlaybackTrackRecovery(emptySet())
+        val badStatus = PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+
+        recovery.loadFailed(C.TRACK_TYPE_AUDIO, AUDIO_SEGMENT, gaveUp = false, atMillis = 0L)
+        recovery.audioSwitching(
+            PlaybackAudioSwitch(TrackSelectionParameters.Builder().build(), AudioSelection.Automatic),
+            atMillis = 1_000L,
+        )
+        assertNull(recovery.fail(PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED, atMillis = 1_500L))
+        assertNull(recovery.recover(PlaybackTrackFailure(badStatus, uri = AUDIO_SEGMENT), atMillis = 2_000L))
+    }
+
+    @Test
     fun aVideoRequestThatFailsWhileASubtitleRetriesIsTheVideosOwn() {
         val recovery = PlaybackTrackRecovery(setOf(FOUND))
 
@@ -194,5 +238,7 @@ class PlaybackTrackRecoveryTest {
         const val FOLDER = "https://api.put.io/v2/files/42/subtitles/folder-en"
         const val SUBTITLE_PLAYLIST = "https://api.put.io/hls/playlist/subs/en.m3u8"
         const val MANIFEST_SEGMENT = "https://api.put.io/hls/playlist/subs/segment.vtt"
+        const val AUDIO_PLAYLIST = "https://api.put.io/hls/playlist/audio/fr.m3u8"
+        const val AUDIO_SEGMENT = "https://api.put.io/hls/playlist/audio/fr-0.ts"
     }
 }

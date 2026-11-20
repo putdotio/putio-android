@@ -761,6 +761,7 @@ private class ReadyPlayerState(
 
     val recovery = PlaybackTrackRecovery(
         sidecarUris = { player.currentMediaItem?.sidecarSubtitleUris().orEmpty() },
+        manifestAudioUris = player::manifestAudioUris,
         manifestSubtitleUris = player::manifestSubtitleUris,
     )
 
