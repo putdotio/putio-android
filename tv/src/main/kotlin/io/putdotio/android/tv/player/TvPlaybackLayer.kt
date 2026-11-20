@@ -7,7 +7,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,10 +20,12 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.playback.PlaybackContent
+import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackFindNeighbours
+import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackPlatform
 import io.putdotio.android.playback.PlaybackState
@@ -45,6 +50,7 @@ import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.files.hasVlc
 import io.putdotio.sdk.files.PlaybackSource
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 /**
@@ -95,15 +101,35 @@ internal fun TvPlaybackRoute(
     onBackground: (() -> Unit)? = null,
     onForeground: () -> Unit = {},
     miniPlayer: TvMiniPlayerState? = null,
+    analytics: PlaybackAnalyticsReporter = controller.analyticsReporter,
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val nextEpisode = rememberNextEpisode(state, findNextEpisode, onSessionRejected)
     val upNext = rememberUpNext(state, findUpNext.takeIf { autoplayNextVideo }, onSessionRejected)
-    val neighbours = rememberFolderNeighbours(state, findUpNext, onSessionRejected)
+    val context = LocalContext.current
+    var firstFrameSource by remember { mutableStateOf<PlaybackSource?>(null) }
+    val onPlayerFailure = { failure: PlaybackFailure, positionMillis: Long ->
+        val playing = controller.state.value
+        val telemetry = playing.playerFailureTelemetry(failure, PlaybackPlatform.Tv, firstFrameSource)
+        if (controller.showsPlayerFailure(failure, positionMillis)) {
+            val id = PutioDiagnostics.capture(telemetry)
+            failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
+        }
+    }
+    val queue = rememberPlaybackQueue(
+        backgrounds = onBackground != null,
+        controller = controller,
+        playerFactory = playerFactory,
+        reporter = reporter,
+        findUpNext = findUpNext,
+        onSessionRejected = onSessionRejected,
+        analytics = analytics,
+        onPlayerFailure = onPlayerFailure,
+    )
+    val neighbours = rememberNeighbours(state, queue, findUpNext, onSessionRejected)
     val vlcScope = rememberCoroutineScope()
     var vlcNotice by remember { mutableStateOf<Int?>(null) }
     var vlcHandoff by remember { mutableStateOf<Job?>(null) }
-    var firstFrameSource by remember { mutableStateOf<PlaybackSource?>(null) }
     val snackbar = remember { TvSnackbarState() }
     TvBriefShown(vlcNotice?.let { TvBrief(stringResource(it)) { vlcNotice = null } }, snackbar)
     val failure = when (val content = state.content) {
@@ -113,7 +139,6 @@ internal fun TvPlaybackRoute(
     }
     val sessionRejected = failure?.putioFailure is PutioFailure.AuthenticationRequired
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
-    val context = LocalContext.current
     val vlcInstalled = remember(context) { context.hasVlc() }
     val handOffToVlc = openInVlc?.let { open ->
         {
@@ -128,14 +153,7 @@ internal fun TvPlaybackRoute(
             state = state,
             onBack = onExit,
             onRetry = { controller.dispatch(PlaybackEvent.Retry) },
-            onPlayerFailure = { failure, positionMillis ->
-                val playing = controller.state.value
-                val telemetry = playing.playerFailureTelemetry(failure, PlaybackPlatform.Tv, firstFrameSource)
-                if (controller.showsPlayerFailure(failure, positionMillis)) {
-                    val id = PutioDiagnostics.capture(telemetry)
-                    failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
-                }
-            },
+            onPlayerFailure = onPlayerFailure,
             onFirstFrame = { firstFrameSource = controller.state.value.readySource },
             onOriginalRejected = { reason, positionMillis ->
                 val telemetry = controller.state.value.originalFallbackTelemetry(reason, PlaybackPlatform.Tv)
@@ -154,7 +172,7 @@ internal fun TvPlaybackRoute(
             nextEpisode = nextEpisode,
             onNextEpisode = { nextEpisode?.let { controller.dispatch(PlaybackEvent.NextChosen(it)) } },
             onUpNext = { controller.dispatch(PlaybackEvent.NextChosen(it)) },
-            analytics = controller.analyticsReporter,
+            analytics = analytics,
             upNext = upNext,
             onOpenInVlc = handOffToVlc,
             onPlayInVlc = handOffToVlc?.takeIf { vlcInstalled },
@@ -164,6 +182,7 @@ internal fun TvPlaybackRoute(
             onForeground = onForeground,
             miniPlayer = miniPlayer,
             notices = snackbar,
+            queue = queue,
         )
         if (!background) {
             Box(modifier = Modifier.fillMaxSize().tvPlayerEdges()) {
@@ -174,6 +193,50 @@ internal fun TvPlaybackRoute(
 }
 
 private const val SHELL_STATE_KEY = "tv-shell"
+
+@Composable
+private fun rememberPlaybackQueue(
+    backgrounds: Boolean,
+    controller: PlaybackController,
+    playerFactory: TvPlayerFactory,
+    reporter: TvPlaybackReporter,
+    findUpNext: PlaybackFindNeighbours?,
+    onSessionRejected: suspend () -> Unit,
+    analytics: PlaybackAnalyticsReporter,
+    onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+): TvPlaybackQueue? {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val currentOnSessionRejected by rememberUpdatedState(onSessionRejected)
+    val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
+    return remember(backgrounds, controller, playerFactory, reporter, findUpNext, analytics, lifecycle) {
+        if (!backgrounds) return@remember null
+        TvPlaybackQueue(
+            context = context,
+            factory = playerFactory,
+            reporter = reporter,
+            lifecycle = lifecycle,
+            controller = controller,
+            folder = TvFolderLookup(controller.state, findUpNext) { currentOnSessionRejected() },
+            analytics = analytics,
+            onFailure = { failure, positionMillis -> currentOnPlayerFailure(failure, positionMillis) },
+        )
+    }
+}
+
+@Composable
+private fun rememberNeighbours(
+    state: PlaybackState,
+    queue: TvPlaybackQueue?,
+    findUpNext: PlaybackFindNeighbours?,
+    onSessionRejected: suspend () -> Unit,
+): PlaybackNeighbours? {
+    val folder = rememberFolderNeighbours(state, findUpNext.takeIf { queue == null }, onSessionRejected)
+    val queued = (queue?.neighbours ?: NO_QUEUE).collectAsState()
+    return if (queue == null) folder else queued.value
+}
+
+private val NO_QUEUE = MutableStateFlow<PlaybackNeighbours?>(null)
 
 private fun PlaybackController.showsPlayerFailure(failure: PlaybackFailure, positionMillis: Long): Boolean =
     dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) && state.value.content is PlaybackContent.Failed

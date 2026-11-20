@@ -11,11 +11,9 @@ import java.io.Closeable
 
 internal class TvPlaybackService : MediaSessionService() {
     private val sync: (MediaSession?) -> Unit = { hosted ->
+        if (hosted != null && !isSessionAdded(hosted)) addSession(hosted)
         sessions.filter { it !== hosted }.forEach(::removeSession)
-        when {
-            hosted == null -> stopSelf()
-            !isSessionAdded(hosted) -> addSession(hosted)
-        }
+        if (hosted == null) stopSelf()
     }
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
