@@ -38,7 +38,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
@@ -58,6 +57,7 @@ import io.putdotio.android.tv.TvButtonSize
 import io.putdotio.android.tv.TvButtonStyle
 import io.putdotio.android.tv.TvDetailSkeleton
 import io.putdotio.android.tv.TvEmptyState
+import io.putdotio.android.tv.TvEmptyStateAction
 import io.putdotio.android.tv.TvListDetail
 import io.putdotio.android.tv.heldDetail
 import io.putdotio.android.tv.rememberTvHeldDetail
@@ -175,10 +175,14 @@ internal fun TvTrashScreen(
                     modifier = Modifier
                         .weight(1f)
                         .padding(bottom = STATE_BOTTOM_GAP)
-                        .paneSection(owner, focus.emptyState)
-                        .focusRequester(focus.emptyState)
-                        .semantics(mergeDescendants = true) {}
-                        .focusable(),
+                        .paneSection(owner, focus.emptyState),
+                    action = TvEmptyStateAction(
+                        label = stringResource(R.string.tv_refresh),
+                        onClick = { if (!loaded.isRefreshing) onEvent(TrashEvent.Refresh) },
+                        icon = R.drawable.ic_ph_arrows_clockwise,
+                    ),
+                    actionFocus = focus.emptyState,
+                    claimFocus = false,
                 )
             }
             else -> {
