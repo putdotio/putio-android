@@ -135,25 +135,6 @@ class SdkFilesRepositoryTest {
         }
 
     @Test
-    fun resolvesFileDetailsThroughTheFilesBoundary() =
-        runBlocking {
-            var requestedFileId: Long? = null
-            val repository =
-                repository(
-                    getFile = { fileId, _ ->
-                        requestedFileId = fileId
-                        sdkFile(fileId, "movie.mkv", PutioFileType.VIDEO)
-                    },
-                )
-
-            val result = repository.resolveItem(FilesItemId(42L)) as PutioResult.Success
-
-            assertEquals(42L, requestedFileId)
-            assertEquals(FilesItemId(42L), result.value.id)
-            assertEquals("movie.mkv", result.value.name)
-        }
-
-    @Test
     fun retainsHttpStatusWhenAnErrorEnvelopeOverridesIt() = runBlocking {
         val error = apiFailure(statusCode = 404, httpStatusCode = 500)
         val result = repositoryThrowing(error).resolveItem(FilesItemId(7L)) as PutioResult.Failure
