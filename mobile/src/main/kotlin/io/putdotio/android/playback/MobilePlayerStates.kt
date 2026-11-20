@@ -60,6 +60,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioEmptyState
 import io.putdotio.android.design.putioMono
+import io.putdotio.android.isNotFound
 import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
 
@@ -76,7 +77,8 @@ internal fun MobilePlaybackFailureState(
     video: Boolean = false,
     onOpenInVlc: (() -> Unit)? = null,
 ) {
-    val message = failure.apiReason ?: stringResource(failure.messageResource())
+    val message = failure.apiReason?.takeUnless { failure.putioFailure.isNotFound }
+        ?: stringResource(failure.messageResource())
     if (!video) {
         if (failure.retryable) {
             MobileErrorState(
@@ -406,6 +408,7 @@ private fun PlaybackFailure.messageResource(): Int =
         is PlaybackFailure.MediaCredentialUnavailable -> R.string.mobile_playback_error_credential
         is PlaybackFailure.MediaUnsupported -> R.string.mobile_playback_error_media_unsupported
         is PlaybackFailure.Putio -> when (failure) {
+            is PutioFailure.ApiRejected if failure.isNotFound -> R.string.mobile_state_error_not_found
             is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
             is PutioFailure.AccessDenied -> R.string.mobile_playback_error_forbidden
             is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited

@@ -1061,7 +1061,7 @@ private fun TvFilesMissingFolderAnnouncement(
     onEvent: (FilesBrowserEvent) -> Boolean,
 ) {
     val missing = state.missingFolder
-    val text = stringResource(R.string.tv_error_not_found_title)
+    val text = stringResource(R.string.tv_error_not_found)
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(missing) {
         val notice = missing ?: return@LaunchedEffect

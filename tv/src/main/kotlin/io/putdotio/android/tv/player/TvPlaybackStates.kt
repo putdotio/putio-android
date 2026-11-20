@@ -34,6 +34,7 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.isNotFound
 import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackConversionAction
 import io.putdotio.android.playback.PlaybackConversionPolling
@@ -250,7 +251,7 @@ internal fun TvPlaybackFailureScreen(
             message = if (cantPlay) {
                 stringResource(R.string.tv_player_cant_play_message)
             } else {
-                failure.apiReason
+                failure.apiReason?.takeUnless { failure.putioFailure.isNotFound }
                     ?: failure.putioFailure?.takeIf { it.isUnknown }?.tvUnknownLine()
                     ?: stringResource(failure.messageResource())
             },
