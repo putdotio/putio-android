@@ -780,6 +780,65 @@ class TvPlayerProofTest {
         screenshot("androidtv-650-size-and-timing")
     }
 
+    @Test
+    fun anAudioRenditionThatFailsToLoadRestoresTheTrackThatPlayed() {
+        val fixture = arguments.getString("putio.tv.player.failingAudioFixture")
+        assumeTrue("Needs the HLS fixture whose second audio rendition is missing", fixture != null)
+        val factory = ProofPlayerFactory()
+        var failure by mutableStateOf<PlaybackFailure?>(null)
+        compose.setContent {
+            PutioTvTheme {
+                TvPlayerScreen(
+                    state = playbackState(
+                        target = PlaybackTarget(FilesItemId(FIXTURE_FILE_ID), RENDITION_TITLE, PlaybackMediaType.VIDEO),
+                        content = PlaybackContent.Ready(localSource(requireNotNull(fixture))),
+                        nextRequestValue = 2L,
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                    onPlayerFailure = { value, _ -> failure = value },
+                    playerFactory = factory,
+                )
+            }
+        }
+
+        awaitPlayer(factory) {
+            it.isPlaying && factory.renderedFrame && it.currentTracks.playbackAudioTracks().size == 2 &&
+                selectedAudioLanguage(it) == "en"
+        }
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { !it.playWhenReady }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        compose.onNodeWithContentDescription(AUDIO, substring = true).assertIsSelected()
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        compose.waitUntil(10_000) { compose.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty() }
+        press(KeyEvent.KEYCODE_DPAD_DOWN)
+        elapse(DIALOG_EXIT_MILLIS)
+        screenshot("720-01-audio-sheet")
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+
+        compose.waitUntil(30_000) { compose.onAllNodesWithText(AUDIO_FAILED).fetchSemanticsNodes().isNotEmpty() }
+        compose.waitUntil(30_000) {
+            compose.runOnIdle {
+                val player = factory.current()
+                player.playerError == null && player.playbackState == Player.STATE_READY &&
+                    selectedAudioLanguage(player) == "en"
+            }
+        }
+        screenshot("720-02-audio-restored")
+        compose.runOnIdle { assertNull("Playback kept going", failure) }
+
+        press(KeyEvent.KEYCODE_DPAD_UP)
+        press(KeyEvent.KEYCODE_DPAD_CENTER)
+        awaitPlayer(factory) { it.isPlaying && selectedAudioLanguage(it) == "en" }
+        val resumedAt = compose.runOnIdle { factory.current().currentPosition }
+        elapse(BOARD_PLAY_MILLIS)
+        awaitPlayer(factory) { it.currentPosition > resumedAt }
+        screenshot("720-03-playing-on")
+        compose.runOnIdle { assertNull(failure) }
+    }
+
     private fun openSubtitlesSheet() {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) {
@@ -1389,6 +1448,8 @@ class TvPlayerProofTest {
         const val CHIP_ROW_MAX = 4
         const val NO_CAPTIONS = "No captions available"
         const val SUBTITLES_FAILED = "Couldn’t load subtitles"
+        const val AUDIO_FAILED = "Couldn’t switch audio track"
+        const val RENDITION_TITLE = "Audio rendition proof.mp4"
         const val CAPTION_FOOTNOTE = "Font and colours follow your TV’s caption settings."
         const val STATES_NEXT_TITLE = "Big Buck Bunny.part2.mp4"
         const val STATES_FOLDER = "Big Buck Bunny"

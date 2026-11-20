@@ -100,6 +100,7 @@ import io.putdotio.android.playback.withSubtitleSelection
 import io.putdotio.android.playback.PlaybackAudioSwitch
 import io.putdotio.android.playback.PlaybackTrackRecovery
 import io.putdotio.android.playback.PlaybackTrackRecoveryStep
+import io.putdotio.android.playback.manifestAudioUris
 import io.putdotio.android.playback.manifestSubtitleUris
 import io.putdotio.android.playback.sidecarSubtitleUris
 import io.putdotio.android.playback.sources
@@ -326,7 +327,11 @@ private fun TvReadyPlayer(
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
     }
     val recovery = remember(player) {
-        PlaybackTrackRecovery(prepared.mediaItem.sidecarSubtitleUris(), player::manifestSubtitleUris)
+        PlaybackTrackRecovery(
+            sidecarUris = prepared.mediaItem.sidecarSubtitleUris(),
+            manifestAudioUris = player::manifestAudioUris,
+            manifestSubtitleUris = player::manifestSubtitleUris,
+        )
     }
     val subtitlesFailed by rememberUpdatedState(stringResource(R.string.tv_player_subtitles_failed))
     val audioFailed by rememberUpdatedState(stringResource(R.string.tv_player_audio_failed))

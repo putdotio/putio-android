@@ -43,14 +43,17 @@ public class PlaybackAudioSwitch(
 
 public class PlaybackTrackRecovery(
     private val sidecarUris: () -> Set<String>,
+    private val manifestAudioUris: () -> Set<String> = { emptySet() },
     private val manifestSubtitleUris: () -> Set<String> = { emptySet() },
 ) {
     public constructor(
         sidecarUris: Set<String>,
+        manifestAudioUris: () -> Set<String> = { emptySet() },
         manifestSubtitleUris: () -> Set<String> = { emptySet() },
-    ) : this({ sidecarUris }, manifestSubtitleUris)
+    ) : this({ sidecarUris }, manifestAudioUris, manifestSubtitleUris)
 
     private val failingSubtitles = mutableMapOf<String, Long>()
+    private val failingAudio = mutableMapOf<String, Long>()
     private var droppedAtMillis: Long? = null
     private var droppedUris = emptySet<String>()
     private var audioSwitch: PlaybackAudioSwitch? = null
@@ -62,19 +65,22 @@ public class PlaybackTrackRecovery(
         gaveUp: Boolean,
         atMillis: Long,
     ): PlaybackTrackRecoveryStep.DropSubtitles? {
-        if (!isSubtitle(trackType, uri)) return null
         forgetBefore(atMillis)
+        if (isAudio(trackType, uri)) failingAudio[uri] = atMillis
+        if (!isSubtitle(trackType, uri)) return null
         failingSubtitles[uri] = atMillis
         return if (gaveUp) drop(atMillis) else null
     }
 
     public fun loadCompleted(uri: String) {
         failingSubtitles -= uri
+        failingAudio -= uri
     }
 
     public fun audioSwitching(from: PlaybackAudioSwitch, atMillis: Long) {
         audioSwitch = from
         audioSwitchedAtMillis = atMillis
+        failingAudio.clear()
     }
 
     public fun audioPlaying() {
@@ -91,8 +97,9 @@ public class PlaybackTrackRecovery(
         val subtitleLoad = failure.uri
             ?.let { it in failingSubtitles || it in dropped || isSubtitle(C.TRACK_TYPE_UNKNOWN, it) } != false
         return when {
-            switch != null && failure.code in AUDIO_FAILURES && failure.audioRenderer != false -> {
+            switch != null && isAudioFailure(failure) -> {
                 audioSwitch = null
+                failingAudio.clear()
                 PlaybackTrackRecoveryStep.RestoreAudio(switch)
             }
             failure.code in LOAD_FAILURES && subtitleLoad && (failingSubtitles.isNotEmpty() || justDropped) ->
@@ -100,6 +107,14 @@ public class PlaybackTrackRecovery(
             else -> null
         }
     }
+
+    private fun isAudioFailure(failure: PlaybackTrackFailure): Boolean =
+        when (failure.code) {
+            in AUDIO_FAILURES -> failure.audioRenderer != false
+            in LOAD_FAILURES -> failure.uri?.let { it in failingAudio || isAudio(C.TRACK_TYPE_UNKNOWN, it) }
+                ?: failingAudio.isNotEmpty()
+            else -> false
+        }
 
     private fun drop(atMillis: Long?): PlaybackTrackRecoveryStep.DropSubtitles {
         val step = PlaybackTrackRecoveryStep.DropSubtitles(
@@ -114,10 +129,14 @@ public class PlaybackTrackRecovery(
 
     private fun forgetBefore(atMillis: Long) {
         failingSubtitles.values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
+        failingAudio.values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
     }
 
     private fun isSubtitle(trackType: Int, uri: String): Boolean =
         trackType == C.TRACK_TYPE_TEXT || uri in sidecarUris() || uri in manifestSubtitleUris()
+
+    private fun isAudio(trackType: Int, uri: String): Boolean =
+        trackType == C.TRACK_TYPE_AUDIO || uri in manifestAudioUris()
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -132,6 +151,11 @@ public fun TrackSelectionParameters.withAudioOf(before: TrackSelectionParameters
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 public fun Player.manifestSubtitleUris(): Set<String> =
     (currentManifest as? HlsManifest)?.multivariantPlaylist?.subtitles.orEmpty().map { it.url.toString() }.toSet()
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+public fun Player.manifestAudioUris(): Set<String> =
+    (currentManifest as? HlsManifest)?.multivariantPlaylist?.audios.orEmpty()
+        .mapNotNull { it.url?.toString() }.toSet()
 
 public fun MediaItem.sidecarSubtitleUris(): Set<String> =
     localConfiguration?.subtitleConfigurations.orEmpty().map { it.uri.toString() }.toSet()
