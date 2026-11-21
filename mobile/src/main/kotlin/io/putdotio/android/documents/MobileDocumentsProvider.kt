@@ -227,7 +227,7 @@ class MobileDocumentsProvider : DocumentsProvider() {
                         DocumentBytes(copy.length, onDevice = true) { offset -> OpenedBytes(copy.open(offset)) }
                     }
                 },
-                remote = RemoteOriginals(share.http, share.accessToken)::bytes,
+                remote = RemoteOriginals(share.http, share.originals)::bytes,
                 onAuthenticationRequired = runtime::rejectSession,
             )
             return documents(app, backend, CoroutineScope(SupervisorJob() + Dispatchers.IO))

@@ -182,19 +182,8 @@ internal class MobileDocuments(
             backend.offline(key.userId, fileId)?.let { return it }
             val file = item(fileId, signal).takeUnless(FilesItem::isFolder)
                 ?: throw FileNotFoundException("A folder has no bytes")
-            return backend.remote(file.id, file.sizeBytes).endingSessionOn401()
+            return backend.remote(file.id, file.sizeBytes)
         }
-
-        /** A 401 on the stream ends the session, as a 401 on a listing does. */
-        private fun DocumentBytes.endingSessionOn401(): DocumentBytes =
-            DocumentBytes(size, onDevice) { offset ->
-                try {
-                    open(offset)
-                } catch (error: DownloadUnauthorizedException) {
-                    backend.onAuthenticationRequired(key.sessionId)
-                    throw error
-                }
-            }
 
         fun report(failure: PutioFailure) {
             if (failure is PutioFailure.AuthenticationRequired) backend.onAuthenticationRequired(key.sessionId)

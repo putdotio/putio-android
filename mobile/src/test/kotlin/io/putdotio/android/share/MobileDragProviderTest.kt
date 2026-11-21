@@ -6,12 +6,14 @@ import android.system.ErrnoException
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.files.PutioFileType
 import java.io.FileNotFoundException
 import java.util.concurrent.CopyOnWriteArrayList
@@ -47,7 +49,9 @@ class MobileDragProviderTest {
     private val dependencies = MobileShareDependencies(
         http = OkHttpClient.Builder().addInterceptor { chain -> ranged(chain.request()) }.build(),
         authState = auth,
-        accessToken = { "session-token" },
+        originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken("session-token") }) { id, token ->
+            "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}"
+        },
     )
 
     @Before

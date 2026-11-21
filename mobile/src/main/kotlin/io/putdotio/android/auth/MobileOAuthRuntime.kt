@@ -51,6 +51,7 @@ internal class MobileOAuthRuntime(
     private val failureReporter: OAuthRuntimeFailureReporter = AndroidOAuthRuntimeFailureReporter,
     onSessionLeft: (MobileAuthSessionId?) -> Unit = {},
     onSessionStarted: (MobileAuthSessionId) -> Unit = {},
+    val downloadToken: MediaDownloadToken = MediaDownloadToken.from(putioClient),
 ) {
     private val positions = SdkPlaybackPositionRepository(putioClient)
 
@@ -189,6 +190,7 @@ internal class MobileOAuthRuntime(
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val tokenStore = KeystoreAuthTokenStore(context)
+            val downloadToken = MediaDownloadToken.from(putioClient)
             val authController = MobileAuthController(
                 oauthConfiguration = oauthConfiguration,
                 tokenStore = tokenStore,
@@ -196,7 +198,8 @@ internal class MobileOAuthRuntime(
                 sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
                     MobileDownloadCache.get(context).let {
                         if (token == null) it.onTokenClearing?.invoke()
-                        it.accessToken = token
+                        downloadToken.reset()
+                        it.downloadToken = downloadToken.takeIf { token != null }
                         it.markSessionSettled()
                     }
                 },
@@ -222,6 +225,7 @@ internal class MobileOAuthRuntime(
                         applicationScope.launch(Dispatchers.IO) { MobileDownloadStore.shared(context, userId) }
                     }
                 },
+                downloadToken = downloadToken,
             ).also { runtime ->
                 val revalidation = SessionRevalidation(authController, applicationScope)
                 val positions = runtime.keepOfflinePositions(downloadPreferences(context))

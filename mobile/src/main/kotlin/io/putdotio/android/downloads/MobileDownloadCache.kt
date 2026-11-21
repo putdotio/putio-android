@@ -26,6 +26,7 @@ import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
 import androidx.media3.exoplayer.offline.ProgressiveDownloader
 import androidx.media3.exoplayer.scheduler.Requirements
+import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
@@ -40,17 +41,21 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.suspendCancellableCoroutine
+import io.putdotio.sdk.account.AccountDownloadToken
+import io.putdotio.sdk.errors.PutioException
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 
 internal const val OAUTH_TOKEN_QUERY = "oauth_token"
 private const val API_HOST = "api.put.io"
+private const val PUTIO_DOMAIN = ".put.io"
 
 /**
- * Process-wide Media3 download plumbing. Requests hold the token-free API URL;
- * the resolver adds the bearer header for API hosts and CDN segments arrive
- * pre-signed in playlist text, which the cache key strips before indexing.
+ * Process-wide Media3 download plumbing. Requests and the playlists a download stores hold token-free
+ * URLs. The resolver adds the account download token when a put.io request has none: a header on the API
+ * host, the query on media hosts, which refuse the header. Online streams keep the SDK's query token.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadCache private constructor(context: Context) {
@@ -58,8 +63,8 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @SuppressLint("StaticFieldLeak")
     private val appContext: Context = context.applicationContext
     private val databaseProvider = StandaloneDatabaseProvider(appContext)
-    // Internal storage: cached playlist bodies carry the server's oauth_token query, and
-    // app-external directories are readable by other apps on Android 8 to 10.
+    // Internal storage: playlists a download stored before they were made token-free still carry
+    // the server's oauth_token query, and app-external directories are readable by other apps on Android 8 to 10.
     val cache: SimpleCache = SimpleCache(
         File(appContext.filesDir, CACHE_DIRECTORY),
         NoOpCacheEvictor(),
@@ -72,9 +77,9 @@ internal class MobileDownloadCache private constructor(context: Context) {
         downloadExecutor.execute { cache.dropSignedMetadata() }
     }
 
-    /** Replaced by the auth layer on sign-in and sign-out; never persisted here. */
+    /** The signed-in session's download token, replaced by the auth layer on sign-in and sign-out. */
     @Volatile
-    var accessToken: String? = null
+    var downloadToken: MediaDownloadToken? = null
 
     /** Runs before the token is cleared so in-flight transfers park instead of failing with 401. */
     @Volatile
@@ -114,7 +119,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     private val downloadUpstreamFactory = DataSource.Factory {
-        RequestUriDataSource(upstreamFactory.createDataSource())
+        RequestUriDataSource(TokenFreePlaylistDataSource(upstreamFactory.createDataSource()))
     }
 
     internal val downloaderFactory: DownloaderFactory =
@@ -196,14 +201,27 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 
     private fun authorize(spec: DataSpec): DataSpec {
-        if (spec.uri.host != API_HOST) return spec
+        val host = spec.uri.host ?: return spec
+        if (!host.endsWith(PUTIO_DOMAIN) || spec.uri.getQueryParameter(OAUTH_TOKEN_QUERY) != null) return spec
         // Data sources open on Media3's loader threads; the wait is bounded by the restore itself.
         sessionSettled.await(SESSION_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        return accessToken?.let { token ->
+        val token = currentDownloadToken() ?: return spec
+        return if (host == API_HOST) {
             spec.buildUpon()
-                .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token $token"))
+                .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token ${token.value}"))
                 .build()
-        } ?: spec
+        } else {
+            spec.withUri(spec.uri.buildUpon().appendQueryParameter(OAUTH_TOKEN_QUERY, token.value).build())
+        }
+    }
+
+    private fun currentDownloadToken(): AccountDownloadToken? {
+        val holder = downloadToken ?: return null
+        return try {
+            runBlocking { holder.get() }
+        } catch (error: PutioException) {
+            throw IOException("The download token is unavailable", error)
+        }
     }
 
     companion object {

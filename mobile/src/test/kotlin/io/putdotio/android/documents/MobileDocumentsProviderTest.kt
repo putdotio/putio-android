@@ -18,6 +18,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
+import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
@@ -29,6 +30,8 @@ import io.putdotio.android.files.StubFilesRepository
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.share.OriginalDownloads
+import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
 import io.putdotio.sdk.errors.PutioRequestData
@@ -336,7 +339,7 @@ class MobileDocumentsProviderTest {
     }
 
     @Test
-    fun a401OnTheStreamSignsTheSessionOut() {
+    fun a401OnTheStreamKeepsTheSessionAndLoadsAFreshDownloadToken() {
         fixture.auth.value = signedIn(ALICE, session = 1)
         fixture.remoteBytes = ByteArray(100) { it.toByte() }
         fixture.files.items[FilesItemId(10L)] = file(10L, "clip.mp4", size = 100L)
@@ -344,8 +347,11 @@ class MobileDocumentsProviderTest {
         val reader = fixture.documents.open("$ALICE:10")
 
         assertThrows(ErrnoException::class.java) { reader.onRead(0L, 16, ByteArray(16)) }
+        fixture.answer = Answer.PARTIAL
+        assertEquals(16, fixture.documents.open("$ALICE:10").onRead(0L, 16, ByteArray(16)))
 
-        assertEquals(listOf(MobileAuthSessionId(1L)), fixture.rejected)
+        assertEquals(emptyList<MobileAuthSessionId>(), fixture.rejected)
+        assertEquals(2, fixture.downloadTokenLoads)
     }
 
     @Test
@@ -415,6 +421,7 @@ class MobileDocumentsProviderTest {
 
         /** How the stand-in for put.io answers a ranged download. */
         var answer = Answer.PARTIAL
+        var downloadTokenLoads = 0
         val rejected = mutableListOf<MobileAuthSessionId>()
         val requests = mutableListOf<Request>()
         var remoteBytes = ByteArray(0)
@@ -439,7 +446,9 @@ class MobileDocumentsProviderTest {
                         }
                     }
                 },
-                remote = RemoteOriginals(http) { "secret" }::bytes,
+                remote = RemoteOriginals(http, OriginalDownloads(MediaDownloadToken { downloadTokenLoads++; AccountDownloadToken("secret") }) { id, token ->
+                    "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}"
+                })::bytes,
                 onAuthenticationRequired = { rejected += it },
             ),
             scope,

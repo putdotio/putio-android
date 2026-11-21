@@ -23,6 +23,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.PutioResult
+import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
@@ -36,6 +37,8 @@ import io.putdotio.android.saveProofScreenshot
 import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
+import io.putdotio.android.share.OriginalDownloads
+import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.files.PutioFileType
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
@@ -108,7 +111,12 @@ class MobileDocumentsPickerProofTest {
                         }
                     }
                 },
-                remote = RemoteOriginals(OkHttpClient.Builder().addInterceptor(source).build()) { TOKEN }::bytes,
+                remote = RemoteOriginals(
+                    OkHttpClient.Builder().addInterceptor(source).build(),
+                    OriginalDownloads(MediaDownloadToken { AccountDownloadToken(TOKEN) }) { id, token ->
+                        "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}"
+                    },
+                )::bytes,
                 onAuthenticationRequired = {},
             ),
             scope,

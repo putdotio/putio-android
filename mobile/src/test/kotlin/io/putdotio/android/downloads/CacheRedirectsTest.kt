@@ -86,6 +86,18 @@ class CacheRedirectsTest {
         assertTrue(network.opened.isEmpty())
     }
 
+    @Test
+    fun aDownloadedPlaylistIsStoredWithoutTokensAndReadsBackFromAnyOffset() {
+        val stored = cacheFactory { TokenFreePlaylistDataSource(ByteArrayDataSource(SIGNED_PLAYLIST)) }
+        stored.read(DataSpec.Builder().setUri(PLAYLIST_URL).setLength(PLAYLIST_HEAD.toLong()).build())
+        val playlist = stored.read(DataSpec(PLAYLIST_URL))
+
+        assertEquals(TOKEN_FREE_PLAYLIST, playlist.decodeToString())
+        val network = RedirectingUpstream(bytes)
+        assertEquals(TOKEN_FREE_PLAYLIST, cacheFactory { network }.read(DataSpec(PLAYLIST_URL)).decodeToString())
+        assertTrue(network.opened.isEmpty())
+    }
+
     private fun cacheFactory(upstream: DataSource.Factory): CacheDataSource.Factory =
         CacheDataSource.Factory().setCache(cache).setCacheKeyFactory(keys).setUpstreamDataSourceFactory(upstream)
 
@@ -144,6 +156,19 @@ class CacheRedirectsTest {
         val API_URL: Uri = "https://api.put.io/v2/files/9/stream".toUri()
         val PLAYLIST_URL: Uri = "https://api.put.io/v2/files/9/hls/media.m3u8".toUri()
         val PLAYLIST = "#EXTM3U".encodeToByteArray()
+        const val PLAYLIST_HEAD = 40
+        val SIGNED_PLAYLIST = """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=SUBTITLES,URI="https://api.put.io/hls/playlist/s/index.m3u8?oauth_token=secret"
+            https://api.put.io/hls/playlist/v/index-v1-a1.m3u8?oauth_token=secret&kind=video
+            https://s1-cdn.put.io/hls/stream/seg-1.ts?kind=segment&oauth_token=secret
+        """.trimIndent().encodeToByteArray()
+        val TOKEN_FREE_PLAYLIST = """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=SUBTITLES,URI="https://api.put.io/hls/playlist/s/index.m3u8"
+            https://api.put.io/hls/playlist/v/index-v1-a1.m3u8?kind=video
+            https://s1-cdn.put.io/hls/stream/seg-1.ts?kind=segment
+        """.trimIndent()
         val CDN_URL: Uri = "https://s1-cdn.put.io/stream/9?u=signed&oauth_token=secret".toUri()
     }
 }

@@ -100,7 +100,7 @@ internal object MobileFileDrags {
         val drag = get(key)?.takeIf { dependencies.authState.value.sessionKey() == it.session }
             ?: throw FileNotFoundException("No such drag")
         val isCurrent = { dependencies.authState.value.sessionKey() == drag.session }
-        val bytes = RemoteOriginals(dependencies.http, dependencies.accessToken).bytes(drag.fileId, drag.sizeBytes)
+        val bytes = RemoteOriginals(dependencies.http, dependencies.originals).bytes(drag.fileId, drag.sizeBytes)
         lateinit var reader: DocumentReader
         reader = DocumentReader(bytes, drag.session, isCurrent) {
             drag.readers -= reader
