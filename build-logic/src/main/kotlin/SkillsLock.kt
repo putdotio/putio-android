@@ -88,7 +88,7 @@ object SkillsLock {
         val wrong = links.toSortedMap().mapNotNull { (name, link) ->
             val expected = "../../$SKILLS_PATH/$name"
             val target = if (Files.isSymbolicLink(link.toPath())) {
-                Files.readSymbolicLink(link.toPath()).toString().replace('\\', '/')
+                Files.readSymbolicLink(link.toPath()).toString().let { if (File.separatorChar == '\\') it.replace('\\', '/') else it }
             } else {
                 null
             }
