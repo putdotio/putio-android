@@ -3,7 +3,7 @@ package io.putdotio.android.telemetry
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
@@ -26,22 +26,7 @@ import org.robolectric.annotation.Config
 class PostHogAnalyticsSdkTest {
     private val application = ApplicationProvider.getApplicationContext<Application>()
     private val requests = LinkedBlockingQueue<Pair<String, String>>()
-    private val client = OkHttpClient.Builder()
-        .addInterceptor { chain ->
-            val request = chain.request()
-            val bytes = Buffer().also { request.body?.writeTo(it) }.readByteArray()
-            val gzip = request.header("Content-Encoding") == "gzip"
-            val body = if (gzip) GZIPInputStream(bytes.inputStream()).readBytes() else bytes
-            requests += request.url.encodedPath to body.decodeToString()
-            Response.Builder()
-                .request(request)
-                .protocol(Protocol.HTTP_1_1)
-                .code(200)
-                .message("OK")
-                .body("{}".toResponseBody())
-                .build()
-        }
-        .build()
+    private val client = recordingClient()
     private val configuration = checkNotNull(
         ProductAnalyticsConfiguration.of(TOKEN, tv = false, "production", "3.0.1", 3_000_100),
     )
@@ -89,15 +74,62 @@ class PostHogAnalyticsSdkTest {
         val sdk = PostHogAnalyticsSdk(application, configuration, client)
         sdk.start(42)
         sdk.capture("screen_viewed", mapOf("screen" to "files"), 1_000L)
+        assertEquals("/batch", requests.poll(5, TimeUnit.SECONDS)?.first?.trimEnd('/'))
+        assertEquals(emptyList<String>(), analyticsFiles())
 
         sdk.stop()
 
-        assertFalse(File(application.noBackupFilesDir, "io.put.analytics").exists())
-        assertEquals(
-            emptyList<String>(),
-            application.dataDir.walk().map { it.name }.filter { "posthog" in it.lowercase() }.toList(),
-        )
+        assertEquals(emptyList<String>(), analyticsFiles())
     }
+
+    @Test
+    fun eventsQueuedBeforeOptOutAreNeverSent() {
+        val sending = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val sdk = PostHogAnalyticsSdk(
+            application,
+            configuration,
+            recordingClient {
+                sending.countDown()
+                release.await(5, TimeUnit.SECONDS)
+            },
+        )
+        sdk.start(42)
+        sdk.capture("screen_viewed", mapOf("screen" to "files"), 1_000L)
+        assertTrue(sending.await(5, TimeUnit.SECONDS))
+        sdk.capture("app_opened", emptyMap(), 2_000L)
+
+        sdk.stop()
+        release.countDown()
+
+        val sent = generateSequence { requests.poll(2, TimeUnit.SECONDS) }.toList()
+        assertEquals(1, sent.size)
+        assertTrue(sent.single().second.contains("screen_viewed"))
+    }
+
+    private fun analyticsFiles(): List<String> = (application.dataDir.walk() + application.noBackupFilesDir.walk())
+        .filter { it.name == "io.put.analytics" || "posthog" in it.name.lowercase() }
+        .map { it.path }
+        .distinct()
+        .toList()
+
+    private fun recordingClient(beforeResponse: () -> Unit = {}) = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val request = chain.request()
+            val bytes = Buffer().also { request.body?.writeTo(it) }.readByteArray()
+            val gzip = request.header("Content-Encoding") == "gzip"
+            val body = if (gzip) GZIPInputStream(bytes.inputStream()).readBytes() else bytes
+            requests += request.url.encodedPath to body.decodeToString()
+            beforeResponse()
+            Response.Builder()
+                .request(request)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body("{}".toResponseBody())
+                .build()
+        }
+        .build()
 
     private companion object {
         const val TOKEN = "phc_SyntheticProjectToken0000000000"

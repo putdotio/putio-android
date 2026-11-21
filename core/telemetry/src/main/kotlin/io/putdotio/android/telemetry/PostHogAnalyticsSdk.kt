@@ -4,24 +4,23 @@ import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import com.posthog.PersonProfiles
+import com.posthog.PostHog
 import com.posthog.PostHogBootstrapConfig
-import com.posthog.PostHogEncryption
+import com.posthog.PostHogConfig
 import com.posthog.PostHogEvent
 import com.posthog.PostHogInterface
-import com.posthog.android.PostHogAndroid
-import com.posthog.android.PostHogAndroidConfig
+import com.posthog.internal.PostHogApi
+import com.posthog.internal.PostHogApiEndpoint
+import com.posthog.internal.PostHogApiError
 import com.posthog.internal.PostHogMemoryPreferences
-import java.io.Closeable
+import com.posthog.internal.PostHogQueueInterface
 import java.io.File
-import java.io.FilterInputStream
-import java.io.FilterOutputStream
 import java.io.IOException
-import java.io.InputStream
-import java.io.OutputStream
 import java.util.Date
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.atomic.AtomicBoolean
 import okhttp3.OkHttpClient
 
 internal class PostHogAnalyticsSdk(
@@ -30,13 +29,13 @@ internal class PostHogAnalyticsSdk(
     private val httpClient: OkHttpClient? = null,
 ) : AnalyticsSdk {
     private var client: PostHogInterface? = null
-    private var streams: QueueStreams? = null
+    private var closed: AtomicBoolean? = null
     private var common: Map<String, Any> = emptyMap()
 
     override fun start(accountId: Long) {
         common = commonProperties()
-        val streams = QueueStreams().also { streams = it }
-        client = PostHogAndroid.with(context, config(accountId, streams))
+        val closed = AtomicBoolean().also { closed = it }
+        client = PostHog.with(config(accountId, closed))
     }
 
     override fun capture(name: String, properties: Map<String, String>, timestampMillis: Long) {
@@ -44,48 +43,35 @@ internal class PostHogAnalyticsSdk(
     }
 
     override fun stop() {
-        streams?.closeAll(STOP_TIMEOUT_MILLIS)
-        streams = null
-        storageDir(context).deleteRecursively()
+        closed?.set(true)
+        closed = null
         val closing = client
         client = null
         runCatching { closing?.close() }
         storageDir(context).deleteRecursively()
     }
 
-    private fun config(accountId: Long, streams: QueueStreams): PostHogAndroidConfig {
-        val storage = storageDir(context)
-        return PostHogAndroidConfig(
-            projectToken = configuration.token,
-            host = HOST,
-            captureApplicationLifecycleEvents = false,
-            captureDeepLinks = false,
-            captureScreenViews = false,
-            capturePushNotificationSubscriptions = false,
-            capturePushNotificationOpened = false,
-        ).apply {
-            // Identified before the first event, with no $identify and no flags request.
-            bootstrap = PostHogBootstrapConfig(distinctId = accountId.toString(), isIdentifiedId = true)
-            personProfiles = PersonProfiles.IDENTIFIED_ONLY
-            setDefaultPersonProperties = false
-            remoteConfig = false
-            preloadFeatureFlags = false
-            sendFeatureFlagEvent = false
-            sessionReplay = false
-            surveys = false
-            errorTrackingConfig.autoCapture = false
-            // Ids live in memory only, so each start is a fresh install and an opt-out leaves none.
-            cachePreferences = PostHogMemoryPreferences()
-            legacyStoragePrefix = File(storage, "legacy").path
-            storagePrefix = File(storage, "queue").path
-            replayStoragePrefix = File(storage, "replay").path
-            logsStoragePrefix = File(storage, "logs").path
-            // A session has few events; each goes when captured instead of waiting for 20.
-            flushAt = 1
-            httpClient = this@PostHogAnalyticsSdk.httpClient
-            encryption = streams
-            addBeforeSend { event -> allowlisted(event)?.also { streams.queued() } }
-        }
+    private fun config(accountId: Long, closed: AtomicBoolean) = PostHogConfig(
+        projectToken = configuration.token,
+        host = HOST,
+        queueProvider = { config, api, endpoint, _, executor -> MemoryQueue(config, api, endpoint, executor, closed) },
+    ).apply {
+        sdkName = "posthog-android"
+        sdkVersion = com.posthog.android.BuildConfig.VERSION_NAME
+        // Identified before the first event, with no $identify and no flags request.
+        bootstrap = PostHogBootstrapConfig(distinctId = accountId.toString(), isIdentifiedId = true)
+        personProfiles = PersonProfiles.IDENTIFIED_ONLY
+        setDefaultPersonProperties = false
+        remoteConfig = false
+        preloadFeatureFlags = false
+        sendFeatureFlagEvent = false
+        sessionReplay = false
+        surveys = false
+        errorTrackingConfig.autoCapture = false
+        // Ids live in memory only, so each start is a fresh install and an opt-out leaves none.
+        cachePreferences = PostHogMemoryPreferences()
+        httpClient = this@PostHogAnalyticsSdk.httpClient
+        addBeforeSend(::allowlisted)
     }
 
     /** Read once per start. */
@@ -116,7 +102,6 @@ internal class PostHogAnalyticsSdk(
         /** put.io's forward-only proxy to PostHog Cloud EU. */
         const val HOST = "https://burrow.put.io"
         const val TABLET_MIN_WIDTH_DP = 600
-        const val STOP_TIMEOUT_MILLIS = 5_000L
 
         fun storageDir(context: Context) = File(context.noBackupFilesDir, "io.put.analytics")
     }
@@ -128,72 +113,59 @@ private fun allowlisted(event: PostHogEvent): PostHogEvent? {
     return event.copy(properties = kept.toMutableMap(), set = null)
 }
 
-private class QueueStreams : PostHogEncryption {
-    private val lock = ReentrantLock()
-    private val writeStarted = lock.newCondition()
-    private val open = mutableSetOf<Closeable>()
-    private var queued = 0
-    private var started = 0
-    private var stopping = false
-    private var closed = false
+private class MemoryQueue(
+    private val config: PostHogConfig,
+    private val api: PostHogApi,
+    private val endpoint: PostHogApiEndpoint,
+    private val executor: ExecutorService,
+    private val closed: AtomicBoolean,
+) : PostHogQueueInterface<PostHogEvent> {
+    private val pending = ConcurrentLinkedDeque<PostHogEvent>()
 
-    fun queued() {
-        lock.withLock { queued++ }
+    override val size: Int get() = pending.size
+
+    override fun add(record: PostHogEvent) = submit {
+        pending.addLast(record)
+        while (pending.size > config.maxQueueSize) pending.pollFirst()
+        send()
     }
 
-    override fun encrypt(outputStream: OutputStream): OutputStream {
-        lock.withLock {
-            started++
-            writeStarted.signalAll()
-            open(outputStream)
-        }
-        return object : FilterOutputStream(outputStream) {
-            override fun write(b: ByteArray, off: Int, len: Int) {
-                out.write(b, off, len)
-            }
+    override fun flush() = submit(::send)
 
-            override fun close() {
-                lock.withLock { open -= outputStream }
-                super.close()
-            }
-        }
-    }
+    override fun clear() = submit(pending::clear)
 
-    override fun decrypt(inputStream: InputStream): InputStream {
-        lock.withLock {
-            if (stopping) refuse(inputStream)
-            open(inputStream)
-        }
-        return object : FilterInputStream(inputStream) {
-            override fun close() {
-                lock.withLock { open -= inputStream }
-                super.close()
-            }
+    override fun start() = Unit
+
+    override fun stop() = executor.shutdown()
+
+    private fun submit(task: () -> Unit) {
+        if (closed.get()) return
+        try {
+            executor.execute { if (!closed.get()) task() }
+        } catch (_: RejectedExecutionException) {
+            return
         }
     }
 
-    fun closeAll(timeoutMillis: Long) {
-        val left = lock.withLock {
-            stopping = true
-            var nanos = TimeUnit.MILLISECONDS.toNanos(timeoutMillis)
-            try {
-                while (started < queued && nanos > 0) nanos = writeStarted.awaitNanos(nanos)
-            } catch (_: InterruptedException) {
-                Thread.currentThread().interrupt()
-            }
-            closed = true
-            open.toList().also { open.clear() }
+    private fun send() {
+        while (!closed.get()) {
+            val batch = pending.take(config.maxBatchSize).ifEmpty { return }
+            if (!settled(batch)) return
+            repeat(batch.size) { pending.pollFirst() }
         }
-        left.forEach { runCatching(it::close) }
     }
 
-    private fun open(stream: Closeable) {
-        if (closed) refuse(stream)
-        open += stream
+    private fun settled(batch: List<PostHogEvent>): Boolean = try {
+        if (endpoint == PostHogApiEndpoint.BATCH) api.batch(batch) else api.snapshot(batch)
+        true
+    } catch (_: IOException) {
+        false
+    } catch (e: PostHogApiError) {
+        e.statusCode != TOO_MANY_REQUESTS && e.statusCode < SERVER_ERROR
     }
 
-    private fun refuse(stream: Closeable): Nothing {
-        stream.close()
-        throw IOException("PostHog storage is stopping")
+    private companion object {
+        const val TOO_MANY_REQUESTS = 429
+        const val SERVER_ERROR = 500
     }
 }
