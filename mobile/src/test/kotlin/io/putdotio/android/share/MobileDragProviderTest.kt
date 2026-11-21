@@ -50,7 +50,10 @@ class MobileDragProviderTest {
     private val dependencies = MobileShareDependencies(
         http = OkHttpClient.Builder().addInterceptor { chain -> ranged(chain.request()) }.build(),
         authState = auth,
-        originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken("session-token") }, PutioClient().files),
+        originals = OriginalDownloads(
+            MediaDownloadToken { AccountDownloadToken("session-token") },
+            PutioClient().files,
+        ),
     )
 
     @Before

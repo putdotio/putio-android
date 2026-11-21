@@ -435,7 +435,10 @@ class MobileFileShareServiceTest {
                     )
                     .build(),
                 authState = auth,
-                originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken("token") }, PutioClient().files),
+                originals = OriginalDownloads(
+                    MediaDownloadToken { AccountDownloadToken("token") },
+                    PutioClient().files,
+                ),
                 readyTimeout = readyTimeout,
                 main = dispatcher,
                 io = io ?: dispatcher,

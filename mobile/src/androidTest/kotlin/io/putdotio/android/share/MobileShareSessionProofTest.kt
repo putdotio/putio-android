@@ -69,7 +69,10 @@ class MobileShareSessionProofTest {
         MobileFileShareService.dependenciesForTest = MobileShareDependencies(
             http = OkHttpClient.Builder().addInterceptor(source).build(),
             authState = auth,
-            originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken("proof-token") }, PutioClient().files),
+            originals = OriginalDownloads(
+                MediaDownloadToken { AccountDownloadToken("proof-token") },
+                PutioClient().files,
+            ),
         )
         val choosers = instrumentation.addMonitor(IntentFilter(Intent.ACTION_CHOOSER), null, false)
         try {

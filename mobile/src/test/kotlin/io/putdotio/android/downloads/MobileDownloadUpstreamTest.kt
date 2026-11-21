@@ -83,7 +83,8 @@ class MobileDownloadUpstreamTest {
     }
 
     private fun read(uri: String) {
-        DataSourceInputStream(downloads.upstreamFactory.createDataSource(), DataSpec(uri.toUri())).use { it.readBytes() }
+        val source = downloads.upstreamFactory.createDataSource()
+        DataSourceInputStream(source, DataSpec(uri.toUri())).use { it.readBytes() }
     }
 
     private fun respondingWith(body: String): OkHttpClient =

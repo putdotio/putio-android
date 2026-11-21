@@ -291,7 +291,10 @@ class MobileTabletPowerProofTest {
         MobileFileShareService.dependenciesForTest = MobileShareDependencies(
             http = OkHttpClient.Builder().addInterceptor(PosterSource(poster)).build(),
             authState = auth,
-            originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken(PROOF_TOKEN) }, PutioClient().files),
+            originals = OriginalDownloads(
+                MediaDownloadToken { AccountDownloadToken(PROOF_TOKEN) },
+                PutioClient().files,
+            ),
         )
         val video = proofFixture("putio.tablet.video")
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
