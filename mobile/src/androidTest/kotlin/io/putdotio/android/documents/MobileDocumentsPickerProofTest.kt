@@ -38,6 +38,7 @@ import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.share.OriginalDownloads
+import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.files.PutioFileType
 import java.io.ByteArrayOutputStream
@@ -113,9 +114,7 @@ class MobileDocumentsPickerProofTest {
                 },
                 remote = RemoteOriginals(
                     OkHttpClient.Builder().addInterceptor(source).build(),
-                    OriginalDownloads(MediaDownloadToken { AccountDownloadToken(TOKEN) }) { id, token ->
-                        "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}"
-                    },
+                    OriginalDownloads(MediaDownloadToken { AccountDownloadToken(TOKEN) }, PutioClient().files),
                 )::bytes,
                 onAuthenticationRequired = {},
             ),

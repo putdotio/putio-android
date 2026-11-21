@@ -31,6 +31,7 @@ import io.putdotio.android.search.SearchPage
 import io.putdotio.android.search.SearchRepository
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.share.OriginalDownloads
+import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
@@ -453,7 +454,8 @@ class MobileDocumentsProviderTest {
                             downloadTokenLoads++
                             AccountDownloadToken("secret")
                         },
-                    ) { id, token -> "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}" },
+                        PutioClient().files,
+                    ),
                 )::bytes,
                 onAuthenticationRequired = { rejected += it },
             ),

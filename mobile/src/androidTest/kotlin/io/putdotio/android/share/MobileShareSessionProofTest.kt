@@ -22,6 +22,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.proofDirectory
 import io.putdotio.android.saveProofScreenshot
+import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountDownloadToken
 import java.io.ByteArrayOutputStream
 import java.util.UUID
@@ -68,9 +69,7 @@ class MobileShareSessionProofTest {
         MobileFileShareService.dependenciesForTest = MobileShareDependencies(
             http = OkHttpClient.Builder().addInterceptor(source).build(),
             authState = auth,
-            originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken("proof-token") }) { id, token ->
-                "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}"
-            },
+            originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken("proof-token") }, PutioClient().files),
         )
         val choosers = instrumentation.addMonitor(IntentFilter(Intent.ACTION_CHOOSER), null, false)
         try {

@@ -5,7 +5,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSourceUtil
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.cache.Cache
 import java.io.ByteArrayInputStream
+import java.io.IOException
 
 /**
  * Serves HLS playlists with every `oauth_token` query removed, so the copies a download stores hold no
@@ -40,10 +42,9 @@ internal class TokenFreePlaylistDataSource(private val upstream: DataSource) : D
         upstream.close()
     }
 
-    private companion object {
-        const val PLAYLIST_EXTENSION = ".m3u8"
-    }
 }
+
+private const val PLAYLIST_EXTENSION = ".m3u8"
 
 private val OAUTH_TOKEN_PARAMETER = Regex("""([?&])$OAUTH_TOKEN_QUERY=[^&"\s]*(&?)""")
 
@@ -52,3 +53,23 @@ internal fun withoutOauthTokens(playlist: ByteArray): ByteArray =
     String(playlist, Charsets.UTF_8)
         .replace(OAUTH_TOKEN_PARAMETER) { match -> if (match.groupValues[2].isEmpty()) "" else match.groupValues[1] }
         .toByteArray(Charsets.UTF_8)
+
+/**
+ * Removes playlists an earlier build stored with `oauth_token` in their URLs. The resolver leaves such URLs as they
+ * are, so they would keep sending that token; the download re-fetches them through [TokenFreePlaylistDataSource].
+ */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun Cache.dropSignedPlaylists() {
+    for (key in keys) {
+        if (!key.substringBefore('?').endsWith(PLAYLIST_EXTENSION)) continue
+        val signed = try {
+            getCachedSpans(key).sortedBy { it.position }
+                .mapNotNull { it.file?.readBytes() }
+                .fold(ByteArray(0), ByteArray::plus)
+                .let { OAUTH_TOKEN_QUERY in String(it, Charsets.UTF_8) }
+        } catch (_: IOException) {
+            false
+        }
+        if (signed) removeResource(key)
+    }
+}

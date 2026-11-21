@@ -73,6 +73,7 @@ import io.putdotio.android.share.MobileShareDependencies
 import io.putdotio.android.share.OriginalDownloads
 import io.putdotio.android.transfers.MOBILE_TRANSFER_DROP_TARGET_TAG
 import io.putdotio.android.transfers.MobileTransferDraft
+import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.errors.PutioApiErrorEnvelope
 import io.putdotio.sdk.errors.PutioApiException
@@ -290,9 +291,7 @@ class MobileTabletPowerProofTest {
         MobileFileShareService.dependenciesForTest = MobileShareDependencies(
             http = OkHttpClient.Builder().addInterceptor(PosterSource(poster)).build(),
             authState = auth,
-            originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken(PROOF_TOKEN) }) { id, token ->
-                "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}"
-            },
+            originals = OriginalDownloads(MediaDownloadToken { AccountDownloadToken(PROOF_TOKEN) }, PutioClient().files),
         )
         val video = proofFixture("putio.tablet.video")
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

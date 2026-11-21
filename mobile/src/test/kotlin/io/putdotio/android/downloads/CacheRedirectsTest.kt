@@ -98,6 +98,21 @@ class CacheRedirectsTest {
         assertTrue(network.opened.isEmpty())
     }
 
+    @Test
+    fun playlistsStoredWithTokensAreDroppedAndTokenFreeOnesKept() {
+        val signed = keys.buildCacheKey(DataSpec(PLAYLIST_URL))
+        val clean = keys.buildCacheKey(DataSpec(CHILD_URL))
+        cacheFactory { ByteArrayDataSource(SIGNED_PLAYLIST) }.read(DataSpec(PLAYLIST_URL))
+        cacheFactory { ByteArrayDataSource(TOKEN_FREE_PLAYLIST.encodeToByteArray()) }.read(DataSpec(CHILD_URL))
+        cacheFactory { RedirectingUpstream(bytes) }.read(DataSpec(API_URL))
+
+        cache.dropSignedPlaylists()
+
+        assertTrue(cache.getCachedSpans(signed).isEmpty())
+        assertTrue(cache.getCachedSpans(clean).isNotEmpty())
+        assertTrue(cache.getCachedSpans(keys.buildCacheKey(DataSpec(API_URL))).isNotEmpty())
+    }
+
     private fun cacheFactory(upstream: DataSource.Factory): CacheDataSource.Factory =
         CacheDataSource.Factory().setCache(cache).setCacheKeyFactory(keys).setUpstreamDataSourceFactory(upstream)
 
@@ -155,6 +170,7 @@ class CacheRedirectsTest {
         const val HALF = 100_000
         val API_URL: Uri = "https://api.put.io/v2/files/9/stream".toUri()
         val PLAYLIST_URL: Uri = "https://api.put.io/v2/files/9/hls/media.m3u8".toUri()
+        val CHILD_URL: Uri = "https://api.put.io/hls/playlist/v/index-v1-a1.m3u8?kind=video".toUri()
         val PLAYLIST = "#EXTM3U".encodeToByteArray()
         const val PLAYLIST_HEAD = 40
         val SIGNED_PLAYLIST = """

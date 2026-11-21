@@ -388,10 +388,10 @@ private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =
     updateStatusBlocking(fileId) { it.copy(status = DownloadStatus.Missing, accepted = true) }
 
 /**
- * Built here, not by the SDK: its URL builders embed `oauth_token`, and Media3 persists
- * this URL, so it must stay token-free. HLS asks for every subtitle rendition, or for none
- * when the account hides subtitles, as streaming does; an original over HLS asks the same. The
- * original and the converted MP4 are the files File stream playback reads.
+ * The token-free URL of the SDK's media request for this artifact. It is built here because Media3 persists it
+ * before a session has a download token, which the SDK builders require; the resolver adds the token on fetch.
+ * HLS asks for every subtitle rendition, or for none when the account hides subtitles, as streaming does; an
+ * original over HLS asks the same. The original and the converted MP4 are the files File stream playback reads.
  */
 internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boolean = false): String {
     val hls = "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8" +

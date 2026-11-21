@@ -3,6 +3,7 @@ package io.putdotio.android.downloads
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
@@ -71,11 +72,15 @@ internal class MobileDownloadCache private constructor(context: Context) {
         NoOpCacheEvictor(),
         databaseProvider,
     )
-    private val httpClient = OkHttpClient()
+    @VisibleForTesting
+    internal var httpClient: OkHttpClient = OkHttpClient()
     private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
 
     init {
-        downloadExecutor.execute { cache.dropSignedMetadata() }
+        downloadExecutor.execute {
+            cache.dropSignedMetadata()
+            cache.dropSignedPlaylists()
+        }
     }
 
     /** The signed-in session's download token, replaced by the auth layer on sign-in and sign-out. */
@@ -239,7 +244,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 }
 
-/** Request ids are `userId:fileId`; the user prefix scopes every cached byte the request produces. */
 /** Forgets a download token put.io answered 401 to, so the next attempt loads a fresh one. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class RefusedTokenDataSource(
@@ -262,6 +266,7 @@ private fun DataSpec.sentToken(): AccountDownloadToken? =
 
 private const val HTTP_UNAUTHORIZED = 401
 
+/** Request ids are `userId:fileId`; the user prefix scopes every cached byte the request produces. */
 internal fun downloadContentId(userId: Long, fileId: FilesItemId): String = "$userId:${fileId.value}"
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
