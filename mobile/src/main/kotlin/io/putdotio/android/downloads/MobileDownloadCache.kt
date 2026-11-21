@@ -79,7 +79,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
     init {
         downloadExecutor.execute {
             cache.dropSignedMetadata()
-            cache.dropSignedPlaylists()
+            cache.sanitizeSignedPlaylists()
         }
     }
 

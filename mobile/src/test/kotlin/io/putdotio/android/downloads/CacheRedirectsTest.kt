@@ -99,18 +99,36 @@ class CacheRedirectsTest {
     }
 
     @Test
-    fun playlistsStoredWithTokensAreDroppedAndTokenFreeOnesKept() {
+    fun playlistsStoredWithTokensAreRewrittenTokenFreeAndStayReadableOffline() {
         val signed = keys.buildCacheKey(DataSpec(PLAYLIST_URL))
         val clean = keys.buildCacheKey(DataSpec(CHILD_URL))
         cacheFactory { ByteArrayDataSource(SIGNED_PLAYLIST) }.read(DataSpec(PLAYLIST_URL))
         cacheFactory { ByteArrayDataSource(TOKEN_FREE_PLAYLIST.encodeToByteArray()) }.read(DataSpec(CHILD_URL))
-        cacheFactory { RedirectingUpstream(bytes) }.read(DataSpec(API_URL))
+        val cleanSpans = cache.getCachedSpans(clean).map { it.file }
 
-        cache.dropSignedPlaylists()
+        cache.sanitizeSignedPlaylists()
+        cache.release()
+        cache = SimpleCache(directory, NoOpCacheEvictor(), database)
 
-        assertTrue(cache.getCachedSpans(signed).isEmpty())
-        assertTrue(cache.getCachedSpans(clean).isNotEmpty())
-        assertTrue(cache.getCachedSpans(keys.buildCacheKey(DataSpec(API_URL))).isNotEmpty())
+        val network = RedirectingUpstream(bytes)
+        assertEquals(TOKEN_FREE_PLAYLIST, cacheFactory { network }.read(DataSpec(PLAYLIST_URL)).decodeToString())
+        assertEquals(
+            TOKEN_FREE_PLAYLIST.length.toLong(),
+            ContentMetadata.getContentLength(cache.getContentMetadata(signed)),
+        )
+        assertTrue(network.opened.isEmpty())
+        assertEquals(cleanSpans, cache.getCachedSpans(clean).map { it.file })
+    }
+
+    @Test
+    fun aPartlyStoredSignedPlaylistIsRemoved() {
+        val key = keys.buildCacheKey(DataSpec(PLAYLIST_URL))
+        cacheFactory { ByteArrayDataSource(SIGNED_PLAYLIST) }
+            .read(DataSpec.Builder().setUri(PLAYLIST_URL).setLength(SIGNED_PLAYLIST.size - 1L).build())
+
+        cache.sanitizeSignedPlaylists()
+
+        assertTrue(cache.getCachedSpans(key).isEmpty())
     }
 
     private fun cacheFactory(upstream: DataSource.Factory): CacheDataSource.Factory =

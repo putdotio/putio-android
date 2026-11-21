@@ -1,11 +1,16 @@
 package io.putdotio.android.downloads
 
+import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSourceUtil
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.ByteArrayDataSource
 import androidx.media3.datasource.cache.Cache
+import androidx.media3.datasource.cache.CacheDataSource
+import androidx.media3.datasource.cache.CacheWriter
+import androidx.media3.datasource.cache.ContentMetadata
 import java.io.ByteArrayInputStream
 import java.io.IOException
 
@@ -55,21 +60,36 @@ internal fun withoutOauthTokens(playlist: ByteArray): ByteArray =
         .toByteArray(Charsets.UTF_8)
 
 /**
- * Removes playlists an earlier build stored with `oauth_token` in their URLs. The resolver leaves such URLs as they
- * are, so they would keep sending that token; the download re-fetches them through [TokenFreePlaylistDataSource].
+ * Rewrites playlists an earlier build stored with `oauth_token` in their URLs, so completed downloads keep playing
+ * offline and the resolver never resends that token. A partly stored playlist is removed; its download fetches it
+ * again through [TokenFreePlaylistDataSource].
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun Cache.dropSignedPlaylists() {
+internal fun Cache.sanitizeSignedPlaylists() {
     for (key in keys) {
-        if (!key.substringBefore('?').endsWith(PLAYLIST_EXTENSION)) continue
-        val signed = try {
-            getCachedSpans(key).sortedBy { it.position }
-                .mapNotNull { it.file?.readBytes() }
-                .fold(ByteArray(0), ByteArray::plus)
-                .let { OAUTH_TOKEN_QUERY in String(it, Charsets.UTF_8) }
-        } catch (_: IOException) {
-            false
-        }
-        if (signed) removeResource(key)
+        if (key.substringBefore('?').endsWith(PLAYLIST_EXTENSION)) sanitizePlaylist(key)
     }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun Cache.sanitizePlaylist(key: String) {
+    try {
+        val stored = getCachedSpans(key).sortedBy { it.position }
+            .mapNotNull { it.file?.readBytes() }
+            .fold(ByteArray(0), ByteArray::plus)
+        if (OAUTH_TOKEN_QUERY !in String(stored, Charsets.UTF_8)) return
+        val complete = ContentMetadata.getContentLength(getContentMetadata(key)).let { length ->
+            length == stored.size.toLong() && isCached(key, 0L, length)
+        }
+        removeResource(key)
+        if (complete) writePlaylist(key, withoutOauthTokens(stored))
+    } catch (_: IOException) {
+        removeResource(key)
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun Cache.writePlaylist(key: String, body: ByteArray) {
+    val spec = DataSpec.Builder().setUri(key.substringAfter('|').toUri()).setKey(key).build()
+    CacheWriter(CacheDataSource(this, ByteArrayDataSource(body)), spec, null, null).cache()
 }
