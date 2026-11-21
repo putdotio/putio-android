@@ -77,9 +77,14 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @VisibleForTesting
     internal var httpClient: OkHttpClient = OkHttpClient()
     private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
+    private val storedTokensSettled = CountDownLatch(1)
     private val storedTokensCleared: Future<*> = downloadExecutor.submit {
-        cache.dropSignedMetadata()
-        cache.sanitizeSignedPlaylists()
+        try {
+            cache.dropSignedMetadata()
+            cache.sanitizeSignedPlaylists()
+        } finally {
+            storedTokensSettled.countDown()
+        }
     }
 
     /** The signed-in session's download token, replaced by the auth layer on sign-in and sign-out. */
@@ -168,6 +173,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
     fun holdsSubtitle(userId: Long, subtitle: DownloadSubtitle): Boolean = holds(userId, subtitle.url.toUri())
 
     private fun holds(userId: Long, uri: Uri): Boolean {
+        storedTokensSettled.await()
         val key = UserScopedCacheKeys(userId).buildCacheKey(DataSpec(uri))
         val length = ContentMetadata.getContentLength(cache.getContentMetadata(key))
         return if (length > 0L) cache.isCached(key, 0L, length) else cache.getCachedSpans(key).isNotEmpty()
