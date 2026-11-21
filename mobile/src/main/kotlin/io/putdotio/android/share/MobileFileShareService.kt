@@ -279,7 +279,9 @@ internal class MobileShareDependencies(
             return MobileShareDependencies(
                 http = sharedHttp,
                 authState = runtime.authController.state,
-                originals = OriginalDownloads.from(runtime.putioClient) { MobileDownloadCache.get(context).downloadToken },
+                originals = OriginalDownloads.from(runtime.putioClient) {
+                    MobileDownloadCache.get(context).downloadToken
+                },
             )
         }
     }
