@@ -173,7 +173,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
     fun holdsSubtitle(userId: Long, subtitle: DownloadSubtitle): Boolean = holds(userId, subtitle.url.toUri())
 
     private fun holds(userId: Long, uri: Uri): Boolean {
-        storedTokensSettled.await()
+        storedTokensSettled.await(STORED_TOKENS_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         val key = UserScopedCacheKeys(userId).buildCacheKey(DataSpec(uri))
         val length = ContentMetadata.getContentLength(cache.getContentMetadata(key))
         return if (length > 0L) cache.isCached(key, 0L, length) else cache.getCachedSpans(key).isNotEmpty()
@@ -241,6 +241,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         private const val MIN_RETRIES = 3
         private val DOWNLOAD_REQUIREMENTS = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
         private const val SESSION_SETTLE_TIMEOUT_SECONDS = 30L
+        private const val STORED_TOKENS_SETTLE_TIMEOUT_SECONDS = 30L
         private val REPLACE_TIMEOUT = 10.seconds
 
         @Volatile
