@@ -5,6 +5,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 class SkillsLockTest {
@@ -91,6 +92,16 @@ class SkillsLockTest {
         Files.delete(link)
         Files.createSymbolicLink(link, File("../../.agents/skills/other").toPath())
         assertRejected(".claude/skills/demo links to ../../.agents/skills/other, not ../../.agents/skills/demo")
+    }
+
+    @Test
+    fun aBackslashLinkIsWrongWhereBackslashIsNotASeparator() {
+        assumeTrue(File.separatorChar == '/')
+        lockedSkill()
+        val link = root.resolve(".claude/skills/demo").toPath()
+        Files.delete(link)
+        Files.createSymbolicLink(link, File("..\\..\\.agents\\skills\\demo").toPath())
+        assertRejected(".claude/skills/demo links to ..\\..\\.agents\\skills\\demo, not ../../.agents/skills/demo")
     }
 
     @Test

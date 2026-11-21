@@ -87,10 +87,14 @@ object SkillsLock {
         val missing = (skills - links.keys).sorted().map { "$LINKS_PATH/$it is missing" }
         val wrong = links.toSortedMap().mapNotNull { (name, link) ->
             val expected = "../../$SKILLS_PATH/$name"
-            val target = if (Files.isSymbolicLink(link.toPath())) Files.readSymbolicLink(link.toPath()).toString() else null
+            val target = if (Files.isSymbolicLink(link.toPath())) {
+                Files.readSymbolicLink(link.toPath()).toString().let { if (File.separatorChar == '\\') it.replace('\\', '/') else it }
+            } else {
+                null
+            }
             when {
                 target == null -> "$LINKS_PATH/$name is not a link to $expected"
-                target.replace('\\', '/') != expected -> "$LINKS_PATH/$name links to $target, not $expected"
+                target != expected -> "$LINKS_PATH/$name links to $target, not $expected"
                 name !in skills -> "$LINKS_PATH/$name links to a missing skill"
                 else -> null
             }
