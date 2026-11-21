@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
 import androidx.media3.common.C
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.BaseDataSource
@@ -16,10 +17,14 @@ import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.ContentMetadataMutations
 import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.FutureTask
+import kotlin.concurrent.thread
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -86,6 +91,69 @@ class CacheRedirectsTest {
         assertTrue(network.opened.isEmpty())
     }
 
+    @Test
+    fun aDownloadedPlaylistIsStoredWithoutTokensAndReadsBackFromAnyOffset() {
+        val stored = cacheFactory { TokenFreePlaylistDataSource(ByteArrayDataSource(SIGNED_PLAYLIST)) }
+        stored.read(DataSpec.Builder().setUri(PLAYLIST_URL).setLength(PLAYLIST_HEAD.toLong()).build())
+        val playlist = stored.read(DataSpec(PLAYLIST_URL))
+
+        assertEquals(TOKEN_FREE_PLAYLIST, playlist.decodeToString())
+        val network = RedirectingUpstream(bytes)
+        assertEquals(TOKEN_FREE_PLAYLIST, cacheFactory { network }.read(DataSpec(PLAYLIST_URL)).decodeToString())
+        assertTrue(network.opened.isEmpty())
+    }
+
+    @Test
+    fun playlistsStoredWithTokensAreRewrittenTokenFreeAndStayReadableOffline() {
+        val signed = keys.buildCacheKey(DataSpec(PLAYLIST_URL))
+        val clean = keys.buildCacheKey(DataSpec(CHILD_URL))
+        cacheFactory { ByteArrayDataSource(SIGNED_PLAYLIST) }.read(DataSpec(PLAYLIST_URL))
+        cacheFactory { ByteArrayDataSource(TOKEN_FREE_PLAYLIST.encodeToByteArray()) }.read(DataSpec(CHILD_URL))
+        val cleanSpans = cache.getCachedSpans(clean).map { it.file }
+
+        cache.sanitizeSignedPlaylists()
+        cache.release()
+        cache = SimpleCache(directory, NoOpCacheEvictor(), database)
+
+        val network = RedirectingUpstream(bytes)
+        assertEquals(TOKEN_FREE_PLAYLIST, cacheFactory { network }.read(DataSpec(PLAYLIST_URL)).decodeToString())
+        assertEquals(
+            TOKEN_FREE_PLAYLIST.length.toLong(),
+            ContentMetadata.getContentLength(cache.getContentMetadata(signed)),
+        )
+        assertTrue(network.opened.isEmpty())
+        assertEquals(cleanSpans, cache.getCachedSpans(clean).map { it.file })
+    }
+
+    @Test
+    fun aPartlyStoredSignedPlaylistIsRemoved() {
+        val key = keys.buildCacheKey(DataSpec(PLAYLIST_URL))
+        cacheFactory { ByteArrayDataSource(SIGNED_PLAYLIST) }
+            .read(DataSpec.Builder().setUri(PLAYLIST_URL).setLength(SIGNED_PLAYLIST.size - 1L).build())
+
+        cache.sanitizeSignedPlaylists()
+
+        assertTrue(cache.getCachedSpans(key).isEmpty())
+    }
+
+    @Test
+    fun downloadsStartOnlyAfterStoredPlaylistsAreRewritten() {
+        cacheFactory { ByteArrayDataSource(SIGNED_MASTER) }.read(DataSpec(PLAYLIST_URL))
+        val network = RedirectingUpstream(bytes)
+        val cleanup = FutureTask { cache.sanitizeSignedPlaylists() }
+        val downloads = UserScopedDownloaderFactory({ cacheFactory { network } }, Runnable::run, cleanup)
+        val request = DownloadRequest.Builder(downloadContentId(ALICE, FilesItemId(9)), PLAYLIST_URL)
+            .setMimeType(MimeTypes.APPLICATION_M3U8)
+            .build()
+
+        val download = thread { runCatching { downloads.createDownloader(request).download(null) } }
+        download.join(DOWNLOAD_HEAD_START_MILLIS)
+        cleanup.run()
+        download.join()
+
+        assertEquals(listOf(CHILD_URL.buildUpon().clearQuery().build()), network.opened.map { it.uri })
+    }
+
     private fun cacheFactory(upstream: DataSource.Factory): CacheDataSource.Factory =
         CacheDataSource.Factory().setCache(cache).setCacheKeyFactory(keys).setUpstreamDataSourceFactory(upstream)
 
@@ -143,7 +211,27 @@ class CacheRedirectsTest {
         const val HALF = 100_000
         val API_URL: Uri = "https://api.put.io/v2/files/9/stream".toUri()
         val PLAYLIST_URL: Uri = "https://api.put.io/v2/files/9/hls/media.m3u8".toUri()
+        val CHILD_URL: Uri = "https://api.put.io/hls/playlist/v/index-v1-a1.m3u8?kind=video".toUri()
         val PLAYLIST = "#EXTM3U".encodeToByteArray()
+        const val DOWNLOAD_HEAD_START_MILLIS = 500L
+        val SIGNED_MASTER = """
+            #EXTM3U
+            #EXT-X-STREAM-INF:BANDWIDTH=1000
+            https://api.put.io/hls/playlist/v/index-v1-a1.m3u8?oauth_token=secret
+        """.trimIndent().encodeToByteArray()
+        const val PLAYLIST_HEAD = 40
+        val SIGNED_PLAYLIST = """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=SUBTITLES,URI="https://api.put.io/hls/playlist/s/index.m3u8?oauth_token=secret"
+            https://api.put.io/hls/playlist/v/index-v1-a1.m3u8?oauth_token=secret&kind=video
+            https://s1-cdn.put.io/hls/stream/seg-1.ts?kind=segment&oauth_token=secret
+        """.trimIndent().encodeToByteArray()
+        val TOKEN_FREE_PLAYLIST = """
+            #EXTM3U
+            #EXT-X-MEDIA:TYPE=SUBTITLES,URI="https://api.put.io/hls/playlist/s/index.m3u8"
+            https://api.put.io/hls/playlist/v/index-v1-a1.m3u8?kind=video
+            https://s1-cdn.put.io/hls/stream/seg-1.ts?kind=segment
+        """.trimIndent()
         val CDN_URL: Uri = "https://s1-cdn.put.io/stream/9?u=signed&oauth_token=secret".toUri()
     }
 }

@@ -16,6 +16,7 @@ import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.io.IOException
@@ -41,12 +42,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
 import okhttp3.OkHttpClient
-import okhttp3.Request
 
 /**
  * Exports one original file into private storage, then hands a content URI to the system chooser.
  * The chooser payload is the stream only: no text, no URL, no credential. The API request carries
- * the session header; the CDN redirect it follows is never surfaced. Every earlier copy is pruned
+ * the account download token in its header; the CDN redirect it follows is never surfaced. Every earlier copy is pruned
  * before an export, and copies older than a day on launch. A service cannot start an Activity from
  * the background, so the chooser opens from the resumed Activity: immediately when one exists,
  * otherwise from the next one to resume, which a "ready" notification brings back. An export nobody
@@ -255,12 +255,6 @@ class MobileFileShareService : Service() {
             session?.let { sessionShares(context, it).deleteRecursively() }
         }
 
-        /** The session travels in the header only; the URL is the token-free API endpoint. */
-        internal fun downloadRequest(fileId: FilesItemId, token: String): Request = Request.Builder()
-            .url("https://api.put.io/v2/files/${fileId.value}/download")
-            .header("Authorization", "Token $token")
-            .build()
-
         /** Exports a recipient may still read are kept for a day; older leftovers go on launch. */
         fun pruneStale(context: Context, now: Long = System.currentTimeMillis()) {
             shareRoot(context).listFiles()
@@ -274,7 +268,7 @@ class MobileFileShareService : Service() {
 internal class MobileShareDependencies(
     val http: Call.Factory,
     val authState: StateFlow<MobileAuthState>,
-    val accessToken: () -> String?,
+    val originals: OriginalDownloads,
     val readyTimeout: Duration = 10.minutes,
     val main: CoroutineDispatcher = Dispatchers.Main.immediate,
     val io: CoroutineDispatcher = Dispatchers.IO,
@@ -285,7 +279,9 @@ internal class MobileShareDependencies(
             return MobileShareDependencies(
                 http = sharedHttp,
                 authState = runtime.authController.state,
-                accessToken = { runtime.putioClient.config.accessToken },
+                originals = OriginalDownloads.from(runtime.putioClient) {
+                    MobileDownloadCache.get(context).downloadToken
+                },
             )
         }
     }

@@ -3,12 +3,14 @@ package io.putdotio.android.downloads
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheKeyFactory
@@ -26,19 +28,25 @@ import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
 import androidx.media3.exoplayer.offline.ProgressiveDownloader
 import androidx.media3.exoplayer.scheduler.Requirements
+import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.account.AccountDownloadToken
+import io.putdotio.sdk.errors.PutioException
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -46,11 +54,12 @@ import okhttp3.OkHttpClient
 
 internal const val OAUTH_TOKEN_QUERY = "oauth_token"
 private const val API_HOST = "api.put.io"
+private const val PUTIO_DOMAIN = ".put.io"
 
 /**
- * Process-wide Media3 download plumbing. Requests hold the token-free API URL;
- * the resolver adds the bearer header for API hosts and CDN segments arrive
- * pre-signed in playlist text, which the cache key strips before indexing.
+ * Process-wide Media3 download plumbing. Requests and the playlists a download stores hold token-free
+ * URLs. The resolver adds the account download token when a put.io request has none: a header on the API
+ * host, the query on media hosts, which refuse the header. Online streams keep the SDK's query token.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadCache private constructor(context: Context) {
@@ -58,23 +67,29 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @SuppressLint("StaticFieldLeak")
     private val appContext: Context = context.applicationContext
     private val databaseProvider = StandaloneDatabaseProvider(appContext)
-    // Internal storage: cached playlist bodies carry the server's oauth_token query, and
-    // app-external directories are readable by other apps on Android 8 to 10.
+    // Internal storage: playlists a download stored before they were made token-free still carry
+    // the server's oauth_token query, and app-external directories are readable by other apps on Android 8 to 10.
     val cache: SimpleCache = SimpleCache(
         File(appContext.filesDir, CACHE_DIRECTORY),
         NoOpCacheEvictor(),
         databaseProvider,
     )
-    private val httpClient = OkHttpClient()
+    @VisibleForTesting
+    internal var httpClient: OkHttpClient = OkHttpClient()
     private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
-
-    init {
-        downloadExecutor.execute { cache.dropSignedMetadata() }
+    private val storedTokensSettled = CountDownLatch(1)
+    private val storedTokensCleared: Future<*> = downloadExecutor.submit {
+        try {
+            cache.dropSignedMetadata()
+            cache.sanitizeSignedPlaylists()
+        } finally {
+            storedTokensSettled.countDown()
+        }
     }
 
-    /** Replaced by the auth layer on sign-in and sign-out; never persisted here. */
+    /** The signed-in session's download token, replaced by the auth layer on sign-in and sign-out. */
     @Volatile
-    var accessToken: String? = null
+    var downloadToken: MediaDownloadToken? = null
 
     /** Runs before the token is cleared so in-flight transfers park instead of failing with 401. */
     @Volatile
@@ -91,7 +106,8 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     /** Network access for downloads and for the player's cache misses. */
     val upstreamFactory: DataSource.Factory = DataSource.Factory {
-        ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)
+        val network = OkHttpDataSource.Factory(httpClient).createDataSource()
+        RefusedTokenDataSource(ResolvingDataSource(network, ::authorize)) { downloadToken?.refuse(it) }
     }
 
     /**
@@ -114,11 +130,15 @@ internal class MobileDownloadCache private constructor(context: Context) {
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
     private val downloadUpstreamFactory = DataSource.Factory {
-        RequestUriDataSource(upstreamFactory.createDataSource())
+        RequestUriDataSource(TokenFreePlaylistDataSource(upstreamFactory.createDataSource()))
     }
 
     internal val downloaderFactory: DownloaderFactory =
-        UserScopedDownloaderFactory({ userId -> cacheFactory(userId, downloadUpstreamFactory) }, downloadExecutor)
+        UserScopedDownloaderFactory(
+            { userId -> cacheFactory(userId, downloadUpstreamFactory) },
+            downloadExecutor,
+            storedTokensCleared,
+        )
 
     /**
      * Media3's DownloadService binds the first manager it sees for the whole
@@ -153,6 +173,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
     fun holdsSubtitle(userId: Long, subtitle: DownloadSubtitle): Boolean = holds(userId, subtitle.url.toUri())
 
     private fun holds(userId: Long, uri: Uri): Boolean {
+        storedTokensSettled.await(STORED_TOKENS_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         val key = UserScopedCacheKeys(userId).buildCacheKey(DataSpec(uri))
         val length = ContentMetadata.getContentLength(cache.getContentMetadata(key))
         return if (length > 0L) cache.isCached(key, 0L, length) else cache.getCachedSpans(key).isNotEmpty()
@@ -196,14 +217,22 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 
     private fun authorize(spec: DataSpec): DataSpec {
-        if (spec.uri.host != API_HOST) return spec
+        val host = spec.uri.host.orEmpty()
+        if (!host.endsWith(PUTIO_DOMAIN) || spec.uri.getQueryParameter(OAUTH_TOKEN_QUERY) != null) return spec
         // Data sources open on Media3's loader threads; the wait is bounded by the restore itself.
         sessionSettled.await(SESSION_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        return accessToken?.let { token ->
-            spec.buildUpon()
-                .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token $token"))
+        val token = try {
+            downloadToken?.let { runBlocking { it.get() } }
+        } catch (error: PutioException) {
+            throw IOException("The download token is unavailable", error)
+        }
+        return when {
+            token == null -> spec
+            host == API_HOST -> spec.buildUpon()
+                .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token ${token.value}"))
                 .build()
-        } ?: spec
+            else -> spec.withUri(spec.uri.buildUpon().appendQueryParameter(OAUTH_TOKEN_QUERY, token.value).build())
+        }
     }
 
     companion object {
@@ -212,6 +241,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         private const val MIN_RETRIES = 3
         private val DOWNLOAD_REQUIREMENTS = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
         private const val SESSION_SETTLE_TIMEOUT_SECONDS = 30L
+        private const val STORED_TOKENS_SETTLE_TIMEOUT_SECONDS = 30L
         private val REPLACE_TIMEOUT = 10.seconds
 
         @Volatile
@@ -223,6 +253,28 @@ internal class MobileDownloadCache private constructor(context: Context) {
             }
     }
 }
+
+/** Forgets a download token put.io answered 401 to, so the next attempt loads a fresh one. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class RefusedTokenDataSource(
+    private val upstream: DataSource,
+    private val onRefused: (AccountDownloadToken) -> Unit,
+) : DataSource by upstream {
+    override fun open(dataSpec: DataSpec): Long =
+        try {
+            upstream.open(dataSpec)
+        } catch (error: HttpDataSource.InvalidResponseCodeException) {
+            if (error.responseCode == HTTP_UNAUTHORIZED) error.dataSpec.sentToken()?.let(onRefused)
+            throw error
+        }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun DataSpec.sentToken(): AccountDownloadToken? =
+    (httpRequestHeaders["Authorization"]?.removePrefix("Token ") ?: uri.getQueryParameter(OAUTH_TOKEN_QUERY))
+        ?.let(::AccountDownloadToken)
+
+private const val HTTP_UNAUTHORIZED = 401
 
 /** Request ids are `userId:fileId`; the user prefix scopes every cached byte the request produces. */
 internal fun downloadContentId(userId: Long, fileId: FilesItemId): String = "$userId:${fileId.value}"
@@ -256,9 +308,10 @@ private suspend fun DownloadManager.removeAndAwait(contentId: String) =
     }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-private class UserScopedDownloaderFactory(
+internal class UserScopedDownloaderFactory(
     private val cacheFactory: (Long) -> CacheDataSource.Factory,
     private val executor: Executor,
+    private val storedTokensCleared: Future<*>,
 ) : DownloaderFactory {
     override fun createDownloader(request: DownloadRequest): Downloader {
         val userId = requireNotNull(request.ownerUserId()) { "Download request without an owner" }
@@ -267,7 +320,32 @@ private class UserScopedDownloaderFactory(
         val subtitles = request.data.toDownloadRequestData().subtitles.map { subtitle ->
             ProgressiveDownloader(MediaItem.fromUri(subtitle.url), cache, executor)
         }
-        return if (subtitles.isEmpty()) download else SubtitledDownloader(download, subtitles)
+        val downloader = if (subtitles.isEmpty()) download else SubtitledDownloader(download, subtitles)
+        return AfterTokenCleanupDownloader(downloader, storedTokensCleared)
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class AfterTokenCleanupDownloader(
+    private val downloader: Downloader,
+    private val storedTokensCleared: Future<*>,
+) : Downloader by downloader {
+    override fun download(progressListener: Downloader.ProgressListener?) {
+        awaitCleanup()
+        downloader.download(progressListener)
+    }
+
+    override fun remove() {
+        awaitCleanup()
+        downloader.remove()
+    }
+
+    private fun awaitCleanup() {
+        try {
+            storedTokensCleared.get()
+        } catch (error: ExecutionException) {
+            throw IOException("Stored playlist tokens were not removed", error)
+        }
     }
 }
 

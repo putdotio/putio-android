@@ -20,6 +20,7 @@ import okhttp3.Response
 internal const val EXPORT_PROGRESS_MAX = 100
 
 private const val BUFFER_SIZE = 64 * 1024
+private const val HTTP_UNAUTHORIZED = 401
 
 /** Downloads one original file into its session's share directory, replacing every earlier export. */
 internal class MobileShareExporter(
@@ -43,9 +44,9 @@ internal class MobileShareExporter(
         var complete = false
         try {
             val target = File(directory, name.sanitizedFileName())
-            val token = dependencies.accessToken() ?: throw IOException("No session")
-            val request = MobileFileShareService.downloadRequest(fileId, token)
+            val request = dependencies.originals.request(fileId) ?: throw IOException("No session")
             dependencies.http.newCall(request).executeCancellable { response ->
+                if (response.code == HTTP_UNAUTHORIZED) dependencies.originals.refused(request)
                 if (!response.isSuccessful) throw IOException("Download failed with ${response.code}")
                 val body = response.body ?: throw IOException("Empty body")
                 body.byteStream().use { input ->

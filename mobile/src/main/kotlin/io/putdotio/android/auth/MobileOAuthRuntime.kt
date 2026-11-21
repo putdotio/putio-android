@@ -189,6 +189,7 @@ internal class MobileOAuthRuntime(
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val tokenStore = KeystoreAuthTokenStore(context)
+            val downloadToken = MediaDownloadToken.from(putioClient)
             val authController = MobileAuthController(
                 oauthConfiguration = oauthConfiguration,
                 tokenStore = tokenStore,
@@ -196,7 +197,8 @@ internal class MobileOAuthRuntime(
                 sessionGateway = PutioAuthSessionGateway(putioClient) { token ->
                     MobileDownloadCache.get(context).let {
                         if (token == null) it.onTokenClearing?.invoke()
-                        it.accessToken = token
+                        downloadToken.reset()
+                        it.downloadToken = downloadToken.takeIf { token != null }
                         it.markSessionSettled()
                     }
                 },

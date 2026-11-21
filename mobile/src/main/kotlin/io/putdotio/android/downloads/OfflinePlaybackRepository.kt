@@ -63,7 +63,7 @@ private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boole
  * Serves a completed download without the network. The source URL is the same
  * token-free API URL the download used, read back through [requested], so the
  * cache data source resolves every playlist, segment and file from disk; a cache miss
- * still reaches the network with the session header. A Direct play download offers the
+ * still reaches the network with the download token. A Direct play download offers the
  * subtitle files [requested] finds on disk as sidecars, under the same token-free URLs.
  * A row whose bytes turn out to be gone is marked missing by [localCopyAvailable] and streams instead.
  */

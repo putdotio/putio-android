@@ -12,9 +12,12 @@ import android.os.Looper
 import androidx.core.net.toUri
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.account.AccountDownloadToken
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.CountDownLatch
@@ -432,7 +435,10 @@ class MobileFileShareServiceTest {
                     )
                     .build(),
                 authState = auth,
-                accessToken = { "token" },
+                originals = OriginalDownloads(
+                    MediaDownloadToken { AccountDownloadToken("token") },
+                    PutioClient().files,
+                ),
                 readyTimeout = readyTimeout,
                 main = dispatcher,
                 io = io ?: dispatcher,

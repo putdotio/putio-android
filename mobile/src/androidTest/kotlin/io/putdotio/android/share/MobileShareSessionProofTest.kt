@@ -15,12 +15,15 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.MainActivity
+import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.proofDirectory
 import io.putdotio.android.saveProofScreenshot
+import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.account.AccountDownloadToken
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
@@ -66,7 +69,10 @@ class MobileShareSessionProofTest {
         MobileFileShareService.dependenciesForTest = MobileShareDependencies(
             http = OkHttpClient.Builder().addInterceptor(source).build(),
             authState = auth,
-            accessToken = { "proof-token" },
+            originals = OriginalDownloads(
+                MediaDownloadToken { AccountDownloadToken("proof-token") },
+                PutioClient().files,
+            ),
         )
         val choosers = instrumentation.addMonitor(IntentFilter(Intent.ACTION_CHOOSER), null, false)
         try {

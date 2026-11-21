@@ -92,7 +92,7 @@ internal interface PutioSdkAuthBoundary {
 
 private class PutioClientAuthBoundary(
     private val client: PutioClient,
-    /** Media downloads and offline playback read the same session token as the SDK. */
+    /** Media downloads load their download token for the session this names, and stop on null. */
     private val onTokenChanged: (String?) -> Unit,
 ) : PutioSdkAuthBoundary {
     override fun buildLoginUrl(
