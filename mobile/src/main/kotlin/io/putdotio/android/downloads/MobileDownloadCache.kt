@@ -255,6 +255,7 @@ private class RefusedTokenDataSource(
         }
 }
 
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun DataSpec.sentToken(): AccountDownloadToken? =
     (httpRequestHeaders["Authorization"]?.removePrefix("Token ") ?: uri.getQueryParameter(OAUTH_TOKEN_QUERY))
         ?.let(::AccountDownloadToken)
