@@ -83,6 +83,7 @@ import io.putdotio.android.apiReason
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.downloads.DownloadsState
+import io.putdotio.android.isNotFound
 import io.putdotio.android.share.MobileFileDragOut
 import io.putdotio.android.share.MobileFileDragShadow
 import io.putdotio.sdk.files.PutioFolderType
@@ -1279,6 +1280,7 @@ internal fun FilesFailure.mobileMessageResource(): Int =
     when (this) {
         FilesFailure.NavigationBlocked -> R.string.mobile_navigation_blocked
         is PutioFailure.AuthenticationRequired -> R.string.mobile_state_error_session
+        is PutioFailure.ApiRejected if isNotFound -> R.string.mobile_state_error_not_found
         is PutioFailure.AccessDenied -> R.string.mobile_state_error_forbidden
         is PutioFailure.RateLimited -> R.string.mobile_state_error_rate_limited
         is PutioFailure.ServerUnavailable -> R.string.mobile_state_error_unavailable
