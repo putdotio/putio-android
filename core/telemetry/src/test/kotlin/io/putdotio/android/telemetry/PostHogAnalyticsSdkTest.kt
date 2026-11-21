@@ -92,6 +92,7 @@ class PostHogAnalyticsSdkTest {
             recordingClient {
                 sending.countDown()
                 release.await(5, TimeUnit.SECONDS)
+                OK
             },
         )
         sdk.start(42)
@@ -108,12 +109,12 @@ class PostHogAnalyticsSdkTest {
     }
 
     @Test
-    fun aBatchThatCannotBeSentIsDroppedAndLaterEventsStillGo() {
+    fun aBatchTheProxyRejectsIsDroppedAndLaterEventsStillGo() {
         var calls = 0
         val sdk = PostHogAnalyticsSdk(
             application,
             configuration,
-            recordingClient { check(calls++ > 0) { "the proxy rejected the request" } },
+            recordingClient { if (calls++ == 0) BAD_REQUEST else OK },
         )
         sdk.start(42)
         sdk.capture("screen_viewed", mapOf("screen" to "files"), 1_000L)
@@ -133,18 +134,17 @@ class PostHogAnalyticsSdkTest {
         .distinct()
         .toList()
 
-    private fun recordingClient(beforeResponse: () -> Unit = {}) = OkHttpClient.Builder()
+    private fun recordingClient(status: () -> Int = { OK }) = OkHttpClient.Builder()
         .addInterceptor { chain ->
             val request = chain.request()
             val bytes = Buffer().also { request.body?.writeTo(it) }.readByteArray()
             val gzip = request.header("Content-Encoding") == "gzip"
             val body = if (gzip) GZIPInputStream(bytes.inputStream()).readBytes() else bytes
             requests += request.url.encodedPath to body.decodeToString()
-            beforeResponse()
             Response.Builder()
                 .request(request)
                 .protocol(Protocol.HTTP_1_1)
-                .code(200)
+                .code(status())
                 .message("OK")
                 .body("{}".toResponseBody())
                 .build()
@@ -152,6 +152,8 @@ class PostHogAnalyticsSdkTest {
         .build()
 
     private companion object {
+        const val OK = 200
+        const val BAD_REQUEST = 400
         const val TOKEN = "phc_SyntheticProjectToken0000000000"
         const val LEAK = "Big.Buck.Bunny.2008.mkv https://example.invalid/?oauth_token=secret"
     }

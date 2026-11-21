@@ -124,8 +124,9 @@ private class MemoryQueue(
     private val closed: AtomicBoolean,
 ) : PostHogQueueInterface<PostHogEvent> {
     private val pending = ConcurrentLinkedDeque<PostHogEvent>()
-    private val timer = Timer("PostHogMemoryQueue", true)
+    private var timer: Timer? = null
     private var retryAt: Long? = null
+    private var failures = 0
 
     override val size: Int get() = pending.size
 
@@ -141,11 +142,11 @@ private class MemoryQueue(
 
     override fun start() {
         val period = TimeUnit.SECONDS.toMillis(config.flushIntervalSeconds.toLong())
-        timer.schedule(timerTask { flush() }, period, period)
+        timer = Timer("PostHogMemoryQueue", true).apply { schedule(timerTask { flush() }, period, period) }
     }
 
     override fun stop() {
-        timer.cancel()
+        timer?.cancel()
         executor.shutdown()
     }
 
@@ -164,29 +165,37 @@ private class MemoryQueue(
             val batch = pending.take(config.maxBatchSize)
             val delaySeconds = retryDelaySeconds(batch)
             if (delaySeconds == null) {
+                failures = 0
                 repeat(batch.size) { pending.pollFirst() }
             } else {
+                failures++
                 retryAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(delaySeconds)
             }
         }
     }
 
-    // A send failure must never reach the queue thread, whose uncaught exceptions end the process.
+    // A batch that fails to serialize or send for any other reason is dropped, or it would block every later one.
     @Suppress("TooGenericExceptionCaught")
     private fun retryDelaySeconds(batch: List<PostHogEvent>): Long? = try {
         if (endpoint == PostHogApiEndpoint.BATCH) api.batch(batch) else api.snapshot(batch)
         null
     } catch (_: IOException) {
-        config.flushIntervalSeconds.toLong()
+        backoffSeconds()
     } catch (e: PostHogApiError) {
-        val retryable = e.statusCode == TOO_MANY_REQUESTS || e.statusCode >= SERVER_ERROR
-        if (retryable) (e.retryAfterSeconds ?: config.flushIntervalSeconds).toLong() else null
+        val rejected = e.statusCode in CLIENT_ERROR until SERVER_ERROR && e.statusCode != TOO_MANY_REQUESTS
+        if (rejected) null else e.retryAfterSeconds?.toLong() ?: backoffSeconds()
     } catch (_: RuntimeException) {
         null
     }
 
+    private fun backoffSeconds(): Long =
+        (config.flushIntervalSeconds.toLong() shl failures.coerceAtMost(MAX_DOUBLINGS)).coerceAtMost(MAX_RETRY_SECONDS)
+
     private companion object {
+        const val CLIENT_ERROR = 400
         const val TOO_MANY_REQUESTS = 429
         const val SERVER_ERROR = 500
+        const val MAX_DOUBLINGS = 6
+        const val MAX_RETRY_SECONDS = 30 * 60L
     }
 }
