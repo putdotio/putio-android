@@ -16,6 +16,7 @@ import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.files.FilesItemId
 import java.io.File
 import java.io.IOException
@@ -278,7 +279,7 @@ internal class MobileShareDependencies(
             return MobileShareDependencies(
                 http = sharedHttp,
                 authState = runtime.authController.state,
-                originals = OriginalDownloads.from(runtime.putioClient, runtime.downloadToken),
+                originals = OriginalDownloads.from(runtime.putioClient) { MobileDownloadCache.get(context).downloadToken },
             )
         }
     }

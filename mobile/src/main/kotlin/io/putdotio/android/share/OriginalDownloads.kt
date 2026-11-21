@@ -15,15 +15,22 @@ import okhttp3.Request
  * download token in the header. A refused token is forgotten so the next request loads a fresh one.
  */
 internal class OriginalDownloads(
-    private val token: MediaDownloadToken,
+    private val session: () -> MediaDownloadToken?,
     private val downloadUrl: (FilesItemId, AccountDownloadToken) -> String,
 ) {
+    constructor(
+        token: MediaDownloadToken,
+        downloadUrl: (FilesItemId, AccountDownloadToken) -> String,
+    ) : this({ token }, downloadUrl)
+
     /** Null without a session; an account put.io cannot read fails as an [IOException]. */
     suspend fun request(fileId: FilesItemId): Request? {
-        val downloadToken = try {
-            token.get()
-        } catch (error: PutioException) {
-            throw IOException("The download token is unavailable", error)
+        val downloadToken = session()?.let { holder ->
+            try {
+                holder.get()
+            } catch (error: PutioException) {
+                throw IOException("The download token is unavailable", error)
+            }
         } ?: return null
         val url = downloadUrl(fileId, downloadToken).toHttpUrl().newBuilder()
             .removeAllQueryParameters(OAUTH_TOKEN_QUERY)
@@ -36,11 +43,14 @@ internal class OriginalDownloads(
     }
 
     fun refused(request: Request) {
-        request.tag(AccountDownloadToken::class.java)?.let(token::refuse)
+        val token = request.tag(AccountDownloadToken::class.java) ?: return
+        session()?.refuse(token)
     }
 
     companion object {
-        fun from(client: PutioClient, token: MediaDownloadToken): OriginalDownloads =
-            OriginalDownloads(token) { fileId, downloadToken -> client.files.buildDownloadUrl(fileId.value, downloadToken) }
+        fun from(client: PutioClient, session: () -> MediaDownloadToken?): OriginalDownloads =
+            OriginalDownloads(session) { fileId, downloadToken ->
+                client.files.buildDownloadUrl(fileId.value, downloadToken)
+            }
     }
 }

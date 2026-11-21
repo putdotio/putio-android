@@ -30,6 +30,7 @@ import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.errors.PutioException
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -40,10 +41,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.suspendCancellableCoroutine
-import io.putdotio.sdk.account.AccountDownloadToken
-import io.putdotio.sdk.errors.PutioException
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -201,26 +200,21 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 
     private fun authorize(spec: DataSpec): DataSpec {
-        val host = spec.uri.host ?: return spec
+        val host = spec.uri.host.orEmpty()
         if (!host.endsWith(PUTIO_DOMAIN) || spec.uri.getQueryParameter(OAUTH_TOKEN_QUERY) != null) return spec
         // Data sources open on Media3's loader threads; the wait is bounded by the restore itself.
         sessionSettled.await(SESSION_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        val token = currentDownloadToken() ?: return spec
-        return if (host == API_HOST) {
-            spec.buildUpon()
-                .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token ${token.value}"))
-                .build()
-        } else {
-            spec.withUri(spec.uri.buildUpon().appendQueryParameter(OAUTH_TOKEN_QUERY, token.value).build())
-        }
-    }
-
-    private fun currentDownloadToken(): AccountDownloadToken? {
-        val holder = downloadToken ?: return null
-        return try {
-            runBlocking { holder.get() }
+        val token = try {
+            downloadToken?.let { runBlocking { it.get() } }
         } catch (error: PutioException) {
             throw IOException("The download token is unavailable", error)
+        }
+        return when {
+            token == null -> spec
+            host == API_HOST -> spec.buildUpon()
+                .setHttpRequestHeaders(spec.httpRequestHeaders + ("Authorization" to "Token ${token.value}"))
+                .build()
+            else -> spec.withUri(spec.uri.buildUpon().appendQueryParameter(OAUTH_TOKEN_QUERY, token.value).build())
         }
     }
 

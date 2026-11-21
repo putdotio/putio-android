@@ -446,9 +446,15 @@ class MobileDocumentsProviderTest {
                         }
                     }
                 },
-                remote = RemoteOriginals(http, OriginalDownloads(MediaDownloadToken { downloadTokenLoads++; AccountDownloadToken("secret") }) { id, token ->
-                    "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}"
-                })::bytes,
+                remote = RemoteOriginals(
+                    http,
+                    OriginalDownloads(
+                        MediaDownloadToken {
+                            downloadTokenLoads++
+                            AccountDownloadToken("secret")
+                        },
+                    ) { id, token -> "https://api.put.io/v2/files/${id.value}/download?oauth_token=${token.value}" },
+                )::bytes,
                 onAuthenticationRequired = { rejected += it },
             ),
             scope,

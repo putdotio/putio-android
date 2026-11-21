@@ -5,6 +5,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSourceUtil
 import androidx.media3.datasource.DataSpec
+import java.io.ByteArrayInputStream
 
 /**
  * Serves HLS playlists with every `oauth_token` query removed, so the copies a download stores hold no
@@ -13,31 +14,25 @@ import androidx.media3.datasource.DataSpec
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class TokenFreePlaylistDataSource(private val upstream: DataSource) : DataSource by upstream {
-    private var playlist: ByteArray? = null
-    private var position = 0
-    private var remaining = 0
+    private var playlist: ByteArrayInputStream? = null
 
     override fun open(dataSpec: DataSpec): Long {
         if (dataSpec.uri.lastPathSegment?.endsWith(PLAYLIST_EXTENSION) != true) return upstream.open(dataSpec)
         upstream.open(dataSpec.buildUpon().setPosition(0).setLength(C.LENGTH_UNSET.toLong()).build())
         val body = withoutOauthTokens(DataSourceUtil.readToEnd(upstream))
         val start = dataSpec.position.coerceAtMost(body.size.toLong()).toInt()
-        val available = body.size - start
-        remaining = if (dataSpec.length == C.LENGTH_UNSET.toLong()) available else minOf(dataSpec.length, available.toLong()).toInt()
-        position = start
-        playlist = body
-        return remaining.toLong()
+        val available = (body.size - start).toLong()
+        val length = if (dataSpec.length == C.LENGTH_UNSET.toLong()) available else minOf(dataSpec.length, available)
+        playlist = ByteArrayInputStream(body, start, length.toInt())
+        return length
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-        val body = playlist ?: return upstream.read(buffer, offset, length)
-        if (length == 0) return 0
-        if (remaining == 0) return C.RESULT_END_OF_INPUT
-        val count = minOf(length, remaining)
-        System.arraycopy(body, position, buffer, offset, count)
-        position += count
-        remaining -= count
-        return count
+        val served = playlist ?: return upstream.read(buffer, offset, length)
+        return when (length) {
+            0 -> 0
+            else -> served.read(buffer, offset, length).takeUnless { it == -1 } ?: C.RESULT_END_OF_INPUT
+        }
     }
 
     override fun close() {
