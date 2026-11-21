@@ -46,7 +46,6 @@ internal class TokenFreePlaylistDataSource(private val upstream: DataSource) : D
         playlist = null
         upstream.close()
     }
-
 }
 
 private const val PLAYLIST_EXTENSION = ".m3u8"

@@ -38,8 +38,10 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
@@ -75,12 +77,9 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @VisibleForTesting
     internal var httpClient: OkHttpClient = OkHttpClient()
     private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
-
-    init {
-        downloadExecutor.execute {
-            cache.dropSignedMetadata()
-            cache.sanitizeSignedPlaylists()
-        }
+    private val storedTokensCleared: Future<*> = downloadExecutor.submit {
+        cache.dropSignedMetadata()
+        cache.sanitizeSignedPlaylists()
     }
 
     /** The signed-in session's download token, replaced by the auth layer on sign-in and sign-out. */
@@ -130,7 +129,11 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 
     internal val downloaderFactory: DownloaderFactory =
-        UserScopedDownloaderFactory({ userId -> cacheFactory(userId, downloadUpstreamFactory) }, downloadExecutor)
+        UserScopedDownloaderFactory(
+            { userId -> cacheFactory(userId, downloadUpstreamFactory) },
+            downloadExecutor,
+            storedTokensCleared,
+        )
 
     /**
      * Media3's DownloadService binds the first manager it sees for the whole
@@ -298,9 +301,10 @@ private suspend fun DownloadManager.removeAndAwait(contentId: String) =
     }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-private class UserScopedDownloaderFactory(
+internal class UserScopedDownloaderFactory(
     private val cacheFactory: (Long) -> CacheDataSource.Factory,
     private val executor: Executor,
+    private val storedTokensCleared: Future<*>,
 ) : DownloaderFactory {
     override fun createDownloader(request: DownloadRequest): Downloader {
         val userId = requireNotNull(request.ownerUserId()) { "Download request without an owner" }
@@ -309,7 +313,32 @@ private class UserScopedDownloaderFactory(
         val subtitles = request.data.toDownloadRequestData().subtitles.map { subtitle ->
             ProgressiveDownloader(MediaItem.fromUri(subtitle.url), cache, executor)
         }
-        return if (subtitles.isEmpty()) download else SubtitledDownloader(download, subtitles)
+        val downloader = if (subtitles.isEmpty()) download else SubtitledDownloader(download, subtitles)
+        return AfterTokenCleanupDownloader(downloader, storedTokensCleared)
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class AfterTokenCleanupDownloader(
+    private val downloader: Downloader,
+    private val storedTokensCleared: Future<*>,
+) : Downloader by downloader {
+    override fun download(progressListener: Downloader.ProgressListener?) {
+        awaitCleanup()
+        downloader.download(progressListener)
+    }
+
+    override fun remove() {
+        awaitCleanup()
+        downloader.remove()
+    }
+
+    private fun awaitCleanup() {
+        try {
+            storedTokensCleared.get()
+        } catch (error: ExecutionException) {
+            throw IOException("Stored playlist tokens were not removed", error)
+        }
     }
 }
 
