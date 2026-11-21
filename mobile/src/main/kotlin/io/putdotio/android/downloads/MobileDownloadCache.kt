@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheKeyFactory
@@ -30,6 +31,7 @@ import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.errors.PutioException
 import java.io.File
 import java.io.IOException
@@ -95,7 +97,9 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     /** Network access for downloads and for the player's cache misses. */
     val upstreamFactory: DataSource.Factory = DataSource.Factory {
-        ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)
+        RefusedTokenDataSource(ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)) {
+            downloadToken?.refuse(it)
+        }
     }
 
     /**
@@ -237,6 +241,27 @@ internal class MobileDownloadCache private constructor(context: Context) {
 }
 
 /** Request ids are `userId:fileId`; the user prefix scopes every cached byte the request produces. */
+/** Forgets a download token put.io answered 401 to, so the next attempt loads a fresh one. */
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class RefusedTokenDataSource(
+    private val upstream: DataSource,
+    private val onRefused: (AccountDownloadToken) -> Unit,
+) : DataSource by upstream {
+    override fun open(dataSpec: DataSpec): Long =
+        try {
+            upstream.open(dataSpec)
+        } catch (error: HttpDataSource.InvalidResponseCodeException) {
+            if (error.responseCode == HTTP_UNAUTHORIZED) error.dataSpec.sentToken()?.let(onRefused)
+            throw error
+        }
+}
+
+private fun DataSpec.sentToken(): AccountDownloadToken? =
+    (httpRequestHeaders["Authorization"]?.removePrefix("Token ") ?: uri.getQueryParameter(OAUTH_TOKEN_QUERY))
+        ?.let(::AccountDownloadToken)
+
+private const val HTTP_UNAUTHORIZED = 401
+
 internal fun downloadContentId(userId: Long, fileId: FilesItemId): String = "$userId:${fileId.value}"
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
