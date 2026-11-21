@@ -13,6 +13,9 @@ import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.Requirements
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.PutioConfig
+import io.putdotio.sdk.files.FilesApi
 import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
@@ -388,21 +391,24 @@ private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =
     updateStatusBlocking(fileId) { it.copy(status = DownloadStatus.Missing, accepted = true) }
 
 /**
- * The token-free URL of the SDK's media request for this artifact. It is built here because Media3 persists it
- * before a session has a download token, which the SDK builders require; the resolver adds the token on fetch.
- * HLS asks for every subtitle rendition, or for none when the account hides subtitles, as streaming does; an
- * original over HLS asks the same. The original and the converted MP4 are the files File stream playback reads.
+ * The token-free URL of the SDK's media request for this artifact, on [PutioConfig.baseUrl]. Media3 persists it
+ * before a session has a download token; the resolver adds the token on fetch. HLS asks for every subtitle
+ * rendition, or for none when the account hides subtitles, as streaming does; an original over HLS asks the same.
+ * The original and the converted MP4 are the files File stream playback reads.
  */
 internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boolean = false): String {
-    val hls = "https://api.put.io/v2/files/${fileId.value}/hls/media.m3u8" +
-        "?subtitle_key=all&max_subtitle_count=${if (subtitlesHidden) 0 else HLS_ALL_SUBTITLES}"
+    val files = mediaRequestUrls
+    val subtitles = if (subtitlesHidden) 0 else HLS_ALL_SUBTITLES
     return when (this) {
-        DownloadArtifact.HLS -> hls
-        DownloadArtifact.ORIGINAL_HLS -> "$hls&$ORIGINAL_QUERY=1"
-        DownloadArtifact.ORIGINAL -> "https://api.put.io/v2/files/${fileId.value}/stream"
-        DownloadArtifact.MP4 -> "https://api.put.io/v2/files/${fileId.value}$MP4_PATH"
+        DownloadArtifact.HLS -> files.buildHlsStreamRequestUrl(fileId.value, maxSubtitleCount = subtitles)
+        DownloadArtifact.ORIGINAL_HLS ->
+            files.buildHlsStreamRequestUrl(fileId.value, maxSubtitleCount = subtitles, original = true)
+        DownloadArtifact.ORIGINAL -> files.buildOriginalStreamRequestUrl(fileId.value)
+        DownloadArtifact.MP4 -> files.buildMp4StreamRequestUrl(fileId.value)
     }
 }
+
+private val mediaRequestUrls: FilesApi by lazy { PutioClient(PutioConfig()).files }
 
 private const val ORIGINAL_QUERY = "original"
 private const val MP4_PATH = "/mp4/stream"

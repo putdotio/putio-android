@@ -5,7 +5,7 @@ import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.putioRequest
 import io.putdotio.sdk.OkResponse
 import io.putdotio.sdk.PutioClient
-import io.putdotio.sdk.files.PutioCredentialUrl
+import io.putdotio.sdk.files.PutioMediaRequest
 import io.putdotio.sdk.grants.OAuthClient
 import io.putdotio.sdk.grants.OAuthGrant
 import java.time.Instant
@@ -27,7 +27,7 @@ public data class LoggedInApp(
     val name: String,
     val lastUsedAt: Instant?,
     val thisDevice: Boolean,
-    val icon: PutioCredentialUrl?,
+    val icon: PutioMediaRequest?,
     val otherSessions: List<LoggedInSessionId> = emptyList(),
 )
 
@@ -42,14 +42,14 @@ public interface LoggedInAppsRepository {
 public class SdkLoggedInAppsRepository internal constructor(
     private val listGrants: suspend () -> List<OAuthGrant>,
     private val listClients: suspend () -> List<OAuthClient>,
-    private val iconUrl: (Long) -> PutioCredentialUrl?,
+    private val iconRequest: (Long) -> PutioMediaRequest?,
     private val revokeGrant: suspend (Long) -> OkResponse,
     private val revokeClient: suspend (Long) -> OkResponse,
 ) : LoggedInAppsRepository {
     public constructor(client: PutioClient) : this(
         listGrants = { client.grants.list() },
         listClients = { client.grants.clients() },
-        iconUrl = { appId -> client.config.accessToken?.let { client.grants.buildIconUrl(appId, it) } },
+        iconRequest = { appId -> client.config.accessToken?.let { client.grants.buildIconRequest(appId) } },
         revokeGrant = { client.grants.revoke(it) },
         revokeClient = { client.grants.revokeClient(it) },
     )
@@ -58,7 +58,7 @@ public class SdkLoggedInAppsRepository internal constructor(
         coroutineScope {
             val grants = async { listGrants() }
             val clients = async { listClients() }
-            loggedInApps(grants.await(), clients.await(), iconUrl)
+            loggedInApps(grants.await(), clients.await(), iconRequest)
         }
     }
 
@@ -78,7 +78,7 @@ public class SdkLoggedInAppsRepository internal constructor(
 internal fun loggedInApps(
     grants: List<OAuthGrant>,
     clients: List<OAuthClient>,
-    iconUrl: (Long) -> PutioCredentialUrl?,
+    iconRequest: (Long) -> PutioMediaRequest?,
 ): List<LoggedInApp> {
     val sessions = clients.groupBy(OAuthClient::appId)
     return grants
@@ -93,7 +93,7 @@ internal fun loggedInApps(
                 lastUsedAt = appSessions.mapNotNull { session -> session.lastUsedAt?.let(::parsePutioTimestamp) }
                     .maxOrNull(),
                 thisDevice = thisDevice,
-                icon = if (grant.hasIcon == true) iconUrl(grant.id) else null,
+                icon = if (grant.hasIcon == true) iconRequest(grant.id) else null,
                 otherSessions = if (thisDevice) {
                     appSessions.filterNot(OAuthClient::active).map { LoggedInSessionId(it.id) }
                 } else {

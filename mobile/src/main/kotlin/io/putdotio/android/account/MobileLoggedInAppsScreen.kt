@@ -1,5 +1,6 @@
 package io.putdotio.android.account
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,7 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
-import coil3.request.CachePolicy
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import io.putdotio.android.MobileErrorState
 import io.putdotio.android.MobileLoadingState
@@ -225,18 +227,11 @@ private fun LoggedInAppIcon(app: LoggedInApp) {
         .size(36.dp)
         .clip(RoundedCornerShape(PutioRadius.small))
         .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-    val url = app.icon?.value
-    if (url == null) {
+    val context = LocalContext.current
+    val request = remember(context, app.id, app.icon) { loggedInAppIconRequest(context, app) }
+    if (request == null) {
         GenericAppIcon(tile)
         return
-    }
-    val context = LocalContext.current
-    val request = remember(context, app.id, url) {
-        ImageRequest.Builder(context)
-            .data(url)
-            .memoryCacheKey("logged-in-app-icon-${app.id.value}")
-            .diskCachePolicy(CachePolicy.DISABLED)
-            .build()
     }
     SubcomposeAsyncImage(
         model = request,
@@ -247,6 +242,17 @@ private fun LoggedInAppIcon(app: LoggedInApp) {
         error = { GenericAppIcon(Modifier.fillMaxSize()) },
         success = { SubcomposeAsyncImageContent() },
     )
+}
+
+internal fun loggedInAppIconRequest(context: Context, app: LoggedInApp): ImageRequest? {
+    val icon = app.icon ?: return null
+    val headers = NetworkHeaders.Builder().apply { icon.headers.forEach { (name, value) -> set(name, value) } }
+    return ImageRequest.Builder(context)
+        .data(icon.url)
+        .httpHeaders(headers.build())
+        .memoryCacheKey("logged-in-app-icon-${app.id.value}")
+        .diskCacheKey(icon.url)
+        .build()
 }
 
 @Composable

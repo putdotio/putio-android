@@ -82,6 +82,31 @@ class MobileDownloadUpstreamTest {
         }
     }
 
+    @Test
+    fun downloadUrlsStayTheOnesEarlierBuildsStored() {
+        val id = FilesItemId(FILE_ID)
+
+        val hls = "https://api.put.io/v2/files/9/hls/media.m3u8?subtitle_key=all&max_subtitle_count"
+        assertEquals(
+            listOf(
+                "https://api.put.io/v2/files/9/stream",
+                "https://api.put.io/v2/files/9/mp4/stream",
+                "$hls=$HLS_ALL_SUBTITLES",
+                "$hls=0",
+                "$hls=$HLS_ALL_SUBTITLES&original=1",
+                "$hls=0&original=1",
+            ),
+            listOf(
+                DownloadArtifact.ORIGINAL.apiUrl(id),
+                DownloadArtifact.MP4.apiUrl(id),
+                DownloadArtifact.HLS.apiUrl(id),
+                DownloadArtifact.HLS.apiUrl(id, subtitlesHidden = true),
+                DownloadArtifact.ORIGINAL_HLS.apiUrl(id),
+                DownloadArtifact.ORIGINAL_HLS.apiUrl(id, subtitlesHidden = true),
+            ),
+        )
+    }
+
     private fun read(uri: String) {
         val source = downloads.upstreamFactory.createDataSource()
         DataSourceInputStream(source, DataSpec(uri.toUri())).use { it.readBytes() }

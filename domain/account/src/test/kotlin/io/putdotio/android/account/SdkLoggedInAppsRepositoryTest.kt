@@ -2,11 +2,19 @@ package io.putdotio.android.account
 
 import io.putdotio.android.PutioResult
 import io.putdotio.sdk.OkResponse
-import io.putdotio.sdk.files.PutioCredentialUrl
+import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.PutioConfig
+import io.putdotio.sdk.files.PutioMediaRequest
 import io.putdotio.sdk.grants.OAuthClient
 import io.putdotio.sdk.grants.OAuthGrant
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
+import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -46,6 +54,16 @@ class SdkLoggedInAppsRepositoryTest {
     }
 
     @Test
+    fun anIconLoadsFromATokenFreeUrlWithTheAccessTokenInItsHeader() = runBlocking {
+        val repository = SdkLoggedInAppsRepository(sdkClient())
+
+        val icon = (repository.list() as PutioResult.Success).value.single().icon
+
+        assertEquals("https://api.put.io/v2/oauth/apps/2/icon", icon?.url)
+        assertEquals(mapOf("Authorization" to "Token $ACCESS_TOKEN"), icon?.headers)
+    }
+
+    @Test
     fun revokeEndsEverySessionOfThatAppAndRevokeSessionEndsOne() = runBlocking {
         val revoked = mutableListOf<Long>()
         val revokedSessions = mutableListOf<Long>()
@@ -66,13 +84,38 @@ class SdkLoggedInAppsRepositoryTest {
     ) = SdkLoggedInAppsRepository(
         listGrants = { grants },
         listClients = { clients },
-        iconUrl = ::icon,
+        iconRequest = ::icon,
         revokeGrant = { onRevoke(it); OkResponse("OK") },
         revokeClient = { onRevokeSession(it); OkResponse("OK") },
     )
 
-    private fun icon(appId: Long): PutioCredentialUrl =
-        PutioCredentialUrl.of("https://api.put.io/v2/oauth/apps/$appId/icon?oauth_token=t")
+    private fun icon(appId: Long): PutioMediaRequest =
+        PutioClient(PutioConfig(accessToken = ACCESS_TOKEN)).grants.buildIconRequest(appId)
+
+    private fun sdkClient(): PutioClient {
+        val http = OkHttpClient.Builder()
+            .addInterceptor(
+                Interceptor { chain ->
+                    val body = if (chain.request().url.encodedPath.endsWith("/oauth/grants")) GRANTS else CLIENTS
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(HTTP_OK)
+                        .message("OK")
+                        .body(body.toResponseBody("application/json".toMediaType()))
+                        .build()
+                },
+            )
+            .build()
+        return PutioClient(PutioConfig(accessToken = ACCESS_TOKEN), http)
+    }
 
     private fun at(value: String): Instant = Instant.parse(value)
+
+    private companion object {
+        const val HTTP_OK = 200
+        const val ACCESS_TOKEN = "oauth-access-token"
+        const val GRANTS = """{"status":"OK","apps":[{"id":2,"name":"put.io for iOS","has_icon":true}]}"""
+        const val CLIENTS = """{"status":"OK","clients":[]}"""
+    }
 }
