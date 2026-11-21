@@ -107,6 +107,26 @@ class PostHogAnalyticsSdkTest {
         assertTrue(sent.single().second.contains("screen_viewed"))
     }
 
+    @Test
+    fun aBatchThatCannotBeSentIsDroppedAndLaterEventsStillGo() {
+        var calls = 0
+        val sdk = PostHogAnalyticsSdk(
+            application,
+            configuration,
+            recordingClient { check(calls++ > 0) { "the proxy rejected the request" } },
+        )
+        sdk.start(42)
+        sdk.capture("screen_viewed", mapOf("screen" to "files"), 1_000L)
+        assertTrue(requests.poll(5, TimeUnit.SECONDS)?.second.orEmpty().contains("screen_viewed"))
+
+        sdk.capture("app_opened", emptyMap(), 2_000L)
+
+        val retried = requests.poll(5, TimeUnit.SECONDS)?.second.orEmpty()
+        assertTrue(retried.contains("app_opened"))
+        assertFalse(retried.contains("screen_viewed"))
+        sdk.stop()
+    }
+
     private fun analyticsFiles(): List<String> = (application.dataDir.walk() + application.noBackupFilesDir.walk())
         .filter { it.name == "io.put.analytics" || "posthog" in it.name.lowercase() }
         .map { it.path }

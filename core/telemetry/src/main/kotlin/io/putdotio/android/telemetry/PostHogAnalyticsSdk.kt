@@ -17,10 +17,13 @@ import com.posthog.internal.PostHogQueueInterface
 import java.io.File
 import java.io.IOException
 import java.util.Date
+import java.util.Timer
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.timerTask
 import okhttp3.OkHttpClient
 
 internal class PostHogAnalyticsSdk(
@@ -121,6 +124,8 @@ private class MemoryQueue(
     private val closed: AtomicBoolean,
 ) : PostHogQueueInterface<PostHogEvent> {
     private val pending = ConcurrentLinkedDeque<PostHogEvent>()
+    private val timer = Timer("PostHogMemoryQueue", true)
+    private var retryAt: Long? = null
 
     override val size: Int get() = pending.size
 
@@ -134,9 +139,15 @@ private class MemoryQueue(
 
     override fun clear() = submit(pending::clear)
 
-    override fun start() = Unit
+    override fun start() {
+        val period = TimeUnit.SECONDS.toMillis(config.flushIntervalSeconds.toLong())
+        timer.schedule(timerTask { flush() }, period, period)
+    }
 
-    override fun stop() = executor.shutdown()
+    override fun stop() {
+        timer.cancel()
+        executor.shutdown()
+    }
 
     private fun submit(task: () -> Unit) {
         if (closed.get()) return
@@ -148,20 +159,30 @@ private class MemoryQueue(
     }
 
     private fun send() {
-        while (!closed.get()) {
-            val batch = pending.take(config.maxBatchSize).ifEmpty { return }
-            if (!settled(batch)) return
-            repeat(batch.size) { pending.pollFirst() }
+        if (retryAt?.let { System.nanoTime() - it >= 0 } == true) retryAt = null
+        while (!closed.get() && retryAt == null && pending.isNotEmpty()) {
+            val batch = pending.take(config.maxBatchSize)
+            val delaySeconds = retryDelaySeconds(batch)
+            if (delaySeconds == null) {
+                repeat(batch.size) { pending.pollFirst() }
+            } else {
+                retryAt = System.nanoTime() + TimeUnit.SECONDS.toNanos(delaySeconds)
+            }
         }
     }
 
-    private fun settled(batch: List<PostHogEvent>): Boolean = try {
+    // A send failure must never reach the queue thread, whose uncaught exceptions end the process.
+    @Suppress("TooGenericExceptionCaught")
+    private fun retryDelaySeconds(batch: List<PostHogEvent>): Long? = try {
         if (endpoint == PostHogApiEndpoint.BATCH) api.batch(batch) else api.snapshot(batch)
-        true
+        null
     } catch (_: IOException) {
-        false
+        config.flushIntervalSeconds.toLong()
     } catch (e: PostHogApiError) {
-        e.statusCode != TOO_MANY_REQUESTS && e.statusCode < SERVER_ERROR
+        val retryable = e.statusCode == TOO_MANY_REQUESTS || e.statusCode >= SERVER_ERROR
+        if (retryable) (e.retryAfterSeconds ?: config.flushIntervalSeconds).toLong() else null
+    } catch (_: RuntimeException) {
+        null
     }
 
     private companion object {
