@@ -97,9 +97,8 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     /** Network access for downloads and for the player's cache misses. */
     val upstreamFactory: DataSource.Factory = DataSource.Factory {
-        RefusedTokenDataSource(ResolvingDataSource(OkHttpDataSource.Factory(httpClient).createDataSource(), ::authorize)) {
-            downloadToken?.refuse(it)
-        }
+        val network = OkHttpDataSource.Factory(httpClient).createDataSource()
+        RefusedTokenDataSource(ResolvingDataSource(network, ::authorize)) { downloadToken?.refuse(it) }
     }
 
     /**
