@@ -76,7 +76,7 @@ script headers and `--help` own the harness.
 
 ## Setup
 
-The machine provides Node 24 (`.node-version`) and `python3`. Then run
+The machine provides Node from `.node-version` and `python3`. Then run
 `./scripts/bootstrap.sh`; its header lists the other preconditions. Only live
 and authenticated lanes need the `devs-auto` profile.
 

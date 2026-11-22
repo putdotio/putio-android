@@ -36,7 +36,7 @@ once the account turns them on.
 
 ## Build
 
-Requires JDK 21, Node 24, `python3`, and, on macOS, Homebrew.
+Requires JDK 21, Node (`.node-version`), `python3`, and, on macOS, Homebrew.
 
 ```bash
 ./scripts/bootstrap.sh
