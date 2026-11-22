@@ -49,8 +49,9 @@ Three ways to get an emulator:
   requested. With no cached token, or one put.io rejects, it shows the
   debug-only device-code screen, approves it with
   `PUTIO_CLI_PROFILE=devs-auto putio auth approve <code>` and caches the new
-  token. Never sign out in a `--fresh` run: that revokes the cached token for
-  every run on the host.
+  token. Sign out in a `--fresh` run only for the
+  [sign-out proof](features/account-and-sign-out.md): it revokes the cached
+  token for every run on the host.
 - `--snapshot <name>`: a `-read-only` instance of `putio-phone`, loaded from
   its snapshot `<name>` on a free port. Saved signed in, it starts signed in
   and the sign-in script passes with no approval. Every instance shares that
