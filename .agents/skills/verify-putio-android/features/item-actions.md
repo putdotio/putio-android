@@ -10,35 +10,34 @@ Preconditions:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation account.getSettings --execute --output json`
   (`trash_enabled`).
 
-- **Open from overflow.** In the run's folder, tap the file's overflow. Run
+- **Open from overflow.** In the run's folder, run
   `$S/ui.sh tap $SERIAL --desc "Actions for note-$RUN.txt"`. The sheet shows
   the full name, `Rename`, `Move` and `Move to trash` (or
   `Delete permanently` with Trash off). Capture `actions-open`.
 - **Long-press selects.** Press Back, then run
   `$S/ui.sh long-press $SERIAL --text "note-$RUN.txt"`. The selection bar
   shows `1 selected` and no sheet opens. Press Back to end it.
-- **Rename.** Run `$S/fixture.sh intend $RUN "rename <file id>"`. Open the
-  sheet again with `$S/ui.sh tap $SERIAL --desc "Actions for note-$RUN.txt"`,
-  then tap `Rename`; the dialog's field selects `note-<run>` and keeps `.txt`.
-  Type a new stem and tap the dialog's `Rename` button, the last node with that
-  label. Run `$S/ui.sh tap $SERIAL --text "Rename"`,
-  `$S/ui.sh type $SERIAL "renamed-$RUN"` and
-  `$S/ui.sh tap $SERIAL --text "Rename" --last`. The row reads
-  `renamed-<run>.txt`. Adopt the file id and settle, then read its name back
-  with `putio files list --parent-id <root id>`.
+- **Rename.** Run `$S/fixture.sh intend $RUN "rename <file id>"`, then
+  `$S/ui.sh tap $SERIAL --desc "Actions for note-$RUN.txt"` and
+  `$S/ui.sh tap $SERIAL --text "Rename"`: the dialog's field selects
+  `note-<run>` and keeps `.txt`. Run `$S/ui.sh type $SERIAL "renamed-$RUN"`
+  and `$S/ui.sh tap $SERIAL --text "Rename" --last`, the dialog's button and
+  the last node with that label. The row reads `renamed-<run>.txt`. Adopt
+  the file id and settle, then read its name back with
+  `putio files list --parent-id <root id>`.
 - **Move.** Intend `move <file id>`, open the sheet and tap `Move`. The
   picker opens at the Files root: open `android-verify-<run>`, then
   `Target folder`, and tap `Move to Target folder`. The row leaves this folder;
   `putio files list --parent-id <target id>` lists it. Adopt the id and
   settle.
-- **Copy.** `Make a copy` shows only on items shared with the account, never
-  on its own uploads. Open `Items shared with you`; if it holds a small
+- **Copy.** `Make a copy` shows only on items shared with the account. Open
+  `Items shared with you`; if it holds a small
   file, intend `copy <file id>`, open its sheet, tap `Make a copy` and pick
   the run's root. The snackbar reads `Copied “<name>” to <folder>.` Adopt
   the copy's id and settle. With nothing shared, report `actions-copy`
   unreachable.
-- **Trash.** With `trash_enabled` true: intend `trash <folder id>`. Open the sheet of `Inner folder` from
-  its overflow. Run `$S/ui.sh tap $SERIAL --desc "Actions for Inner folder"`, then tap
+- **Trash.** With `trash_enabled` true: intend `trash <folder id>`, run
+  `$S/ui.sh tap $SERIAL --desc "Actions for Inner folder"`, then tap
   `Move to trash`. The snackbar reads `Moved to trash` and the row leaves.
   Remove that one id from Trash:
   `PUTIO_CLI_PROFILE=devs-auto putio sdk call --operation trash.delete --args '[{"file_ids":[<id>]}]' --execute`,
