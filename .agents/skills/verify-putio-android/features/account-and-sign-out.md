@@ -35,8 +35,8 @@ Preconditions:
   `Remove downloads from this device` only while downloads are on the
   device. Capture `account-sign-out`.
 - **Back in.** Only when another recipe follows: run
-  `./scripts/sign-in-devs-auto.sh $SERIAL`, and sign out again before
-  Cleanup.
+  `./scripts/sign-in-devs-auto.sh $SERIAL`, which approves one new code and
+  caches its token.
 
 ## Gotchas
 
