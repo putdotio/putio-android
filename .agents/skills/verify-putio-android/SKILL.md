@@ -6,11 +6,10 @@ description: Drive the put.io Android mobile app (`:mobile`, production debug) o
 # Verify putio-android
 
 The surface is the phone and tablet app, `:mobile` in its production debug
-build (`io.put.putio.mobile.debug`). Android TV (`:tv`) is a second surface
-with D-pad input and its own `Tv*ProofTest` lanes in `tv/src/androidTest/`;
-this skill does not map it yet. [AGENTS.md](../../../AGENTS.md#hazards) owns
-the hazards this skill works inside: the shared account, shared emulators,
-authenticated installs and evidence.
+build (`io.put.putio.mobile.debug`). For Android TV (`:tv`), use the
+`Tv*ProofTest` lanes in `tv/src/androidTest/`. Read the
+[hazards](../../../AGENTS.md#hazards) first: the shared account, shared
+emulators, authenticated installs and evidence.
 
 It needs a checkout set up with `./scripts/bootstrap.sh`, `lsof`, and the
 `putio` CLI signed in as `putio auth login --profile devs-auto`. The scripts
@@ -101,10 +100,9 @@ when the app is already devs-auto.
 
 ## Drive
 
-Android has no CDP. Drive the real app with adb through
-[`ui.sh`](scripts/ui.sh), matching what the user sees: visible text and
-content descriptions from `uiautomator`. Compose test tags are not in that
-tree; they serve instrumentation tests only.
+Drive the real app with adb through [`ui.sh`](scripts/ui.sh), matching what
+the user sees: visible text and content descriptions from `uiautomator`.
+Compose test tags serve instrumentation tests only.
 
 ```bash
 $S/ui.sh wait $SERIAL --text "Search your files"
@@ -201,8 +199,6 @@ Proof standards:
   transfer, read the account back with
   `PUTIO_CLI_PROFILE=devs-auto putio files list --parent-id <id> --output json`.
 - A run on faked repositories proves layout, not the API.
-- Restore every account and device setting a recipe changes.
-- Look at every screenshot before you cite it.
 - Report a path you could not reach with the failing command and the missing
   precondition, and a path you drove another way as unverified.
 

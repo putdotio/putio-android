@@ -242,9 +242,8 @@ components:
 The design contract for the phone, tablet and TV apps. Tokens, voice and the
 binding tiers come from
 [putio-design](https://github.com/putdotio/putio-design/blob/main/DESIGN.md);
-this file owns how Android applies them. Screen layouts live in the code and
-the Android design canvas, not here. Dimensions are in dp and text sizes in
-sp, written as `px` because the format has no Android units.
+this file owns how Android applies them. Dimensions are in dp and text sizes
+in sp, written as `px` because the format has no Android units.
 
 ## Overview
 

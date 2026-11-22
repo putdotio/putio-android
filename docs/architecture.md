@@ -1,8 +1,7 @@
 # Architecture
 
-What the apps do and how the code is split. It stays at the level of product
-areas and module boundaries. Screen detail lives in the code, its tests and the
-Android design canvas; [DESIGN.md](../DESIGN.md) owns the visual contract.
+How the code is split and how its main flows run.
+[DESIGN.md](../DESIGN.md) owns the visual contract.
 
 ## Apps
 
@@ -46,14 +45,13 @@ flowchart TD
   baseline profile; `scripts/generate-baseline-profile.sh` runs them.
 
 The [Kotlin SDK](https://github.com/putdotio/putio-sdk-kotlin) is the only API
-boundary; a gap closes there, never with app-local HTTP.
+boundary.
 
 ## State
 
 A controller owns an area's state as an explicit state machine and is the
 only writer. View models subscribe and dispatch events; screens render state
-and never call the API. Failures are typed per area and reported as codes,
-never as raw messages.
+only. Failures are typed per area and reported as codes.
 
 ```mermaid
 flowchart LR
@@ -88,37 +86,16 @@ stateDiagram-v2
   SignedIn --> Expired: token rejected
 ```
 
-## Product areas
-
-| Area      | Mobile                                                 | TV                                           |
-| --------- | ------------------------------------------------------ | -------------------------------------------- |
-| Sign-in   | OAuth in the browser                                   | Device code, also as a QR code               |
-| Session   | Secure storage, checked again when the network returns | The same, plus import from the legacy TV app |
-| Home      | Continue watching and pinned items in Files            | Continue watching and pinned items           |
-| Files     | Browse, search, item actions, multi-select             | Browse, search, item actions                 |
-| History   | Account events by day                                  | The same                                     |
-| Trash     | Restore and delete                                     | The same                                     |
-| Transfers | Add, watch and manage                                  | Not on TV                                    |
-| Downloads | Offline copies, which never touch the file on put.io   | Not on TV                                    |
-| Playback  | Video and background audio, Cast                       | Full-screen video, background audio          |
-| Account   | Settings, privacy controls, exclusive links            | Settings and privacy controls                |
-| Platform  | Widget, shortcuts, file picker, share targets          | Watch Next, system search, launcher banner   |
-
 ## Playback
 
 Media3 plays every stream with a media session for system controls. The app's
-playback method picks the stream: Standard (the default) plays HLS, Direct play
-plays the original file when the device check passes and uses a converted copy
-when needed. Direct play can use audio passthrough or bundled FFmpeg audio
-decoding after MediaCodec. Devices with the memory for it draw ASS/SSA subtitles with libass,
-styling included, unless the viewer picked a subtitle size; others show their text. An original that still
-fails before its first frame falls back to converted at the same position. The
-viewer can also switch an original to converted from the player; the device
-remembers the last 200 switched files and opens them converted. Cast always plays
-Standard, whatever the setting. Where VLC is installed, a video the player
-can't play, or one still converting, offers Open in VLC; TV offers it on every
-video. Play positions sync to put.io, throttled and flushed on exit, never per
-progress tick.
+playback method picks the stream: Standard (the default) plays HLS; Direct play
+plays the original file when the device check passes and a converted copy
+otherwise. Direct play can decode audio with bundled FFmpeg after MediaCodec,
+and devices with the memory for it draw ASS/SSA subtitles with libass. An
+original that fails before its first frame falls back to converted at the same
+position. Cast always plays Standard. Play positions sync to put.io, throttled
+and flushed on exit.
 
 Back always closes the topmost layer before it leaves playback.
 

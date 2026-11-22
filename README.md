@@ -50,7 +50,7 @@ covers the gate and [building against an unreleased SDK](./AGENTS.md#kotlin-sdk)
 ## Docs
 
 - [Design](./DESIGN.md): the Android design contract
-- [Architecture](./docs/architecture.md): product areas and module boundaries
+- [Architecture](./docs/architecture.md): module boundaries and main flows
 - [Agent guide](./AGENTS.md): hazards, proof map, and CI
 - [Security policy](https://github.com/putdotio/.github/blob/main/SECURITY.md):
   report vulnerabilities privately
