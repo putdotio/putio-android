@@ -14,13 +14,11 @@ Preconditions:
 - **List.** Run `$S/ui.sh link $SERIAL putio://transfers` and
   `$S/ui.sh wait $SERIAL --text "Transfers"`. The title and summary show,
   or `Nothing in the queue` on an empty account. Capture `transfers-list`.
-- **Open Add.** Tap `Add transfer`. Run
-  `$S/ui.sh tap $SERIAL --desc "Add transfer"`. A sheet with
+- **Open Add.** `$S/ui.sh tap $SERIAL --desc "Add transfer"`. A sheet with
   `URLs or magnet links` and `Save to` opens.
 - **Save to.** Tap `Change` and pick `android-verify-<run>`; tap
   `Save here`. The sheet names the folder.
-- **Add.** Run `$S/fixture.sh intend $RUN "transfer <url>"`. Focus the field,
-  type the URL, and tap the button, which now reads `Add 1`. Run
+- **Add.** Run `$S/fixture.sh intend $RUN "transfer <url>"`, then
   `$S/ui.sh tap $SERIAL --desc "URLs or magnet links"`,
   `$S/ui.sh type $SERIAL "<url>"` and `$S/ui.sh tap $SERIAL --text "Add 1"`.
   The snackbar reads `1 transfer added` and a card shows in Active, then
@@ -30,7 +28,7 @@ Preconditions:
 - **Side effect.** Read the transfer back with
   `PUTIO_CLI_PROFILE=devs-auto putio transfers list --output json`: its
   `save_parent_id` is the run's root. Adopt the file it saved, then settle.
-- **Magnet.** Open the link. Run
+- **Magnet.**
   `$S/ui.sh link $SERIAL "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Harbor%20film"`.
   The sheet shows that link and adds nothing until `Add 1`. Press Back.
 - **Actions.** Long-press the run's card by its file name (`Transfer actions`
@@ -55,5 +53,4 @@ Preconditions:
   holds n links.
 - Retry on a failed transfer is covered by `MobileTransferRetryProofTest`
   over faked SDK calls; it is synthetic.
-- Polling updates cards every few seconds; wait for the end state, not a
-  fixed time.
+- Polling updates cards every few seconds; wait for the end state.

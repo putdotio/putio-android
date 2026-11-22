@@ -30,8 +30,8 @@ Preconditions:
 
 - `wm size` and `wm density` change the whole emulator. Reset both before the
   next recipe, even after a failure.
-- A resized phone proves layout, not the true tablet scale or status bar. For
-  captures at true scale, create the AVD with `-d pixel_tablet`.
+- A resized phone proves layout only. For captures at the true tablet scale
+  and status bar, create the AVD with `-d pixel_tablet`.
 - Viewer bytes stream through the app's documents provider; no URL holds a
   token, and the logcat scan in `capture.sh` checks that.
 - A PDF opens with another app from 200 MB; keep PDF fixtures small.

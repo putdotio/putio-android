@@ -9,15 +9,15 @@ Preconditions:
   `ffmpeg -f lavfi -i testsrc2=size=640x360:rate=30:duration=120 -f lavfi -i sine=frequency=440:duration=120 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest build/verify-clip.mp4`.
 - `putio files list --parent-id <root id>` lists the clip with
   `file_type` `VIDEO`.
-- Notifications are allowed, so the first download's permission prompt does
-  not cover the screen:
+- Notifications are allowed:
   `adb -s $SERIAL shell pm grant io.put.putio.mobile.debug android.permission.POST_NOTIFICATIONS`.
+  Without the grant the first download opens Android's permission prompt
+  over the app, and later Downloads shows `Download notifications are off`.
 
-- **Start.** Open the clip's actions and tap `Download`. Run
-  `$S/ui.sh tap $SERIAL --desc "Actions for verify-clip.mp4"` and
+- **Start.** `$S/ui.sh tap $SERIAL --desc "Actions for verify-clip.mp4"` and
   `$S/ui.sh tap $SERIAL --text "Download"`.
-- **Progress.** Open Downloads. Run `$S/ui.sh link $SERIAL putio://downloads`
-  and capture `downloads-progress`: the clip's row shows its progress under
+- **Progress.** `$S/ui.sh link $SERIAL putio://downloads`, then capture
+  `downloads-progress`: the clip's row shows its progress under
   `Downloading`.
 - **Done.** Back in the run's folder, the clip is the folder's only video, so
   its row's `On this device` glyph proves this download finished. Run
@@ -52,17 +52,13 @@ Preconditions:
 - Airplane mode acts on the whole emulator: turn it off before any other
   recipe.
 - A snapshot run may restore downloads from earlier runs, and
-  `On this device` is also the Downloads section heading. Prove completion in
-  the run's own folder, where the clip is the only row that can carry the
-  glyph.
+  `On this device` is also the Downloads section heading. That is why Done
+  checks the run's own folder.
 - An offline cold start opens the shell only with an account put.io confirmed
   on this install. The first start of a build that never confirmed one shows
   `Couldn’t check your session`, and retries once the network returns.
 - Strings use typographic apostrophes (`’`), and selectors match them
   exactly.
-- Without POST_NOTIFICATIONS the first download opens Android's permission
-  prompt over the app, and later Downloads shows
-  `Download notifications are off`. The precondition grants it.
 - Between runs clear only `databases/exoplayer_internal.db*`,
   `shared_prefs/io.putdotio.android.downloads.xml` and `files/downloads/`;
   never app data or the session.
