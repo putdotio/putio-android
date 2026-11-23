@@ -82,6 +82,7 @@ import io.putdotio.android.MobileUnhandledKeyEffect
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
+import io.putdotio.android.mobileUnknownMessage
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.downloads.DownloadsState
@@ -804,7 +805,7 @@ private fun MobileFilesOperationFailure(operation: FilesFolderOperation, autoRet
         failed.failure.isUnreachable
     if (autoRetry && offlineReread) RetryWhenOnline(failed, onRetry)
     MobileInlineError(
-        message = stringResource(failed.failureMessage()),
+        message = failed.failure.mobileUnknownMessage(stringResource(failed.failureMessage())),
         onRetry = onRetry,
         retryLabel = stringResource(failed.retryLabel()),
         retryModifier = Modifier.testTag(MOBILE_FILES_OPERATION_RETRY_TAG),
@@ -1292,7 +1293,7 @@ private fun MobileFilesPaging(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = stringResource(R.string.mobile_files_paging_error),
+                    text = paging.failure.mobileUnknownMessage(stringResource(R.string.mobile_files_paging_error)),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -1310,8 +1311,13 @@ private fun MobileFilesPaging(
 }
 
 @Composable
-internal fun FilesFailure.mobileMessage(): String =
-    (this as? PutioFailure)?.apiReason ?: stringResource(mobileMessageResource())
+internal fun FilesFailure.mobileMessage(): String {
+    val failure = this as? PutioFailure
+    val apiReason = failure?.apiReason
+    if (apiReason != null) return apiReason
+    val fallback = stringResource(mobileMessageResource())
+    return failure?.mobileUnknownMessage(fallback) ?: fallback
+}
 
 @StringRes
 internal fun FilesFailure.mobileMessageResource(): Int =

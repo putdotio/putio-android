@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.apiReason
+import io.putdotio.android.mobileUnknownMessage
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.files.FilesSort
@@ -42,7 +43,6 @@ import io.putdotio.android.settings.AndroidAppConfigMutation
 import io.putdotio.android.settings.AndroidAppConfigState
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.TunnelRouteName
-import io.putdotio.android.settings.apiReason
 import io.putdotio.android.settings.putioFailure
 import io.putdotio.android.neutralTextButtonColors
 
@@ -199,7 +199,8 @@ internal fun MobileAppConfigMutationError(
 }
 
 @Composable
-private fun PutioFailure.appConfigMessage(): String = apiReason ?: stringResource(appConfigMessageResource())
+private fun PutioFailure.appConfigMessage(): String =
+    apiReason ?: mobileUnknownMessage(stringResource(appConfigMessageResource()))
 
 @StringRes
 private fun PutioFailure.appConfigMessageResource(): Int =
@@ -219,7 +220,13 @@ private fun PutioFailure.appConfigMessageResource(): Int =
     }
 
 @Composable
-internal fun AccountSettingsFailure.message(): String = apiReason ?: stringResource(messageResource())
+internal fun AccountSettingsFailure.message(): String {
+    val putio = (this as? AccountSettingsFailure.Putio)?.failure
+    val reason = putio?.apiReason
+    if (reason != null) return reason
+    val fallback = stringResource(messageResource())
+    return putio?.mobileUnknownMessage(fallback) ?: fallback
+}
 
 @StringRes
 private fun AccountSettingsFailure.messageResource(): Int =

@@ -31,25 +31,42 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.FilesRequestId
 import io.putdotio.android.putioErrorBody
 import io.putdotio.android.putioRefusal
+import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.telemetry.PutioFailureReports
+import io.putdotio.android.telemetry.TelemetryFailure
 import io.putdotio.android.toPutioFailure
-import io.putdotio.android.tv.TvFailureReports
 import io.putdotio.android.tv.pressCenter
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "en-rUS-w960dp-h540dp-television")
+@Config(
+    sdk = [35],
+    qualifiers = "en-rUS-w960dp-h540dp-television",
+    instrumentedPackages = ["io.putdotio.android.telemetry"],
+    shadows = [TvFilesFailureTest.RecordingDiagnostics::class],
+)
 class TvFilesFailureTest {
     @get:Rule
     val compose = createAndroidComposeRule<androidx.activity.ComponentActivity>()
+
+    @Before
+    @After
+    fun resetDiagnostics() {
+        RecordingDiagnostics.reset()
+    }
 
     @Test
     fun aServerErrorOnAFolderOffersTryAgain() {
@@ -65,7 +82,7 @@ class TvFilesFailureTest {
     @Test
     fun anUnknownFailureShowsItsErrorIdOnlyWhenOneWasReported() {
         val reported = PutioFailure.Unexpected(IllegalStateException("reported"))
-        TvFailureReports.record(reported, ERROR_ID)
+        PutioFailureReports.record(reported, ERROR_ID)
         var failure by mutableStateOf<PutioFailure>(reported)
         compose.showFiles(state = { state(FilesContent.Failed(failure)) })
         compose.onNodeWithText("Something unexpected happened").assertIsDisplayed()
@@ -178,6 +195,45 @@ class TvFilesFailureTest {
             )
         }
         compose.onAllNodes(hasTestTag(TV_FILES_ROW_TAG) and isFocused()).assertCountEquals(1)
+    }
+
+    @Test
+    fun unreportedUnknownFailuresCaptureOnceAndShowReturnedEventId() {
+        val unexpected = PutioFailure.Unexpected(IllegalStateException("unreported"))
+        val invalid = PutioFailure.InvalidResponse(PutioConfigurationException("bad schema"))
+        val secondId = "11111111111111111111111111111111"
+        RecordingDiagnostics.nextIds += listOf(ERROR_ID, secondId)
+        var failure by mutableStateOf<PutioFailure>(unexpected)
+        compose.showFiles(state = { state(FilesContent.Failed(failure)) })
+
+        compose.onNodeWithText("Error id: $ERROR_ID").assertIsDisplayed()
+        assertEquals(listOf("unexpected"), RecordingDiagnostics.captured.map { it.code })
+
+        compose.runOnIdle { failure = invalid }
+        compose.onNodeWithText("Error id: $secondId").assertIsDisplayed()
+        assertEquals(listOf("unexpected", "invalid_response"), RecordingDiagnostics.captured.map { it.code })
+    }
+
+    @Implements(PutioDiagnostics::class)
+    class RecordingDiagnostics {
+        @Suppress("UnusedParameter")
+        @Implementation
+        fun capture(failure: TelemetryFailure): String? {
+            captured += failure
+            return if (nextIds.isNotEmpty()) nextIds.removeFirst() else nextId
+        }
+
+        companion object {
+            val captured = mutableListOf<TelemetryFailure>()
+            val nextIds = ArrayDeque<String?>()
+            var nextId: String? = null
+
+            fun reset() {
+                captured.clear()
+                nextIds.clear()
+                nextId = null
+            }
+        }
     }
 
     private companion object {
