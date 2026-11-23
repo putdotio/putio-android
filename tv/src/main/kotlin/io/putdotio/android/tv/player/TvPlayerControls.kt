@@ -28,6 +28,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +50,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.tv.material3.Icon
@@ -89,8 +93,9 @@ internal fun TvPlayerControls(
     focused: TvPlayerControl,
     modifier: Modifier = Modifier,
     circles: Boolean = true,
+    isReleased: () -> Boolean = { false },
 ) {
-    val progress = rememberPlayerProgress(player, paused, startPositionMillis)
+    val progress = rememberPlayerProgress(player, paused, startPositionMillis, isReleased)
     val shownMillis = progress.positionMillis
     val knownDuration = knownDurationMillis(progress.durationMillis, listingDurationMillis)
     val elapsed = playerTime(shownMillis)
@@ -129,7 +134,14 @@ internal fun TvPlayerControls(
 internal data class TvPlayerProgress(val positionMillis: Long, val durationMillis: Long)
 
 @Composable
-internal fun rememberPlayerProgress(player: Player, paused: Boolean, startPositionMillis: Long): TvPlayerProgress {
+internal fun rememberPlayerProgress(
+    player: Player,
+    paused: Boolean,
+    startPositionMillis: Long,
+    isReleased: () -> Boolean = { false },
+): TvPlayerProgress {
+    val currentIsReleased by rememberUpdatedState(isReleased)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     var positionMillis by remember(player) {
         mutableLongStateOf(
             if (player.currentMediaItem == null) startPositionMillis else player.currentPosition.coerceAtLeast(0L),
@@ -139,21 +151,29 @@ internal fun rememberPlayerProgress(player: Player, paused: Boolean, startPositi
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
-                if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_POSITION_DISCONTINUITY)) {
+                if (!currentIsReleased() &&
+                    events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_POSITION_DISCONTINUITY)
+                ) {
                     positionMillis = player.currentPosition.coerceAtLeast(0L)
                     durationMillis = player.duration
                 }
             }
         }
         player.addListener(listener)
-        onDispose { player.removeListener(listener) }
+        onDispose {
+            if (!currentIsReleased()) {
+                player.removeListener(listener)
+            }
+        }
     }
-    LaunchedEffect(player, paused) {
-        while (true) {
-            if (player.currentMediaItem != null) positionMillis = player.currentPosition.coerceAtLeast(0L)
-            durationMillis = player.duration
-            if (paused) break
-            delay(TV_PLAYER_POSITION_POLL_MILLIS)
+    LaunchedEffect(player, paused, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (!currentIsReleased()) {
+                if (player.currentMediaItem != null) positionMillis = player.currentPosition.coerceAtLeast(0L)
+                durationMillis = player.duration
+                if (paused) break
+                delay(TV_PLAYER_POSITION_POLL_MILLIS)
+            }
         }
     }
     return TvPlayerProgress(positionMillis, durationMillis)

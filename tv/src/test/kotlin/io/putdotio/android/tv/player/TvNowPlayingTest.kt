@@ -273,7 +273,8 @@ class TvNowPlayingTest {
 
         compose.runOnIdle {
             assertEquals(SECOND.fileId, controller.state.value.target.fileId)
-            assertEquals(1, players.size)
+            assertEquals(2, players.size)
+            assertTrue(players.first().released)
             assertEquals(0, exits)
             assertFalse(players.last().playWhenReady)
         }
@@ -297,7 +298,8 @@ class TvNowPlayingTest {
 
         compose.runOnIdle {
             assertEquals(SECOND.fileId, controller.state.value.target.fileId)
-            assertEquals(1, players.size)
+            assertEquals(2, players.size)
+            assertTrue(players.first().released)
             assertFalse(players.last().playWhenReady)
         }
         session.release()
