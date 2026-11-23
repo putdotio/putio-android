@@ -21,3 +21,5 @@ app's own code.
 
 Versions, copyrights, sources and licence texts for each are listed in the
 app under Open source licenses, from playbackNotices and telemetryNotices.
+The same page lists every Java and Kotlin library the app bundles, with its
+licence and source.

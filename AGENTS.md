@@ -18,6 +18,9 @@ script headers and `--help` own the harness.
 - Fakes other modules' tests reuse live in the owning module's
   `src/testFixtures`.
 - Report a failure as a `TelemetryFailure` of codes.
+- A dependency under a license outside `ALLOWED_LICENSES` in
+  [PutioAndroidApplicationPlugin](build-logic/src/main/kotlin/PutioAndroidApplicationPlugin.kt)
+  fails the build. The app's code is MIT; ask Altay before widening the list.
 - A media3-ffmpeg-decoder bump updates `playbackNotices` to the FFmpeg version
   its `ffmpeg` submodule pins; an ass-media bump updates them to the
   libraries its `libass-cmake` submodule pins; a Sentry bump updates
