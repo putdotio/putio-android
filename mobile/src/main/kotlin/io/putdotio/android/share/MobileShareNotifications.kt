@@ -41,6 +41,17 @@ internal class MobileShareNotifications(private val context: Context) {
     fun failed(name: String): Notification =
         base(context.getString(R.string.mobile_share_failed, name)).setAutoCancel(true).build()
 
+    fun update(id: Int, notification: Notification) {
+        try {
+            context.getSystemService(NotificationManager::class.java).notify(id, notification)
+        } catch (_: SecurityException) {
+        }
+    }
+
+    fun cancel(id: Int) {
+        context.getSystemService(NotificationManager::class.java).cancel(id)
+    }
+
     fun postFailed(id: Int, name: String) {
         try {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||

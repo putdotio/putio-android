@@ -8,8 +8,10 @@ import android.net.Uri
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.ParcelFileDescriptor
+import android.os.ProxyFileDescriptorCallback
 import android.os.storage.StorageManager
 import android.provider.OpenableColumns
+import androidx.annotation.VisibleForTesting
 import java.io.FileNotFoundException
 import java.io.IOException
 
@@ -58,14 +60,24 @@ class MobileDragProvider : ContentProvider() {
         // the drag opened, so a refused open leaves no thread behind.
         val thread = HandlerThread("putio-drag")
         val reader = MobileFileDrags.open(key, dependencies) { thread.quitSafely() }
-        thread.start()
+        var opened = false
         return try {
-            storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, reader, Handler(thread.looper))
+            thread.start()
+            openProxyDescriptor(storage, reader, Handler(thread.looper)).also { opened = true }
         } catch (error: IOException) {
-            reader.onRelease()
             throw FileNotFoundException("Could not open a descriptor").apply { initCause(error) }
+        } finally {
+            if (!opened) reader.onRelease()
         }
     }
+
+    private fun openProxyDescriptor(
+        storage: StorageManager,
+        reader: ProxyFileDescriptorCallback,
+        handler: Handler,
+    ): ParcelFileDescriptor =
+        openProxyDescriptorForTest?.invoke(storage, reader, handler)
+            ?: storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, reader, handler)
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = throw UnsupportedOperationException()
 
@@ -76,4 +88,11 @@ class MobileDragProvider : ContentProvider() {
         throw UnsupportedOperationException()
 
     private fun drag(uri: Uri): MobileFileDrags.Drag? = uri.pathSegments.firstOrNull()?.let { MobileFileDrags[it] }
+
+    companion object {
+        @VisibleForTesting
+        @Volatile
+        internal var openProxyDescriptorForTest:
+            ((StorageManager, ProxyFileDescriptorCallback, Handler) -> ParcelFileDescriptor)? = null
+    }
 }

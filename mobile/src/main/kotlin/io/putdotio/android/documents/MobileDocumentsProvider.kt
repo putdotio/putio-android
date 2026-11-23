@@ -11,6 +11,7 @@ import android.os.CancellationSignal
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.ParcelFileDescriptor
+import android.os.ProxyFileDescriptorCallback
 import android.os.SystemClock
 import android.os.storage.StorageManager
 import android.provider.DocumentsContract
@@ -92,14 +93,24 @@ class MobileDocumentsProvider : DocumentsProvider() {
         // only once the document opened, so a refused open leaves no thread behind.
         val thread = HandlerThread("putio-document")
         val reader = documents().open(documentId, signal) { thread.quitSafely() }
-        thread.start()
+        var opened = false
         return try {
-            storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, reader, Handler(thread.looper))
+            thread.start()
+            openProxyDescriptor(storage, reader, Handler(thread.looper)).also { opened = true }
         } catch (error: IOException) {
-            reader.onRelease()
             throw FileNotFoundException("Could not open a descriptor").apply { initCause(error) }
+        } finally {
+            if (!opened) reader.onRelease()
         }
     }
+
+    private fun openProxyDescriptor(
+        storage: StorageManager,
+        reader: ProxyFileDescriptorCallback,
+        handler: Handler,
+    ): ParcelFileDescriptor =
+        openProxyDescriptorForTest?.invoke(storage, reader, handler)
+            ?: storage.openProxyFileDescriptor(ParcelFileDescriptor.MODE_READ_ONLY, reader, handler)
 
     private fun MatrixCursor.add(row: DocumentRow) {
         newRow()
@@ -145,6 +156,11 @@ class MobileDocumentsProvider : DocumentsProvider() {
         @VisibleForTesting
         @Volatile
         internal var documentsForTest: MobileDocuments? = null
+
+        @VisibleForTesting
+        @Volatile
+        internal var openProxyDescriptorForTest:
+            ((StorageManager, ProxyFileDescriptorCallback, Handler) -> ParcelFileDescriptor)? = null
 
         private val ROOT_COLUMNS = arrayOf(
             Root.COLUMN_ROOT_ID,

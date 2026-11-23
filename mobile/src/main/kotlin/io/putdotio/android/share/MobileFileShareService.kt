@@ -65,6 +65,9 @@ class MobileFileShareService : Service() {
     private val notifications = MobileShareNotifications(this)
     private var job: Job? = null
     private var exporting: String? = null
+    private var foregroundActive = false
+    private var timedOut = false
+    private var activeExportToken = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -72,48 +75,79 @@ class MobileFileShareService : Service() {
         val fileId = intent?.getLongExtra(EXTRA_FILE_ID, -1L)?.takeIf { it > 0L }
         val name = intent?.getStringExtra(EXTRA_NAME)?.takeIf { it.isNotBlank() }
         if (fileId == null || name == null || intent.action == ACTION_CANCEL) {
-            // Every start arrives through startForegroundService; the promise must be kept before stopping.
-            val label = name ?: getString(R.string.mobile_files_share)
-            show(notifications.progress(label, indeterminate = true, progress = 0))
-            exporting = null
-            val previous = job
-            job = scope.launch {
-                // Join so no progress update from the cancelled export lands after this stop.
-                previous?.cancelAndJoin()
-                MobileShareProgress.end()
-                ServiceCompat.stopForeground(this@MobileFileShareService, ServiceCompat.STOP_FOREGROUND_REMOVE)
-                stopSelf(startId)
-            }
-            return START_NOT_STICKY
-        }
-        show(notifications.progress(name, indeterminate = true, progress = 0))
-        exporting = name
-        val session = dependencies.authState.value.sessionId
-        val previous = job
-        job = scope.launch {
-            previous?.cancelAndJoin()
-            MobileShareProgress.start(name)
-            try {
-                share(FilesItemId(fileId), name, session)
-            } finally {
-                // The dialog leaves with the export, however it ended.
-                MobileShareProgress.end()
-                // A newer start keeps the service alive; only the latest startId stops it.
-                stopSelf(startId)
-            }
+            cancelExport(startId)
+        } else {
+            startExport(fileId, name, startId)
         }
         return START_NOT_STICKY
     }
 
+    private fun cancelExport(startId: Int) {
+        activeExportToken++
+        exporting = null
+        MobileShareProgress.dismiss()
+        val previous = job
+        job = scope.launch {
+            previous?.cancelAndJoin()
+            MobileShareProgress.end()
+            stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopSelf(startId)
+        }
+    }
+
+    private fun startExport(fileId: Long, name: String, startId: Int) {
+        val token = ++activeExportToken
+        timedOut = false
+        val previous = job
+        if (!promoteForeground(notifications.progress(name, indeterminate = true, progress = 0))) {
+            exporting = null
+            job = scope.launch {
+                previous?.cancelAndJoin()
+                MobileShareProgress.end()
+                stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_REMOVE)
+                notifications.postFailed(NOTIFICATION_ID, name)
+                stopSelf(startId)
+            }
+            return
+        }
+        exporting = name
+        val session = dependencies.authState.value.sessionId
+        job = scope.launch {
+            previous?.cancelAndJoin()
+            MobileShareProgress.start(name)
+            try {
+                share(FilesItemId(fileId), name, session, token)
+            } finally {
+                if (activeExportToken == token) {
+                    MobileShareProgress.end()
+                    exporting = null
+                }
+                stopSelf(startId)
+            }
+        }
+    }
+
     // The share flow's boundary: every failure ends as the cause-free notice, an ended session as a silent drop.
     @Suppress("TooGenericExceptionCaught", "SwallowedException")
-    private suspend fun share(fileId: FilesItemId, name: String, session: MobileAuthSessionId?) {
+    private suspend fun share(fileId: FilesItemId, name: String, session: MobileAuthSessionId?, token: Long) {
         try {
             if (session == null) throw IOException("No session")
             boundTo(session) {
-                val file = exporter.export(fileId, name, session) { percent, copied, total ->
-                    show(notifications.progress(name, indeterminate = false, progress = percent))
-                    MobileShareProgress.progress(MobileShareProgressState(name, copied, total))
+                var exportInProgress = true
+                val file = try {
+                    exporter.export(fileId, name, session) { percent, copied, total ->
+                        MobileShareProgress.progress(MobileShareProgressState(name, copied, total))
+                        scope.launch {
+                            if (exportInProgress && foregroundActive && activeExportToken == token) {
+                                notifications.update(
+                                    NOTIFICATION_ID,
+                                    notifications.progress(name, indeterminate = false, progress = percent),
+                                )
+                            }
+                        }
+                    }
+                } finally {
+                    exportInProgress = false
                 }
                 // The share sheet opens next; the in-app dialog has nothing left to show.
                 MobileShareProgress.end()
@@ -123,7 +157,7 @@ class MobileFileShareService : Service() {
             throw error
         } catch (error: SessionEndedException) {
             clearShares(dependencies.io)
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+            stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_REMOVE)
         } catch (error: IOException) {
             // A cancelled call surfaces as IOException; cancellation is not a failure to report.
             currentCoroutineContext().ensureActive()
@@ -150,8 +184,9 @@ class MobileFileShareService : Service() {
 
     /** Foreground updates need no POST_NOTIFICATIONS grant; detaching keeps the result visible. */
     private fun fail(name: String) {
-        show(notifications.failed(name))
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_DETACH)
+        if (timedOut) return
+        notifications.update(NOTIFICATION_ID, notifications.failed(name))
+        stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_DETACH)
     }
 
     @androidx.annotation.VisibleForTesting
@@ -163,7 +198,9 @@ class MobileFileShareService : Service() {
      * The session is checked again at launch, so a resume that races a sign-out never shows the export.
      */
     private suspend fun deliver(name: String, session: MobileAuthSessionId, chooser: () -> Intent) {
-        if (MobileResumedActivity.current == null) show(notifications.ready(name))
+        if (MobileResumedActivity.current == null && !timedOut) {
+            notifications.update(NOTIFICATION_ID, notifications.ready(name))
+        }
         val resumed: Activity? = try {
             withTimeoutOrNull(dependencies.readyTimeout) { MobileResumedActivity.await() }
         } catch (error: CancellationException) {
@@ -171,7 +208,7 @@ class MobileFileShareService : Service() {
             clearShares(dependencies.io)
             throw error
         }
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_REMOVE)
         if (resumed == null) {
             clearShares(dependencies.io)
             return
@@ -182,20 +219,38 @@ class MobileFileShareService : Service() {
 
     // The type constant is inlined and ServiceCompat drops it below API 29, where the manifest type suffices.
     @SuppressLint("InlinedApi")
-    private fun show(notification: Notification) {
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            notification,
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
-        )
+    private fun promoteForeground(notification: Notification): Boolean =
+        try {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+            )
+            foregroundActive = true
+            true
+        } catch (_: IllegalStateException) {
+            foregroundActive = false
+            false
+        }
+
+    private fun stopForegroundAndClear(behavior: Int) {
+        foregroundActive = false
+        ServiceCompat.stopForeground(this, behavior)
+        if (behavior == ServiceCompat.STOP_FOREGROUND_REMOVE) {
+            notifications.cancel(NOTIFICATION_ID)
+        }
     }
 
     override fun onTimeout(startId: Int, fgsType: Int) {
+        timedOut = true
+        activeExportToken++
+        MobileShareProgress.dismiss()
+        stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_REMOVE)
         job?.cancel()
-        MobileShareProgress.end()
-        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
-        exporting?.let { notifications.postFailed(NOTIFICATION_ID, it) }
+        val name = exporting
+        exporting = null
+        name?.let { notifications.postFailed(NOTIFICATION_ID, it) }
         stopSelf()
     }
 
@@ -208,7 +263,7 @@ class MobileFileShareService : Service() {
         private const val EXTRA_FILE_ID = "fileId"
         private const val EXTRA_NAME = "name"
         internal const val ACTION_CANCEL = "io.putdotio.android.action.CANCEL_SHARE"
-        private const val NOTIFICATION_ID = 3001
+        internal const val NOTIFICATION_ID = 3001
         private const val STALE_EXPORT_MS = 24L * 60L * 60L * 1000L
 
         /** Replaces the network, session and clock for services created afterwards; tests reset it. */
@@ -222,14 +277,24 @@ class MobileFileShareService : Service() {
 
         /** Cancels the running export, as the notification's Cancel does. */
         fun cancel(context: Context) {
-            context.startForegroundService(Intent(context, MobileFileShareService::class.java).setAction(ACTION_CANCEL))
+            val intent = Intent(context, MobileFileShareService::class.java).setAction(ACTION_CANCEL)
+            try {
+                context.startService(intent)
+            } catch (_: IllegalStateException) {
+                context.stopService(intent)
+            }
         }
 
         fun start(context: Context, fileId: FilesItemId, name: String) {
+            if (fileId.value <= 0L || name.isBlank()) return
             val intent = Intent(context, MobileFileShareService::class.java)
                 .putExtra(EXTRA_FILE_ID, fileId.value)
                 .putExtra(EXTRA_NAME, name)
-            context.startForegroundService(intent)
+            try {
+                context.startForegroundService(intent)
+            } catch (_: IllegalStateException) {
+                MobileShareNotifications(context).postFailed(NOTIFICATION_ID, name)
+            }
         }
 
         internal fun shareRoot(context: Context): File = File(context.filesDir, "shares")

@@ -2,10 +2,12 @@ package io.putdotio.android.share
 
 import android.Manifest
 import android.app.Activity
+import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -17,10 +19,12 @@ import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountDownloadToken
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
@@ -37,11 +41,16 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import okhttp3.Call
 import okhttp3.EventListener
+import okhttp3.MediaType
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.ResponseBody
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.BufferedSource
+import okio.buffer
+import okio.source
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -139,7 +148,8 @@ class MobileFileShareServiceTest {
         val pending = fixture.launch { service.deliverForTest(chooser, "poster.jpg", SESSION) }
         fixture.scheduler.runCurrent()
         assertFalse(pending.isCompleted)
-        val ready = requireNotNull(shadowOf(service).lastForegroundNotification)
+        val manager = service.getSystemService(NotificationManager::class.java)
+        val ready = requireNotNull(shadowOf(manager).getNotification(MobileFileShareService.NOTIFICATION_ID))
         val shown = shadowOf(ready).contentText.toString() +
             (ready.contentIntent?.let { shadowOf(it).savedIntent?.toUri(0) } ?: "")
         assertFalse(shown.contains("oauth_token"))
@@ -244,7 +254,10 @@ class MobileFileShareServiceTest {
             fixture.respond = respond
             fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
             fixture.scheduler.advanceUntilIdle()
-            val notification = requireNotNull(shadowOf(fixture.service).lastForegroundNotification)
+            val manager = fixture.service.getSystemService(NotificationManager::class.java)
+            val notification = requireNotNull(
+                shadowOf(manager).getNotification(MobileFileShareService.NOTIFICATION_ID),
+            )
             assertEquals(FAILED_TEXT, shadowOf(notification).contentText.toString())
             // Detached, so the failure stays visible after the service stops.
             assertTrue(shadowOf(fixture.service).isForegroundStopped)
@@ -440,6 +453,157 @@ class MobileFileShareServiceTest {
         }
     }
 
+    @Test
+    fun startAndCancelSurviveBackgroundServiceRestrictions() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val stoppedServices = mutableListOf<Intent>()
+        val restricted = object : ContextWrapper(app) {
+            override fun startForegroundService(service: Intent?): ComponentName? {
+                error("FGS disallowed")
+            }
+
+            override fun startService(service: Intent?): ComponentName? {
+                error("BG disallowed")
+            }
+
+            override fun stopService(name: Intent?): Boolean {
+                if (name != null) stoppedServices += name
+                return true
+            }
+        }
+        MobileFileShareService.start(restricted, FilesItemId(9L), "poster.jpg")
+        val manager = app.getSystemService(NotificationManager::class.java)
+        val notice = requireNotNull(shadowOf(manager).getNotification(MobileFileShareService.NOTIFICATION_ID))
+        assertEquals(FAILED_TEXT, shadowOf(notice).contentText.toString())
+
+        MobileFileShareService.cancel(restricted)
+        assertEquals(MobileFileShareService.ACTION_CANCEL, stoppedServices.single().action)
+    }
+
+    @Test
+    fun cancelUsesStartServiceAndNeverPromotesAForegroundService() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val foregroundStarts = mutableListOf<Intent>()
+        val serviceStarts = mutableListOf<Intent>()
+        val recording = object : ContextWrapper(app) {
+            override fun startForegroundService(service: Intent?): ComponentName? {
+                if (service != null) foregroundStarts += service
+                return null
+            }
+
+            override fun startService(service: Intent?): ComponentName? {
+                if (service != null) serviceStarts += service
+                return null
+            }
+        }
+        MobileFileShareService.cancel(recording)
+        assertTrue(foregroundStarts.isEmpty())
+        assertEquals(MobileFileShareService.ACTION_CANCEL, serviceStarts.single().action)
+
+        val fixture = ShareFixture()
+        fixture.service.onStartCommand(
+            Intent(fixture.service, MobileFileShareService::class.java)
+                .setAction(MobileFileShareService.ACTION_CANCEL),
+            0,
+            5,
+        )
+        fixture.scheduler.advanceUntilIdle()
+        assertNull(shadowOf(fixture.service).lastForegroundNotification)
+        assertEquals(5, shadowOf(fixture.service).stopSelfId)
+        fixture.destroy()
+    }
+
+    @Test
+    fun progressUpdatesUseNotificationManagerOnMainAndCannotRaceOnTimeout() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        shadowOf(app).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val stream = GatedProgressStream()
+        val fixture = ShareFixture(io = Dispatchers.IO, onCallCanceled = stream::releaseAll)
+        fixture.respond = { request -> gatedResponse(request, stream) }
+        try {
+            fixture.start(fileId = 9L, name = "poster.jpg", startId = 1)
+            fixture.scheduler.runCurrent()
+            assertTrue(stream.firstChunkDelivered.await(BLOCKED_CALL_SECONDS, TimeUnit.SECONDS))
+            fixture.scheduler.runCurrent()
+
+            val fg = requireNotNull(shadowOf(fixture.service).lastForegroundNotification)
+            assertTrue(fg.extras.getBoolean(android.app.Notification.EXTRA_PROGRESS_INDETERMINATE))
+            val manager = fixture.service.getSystemService(NotificationManager::class.java)
+            val progress = requireNotNull(shadowOf(manager).getNotification(MobileFileShareService.NOTIFICATION_ID))
+            assertEquals(HALF_PROGRESS, progress.extras.getInt(android.app.Notification.EXTRA_PROGRESS))
+            assertFalse(progress.extras.getBoolean(android.app.Notification.EXTRA_PROGRESS_INDETERMINATE))
+
+            stream.allowSecondChunk.countDown()
+            assertTrue(stream.secondChunkDelivered.await(BLOCKED_CALL_SECONDS, TimeUnit.SECONDS))
+            fixture.service.onTimeout(1, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            stream.allowClose.countDown()
+            fixture.scheduler.advanceUntilIdle()
+
+            assertTrue(shadowOf(fixture.service).isForegroundStopped)
+            assertNull(shadowOf(fixture.service).lastForegroundNotification)
+            val finalNotice = requireNotNull(shadowOf(manager).getNotification(MobileFileShareService.NOTIFICATION_ID))
+            assertEquals(FAILED_TEXT, shadowOf(finalNotice).contentText.toString())
+            assertNull(MobileShareProgress.state.value)
+        } finally {
+            stream.releaseAll()
+            fixture.destroy()
+        }
+    }
+
+    private fun gatedResponse(request: Request, stream: GatedProgressStream): Response =
+        Response.Builder()
+            .request(request)
+            .protocol(Protocol.HTTP_1_1)
+            .code(200)
+            .message("OK")
+            .body(
+                object : ResponseBody() {
+                    override fun contentType(): MediaType? = null
+                    override fun contentLength(): Long = CHUNK_BYTES * 2L
+                    override fun source(): BufferedSource = stream.source().buffer()
+                },
+            )
+            .build()
+
+    private class GatedProgressStream : InputStream() {
+        val firstChunkDelivered = CountDownLatch(1)
+        val allowSecondChunk = CountDownLatch(1)
+        val secondChunkDelivered = CountDownLatch(1)
+        val allowClose = CountDownLatch(1)
+        private var stage = 0
+
+        fun releaseAll() {
+            allowSecondChunk.countDown()
+            allowClose.countDown()
+        }
+
+        override fun read(): Int = ByteArray(1).let { buf -> if (read(buf, 0, 1) < 0) -1 else buf[0].toInt() and 0xFF }
+
+        override fun read(b: ByteArray, off: Int, len: Int): Int =
+            when (stage) {
+                0 -> {
+                    stage = 1
+                    val count = minOf(len, CHUNK_BYTES)
+                    b.fill(0x41, off, off + count)
+                    count
+                }
+                1 -> {
+                    stage = 2
+                    firstChunkDelivered.countDown()
+                    allowSecondChunk.await(BLOCKED_CALL_SECONDS, TimeUnit.SECONDS)
+                    val count = minOf(len, CHUNK_BYTES)
+                    b.fill(0x42, off, off + count)
+                    count
+                }
+                else -> {
+                    secondChunkDelivered.countDown()
+                    allowClose.await(BLOCKED_CALL_SECONDS, TimeUnit.SECONDS)
+                    -1
+                }
+            }
+    }
+
     private class ShareFixture(
         readyTimeout: Duration = 10.minutes,
         io: CoroutineDispatcher? = null,
@@ -498,6 +662,8 @@ class MobileFileShareServiceTest {
 
     private companion object {
         const val BLOCKED_CALL_SECONDS = 5L
+        const val CHUNK_BYTES = 8_192
+        const val HALF_PROGRESS = 50
         const val FAILED_TEXT = "Couldn’t prepare poster.jpg. Try again."
         val SESSION = MobileAuthSessionId(1L)
 
