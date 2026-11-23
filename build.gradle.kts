@@ -189,10 +189,7 @@ val markdownCheck = tasks.register<Exec>("markdownCheck") {
 val checkMiddleCut = tasks.register<CheckForbiddenSourceTask>("checkMiddleCut") {
     group = "verification"
     description = "Forbid TextOverflow.MiddleEllipsis, so the apps keep one middle cut"
-    sources.from(fileTree(".") {
-        include("**/src/**/*.kt")
-        exclude("**/build/**", ".git/**", ".gradle/**")
-    })
+    sources.from(subprojects.map { project -> fileTree(project.projectDir.resolve("src")) { include("**/*.kt") } })
     pattern.set("""\bMiddleEllipsis\b""")
     reason.set("Cut names with TvMiddleCutText or MobileMiddleCutText, so the apps keep one middle cut.")
     repositoryRoot.set(layout.projectDirectory)
