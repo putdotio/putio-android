@@ -103,11 +103,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.source.LoadEventInfo
-import androidx.media3.exoplayer.source.MediaLoadData
 import io.putdotio.android.MobileSnackbarHost
 import io.putdotio.sdk.files.PlaybackSubtitles
-import java.io.IOException
 import androidx.compose.material3.SnackbarHostState
 import io.putdotio.android.MobileIconButton
 
@@ -801,6 +798,16 @@ private class ReadyPlayerState(
     fun refreshKeepScreenOn(isAudio: Boolean) {
         keepScreenOn = !stalled && player.keepsVideoScreenOn(isAudio)
     }
+
+    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+    fun resetForMediaItem() {
+        firstFrameRendered = false
+        failurePositionMillis = null
+        endedReported = false
+        cues = CueGroup.EMPTY_TIME_ZERO.cues
+        cueHistory.clear()
+        recovery.reset()
+    }
 }
 
 @UnstableApi
@@ -888,6 +895,7 @@ private fun PlaybackPreparationEffect(
             emptyList(),
         )
         playerState.optionsInitialized = true
+        playerState.resetForMediaItem()
         player.setMediaItem(playerFactory.reportableItem(preparedPlayback.mediaItem, useStartFrom), replacementPosition)
         player.prepare()
         playerState.seekWindow = player.currentSeekWindow()
@@ -1304,34 +1312,12 @@ private fun PlayerListenerEffect(
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun ReadyPlayerState.trackLoadListener(preferences: State<RetainedPlayerPreferences>): AnalyticsListener =
-    object : AnalyticsListener {
-        override fun onLoadError(
-            eventTime: AnalyticsListener.EventTime,
-            loadEventInfo: LoadEventInfo,
-            mediaLoadData: MediaLoadData,
-            error: IOException,
-            wasCanceled: Boolean,
-        ) {
-            recovery.loadFailed(
-                trackType = mediaLoadData.trackType,
-                uri = loadEventInfo.dataSpec.uri.toString(),
-                gaveUp = wasCanceled,
-                atMillis = SystemClock.elapsedRealtime(),
-            )?.let { dropSubtitles(it, preferences.value) }
-        }
-
-        override fun onLoadCompleted(
-            eventTime: AnalyticsListener.EventTime,
-            loadEventInfo: LoadEventInfo,
-            mediaLoadData: MediaLoadData,
-        ) {
-            recovery.loadCompleted(loadEventInfo.dataSpec.uri.toString())
-        }
-
-        override fun onAudioPositionAdvancing(eventTime: AnalyticsListener.EventTime, playoutStartSystemTimeMs: Long) {
-            recovery.audioPlaying()
-        }
-    }
+    playbackTrackLoadListener(
+        player = player,
+        isReleased = { playerReleased },
+        recovery = recovery,
+        onDropSubtitles = { dropSubtitles(it, preferences.value) },
+    )
 
 @Composable
 private fun SubtitlesUnavailableNotice(playerState: ReadyPlayerState, video: PlaybackSource?) {

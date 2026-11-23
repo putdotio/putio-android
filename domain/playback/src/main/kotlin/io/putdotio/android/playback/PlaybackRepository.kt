@@ -297,11 +297,11 @@ internal class SdkPlaybackRepository internal constructor(
     @Suppress("TooGenericExceptionCaught")
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =
         try {
-            val current = currentFile(target)
-            if (current == null) {
+            val parentId = currentFile(target)?.parentId
+            if (parentId == null) {
                 PlaybackNextResult.Ended
             } else {
-                findNextInFolder(target, requireNotNull(current.parentId))
+                findNextInFolder(target, parentId)
             }
         } catch (error: CancellationException) {
             throw error

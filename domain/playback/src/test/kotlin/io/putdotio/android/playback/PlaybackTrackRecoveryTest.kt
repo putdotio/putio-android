@@ -230,6 +230,27 @@ class PlaybackTrackRecoveryTest {
         assertFalse(C.TRACK_TYPE_TEXT in restored.disabledTrackTypes)
     }
 
+    @Test
+    fun resetClearsPendingSubtitleAudioAndDroppedRecoveryState() {
+        val recovery = PlaybackTrackRecovery(setOf(FOUND, FOLDER))
+        val before = PlaybackAudioSwitch(TrackSelectionParameters.Builder().build(), AudioSelection.Automatic)
+        recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOUND, gaveUp = true, atMillis = 0L)
+        recovery.loadFailed(C.TRACK_TYPE_UNKNOWN, FOLDER, gaveUp = false, atMillis = 50L)
+        recovery.audioSwitching(before, atMillis = 100L)
+        recovery.loadFailed(C.TRACK_TYPE_AUDIO, AUDIO_SEGMENT, gaveUp = false, atMillis = 200L)
+
+        recovery.reset()
+
+        assertNull(
+            recovery.recover(
+                PlaybackTrackFailure(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, uri = FOLDER),
+                atMillis = 300L,
+            ),
+        )
+        assertNull(recovery.fail(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, atMillis = 350L))
+        assertNull(recovery.fail(PlaybackException.ERROR_CODE_DECODER_INIT_FAILED, atMillis = 400L))
+    }
+
     private fun PlaybackTrackRecovery.fail(code: Int, atMillis: Long) = recover(PlaybackTrackFailure(code), atMillis)
 
     private companion object {
