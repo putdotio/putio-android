@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -279,7 +280,7 @@ internal fun SignedInMobileRoot(
                                 account.userId, fileId.value, seconds, PlaybackRepositoryResult.Success(Unit),
                             )
                         },
-                        onAuthenticationRequired = authController::rejectAuthoritativeSession,
+                        onAuthenticationRequired = { authController.rejectAuthoritativeSession(sessionId) },
                         handoff = MobileVlcIntentHandoff(downloadsContext),
                     )
                 }
@@ -293,30 +294,32 @@ internal fun SignedInMobileRoot(
         MobileLoadingState(stringResource(R.string.mobile_state_loading))
         return
     }
-    SignedInMobileSession(
-        runtime = runtime,
-        signedIn = signedIn,
-        filesRepository = filesRepository,
-        accountSettingsRepository = accountSettingsRepository,
-        filesController = filesController,
-        accountSettingsController = accountSettingsController,
-        appConfigController = appConfigController,
-        searchHistorySession = searchHistorySession,
-        transfersController = transfersController,
-        trashController = trashController,
-        downloadsController = downloadsController,
-        publicLinksController = publicLinksController,
-        loggedInAppsController = loggedInAppsController,
-        authController = authController,
-        rootScope = rootScope,
-        playbackPlayerFactory = playbackPlayerFactory,
-        nowPlayingRequests = nowPlayingRequests,
-        deepLinkRequests = deepLinkRequests,
-        transferDraft = transferDraft,
-        continueWatching = continueWatching,
-        pinnedFiles = pinnedFiles,
-        filesActions = filesActions,
-    )
+    key(sessionId) {
+        SignedInMobileSession(
+            runtime = runtime,
+            signedIn = signedIn,
+            filesRepository = filesRepository,
+            accountSettingsRepository = accountSettingsRepository,
+            filesController = filesController,
+            accountSettingsController = accountSettingsController,
+            appConfigController = appConfigController,
+            searchHistorySession = searchHistorySession,
+            transfersController = transfersController,
+            trashController = trashController,
+            downloadsController = downloadsController,
+            publicLinksController = publicLinksController,
+            loggedInAppsController = loggedInAppsController,
+            authController = authController,
+            rootScope = rootScope,
+            playbackPlayerFactory = playbackPlayerFactory,
+            nowPlayingRequests = nowPlayingRequests,
+            deepLinkRequests = deepLinkRequests,
+            transferDraft = transferDraft,
+            continueWatching = continueWatching,
+            pinnedFiles = pinnedFiles,
+            filesActions = filesActions,
+        )
+    }
 }
 
 @Composable
@@ -346,6 +349,9 @@ private fun SignedInMobileSession(
 ) {
     val account = signedIn.account
     val sessionId = signedIn.sessionId
+    val rejectSession: suspend () -> Unit = remember(authController, sessionId) {
+        { authController.rejectAuthoritativeSession(sessionId) }
+    }
     val appContext = LocalContext.current.applicationContext
     val signOut = remember(authController, sessionId, downloadsController) {
         MobileSignOut(authController, sessionId, downloadsController)
@@ -400,7 +406,13 @@ private fun SignedInMobileSession(
         )
     }
     SavedPositionEffects(
-        runtime, filesController, filesRepository, continueWatching, searchHistorySession.search, authController,
+        runtime,
+        sessionId,
+        filesController,
+        filesRepository,
+        continueWatching,
+        searchHistorySession.search,
+        authController,
     )
     LaunchedEffect(pinnedFiles, filesController) { pinnedFiles?.follow(filesController.state) }
     val pinsRejected = pinnedFiles?.sessionRejected?.collectAsStateWithLifecycle()?.value
@@ -455,7 +467,7 @@ private fun SignedInMobileSession(
                 accountSettingsState = accountSettingsState,
                 appConfigState = appConfigState,
             ),
-        onReject = authController::rejectAuthoritativeSession,
+        onReject = rejectSession,
     )
 
     LaunchedEffect(searchHistorySession, confirmedHistoryEnabled) {
@@ -505,13 +517,13 @@ private fun SignedInMobileSession(
                     if (result is AccountSettingsRepositoryResult.Failure &&
                         result.failure.putioFailure is PutioFailure.AuthenticationRequired
                     ) {
-                        authController.rejectAuthoritativeSession()
+                        authController.rejectAuthoritativeSession(sessionId)
                     }
                 }
             },
             onAppConfigEvent = appConfigController::dispatch,
-            onPlaybackAuthenticationRequired = authController::rejectAuthoritativeSession,
-            onFilesAuthenticationRequired = authController::rejectAuthoritativeSession,
+            onPlaybackAuthenticationRequired = rejectSession,
+            onFilesAuthenticationRequired = rejectSession,
             searchHistoryActions =
                 MobileSearchHistoryActions(
                     onQueryChanged = { searchHistorySession.search.updateQuery(it) },
@@ -531,7 +543,7 @@ private fun SignedInMobileSession(
                 ),
             onTransfersEvent = transfersController::dispatch,
             resolveTransferFile = { fileId -> filesRepository.resolveItem(FilesItemId(fileId.value)) },
-            onTransferAuthenticationRequired = authController::rejectAuthoritativeSession,
+            onTransferAuthenticationRequired = rejectSession,
             contentNavigation = searchHistorySession.navigation,
             navigationFailure = navigationFailure,
             onDismissNavigationFailure = searchHistorySession::dismissNavigationFailure,
@@ -621,6 +633,7 @@ internal fun ProductAnalyticsPromptHost(
 @Composable
 private fun SavedPositionEffects(
     runtime: MobileOAuthRuntime,
+    sessionId: MobileAuthSessionId,
     filesController: FilesBrowserController,
     filesRepository: SdkFilesRepository,
     continueWatching: ContinueWatching?,
@@ -635,9 +648,9 @@ private fun SavedPositionEffects(
             search.positionSaved(fileId, saved.seconds)
         }
     }
-    LaunchedEffect(continueWatching, filesRepository) {
+    LaunchedEffect(continueWatching, filesRepository, sessionId) {
         if (continueWatching?.reconcile(filesRepository::resolveItem) != null) {
-            authController.rejectAuthoritativeSession()
+            authController.rejectAuthoritativeSession(sessionId)
         }
     }
     // A delete the fresh read confirmed takes the video, or a deleted folder's videos, out of Continue watching.
@@ -652,9 +665,9 @@ private fun SavedPositionEffects(
             .distinctUntilChanged()
             .collect { gone -> row.removed(gone) }
     }
-    LaunchedEffect(continueWatching, filesRepository) {
+    LaunchedEffect(continueWatching, filesRepository, sessionId) {
         if (continueWatching?.recheckAfterDeletes(filesRepository::resolveItem) != null) {
-            authController.rejectAuthoritativeSession()
+            authController.rejectAuthoritativeSession(sessionId)
         }
     }
 }

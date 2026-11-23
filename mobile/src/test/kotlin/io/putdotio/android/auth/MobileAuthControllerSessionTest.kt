@@ -204,16 +204,44 @@ class MobileAuthControllerSessionTest {
     fun `signed in API rejection expires the local session without remote logout`() = runBlocking {
         val fixture = AuthControllerFixture(storedToken = TOKEN)
         fixture.controller.restoreSession()
+        val sessionId = (fixture.controller.state.value as MobileAuthState.SignedIn).sessionId
         fixture.gateway.calls.clear()
 
-        assertTrue(fixture.controller.rejectAuthoritativeSession())
+        assertTrue(fixture.controller.rejectAuthoritativeSession(sessionId))
 
         assertNull(fixture.tokenStore.token)
         assertNull(fixture.gateway.configuredToken)
         assertEquals(listOf("clear-token"), fixture.gateway.calls)
         assertTrue(fixture.revoker.attempts.isEmpty())
         assertEquals(MobileAuthState.SignedOut(MobileSignedOutReason.SessionExpired), fixture.controller.state.value)
-        assertFalse(fixture.controller.rejectAuthoritativeSession())
+        assertFalse(fixture.controller.rejectAuthoritativeSession(sessionId))
+    }
+
+    @Test
+    fun `rejecting a stale session id leaves the current session signed in`() = runBlocking {
+        val fixture = AuthControllerFixture(
+            storedToken = TOKEN,
+            validationResults = listOf(
+                SessionValidationResult.Valid(ACCOUNT),
+                SessionValidationResult.Valid(ACCOUNT),
+            ),
+        )
+        val secondToken = "second-token-value"
+        val secondCallback = "putio://auth?state=$OAUTH_STATE#access_token=$secondToken&state=$OAUTH_STATE"
+        fixture.controller.restoreSession()
+        val firstSession = fixture.controller.state.value as MobileAuthState.SignedIn
+        fixture.controller.logout()
+        fixture.controller.beginSignIn()
+        assertEquals(
+            OAuthCallbackHandlingResult.ACCEPTED,
+            fixture.controller.handleOAuthCallback(secondCallback),
+        )
+        val secondSession = fixture.controller.state.value as MobileAuthState.SignedIn
+
+        assertFalse(fixture.controller.rejectAuthoritativeSession(firstSession.sessionId))
+        assertEquals(secondSession, fixture.controller.state.value)
+        assertEquals(secondToken, fixture.tokenStore.token?.reveal())
+        assertEquals(secondToken, fixture.gateway.configuredToken?.reveal())
     }
 
     @Test
@@ -227,7 +255,7 @@ class MobileAuthControllerSessionTest {
         )
         fixture.controller.restoreSession()
         val firstSession = fixture.controller.state.value as MobileAuthState.SignedIn
-        fixture.controller.rejectAuthoritativeSession()
+        fixture.controller.rejectAuthoritativeSession(firstSession.sessionId)
 
         fixture.controller.beginSignIn()
         assertEquals(
@@ -253,7 +281,7 @@ class MobileAuthControllerSessionTest {
         )
         fixture.controller.restoreSession()
         val firstSession = fixture.controller.state.value as MobileAuthState.SignedIn
-        fixture.controller.rejectAuthoritativeSession()
+        fixture.controller.rejectAuthoritativeSession(firstSession.sessionId)
         fixture.controller.beginSignIn()
         val callbackStarted = CompletableDeferred<Unit>()
         val allowCallback = CompletableDeferred<Unit>()
@@ -291,6 +319,7 @@ class MobileAuthControllerSessionTest {
     fun `authoritative rejection cleanup survives caller cancellation`() = runBlocking {
         val fixture = AuthControllerFixture(storedToken = TOKEN)
         fixture.controller.restoreSession()
+        val sessionId = (fixture.controller.state.value as MobileAuthState.SignedIn).sessionId
         val clearStarted = CompletableDeferred<Unit>()
         val allowClear = CompletableDeferred<Unit>()
         fixture.tokenStore.beforeClear = {
@@ -298,7 +327,7 @@ class MobileAuthControllerSessionTest {
             allowClear.await()
         }
 
-        val rejection = launch { fixture.controller.rejectAuthoritativeSession() }
+        val rejection = launch { fixture.controller.rejectAuthoritativeSession(sessionId) }
         clearStarted.await()
         rejection.cancel()
         allowClear.complete(Unit)
@@ -384,7 +413,8 @@ class MobileAuthControllerSessionTest {
 
         val rejected = AuthControllerFixture(storedToken = TOKEN)
         rejected.controller.restoreSession()
-        assertTrue(rejected.controller.rejectAuthoritativeSession())
+        val sessionId = (rejected.controller.state.value as MobileAuthState.SignedIn).sessionId
+        assertTrue(rejected.controller.rejectAuthoritativeSession(sessionId))
         assertEquals(1, rejected.accountLocalStateClears)
     }
 

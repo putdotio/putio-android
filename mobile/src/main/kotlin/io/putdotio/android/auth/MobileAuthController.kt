@@ -335,13 +335,11 @@ internal class MobileAuthController(
         }
     }
 
-    suspend fun rejectAuthoritativeSession(): Boolean = rejectAuthoritativeSession(expectedSessionId = null)
-
     internal suspend fun rejectAuthoritativeSession(
-        expectedSessionId: MobileAuthSessionId?,
+        expectedSessionId: MobileAuthSessionId,
     ): Boolean = operationMutex.withLock {
         val signedIn = mutableState.value as? MobileAuthState.SignedIn
-        if (signedIn == null || expectedSessionId != null && signedIn.sessionId != expectedSessionId) {
+        if (signedIn == null || signedIn.sessionId != expectedSessionId) {
             return@withLock false
         }
 

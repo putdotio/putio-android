@@ -20,29 +20,35 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.AccessToken
 import io.putdotio.android.auth.AuthTokenStore
+import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthController
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthConfiguration
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.auth.MobileSignedOutReason
 import io.putdotio.android.auth.NoTokenRevocations
+import io.putdotio.android.auth.NoValidatedAccounts
 import io.putdotio.android.auth.OAuthAttempts
 import io.putdotio.android.auth.PendingOAuthAttempt
 import io.putdotio.android.auth.PendingOAuthAttemptStore
 import io.putdotio.android.auth.PutioAuthSessionGateway
+import io.putdotio.android.auth.ValidatedAccountStore
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -101,6 +107,121 @@ class MobileTrashSessionIntegrationTest {
         compose.onNodeWithText(forbidden).assertIsDisplayed()
         compose.waitForIdle()
         assertTrue(fixture.authController.state.value is MobileAuthState.SignedIn)
+        assertEquals("synthetic-token", runBlocking { fixture.tokenStore.read()?.reveal() })
+    }
+
+    @Test
+    fun staleSession401FromReplacedSessionDoesNotExpireNewSession() {
+        val revalidateHoldingMutex = CompletableDeferred<Unit>()
+        val allowRevalidateCommit = CompletableDeferred<Unit>()
+        val validateStatus = AtomicInteger(503)
+        val trashStatus = AtomicInteger(401)
+        try {
+            revalidationHttpFixture(validateStatus, trashStatus).use { http ->
+                PutioClient(PutioConfig(accessToken = "synthetic-token", baseUrl = http.baseUrl)).use { client ->
+                    runRevalidationTrashRace(
+                        server = http,
+                        client = client,
+                        validateStatus = validateStatus,
+                        revalidateHoldingMutex = revalidateHoldingMutex,
+                        allowRevalidateCommit = allowRevalidateCommit,
+                    )
+                }
+            }
+        } finally {
+            allowRevalidateCommit.complete(Unit)
+        }
+    }
+
+    private fun revalidationHttpFixture(
+        validateStatus: AtomicInteger,
+        trashStatus: AtomicInteger,
+    ): PlaybackConfigHttpFixture = PlaybackConfigHttpFixture { method, path ->
+        when ("$method $path") {
+            "GET /v2/oauth2/validate" -> {
+                val status = validateStatus.get()
+                if (status == 200) 200 to """{"status":"OK","result":true}""" else errorResponse(status)
+            }
+            "GET /v2/trash/list" -> {
+                val code = trashStatus.getAndSet(200)
+                if (code == 200) 200 to TRASH_PAGE else errorResponse(code)
+            }
+            else -> null
+        }
+    }
+
+    private fun runRevalidationTrashRace(
+        server: PlaybackConfigHttpFixture,
+        client: PutioClient,
+        validateStatus: AtomicInteger,
+        revalidateHoldingMutex: CompletableDeferred<Unit>,
+        allowRevalidateCommit: CompletableDeferred<Unit>,
+    ) {
+        val cachedAccount = MobileAccount(userId = 99L, username = "previous-user", email = "prev@example.invalid")
+        val validatedAccounts = object : ValidatedAccountStore {
+            override suspend fun read(): MobileAccount = cachedAccount
+
+            override suspend fun write(account: MobileAccount) {
+                if (account.userId != cachedAccount.userId) {
+                    revalidateHoldingMutex.complete(Unit)
+                    allowRevalidateCommit.await()
+                }
+            }
+
+            override suspend fun clear(): Boolean = true
+        }
+        TrashSessionRootFixture(client, validatedAccounts).use { fixture ->
+            runBlocking { withTimeout(5_000L) { fixture.authController.restoreSession() } }
+            val firstSession = fixture.authController.state.value as MobileAuthState.SignedIn
+            assertEquals(99L, firstSession.account.userId)
+
+            validateStatus.set(200)
+            val revalidateJob = fixture.scope.launch(Dispatchers.IO) { fixture.authController.revalidate() }
+            runBlocking { withTimeout(5_000L) { revalidateHoldingMutex.await() } }
+
+            whileMounted(fixture) {
+                assertStale401PreservesReplacementSession(
+                    fixture = fixture,
+                    client = client,
+                    firstSession = firstSession,
+                    allowRevalidateCommit = allowRevalidateCommit,
+                    revalidateJob = revalidateJob,
+                )
+            }
+            assertEquals(emptyList<String>(), server.unexpectedRequests.toList())
+        }
+    }
+
+    private fun assertStale401PreservesReplacementSession(
+        fixture: TrashSessionRootFixture,
+        client: PutioClient,
+        firstSession: MobileAuthState.SignedIn,
+        allowRevalidateCommit: CompletableDeferred<Unit>,
+        revalidateJob: kotlinx.coroutines.Job,
+    ) {
+        openTrash()
+        compose.waitUntil(5_000L) {
+            compose.runOnIdle {
+                fixture.trash
+                    .controllerFor(99L, firstSession.sessionId, SdkTrashRepository(client))
+                    ?.state
+                    ?.value
+                    ?.authenticationFailure != null
+            }
+        }
+        compose.waitForIdle()
+        allowRevalidateCommit.complete(Unit)
+        compose.waitUntil(5_000L) { revalidateJob.isCompleted }
+        compose.waitForIdle()
+
+        val state = fixture.authController.state.value
+        val current = state as? MobileAuthState.SignedIn
+        assertTrue(
+            "Expected replacement session to stay signed in, got $state",
+            current != null,
+        )
+        assertEquals(42L, checkNotNull(current).account.userId)
+        assertNotEquals(firstSession.sessionId, current.sessionId)
         assertEquals("synthetic-token", runBlocking { fixture.tokenStore.read()?.reveal() })
     }
 
@@ -172,7 +293,10 @@ class MobileTrashSessionIntegrationTest {
     }
 }
 
-private class TrashSessionRootFixture(client: PutioClient) : Closeable {
+private class TrashSessionRootFixture(
+    client: PutioClient,
+    validatedAccounts: ValidatedAccountStore = NoValidatedAccounts,
+) : Closeable {
     val tokenStore = object : AuthTokenStore {
         private var token = AccessToken.parse("synthetic-token")
         override suspend fun read(): AccessToken? = token
@@ -191,17 +315,18 @@ private class TrashSessionRootFixture(client: PutioClient) : Closeable {
         ),
         sessionGateway = PutioAuthSessionGateway(client),
         tokenRevocations = NoTokenRevocations,
+        validatedAccounts = validatedAccounts,
     )
     private val viewModels = ViewModelStore()
     private val job = SupervisorJob()
-    private val scope = CoroutineScope(Dispatchers.Main.immediate + job)
+    val scope = CoroutineScope(Dispatchers.Main.immediate + job)
     private val runtime = MobileOAuthRuntime(client, authController, scope)
     private val files = own(MobileFilesViewModel(authController.state))
     private val settings = own(MobileAccountSettingsViewModel(authController.state))
     private val appConfig = own(MobileAndroidAppConfigViewModel(authController.state))
     private val search = own(MobileSearchHistoryViewModel(RuntimeEnvironment.getApplication(), authController.state))
     private val transfers = own(MobileTransfersViewModel(authController.state))
-    private val trash = own(MobileTrashViewModel(authController.state))
+    val trash = own(MobileTrashViewModel(authController.state))
 
     fun sessionFailureDiagnostic(): String {
         val auth = authController.state.value

@@ -58,7 +58,7 @@ class MobileOAuthRuntimeTest {
 
         fixture.controller.restoreSession()
         assertEquals(0, fixture.sessionsLeft)
-        assertTrue(fixture.controller.rejectAuthoritativeSession())
+        assertTrue(fixture.controller.rejectAuthoritativeSession(fixture.signedInSession()))
 
         assertEquals(1, fixture.sessionsLeft)
     }

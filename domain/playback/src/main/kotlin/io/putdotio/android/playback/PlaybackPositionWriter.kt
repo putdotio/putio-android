@@ -61,8 +61,7 @@ public class PlaybackPositionWriter(
             it.delivery = Delivery.Unsent
         }
         if (pending?.allowed() == false) pending = null
-        requests.withLock {}
-        return block()
+        return requests.withLock { block() }
     }
 
     public fun offer(token: String, offeredMillis: Long) {

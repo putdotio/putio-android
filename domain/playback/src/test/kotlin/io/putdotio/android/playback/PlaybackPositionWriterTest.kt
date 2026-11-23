@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -246,5 +247,92 @@ class PlaybackPositionWriterTest {
         writer.offer(lease, 45_000L)
         runCurrent()
         assertEquals(2, calls.size)
+    }
+
+    @Test
+    fun supersedeHoldsRequestLockAgainstConcurrentExclusiveWrite() = runTest {
+        var inFlight = 0
+        var maxConcurrent = 0
+        var exclusiveRan = false
+        val supersedeEntered = CompletableDeferred<Unit>()
+        val releaseSupersede = CompletableDeferred<Unit>()
+        val writer = PlaybackPositionWriter(backgroundScope) { _, _ -> PlaybackRepositoryResult.Success(Unit) }
+
+        val supersedeJob = backgroundScope.launch {
+            writer.supersede(1L) {
+                inFlight++
+                if (inFlight > maxConcurrent) maxConcurrent = inFlight
+                supersedeEntered.complete(Unit)
+                releaseSupersede.await()
+                inFlight--
+            }
+        }
+        runCurrent()
+        assertTrue(supersedeEntered.isCompleted)
+
+        val exclusiveJob = backgroundScope.launch {
+            writer.exclusive {
+                inFlight++
+                if (inFlight > maxConcurrent) maxConcurrent = inFlight
+                exclusiveRan = true
+                inFlight--
+            }
+        }
+        runCurrent()
+
+        assertFalse(exclusiveRan)
+        assertEquals(1, maxConcurrent)
+
+        releaseSupersede.complete(Unit)
+        runCurrent()
+        supersedeJob.join()
+        exclusiveJob.join()
+
+        assertTrue(exclusiveRan)
+        assertEquals(1, maxConcurrent)
+        writer.close()
+    }
+
+    @Test
+    fun supersedeHoldsRequestLockAgainstNewPlayerOffer() = runTest {
+        var inFlight = 0
+        var maxConcurrent = 0
+        val calls = mutableListOf<Pair<Long, Double>>()
+        val supersedeEntered = CompletableDeferred<Unit>()
+        val releaseSupersede = CompletableDeferred<Unit>()
+        val writer = PlaybackPositionWriter(backgroundScope) { fileId, seconds ->
+            inFlight++
+            if (inFlight > maxConcurrent) maxConcurrent = inFlight
+            calls += fileId to seconds
+            inFlight--
+            PlaybackRepositoryResult.Success(Unit)
+        }
+        val lease = writer.register(1L) { true }
+
+        val supersedeJob = backgroundScope.launch {
+            writer.supersede(1L) {
+                inFlight++
+                if (inFlight > maxConcurrent) maxConcurrent = inFlight
+                supersedeEntered.complete(Unit)
+                releaseSupersede.await()
+                inFlight--
+            }
+        }
+        runCurrent()
+        assertTrue(supersedeEntered.isCompleted)
+
+        writer.offer(lease, 43_000L)
+        runCurrent()
+
+        assertTrue(calls.isEmpty())
+        assertEquals(1, maxConcurrent)
+
+        releaseSupersede.complete(Unit)
+        runCurrent()
+        supersedeJob.join()
+
+        assertEquals(listOf(1L to 43.0), calls)
+        assertEquals(1, maxConcurrent)
+        writer.close()
     }
 }
