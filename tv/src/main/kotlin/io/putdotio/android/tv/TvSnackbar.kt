@@ -6,10 +6,8 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -155,7 +153,7 @@ internal fun TvTrashUndoOffered(trashUndo: TvTrashUndoOffer?, snackbar: TvSnackb
     if (trashUndo == null) return
     val text = stringResource(R.string.tv_files_trashed)
     val undo = stringResource(R.string.tv_files_undo)
-    val offered by trashUndo.offered.collectAsState()
+    val offered by trashUndo.offered.collectAsStateWithLifecycle()
     val shownOffer = remember { mutableStateOf<TvSnackbarMessage?>(null) }
     LaunchedEffect(offered) {
         val outcome = offered

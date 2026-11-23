@@ -178,9 +178,12 @@ private fun TvSearchResultRows(
     val lastRow = remember { FocusRequester() }
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
-    if (paging !is SearchPaging.Failed && pagingHeldFocus.value) {
-        pagingHeldFocus.value = false
-        handOffToLastRow.value = true
+    val pagingFailed by rememberUpdatedState(paging is SearchPaging.Failed)
+    LaunchedEffect(paging is SearchPaging.Failed, pagingHeldFocus.value) {
+        if (paging !is SearchPaging.Failed && pagingHeldFocus.value) {
+            pagingHeldFocus.value = false
+            handOffToLastRow.value = true
+        }
     }
     val listState = rememberLazyListState()
     val focused = remember { TvFocusedItem() }
@@ -240,7 +243,7 @@ private fun TvSearchResultRows(
                         onRetry = onRetry,
                         buttonModifier = Modifier
                             .tracksFocusedItem(focused, TV_SEARCH_PAGING_KEY)
-                            .onFocusChanged { pagingHeldFocus.value = it.isFocused },
+                            .onFocusChanged { if (it.isFocused || pagingFailed) pagingHeldFocus.value = it.isFocused },
                     )
                 }
             }

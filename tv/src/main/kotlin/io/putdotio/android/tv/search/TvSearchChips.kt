@@ -22,10 +22,11 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -188,25 +189,19 @@ internal fun TvRecentSearches(
     val firstChip = remember { FocusRequester() }
     val rowFocus = remember { FocusRequester() }
     val rowHasFocus = remember { mutableStateOf(false) }
-    var focusedTerm by remember { mutableStateOf<SearchTerm?>(null) }
+    val focusedTerm = remember { mutableStateOf<SearchTerm?>(null) }
     val refocus = remember { mutableStateOf(false) }
-    val lost = focusedTerm
-    if (lost != null && lost !in terms) {
-        focusedTerm = null
-        if (rowHasFocus.value) refocus.value = true
-    }
-    LaunchedEffect(refocus.value, terms.firstOrNull()?.value) {
-        if (!refocus.value) return@LaunchedEffect
-        val first = terms.firstOrNull()?.value
-        if (first != null) listState.bringIntoComposition(first, 0)
-        withFrameNanos {}
-        if (owner.owns(rowFocus)) {
-            if (first == null || !firstChip.requestFocus()) {
-                if (!rowFocus.requestFocus()) owner.focusHome()
-            }
-        }
-        refocus.value = false
-    }
+    val currentTerms by rememberUpdatedState(terms)
+    TvRecentSearchesRefocusEffect(
+        terms = terms,
+        listState = listState,
+        owner = owner,
+        rowFocus = rowFocus,
+        firstChip = firstChip,
+        rowHasFocus = rowHasFocus,
+        focusedTerm = focusedTerm,
+        refocus = refocus,
+    )
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
             text = stringResource(R.string.tv_search_recent_title),
@@ -219,7 +214,7 @@ internal fun TvRecentSearches(
             modifier = Modifier
                 .fillMaxWidth()
                 .paneSection(owner, rowFocus)
-                .onFocusChanged { rowHasFocus.value = it.hasFocus }
+                .onFocusChanged { updateRecentRowFocus(it.hasFocus, rowHasFocus, focusedTerm.value, currentTerms) }
                 .focusRequester(rowFocus)
                 .focusRestorer {
                     firstChip.takeIf { listState.composes(terms.firstOrNull()?.value) } ?: FocusRequester.Default
@@ -236,11 +231,57 @@ internal fun TvRecentSearches(
                     icon = R.drawable.ic_ph_clock_counter_clockwise,
                     modifier = Modifier
                         .focusRequesterIf(index == 0, firstChip)
-                        .onFocusChanged { if (it.isFocused) focusedTerm = term }
+                        .onFocusChanged { if (it.isFocused) focusedTerm.value = term }
                         .semantics { contentDescription = label },
                 )
             }
         }
+    }
+}
+
+private fun updateRecentRowFocus(
+    hasFocus: Boolean,
+    rowHasFocus: MutableState<Boolean>,
+    focusedTerm: SearchTerm?,
+    currentTerms: List<SearchTerm>,
+) {
+    if (hasFocus) {
+        rowHasFocus.value = true
+    } else if (focusedTerm == null || focusedTerm in currentTerms) {
+        rowHasFocus.value = false
+    }
+}
+
+@Composable
+private fun TvRecentSearchesRefocusEffect(
+    terms: List<SearchTerm>,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    owner: TvPaneFocusOwner,
+    rowFocus: FocusRequester,
+    firstChip: FocusRequester,
+    rowHasFocus: MutableState<Boolean>,
+    focusedTerm: MutableState<SearchTerm?>,
+    refocus: MutableState<Boolean>,
+) {
+    LaunchedEffect(terms) {
+        val lost = focusedTerm.value
+        if (lost != null && lost !in terms) {
+            focusedTerm.value = null
+            if (rowHasFocus.value) refocus.value = true
+        }
+        if (terms.isEmpty()) rowHasFocus.value = false
+    }
+    LaunchedEffect(refocus.value, terms.firstOrNull()?.value) {
+        if (!refocus.value) return@LaunchedEffect
+        val first = terms.firstOrNull()?.value
+        if (first != null) listState.bringIntoComposition(first, 0)
+        withFrameNanos {}
+        if (owner.owns(rowFocus)) {
+            if (first == null || !firstChip.requestFocus()) {
+                if (!rowFocus.requestFocus()) owner.focusHome()
+            }
+        }
+        refocus.value = false
     }
 }
 

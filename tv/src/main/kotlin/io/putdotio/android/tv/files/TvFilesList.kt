@@ -119,29 +119,31 @@ internal fun TvFilesList(
         }
     }.value
     SideEffect { onEntryTarget(entryFocus) }
-    val handOffToLastRow = remember(listState) { mutableStateOf(false) }
-    if (content.paging !is FilesPaging.Failed && pagingHeldFocus.value) {
-        val lastId = content.items.last().id.value
-        focusMemory[folderId] = lastId
-        focusedRowId.value = lastId
-        handOffToLastRow.value = true
-        pagingHeldFocus.value = false
-    }
+    val handOffDetailOwnedAtStart = remember(listState) { mutableStateOf<Boolean?>(null) }
+    val pagingLeft = content.paging !is FilesPaging.Failed && pagingHeldFocus.value
+    val lastItemKey = content.items.last().id.value
+    val lastItemIndex = content.items.lastIndex
+    TvFilesPagingHandOff(
+        listState = listState,
+        pagingLeft = pagingLeft,
+        lastItemKey = lastItemKey,
+        lastItemIndex = lastItemIndex,
+        folderId = folderId,
+        paging = content.paging,
+        focusMemory = focusMemory,
+        pagingHeldFocus = pagingHeldFocus,
+        handOffDetailOwnedAtStart = handOffDetailOwnedAtStart,
+        focusedRowId = focusedRowId,
+        detailOwnsFocus = detailOwnsFocus,
+        paneHasFocus = paneHasFocus,
+        liveRowFocus = liveRowFocus,
+    )
     val focusTarget = content.mountFocusTarget(remembered)
     val rowFocusTarget = rememberUpdatedState(focusTarget)
     LaunchedEffect(Identity(content.items)) {
         withFrameNanos {}
         val requester = listState.revealFocusedRow(content.items, focusedRowId, focusTarget, liveRowFocus, rowFocus)
         if (rowOwnedFocus) requester?.requestFocusNextFrame(paneHasFocus, rowStillFocused)
-    }
-    LaunchedEffect(handOffToLastRow.value) {
-        if (!handOffToLastRow.value) return@LaunchedEffect
-        val detailOwnedAtStart = detailOwnsFocus.value
-        val lastId = content.items.last().id.value
-        listState.scrollIntoView(lastId, content.items.lastIndex)
-        listState.awaitVisible(lastId)
-        liveRowFocus.requestFocusNextFrame(paneHasFocus) { !detailOwnsFocus.enteredSince(detailOwnedAtStart) }
-        handOffToLastRow.value = false
     }
     LaunchedEffect(listState) {
         val detailOwnedAtMount = detailOwnsFocus.value
@@ -227,6 +229,52 @@ internal fun TvFilesList(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TvFilesPagingHandOff(
+    listState: LazyListState,
+    pagingLeft: Boolean,
+    lastItemKey: Long,
+    lastItemIndex: Int,
+    folderId: Long,
+    paging: FilesPaging,
+    focusMemory: MutableMap<Long, Long>,
+    pagingHeldFocus: MutableState<Boolean>,
+    handOffDetailOwnedAtStart: MutableState<Boolean?>,
+    focusedRowId: MutableState<Long?>,
+    detailOwnsFocus: State<Boolean>,
+    paneHasFocus: State<Boolean>,
+    liveRowFocus: FocusRequester,
+) {
+    val currentLastItemKey by rememberUpdatedState(lastItemKey)
+    val currentFolderId by rememberUpdatedState(folderId)
+    val currentPaging by rememberUpdatedState(paging)
+    val focusTarget = remember { mutableStateOf(FocusMemoryTarget(focusMemory)) }
+    if (focusTarget.value.map !== focusMemory) focusTarget.value = FocusMemoryTarget(focusMemory)
+    LaunchedEffect(listState, pagingLeft) {
+        if (!pagingLeft || !pagingHeldFocus.value || currentPaging is FilesPaging.Failed) {
+            return@LaunchedEffect
+        }
+        val lastId = currentLastItemKey
+        focusTarget.value.map[currentFolderId] = lastId
+        focusedRowId.value = lastId
+        if (!detailOwnsFocus.value) handOffDetailOwnedAtStart.value = false
+        pagingHeldFocus.value = false
+    }
+    LaunchedEffect(listState, handOffDetailOwnedAtStart.value, lastItemKey, lastItemIndex) {
+        val detailOwnedAtStart = handOffDetailOwnedAtStart.value ?: return@LaunchedEffect
+        if (detailOwnsFocus.enteredSince(detailOwnedAtStart)) {
+            handOffDetailOwnedAtStart.value = null
+            return@LaunchedEffect
+        }
+        focusedRowId.value = lastItemKey
+        focusTarget.value.map[currentFolderId] = lastItemKey
+        listState.scrollIntoView(lastItemKey, lastItemIndex)
+        listState.awaitVisible(lastItemKey)
+        liveRowFocus.requestFocusNextFrame(paneHasFocus) { !detailOwnsFocus.enteredSince(detailOwnedAtStart) }
+        handOffDetailOwnedAtStart.value = null
     }
 }
 
@@ -317,6 +365,8 @@ private suspend fun LazyListState.reportViewport(
 private const val TV_FILES_PAGING_KEY = "tv-files-paging"
 
 private const val PAGING_FOCUS_MARKER = -1L
+
+private class FocusMemoryTarget(val map: MutableMap<Long, Long>)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
