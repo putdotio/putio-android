@@ -2,6 +2,9 @@ import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.dsl.ApplicationExtension
 import com.android.build.api.variant.ApplicationAndroidComponentsExtension
 import com.android.build.api.variant.HostTestBuilder
+import com.mikepenz.aboutlibraries.plugin.AboutLibrariesExtension
+import com.mikepenz.aboutlibraries.plugin.DuplicateMode
+import com.mikepenz.aboutlibraries.plugin.StrictMode
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import io.sentry.android.gradle.extensions.SentryPluginExtension
 import org.gradle.api.Plugin
@@ -22,6 +25,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         pluginManager.apply("com.android.application")
         pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
         pluginManager.apply("io.gitlab.arturbosch.detekt")
+        pluginManager.apply("com.mikepenz.aboutlibraries.plugin.android")
 
         extensions.configure<ApplicationExtension> {
             namespace = "io.putdotio.android"
@@ -115,6 +119,14 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             buildFeatures.buildConfig = true
 
             androidResources.localeFilters += "en"
+        }
+
+        extensions.configure<AboutLibrariesExtension> {
+            offlineMode.set(true)
+            export.excludeFields.addAll("description", "developers", "organization", "funding", "Scm.connection", "Scm.developerConnection")
+            library.duplicationMode.set(DuplicateMode.MERGE)
+            license.strictMode.set(StrictMode.FAIL)
+            license.allowedLicenses.addAll(ALLOWED_LICENSES)
         }
 
         useOfflineRobolectric()
@@ -238,6 +250,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     private companion object {
+        val ALLOWED_LICENSES = listOf("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "ASDKL")
         // PostHog's public project token, shared with putio-web and iOS; it only names the project.
         const val POSTHOG_TOKEN = "phc_DcWvN8MzbwTfNxki3GhGuBBBDHY5sfvtxfaKZQ3iRDvm" // gitleaks:allow
         // Keeps the highest code under Google Play's 2_100_000_000 ceiling.
