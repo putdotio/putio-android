@@ -61,10 +61,18 @@ internal class MobileShareNotifications(private val context: Context) {
                 NotificationManager.IMPORTANCE_LOW,
             ),
         )
+        val title = context.getString(R.string.mobile_files_share)
+        val publicVersion = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_ph_download_simple)
+            .setContentTitle(title)
+            .build()
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_ph_download_simple)
-            .setContentTitle(context.getString(R.string.mobile_files_share))
+            .setContentTitle(title)
             .setContentText(text)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(publicVersion)
+            .setOnlyAlertOnce(true)
             .setContentIntent(
                 PendingIntent.getActivity(
                     context,

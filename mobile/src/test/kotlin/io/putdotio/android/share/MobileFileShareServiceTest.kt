@@ -2,6 +2,7 @@ package io.putdotio.android.share
 
 import android.Manifest
 import android.app.Activity
+import android.app.Notification
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
@@ -410,6 +411,33 @@ class MobileFileShareServiceTest {
         fixture.scheduler.advanceUntilIdle()
         assertEquals(2, shadowOf(fixture.service).stopSelfId)
         fixture.destroy()
+    }
+
+    @Test
+    fun shareNotificationsHideFilenamesOnLockScreenAndAlertOnce() {
+        val notifications = MobileShareNotifications(ApplicationProvider.getApplicationContext())
+        val states = listOf(
+            notifications.progress("Secret.Movie.mkv", indeterminate = false, progress = 50) to
+                "Preparing Secret.Movie.mkv",
+            notifications.ready("Secret.Movie.mkv") to
+                "Secret.Movie.mkv is ready to share",
+            notifications.failed("Secret.Movie.mkv") to
+                "Couldn’t prepare Secret.Movie.mkv. Try again.",
+        )
+        for ((notification, expectedText) in states) {
+            assertEquals(
+                expectedText,
+                notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString(),
+            )
+            assertEquals(Notification.VISIBILITY_PRIVATE, notification.visibility)
+            assertTrue(notification.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0)
+            val publicVersion = requireNotNull(notification.publicVersion)
+            assertEquals("Share file", publicVersion.extras.getString(Notification.EXTRA_TITLE))
+            assertNull(publicVersion.extras.getCharSequence(Notification.EXTRA_TEXT))
+            assertNull(publicVersion.extras.getCharSequence(Notification.EXTRA_BIG_TEXT))
+            assertTrue(publicVersion.actions.isNullOrEmpty())
+            assertNull(publicVersion.contentIntent)
+        }
     }
 
     private class ShareFixture(
