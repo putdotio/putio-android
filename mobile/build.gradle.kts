@@ -106,13 +106,23 @@ androidComponents {
 
 // Google Play delivery runs from this module for both apps: each upload is one release carrying
 // the mobile and TV production bundles (.github/workflows/play-internal.yml).
-val playBundles = tasks.register<Sync>("syncPlayBundles") {
+val tvPlayBundle = configurations.dependencyScope("tvPlayBundle")
+val tvPlayBundleFiles = configurations.resolvable("tvPlayBundleFiles") {
+    extendsFrom(tvPlayBundle.get())
+    attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, PlayBundles.USAGE))
+}
+
+val playBundles = tasks.register<SyncPlayBundlesTask>("syncPlayBundles") {
     description = "Collect the mobile and TV production bundles for one Google Play release"
     dependsOn("bundleProductionRelease", ":tv:bundleProductionRelease")
-    from(layout.buildDirectory.dir("outputs/bundle/productionRelease"))
-    from(rootProject.layout.projectDirectory.dir("tv/build/outputs/bundle/productionRelease"))
-    include("*.aab")
-    into(layout.buildDirectory.dir("play-bundles"))
+    tvBundle.from(tvPlayBundleFiles)
+    outputDirectory.set(layout.buildDirectory.dir("play-bundles"))
+}
+
+androidComponents {
+    onVariants(selector().withFlavor("channel" to "production").withBuildType("release")) { variant ->
+        playBundles.configure { mobileBundle.from(variant.artifacts.get(SingleArtifact.BUNDLE)) }
+    }
 }
 
 play {
@@ -222,6 +232,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.putio.sdk.kotlin)
+
+    tvPlayBundle(project(":tv"))
 
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

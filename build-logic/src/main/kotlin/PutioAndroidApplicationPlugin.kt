@@ -109,6 +109,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             testOptions.unitTests.isIncludeAndroidResources = true
 
             buildFeatures.buildConfig = true
+
+            androidResources.localeFilters += "en"
         }
 
         useOfflineRobolectric()
@@ -160,14 +162,15 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     }
 
     /**
-     * Only with delivery's `SENTRY_AUTH_TOKEN`: each release build then gets an R8 mapping id Sentry
-     * events carry and uploads its mapping under it, plus its native libraries keyed by build id.
+     * Only with a non-empty `SENTRY_AUTH_TOKEN`, which delivery sets outside dry runs: each release
+     * build then gets an R8 mapping id Sentry events carry and uploads its mapping under it, plus its
+     * native libraries keyed by build id.
      * Other builds never apply the plugin. Its
      * tracing, SDK installation, optimizations and telemetry stay off, since the SDK lives in
      * core/telemetry.
      */
     private fun Project.uploadDebugFilesToSentry() {
-        val token = providers.environmentVariable("SENTRY_AUTH_TOKEN")
+        val token = providers.environmentVariable("SENTRY_AUTH_TOKEN").filter(String::isNotBlank)
         if (!token.isPresent) return
         pluginManager.apply("io.sentry.android.gradle")
         extensions.configure<SentryPluginExtension> {
