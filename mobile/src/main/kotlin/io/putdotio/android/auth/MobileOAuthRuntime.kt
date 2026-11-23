@@ -12,6 +12,7 @@ import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.downloads.MobileDownloadNotifications
 import io.putdotio.android.downloads.MobileDownloadStore
 import io.putdotio.android.downloads.OfflinePlaybackPositions
+import io.putdotio.android.downloads.OfflinePositionSession
 import io.putdotio.android.downloads.PositionRemote
 import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.DeviceContinueWatchingStore
@@ -94,7 +95,17 @@ internal class MobileOAuthRuntime(
     private fun keepOfflinePositions(preferences: SharedPreferences): OfflinePlaybackPositions =
         OfflinePlaybackPositions(
             preferences = preferences,
-            signedInUser = { (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId },
+            session = OfflinePositionSession(
+                userId = { (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId },
+                captureRejection = {
+                    val sessionId = (authController.state.value as? MobileAuthState.SignedIn)?.sessionId
+                    if (sessionId != null) {
+                        { rejectSession(sessionId) }
+                    } else {
+                        {}
+                    }
+                },
+            ),
             remote = object : PositionRemote {
                 override suspend fun read(fileId: Long) = positions.read(fileId)
 

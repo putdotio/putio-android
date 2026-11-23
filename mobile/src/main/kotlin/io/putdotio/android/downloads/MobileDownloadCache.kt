@@ -3,6 +3,8 @@ package io.putdotio.android.downloads
 import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
@@ -43,6 +45,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.seconds
@@ -76,6 +79,8 @@ internal class MobileDownloadCache private constructor(context: Context) {
     )
     @VisibleForTesting
     internal var httpClient: OkHttpClient = OkHttpClient()
+    @VisibleForTesting
+    internal var downloadManagerForParking: DownloadManager? = null
     private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
     private val storedTokensSettled = CountDownLatch(1)
     private val storedTokensCleared: Future<*> = downloadExecutor.submit {
@@ -87,9 +92,27 @@ internal class MobileDownloadCache private constructor(context: Context) {
         }
     }
 
+    private val tokenGeneration = AtomicLong(0L)
+    private val headlessParker = HeadlessDownloadParker()
+
     /** The signed-in session's download token, replaced by the auth layer on sign-in and sign-out. */
     @Volatile
     var downloadToken: MediaDownloadToken? = null
+        set(value) {
+            val generation = tokenGeneration.incrementAndGet()
+            if (value != null) {
+                field = value
+            } else {
+                val manager = downloadManagerForParking ?: downloadManager
+                if (Looper.myLooper() == manager.applicationLooper) {
+                    headlessParker.parkOnLooper(manager) { tokenGeneration.get() == generation }
+                    field = null
+                } else {
+                    field = null
+                    headlessParker.park(manager) { tokenGeneration.get() == generation }
+                }
+            }
+        }
 
     /** Runs before the token is cleared so in-flight transfers park instead of failing with 401. */
     @Volatile
@@ -364,3 +387,58 @@ internal fun Uri.withoutOauthToken(): Uri {
     }
     return builder.build()
 }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private class HeadlessDownloadParker {
+    private var pending: Pair<DownloadManager, DownloadManager.Listener>? = null
+
+    fun park(manager: DownloadManager, isCurrent: () -> Boolean) {
+        Handler(manager.applicationLooper).post { parkOnLooper(manager, isCurrent) }
+    }
+
+    fun parkOnLooper(manager: DownloadManager, isCurrent: () -> Boolean) {
+        if (!isCurrent()) return
+        if (manager.isInitialized) {
+            clearPending(manager)
+            parkInitialized(manager)
+            return
+        }
+        if (pending?.first === manager) {
+            clearPending(manager)
+        } else {
+            pending?.let { (previousManager, listener) -> previousManager.removeListener(listener) }
+            pending = null
+        }
+        lateinit var attached: DownloadManager.Listener
+        val listener = object : DownloadManager.Listener {
+            override fun onInitialized(downloadManager: DownloadManager) {
+                downloadManager.removeListener(this)
+                if (pending?.second === attached) pending = null
+                if (isCurrent()) parkInitialized(downloadManager)
+            }
+        }
+        attached = listener
+        pending = manager to listener
+        manager.addListener(listener)
+    }
+
+    private fun clearPending(manager: DownloadManager) {
+        val current = pending
+        if (current?.first === manager) {
+            manager.removeListener(current.second)
+            pending = null
+        }
+    }
+
+    private fun parkInitialized(manager: DownloadManager) {
+        manager.currentDownloads
+            .filter(Download::shouldParkWhenTokenClears)
+            .forEach { manager.setStopReason(it.request.id, MobileDownloadEngine.STOP_REASON_OTHER_USER) }
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun Download.shouldParkWhenTokenClears(): Boolean =
+    !isTerminalState &&
+        stopReason != MobileDownloadEngine.STOP_REASON_PAUSED &&
+        stopReason != MobileDownloadEngine.STOP_REASON_OTHER_USER

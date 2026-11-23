@@ -6,6 +6,7 @@ import io.putdotio.android.settings.StreamingMethod
 import java.io.Closeable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
@@ -289,9 +290,9 @@ internal class DownloadsController(
             // Best effort, row by row: a failed delete must not cost the sign-out it precedes or the rows after
             // it. Every row is marked first, so one the engine misses finishes its removal at the next sign-in.
             for (fileId in fileIds) {
-                runCatching { store.find(fileId)?.let { store.upsert(it.copy(removing = true)) } }
+                runBestEffort { store.find(fileId)?.let { store.upsert(it.copy(removing = true)) } }
             }
-            for (fileId in fileIds) runCatching { engine.remove(fileId) }
+            for (fileId in fileIds) runBestEffort { engine.remove(fileId) }
         }.join()
     }
 
@@ -418,3 +419,7 @@ private class SpeedWatch {
 private const val NANOS_PER_MILLI = 1_000_000L
 private const val DIRECT_PLAY_LOOKUP_PARALLELISM = 4
 private val PROGRESS_INTERVAL = 1.seconds
+
+private inline fun runBestEffort(block: () -> Unit) {
+    runCatching(block).onFailure { if (it is CancellationException) throw it }
+}
