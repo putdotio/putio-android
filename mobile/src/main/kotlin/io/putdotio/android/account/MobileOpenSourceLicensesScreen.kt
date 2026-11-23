@@ -20,7 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -47,7 +47,7 @@ internal const val MOBILE_OPEN_SOURCE_LICENSES_LIST_TAG = "mobile-open-source-li
 @Composable
 internal fun MobileOpenSourceLicensesScreen(modifier: Modifier = Modifier) {
     val uriHandler = LocalUriHandler.current
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val libraries by produceState(emptyList<LibraryNotice>()) {
         value = withContext(Dispatchers.IO) {
             libraryNotices(resources.openRawResource(R.raw.aboutlibraries).bufferedReader().use { it.readText() })

@@ -49,6 +49,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -293,7 +294,7 @@ private fun TvAccountBody(
     var sheet by rememberSaveable { mutableStateOf<TvAccountSheet?>(null) }
     var notice by rememberSaveable { mutableIntStateOf(0) }
     var library by rememberSaveable { mutableIntStateOf(0) }
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val libraries by produceState(emptyList<LibraryNotice>()) {
         value = withContext(Dispatchers.IO) {
             libraryNotices(resources.openRawResource(R.raw.aboutlibraries).bufferedReader().use { it.readText() })
