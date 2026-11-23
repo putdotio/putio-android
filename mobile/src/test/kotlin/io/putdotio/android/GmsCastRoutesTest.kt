@@ -13,6 +13,15 @@ import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.google.android.gms.cast.framework.CastContext
+import com.google.android.gms.cast.framework.CastSession
+import com.google.android.gms.cast.framework.CastState
+import com.google.android.gms.cast.framework.SessionManagerListener
+import com.google.android.gms.cast.framework.SessionTransferCallback
+import com.google.android.gms.tasks.TaskCompletionSource
+import io.putdotio.android.playback.CastContextHandle
+import io.putdotio.android.playback.GmsCastGateway
+import io.putdotio.android.playback.GmsCastRemote
 import io.putdotio.android.playback.GmsCastRoutes
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -83,7 +92,114 @@ class GmsCastRoutesTest {
         assertTrue(changes > before)
     }
 
+    @Test
+    fun gatewayKeepsWatchingAcrossOverlappingActivityRecreation() {
+        val gateway = GmsCastGateway(app, routes, GmsCastRemote()) {
+            TaskCompletionSource<CastContext>().task
+        }
+        val oldOwner = PlayerLifecycleOwner()
+        val newOwner = PlayerLifecycleOwner()
+
+        gateway.shown(oldOwner, true)
+        idle()
+        assertEquals(false, provider.request?.isActiveScan)
+
+        gateway.shown(newOwner, true)
+        idle()
+        assertEquals(false, provider.request?.isActiveScan)
+
+        gateway.shown(oldOwner, false)
+        idle()
+        assertEquals(false, provider.request?.isActiveScan)
+
+        gateway.shown(oldOwner, false)
+        idle()
+        assertEquals(false, provider.request?.isActiveScan)
+
+        gateway.shown(newOwner, false)
+        idle()
+        assertNull(provider.request)
+    }
+
+    @Test
+    fun gatewayIgnoresDuplicateStartsFromOneOwner() {
+        val gateway = GmsCastGateway(app, routes, GmsCastRemote()) {
+            TaskCompletionSource<CastContext>().task
+        }
+        val owner = PlayerLifecycleOwner()
+
+        gateway.shown(owner, true)
+        gateway.shown(owner, true)
+        idle()
+        assertEquals(false, provider.request?.isActiveScan)
+
+        gateway.shown(owner, false)
+        idle()
+        assertNull(provider.request)
+    }
+
+    @Test
+    fun gatewayStartsWatchingWhenCastBindsAfterActivityRecreation() {
+        val lateRoutes = GmsCastRoutes(app)
+        val gateway = GmsCastGateway(app, lateRoutes, GmsCastRemote()) {
+            TaskCompletionSource<CastContext>().task
+        }
+        val oldOwner = PlayerLifecycleOwner()
+        val newOwner = PlayerLifecycleOwner()
+        try {
+            gateway.shown(oldOwner, true)
+            gateway.shown(newOwner, true)
+            gateway.shown(oldOwner, false)
+            idle()
+            assertNull(provider.request)
+
+            gateway.bind(FakeCastContextHandle(SELECTOR))
+            idle()
+            assertEquals(false, provider.request?.isActiveScan)
+
+            gateway.shown(newOwner, false)
+            idle()
+            assertNull(provider.request)
+        } finally {
+            lateRoutes.unwatch()
+        }
+    }
+
+    @Test
+    fun gatewayDoesNotWatchOnBindWhenNoOwnerIsStarted() {
+        val lateRoutes = GmsCastRoutes(app)
+        val gateway = GmsCastGateway(app, lateRoutes, GmsCastRemote()) {
+            TaskCompletionSource<CastContext>().task
+        }
+        val owner = PlayerLifecycleOwner()
+        try {
+            gateway.shown(owner, true)
+            gateway.shown(owner, false)
+            gateway.bind(FakeCastContextHandle(SELECTOR))
+            idle()
+
+            assertNull(provider.request)
+        } finally {
+            lateRoutes.unwatch()
+        }
+    }
+
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
+
+    private class FakeCastContextHandle(
+        override val mergedSelector: MediaRouteSelector?,
+    ) : CastContextHandle {
+        override val castState: Int = CastState.NO_DEVICES_AVAILABLE
+        override val currentCastSession: CastSession? = null
+
+        override fun addCastStateListener(listener: () -> Unit) = Unit
+
+        override fun addSessionManagerListener(listener: SessionManagerListener<CastSession>) = Unit
+
+        override fun addSessionTransferCallback(callback: SessionTransferCallback) = Unit
+
+        override fun endCurrentSession(stopCasting: Boolean) = Unit
+    }
 
     private class ReceiverProvider(context: Context) : MediaRouteProvider(context) {
         var request: MediaRouteDiscoveryRequest? = null

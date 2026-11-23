@@ -20,9 +20,13 @@ import com.google.android.gms.cast.framework.CastContext
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import io.putdotio.android.CastFixtures.Item
+import io.putdotio.android.CastFixtures.Media
+import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.CastAvailability
 import io.putdotio.android.playback.CastHandover
+import io.putdotio.android.playback.CastRemoteState
 import io.putdotio.android.playback.CastSignOutEnd
 import io.putdotio.android.playback.CastStopCallback
 import io.putdotio.android.playback.CastStopControl
@@ -30,6 +34,9 @@ import io.putdotio.android.playback.CastTransfer
 import io.putdotio.android.playback.GmsCastGateway
 import io.putdotio.android.playback.GmsCastRemote
 import io.putdotio.android.playback.GmsCastRoutes
+import io.putdotio.android.playback.MOVE_HERE_WAIT_MILLIS
+import io.putdotio.android.playback.MobileCast
+import io.putdotio.android.playback.MobileCastController
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.PutioCastMediaItemConverter
@@ -39,12 +46,21 @@ import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
+import java.io.Closeable
+import java.time.Duration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,6 +73,12 @@ import org.robolectric.annotation.Config
 class MobileCastSessionTest {
     private val app = ApplicationProvider.getApplicationContext<Application>()
 
+    @After
+    fun tearDown() {
+        MobileCast.resetForTests()
+        MobileOAuthRuntime.resetForTests()
+    }
+
     @Test
     fun castLoadsOffTheLaunchPathAndOffersNothingUntilItAnswers() {
         val load = TaskCompletionSource<CastContext>()
@@ -67,7 +89,7 @@ class MobileCastSessionTest {
         }
 
         gateway.start()
-        gateway.shown(true)
+        gateway.shown(PlayerLifecycleOwner(), true)
 
         assertEquals(1, asked)
         assertEquals(CastAvailability.Unsupported, gateway.availability.value)
@@ -236,6 +258,165 @@ class MobileCastSessionTest {
         val receiver = ComponentName(app, "androidx.mediarouter.media.MediaTransferReceiver")
 
         assertEquals(receiver.className, app.packageManager.getReceiverInfo(receiver, 0).name)
+    }
+
+    @Test
+    fun sessionPlayerFallsBackToLocalAndReleasesPartialRemoteWhenCastBuilderThrows() {
+        val local = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, AudioItem)
+        val partialRemote = FakePlayer(DeviceInfo.PLAYBACK_TYPE_REMOTE, item = null)
+        val scope = MainScope()
+        MobileCast.playServices = { true }
+        MobileCast.controller = MobileCastController(FakeCastGateway { 0L }, MobileCast.castScope) { 0L }
+        MobileCast.createRemotePlayer = { throw IllegalStateException("Remote player failed") }
+        try {
+            assertSame(local, MobileCast.sessionPlayer(app, local, scope) {})
+
+            MobileCast.createRemotePlayer = { partialRemote }
+            MobileCast.createCastPlayer = { _, _, _, _, _ -> throw IllegalStateException("CastPlayer failed") }
+
+            assertSame(local, MobileCast.sessionPlayer(app, local, scope) {})
+            assertEquals(1, partialRemote.releases)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun releaseSessionPlayerReusesProcessCastScope() {
+        val gateway = FakeCastGateway { 0L }.apply {
+            availability.value = CastAvailability.Connected("Mi Box 4")
+        }
+        val local = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, AudioItem)
+        val wrapper = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, item = null)
+        val scope = MainScope()
+        MobileCast.playServices = { true }
+        MobileCast.controller = MobileCastController(gateway, MobileCast.castScope) { 0L }
+        MobileCast.createRemotePlayer = { FakePlayer(DeviceInfo.PLAYBACK_TYPE_REMOTE, item = null) }
+        MobileCast.createCastPlayer = { _, _, _, _, _ -> wrapper }
+        try {
+            val sessionPlayer = MobileCast.sessionPlayer(app, local, scope) {}
+            assertSame(wrapper, sessionPlayer)
+            val scopeBefore = MobileCast.castScope
+            val childrenBefore = checkNotNull(scopeBefore.coroutineContext[Job]).children.count()
+
+            MobileCast.releaseSessionPlayer(app, sessionPlayer)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertSame(scopeBefore, MobileCast.castScope)
+            assertEquals(0, wrapper.releases)
+            assertEquals(childrenBefore + 1, checkNotNull(scopeBefore.coroutineContext[Job]).children.count())
+
+            gateway.availability.value = CastAvailability.Available
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertEquals(1, wrapper.releases)
+            assertEquals(childrenBefore, checkNotNull(scopeBefore.coroutineContext[Job]).children.count())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun releaseSessionPlayerReleasesLocalFallbackImmediatelyWhileCastStaysConnected() {
+        val local = FakePlayer(DeviceInfo.PLAYBACK_TYPE_LOCAL, AudioItem)
+        val gateway = FakeCastGateway { 0L }.apply {
+            availability.value = CastAvailability.Connected("Mi Box 4")
+        }
+        val scope = MainScope()
+        MobileCast.playServices = { true }
+        MobileCast.controller = MobileCastController(gateway, MobileCast.castScope) { 0L }
+        MobileCast.createRemotePlayer = { throw IllegalStateException("Cast unavailable") }
+        try {
+            val fallback = MobileCast.sessionPlayer(app, local, scope) {}
+            assertSame(local, fallback)
+            val childrenBefore = checkNotNull(MobileCast.castScope.coroutineContext[Job]).children.count()
+
+            MobileCast.releaseSessionPlayer(app, fallback)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertEquals(1, local.releases)
+            assertEquals(childrenBefore, checkNotNull(MobileCast.castScope.coroutineContext[Job]).children.count())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun cancellingProcessCastScopeClosesHeldAudioControllerWhileConnected() {
+        MobileCast.resetForTests()
+        val gateway = FakeCastGateway { 0L }
+        var audioConnects = 0
+        var audioCloses = 0
+        MobileCast.playServices = { true }
+        MobileCast.createGateway = { gateway }
+        MobileCast.connectAudioSession = {
+            audioConnects++
+            Closeable { audioCloses++ }
+        }
+        val castScope = MobileCast.castScope
+        val cast = MobileCast.controller(app)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNotNull(cast)
+
+        gateway.connect()
+        assertEquals(1, audioConnects)
+        assertEquals(0, audioCloses)
+
+        castScope.cancel()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(1, audioCloses)
+    }
+
+    @Test
+    fun controllerReusesProcessCastScopeForBackgroundCollectors() {
+        MobileCast.resetForTests()
+        val probeScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+        val gateway = FakeCastGateway { 0L }
+        val controllerJobs = run {
+            MobileCastController(gateway, probeScope) { 0L }
+            checkNotNull(probeScope.coroutineContext[Job]).children.count()
+        }
+        probeScope.cancel()
+
+        val finishedIds = mutableListOf<Long>()
+        var audioConnects = 0
+        var audioCloses = 0
+        MobileCast.playServices = { true }
+        MobileCast.createGateway = { gateway }
+        MobileCast.onCastFinished = finishedIds::add
+        MobileCast.connectAudioSession = {
+            audioConnects++
+            Closeable { audioCloses++ }
+        }
+        val castScope = MobileCast.castScope
+        val cast = MobileCast.controller(app)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertNotNull(cast)
+        assertSame(castScope, MobileCast.castScope)
+        assertEquals(controllerJobs + 2, checkNotNull(castScope.coroutineContext[Job]).children.count())
+
+        gateway.connect()
+        requireNotNull(cast).cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
+        gateway.report(CastRemoteState.Playing, positionMillis = 10_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 60_000L)
+        assertEquals(1, audioConnects)
+        assertEquals(listOf(42L), finishedIds)
+
+        gateway.disconnect()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(MOVE_HERE_WAIT_MILLIS + 100L))
+        assertEquals(1, audioCloses)
+
+        castScope.cancel()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(0, checkNotNull(castScope.coroutineContext[Job]).children.count())
+
+        gateway.connect()
+        gateway.report(CastRemoteState.Playing, positionMillis = 10_000L)
+        gateway.report(CastRemoteState.Ended, positionMillis = 60_000L)
+        assertEquals(1, audioConnects)
+        assertEquals(listOf(42L), finishedIds)
     }
 
     private class FakePlayer(type: Int, item: MediaItem?) : SimpleBasePlayer(Looper.getMainLooper()) {
