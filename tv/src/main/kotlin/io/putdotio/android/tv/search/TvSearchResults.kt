@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -191,14 +192,7 @@ private fun TvSearchResultRows(
         nearEnd = { listState.isNearEnd(lastLazyIndex) },
     )
     LaunchedEffect(listState) { listState.placeFocusOnMount(groups, restoreRowId, owner, listFocus, restoreRow) }
-    LaunchedEffect(handOffToLastRow.value) {
-        if (!handOffToLastRow.value) return@LaunchedEffect
-        val last = items.last().id.value
-        listState.bringIntoComposition(last, groups.lazyIndexOf(last))
-        withFrameNanos {}
-        if (owner.owns(listFocus)) lastRow.requestFocus()
-        handOffToLastRow.value = false
-    }
+    TvSearchLastRowHandOff(groups, handOffToLastRow, listState, owner, listFocus, lastRow)
     ProvideMiddleCuts(names) {
         LazyColumn(
             state = listState,
@@ -251,6 +245,30 @@ private fun TvSearchResultRows(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TvSearchLastRowHandOff(
+    groups: TvSearchGroups,
+    handOffToLastRow: MutableState<Boolean>,
+    listState: LazyListState,
+    owner: TvPaneFocusOwner,
+    listFocus: FocusRequester,
+    lastRow: FocusRequester,
+) {
+    val items = groups.ordered
+    LaunchedEffect(handOffToLastRow.value, items.lastOrNull()?.id?.value) {
+        if (!handOffToLastRow.value) return@LaunchedEffect
+        val last = items.lastOrNull()?.id?.value
+        if (last != null) {
+            listState.bringIntoComposition(last, groups.lazyIndexOf(last))
+            withFrameNanos {}
+            if (owner.owns(listFocus) && !lastRow.requestFocus() && !listFocus.requestFocus()) owner.focusHome()
+        } else if (owner.owns(listFocus) && !listFocus.requestFocus()) {
+            owner.focusHome()
+        }
+        handOffToLastRow.value = false
     }
 }
 

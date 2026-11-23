@@ -32,6 +32,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.requestFocus
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.design.LocalBuildDispatcher
@@ -586,6 +587,32 @@ class TvTrashScreenTest {
 
         compose.runOnIdle { build.scheduler.advanceUntilIdle() }
         compose.onNodeWithText("old 139.txt").assertDoesNotExist()
+    }
+
+    @Test
+    fun pageTwoArrivingMidHandoffFocusesNewLastRow() {
+        val page1 = (1L..15L).map { item.copy(id = FilesItemId(it), name = "trash-$it.txt") }
+        val page2 = (16L..35L).map { item.copy(id = FilesItemId(it), name = "trash-$it.txt") }
+        val failed = PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))
+        var state by mutableStateOf(
+            TrashState(content = TrashContent.Loaded(page1, FilesCursor("c1"), 35, 10, pageFailure = failed)),
+        )
+        show { state }
+        compose.onNodeWithTag(TV_TRASH_LIST_TAG).performScrollToIndex(15)
+        compose.onNode(hasText("Try again") and hasClickAction())
+            .requestFocus()
+            .assertIsFocused()
+            .performKeyInput { pressCenter() }
+
+        compose.mainClock.autoAdvance = false
+        state = TrashState(content = TrashContent.Loaded(page1, FilesCursor("c1"), 35, 10, isLoadingMore = true))
+        compose.mainClock.advanceTimeByFrame()
+
+        state = TrashState(content = TrashContent.Loaded(page1 + page2, nextCursor = null, 35, 10))
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+
+        compose.onNode(hasText("trash-35.txt") and hasClickAction()).assertIsFocused()
     }
 
     private fun show(state: () -> TrashState) {

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -183,7 +184,7 @@ private fun TvHomeContent(
         }
         onReturned()
     }
-    val retry = rememberTvPinnedRetry(pinned, paneFocus)
+    val retry = rememberTvPinnedRetry(pinned, pinnedRow, paneFocus)
     val pinSheet = remember { TvHomeCardSheet() }
     val continueSheet = remember { TvHomeCardSheet() }
     TvSnackbarHeldWhile(snackbar, pinSheet.item, continueSheet.item)
@@ -448,7 +449,11 @@ private class TvPinnedRetry(
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun rememberTvPinnedRetry(pinned: PinnedRow, paneFocus: FocusRequester): TvPinnedRetry {
+private fun rememberTvPinnedRetry(
+    pinned: PinnedRow,
+    pinnedRow: LazyListState,
+    paneFocus: FocusRequester,
+): TvPinnedRetry {
     val paneHasFocus = rememberTvPaneHasFocus()
     val pressed = remember { mutableStateOf(false) }
     val retry = remember(paneHasFocus) {
@@ -467,8 +472,14 @@ private fun rememberTvPinnedRetry(pinned: PinnedRow, paneFocus: FocusRequester):
     }
     LaunchedEffect(pinned) {
         if (!pressed.value || pinned == PinnedRow.Loading) return@LaunchedEffect
+        if (pinned is PinnedRow.Ready && pinned.cards.isNotEmpty()) {
+            pinnedRow.bringIntoComposition(pinned.cards.first().item.id.value, 0)
+        }
         withFrameNanos {}
-        if (paneHasFocus.value) pinned.focusAfterRetry(retry, paneFocus).requestFocus()
+        if (paneHasFocus.value) {
+            val target = pinned.focusAfterRetry(retry, paneFocus)
+            if (!target.requestFocus() && target !== paneFocus) paneFocus.requestFocus()
+        }
         pressed.value = false
     }
     return retry

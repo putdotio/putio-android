@@ -16,6 +16,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
@@ -375,6 +376,39 @@ class TvHomeScreenTest {
 
         compose.onNodeWithContentDescription("clip-7.mp4").assertIsFocused()
         assertEquals(1, returned)
+    }
+
+    @Test
+    fun retryingScrolledPinnedRowScrollsBackToFirstCardAndFocusesIt() {
+        val cards = (1L..10L).map { id ->
+            PinnedCard(
+                FilesItem(
+                    id = FilesItemId(100L + id),
+                    parentId = FilesItemId(0L),
+                    name = "pinned-$id.mp4",
+                    type = PutioFileType.VIDEO,
+                    sizeBytes = 1L,
+                    createdAt = "2026-10-23T10:00:00Z",
+                ),
+                itemCount = null,
+            )
+        }
+        var pinned by mutableStateOf<PinnedRow>(PinnedRow.Ready(cards))
+        val paneFocus = FocusRequester()
+        compose.setTvContent { TvHomeScreen(emptyList(), pinned, actions, paneFocus, onShown = {}) }
+        compose.runOnIdle { paneFocus.requestFocus() }
+        compose.onNodeWithContentDescription("pinned-1.mp4").assertIsFocused().performKeyInput {
+            repeat(9) { pressKey(Key.DirectionRight) }
+        }
+        compose.onNodeWithContentDescription("pinned-10.mp4").assertIsFocused()
+
+        compose.runOnIdle {
+            pinned = PinnedRow.Failed(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline")))
+        }
+        compose.onNodeWithText("Try again").requestFocus().assertIsFocused().performKeyInput { pressCenter() }
+
+        compose.runOnIdle { pinned = PinnedRow.Ready(cards) }
+        compose.onNodeWithContentDescription("pinned-1.mp4").assertIsFocused()
     }
 
     private val bunny = FilesItem(

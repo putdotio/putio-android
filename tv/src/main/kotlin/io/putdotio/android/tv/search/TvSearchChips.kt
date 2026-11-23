@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +56,8 @@ import io.putdotio.android.search.SearchFilter
 import io.putdotio.android.search.SearchTerm
 import io.putdotio.android.tv.TvFocus
 import io.putdotio.android.tv.TvPaneFocusOwner
+import io.putdotio.android.tv.bringIntoComposition
+import io.putdotio.android.tv.composes
 import io.putdotio.android.tv.focusRequesterIf
 import io.putdotio.android.tv.paneSection
 
@@ -181,6 +184,7 @@ internal fun TvRecentSearches(
     owner: TvPaneFocusOwner,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
     val firstChip = remember { FocusRequester() }
     val rowFocus = remember { FocusRequester() }
     val rowHasFocus = remember { mutableStateOf(false) }
@@ -191,10 +195,16 @@ internal fun TvRecentSearches(
         focusedTerm = null
         if (rowHasFocus.value) refocus.value = true
     }
-    LaunchedEffect(refocus.value) {
+    LaunchedEffect(refocus.value, terms.firstOrNull()?.value) {
         if (!refocus.value) return@LaunchedEffect
+        val first = terms.firstOrNull()?.value
+        if (first != null) listState.bringIntoComposition(first, 0)
         withFrameNanos {}
-        if (owner.owns(rowFocus)) firstChip.requestFocus()
+        if (owner.owns(rowFocus)) {
+            if (first == null || !firstChip.requestFocus()) {
+                if (!rowFocus.requestFocus()) owner.focusHome()
+            }
+        }
         refocus.value = false
     }
     Column(modifier = modifier.fillMaxWidth()) {
@@ -205,12 +215,15 @@ internal fun TvRecentSearches(
             modifier = Modifier.padding(bottom = RECENT_LABEL_GAP),
         )
         LazyRow(
+            state = listState,
             modifier = Modifier
                 .fillMaxWidth()
                 .paneSection(owner, rowFocus)
                 .onFocusChanged { rowHasFocus.value = it.hasFocus }
                 .focusRequester(rowFocus)
-                .focusRestorer(firstChip)
+                .focusRestorer {
+                    firstChip.takeIf { listState.composes(terms.firstOrNull()?.value) } ?: FocusRequester.Default
+                }
                 .focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(CHIP_GAP),
         ) {

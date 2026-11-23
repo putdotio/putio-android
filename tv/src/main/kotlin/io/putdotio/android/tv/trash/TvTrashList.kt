@@ -226,12 +226,18 @@ private fun TvTrashLastRowHandOff(
     focus: TvTrashListFocus,
     lastRow: FocusRequester,
 ) {
-    LaunchedEffect(handOffToLastRow.value) {
+    LaunchedEffect(handOffToLastRow.value, items.lastOrNull()?.id?.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
-        val lastId = items.lastOrNull()?.id?.value ?: return@LaunchedEffect
-        listState.bringIntoComposition(lastId, items.lastIndex)
-        withFrameNanos {}
-        if (focus.owner.owns(focus.list)) lastRow.requestFocus()
+        val lastId = items.lastOrNull()?.id?.value
+        if (lastId != null) {
+            listState.bringIntoComposition(lastId, items.lastIndex)
+            withFrameNanos {}
+            if (focus.owner.owns(focus.list) && !lastRow.requestFocus() && !focus.list.requestFocus()) {
+                focus.owner.focusHome()
+            }
+        } else if (focus.owner.owns(focus.list) && !focus.list.requestFocus()) {
+            focus.owner.focusHome()
+        }
         handOffToLastRow.value = false
     }
 }
