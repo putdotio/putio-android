@@ -211,16 +211,18 @@ internal fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
         }
         val registered = connectivity?.runCatching { registerDefaultNetworkCallback(callback) }?.isSuccess == true
         onStopOrDispose {
-            if (registered) connectivity?.unregisterNetworkCallback(callback)
+            if (registered) connectivity.runCatching { unregisterNetworkCallback(callback) }
             waiting.set(true)
         }
     }
 }
 
 private fun ConnectivityManager?.defaultNetworkValidated(): Boolean =
-    this?.activeNetwork
-        ?.let(::getNetworkCapabilities)
-        ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    this?.runCatching {
+        activeNetwork
+            ?.let(::getNetworkCapabilities)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    }?.getOrDefault(false) == true
 
 private const val OFFLINE_RETRY_MILLIS = 30_000L
 
