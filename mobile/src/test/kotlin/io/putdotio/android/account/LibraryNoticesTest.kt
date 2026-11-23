@@ -24,5 +24,6 @@ class LibraryNoticesTest {
         assertEquals("Apache-2.0", libraries.single { it.id == "com.squareup.okhttp3:okhttp" }.license)
         assertEquals("MIT", libraries.single { it.id == "com.posthog:posthog-android" }.license)
         assertTrue(libraries.all { it.license.isNotEmpty() && it.url != null })
+        assertEquals(libraries.size, libraries.distinctBy { it.name to it.version }.size)
     }
 }

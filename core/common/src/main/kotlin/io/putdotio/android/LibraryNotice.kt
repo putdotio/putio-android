@@ -21,4 +21,5 @@ public fun libraryNotices(definitions: String): List<LibraryNotice> =
                 url = library.scm?.url ?: library.website ?: library.licenses.firstNotNullOfOrNull { it.url },
             )
         }
+        .distinctBy { Triple(it.name, it.version, it.license) }
         .sortedBy { it.name.lowercase() }
