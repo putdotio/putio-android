@@ -13,6 +13,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.downloads.OfflinePositionSession
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PLAYBACK_REPORTING_LEASE_KEY
@@ -27,6 +28,7 @@ import io.putdotio.android.settings.AccountSettingsReducer
 import io.putdotio.android.settings.AccountSettingsRequestId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -264,7 +266,11 @@ class MobilePlaybackReportingTest {
         val remote = FakePositionRemote().apply { positions[42L] = 0.0 }
         lateinit var reporting: MobilePlaybackReporting
         val offline = OfflinePlaybackPositions(
-            preferences, { Account.userId }, remote, backgroundScope, writing = { reporting.exclusive(it) },
+            preferences,
+            OfflinePositionSession({ Account.userId }, ioDispatcher = Dispatchers.Unconfined),
+            remote,
+            backgroundScope,
+            writing = { reporting.exclusive(it) },
         )
         offline.store(Account.userId).apply {
             remote(42L, 0.0)

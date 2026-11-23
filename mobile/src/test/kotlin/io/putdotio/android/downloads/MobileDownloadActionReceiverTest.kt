@@ -13,6 +13,7 @@ import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -41,6 +42,8 @@ class MobileDownloadActionReceiverTest {
     fun tearDown() {
         MobileDownloadActionReceiver.retriesForTest = null
         MobileDownloadActionReceiver.controlsForTest = null
+        MobileDownloadActionReceiver.retriesFactoryForTest = null
+        MobileDownloadActionReceiver.controlsFactoryForTest = null
         notifications.cancelAll()
     }
 
@@ -249,8 +252,7 @@ class MobileDownloadActionReceiverTest {
             .let(context::sendBroadcast)
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertTrue(received.isCompleted)
-        assertEquals(USER to FilesItemId(11L), runBlocking { received.await() })
+        assertEquals(USER to FilesItemId(11L), runBlocking { withTimeout(5_000L) { received.await() } })
     }
 
     @Test
@@ -296,12 +298,12 @@ class MobileDownloadActionReceiverTest {
         assertTrue(pause.isBroadcast && pause.isImmutable && cancel.isBroadcast && cancel.isImmutable)
         context.sendBroadcast(pause.savedIntent)
         shadowOf(Looper.getMainLooper()).idle()
-        assertTrue(paused.isCompleted && !cancelled.isCompleted)
+        assertEquals(USER, runBlocking { withTimeout(5_000L) { paused.await() } })
+        assertTrue(!cancelled.isCompleted)
         context.sendBroadcast(cancel.savedIntent)
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertEquals(USER, runBlocking { paused.await() })
-        assertEquals(USER, runBlocking { cancelled.await() })
+        assertEquals(USER, runBlocking { withTimeout(5_000L) { cancelled.await() } })
     }
 
     @Test
@@ -309,6 +311,32 @@ class MobileDownloadActionReceiverTest {
         // A pause written from the notification is the row the engine reads, so it never undoes it.
         assertTrue(MobileDownloadStore.shared(context, USER) === MobileDownloadStore.shared(context, USER))
         assertTrue(MobileDownloadStore.shared(context, USER) !== MobileDownloadStore.shared(context, OTHER))
+    }
+
+    @Test
+    fun onReceiveBuildsProductionWorkOffMainThreadAfterBroadcastReturn() = runBlocking {
+        val factoryEntered = CompletableDeferred<Boolean>()
+        var insideOnReceive = false
+        var enteredDuringOnReceive = false
+        MobileDownloadActionReceiver.retriesFactoryForTest = {
+            enteredDuringOnReceive = insideOnReceive
+            factoryEntered.complete(Looper.myLooper() == Looper.getMainLooper())
+            retries
+        }
+        rows[USER to 11L] = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
+
+        val receiver = MobileDownloadActionReceiver()
+        val intent = shadowOf(MobileDownloadActionReceiver.retry(context, USER, FilesItemId(11L))).savedIntent
+        insideOnReceive = true
+        try {
+            receiver.onReceive(context, intent)
+        } finally {
+            insideOnReceive = false
+        }
+
+        val calledOnMain = kotlinx.coroutines.withTimeout(5_000L) { factoryEntered.await() }
+        assertTrue(!calledOnMain)
+        assertTrue(!enteredDuringOnReceive)
     }
 
     private fun row(fileId: Long, status: DownloadStatus) = DownloadEntry(

@@ -237,10 +237,14 @@ internal fun SignedInMobileRoot(
         remember(loggedInAppsViewModel, loggedInAppsRepository, account.userId, sessionId) {
             loggedInAppsViewModel?.controllerFor(account.userId, sessionId, loggedInAppsRepository)
         }
-    val continueWatching = remember(filesViewModel, downloadsContext, account.userId, sessionId) {
-        filesViewModel.continueWatchingFor(account.userId, sessionId) {
+    LaunchedEffect(filesViewModel, downloadsContext, account.userId, sessionId) {
+        filesViewModel.prepareContinueWatching(account.userId, sessionId) {
             DeviceContinueWatchingStore(downloadsContext, account.userId)
         }
+    }
+    val preparedContinueWatching by filesViewModel.preparedContinueWatching.collectAsStateWithLifecycle()
+    val continueWatching = remember(filesViewModel, preparedContinueWatching, account.userId, sessionId) {
+        filesViewModel.continueWatchingIfPrepared(account.userId, sessionId)
     }
     val pinnedFiles = remember(filesViewModel, filesRepository, account.userId, sessionId) {
         filesViewModel.pinnedFilesFor(account.userId, sessionId) { scope ->
@@ -249,7 +253,7 @@ internal fun SignedInMobileRoot(
     }
     val filesActions =
         remember(
-            filesViewModel, filesController, trashRepository, continueWatching, pinnedFiles, searchHistorySession,
+            filesViewModel, filesController, trashRepository, pinnedFiles, searchHistorySession,
             account.userId, sessionId,
         ) {
             filesController?.let { browser ->
@@ -268,7 +272,8 @@ internal fun SignedInMobileRoot(
                         },
                         onPositionSaved = { fileId, seconds ->
                             // Finished or cleared, the video leaves Continue watching; an offline position follows.
-                            continueWatching?.positionSaved(fileId, seconds)
+                            filesViewModel.continueWatchingIfPrepared(account.userId, sessionId)
+                                ?.positionSaved(fileId, seconds)
                             searchHistorySession?.search?.positionSaved(fileId, seconds)
                             runtime.offlinePositions?.afterWrite(
                                 account.userId, fileId.value, seconds, PlaybackRepositoryResult.Success(Unit),
@@ -689,7 +694,11 @@ private fun RememberResumeSettingEffect(
     val settings by accountSettingsController.state.collectAsStateWithLifecycle()
     val confirmed = settings.confirmedResumePlayback()
     LaunchedEffect(runtime, userId, confirmed) {
-        confirmed?.let { runtime.offlinePositions?.store(userId)?.rememberResumeSetting(it) }
+        confirmed?.let { enabled ->
+            withContext(Dispatchers.IO) {
+                runtime.offlinePositions?.store(userId)?.rememberResumeSetting(enabled)
+            }
+        }
     }
 }
 

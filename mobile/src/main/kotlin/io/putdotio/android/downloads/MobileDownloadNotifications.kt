@@ -17,6 +17,12 @@ import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.pendingIntent
 import io.putdotio.android.files.FilesItemId
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What a finished transfer tells the viewer; Media3 reports both on its process-wide manager. */
 internal sealed interface DownloadOutcome {
@@ -38,8 +44,11 @@ internal class MobileDownloadNotifications(
     private val context: Context,
     private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
     private val redeciding: (Long) -> Boolean = DirectPlayRedeciders.shared::holds,
+    lookupDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
+    private val scope = CoroutineScope(SupervisorJob() + lookupDispatcher)
+
     override fun onDownloadChanged(
         downloadManager: DownloadManager,
         download: Download,
@@ -56,22 +65,65 @@ internal class MobileDownloadNotifications(
         if (outcome == null || owner == null || fileId == null) return
         // A row being deleted, or one this device never indexed, stays quiet.
         if (download.fallingBackToConverted(finalException)) {
-            stores(owner).find(fileId)?.takeUnless { it.removing }?.let { fallBack(downloadManager, owner, it) }
+            fallBackIfEligible(downloadManager, owner, fileId)
         } else if (owner == signedInUser()) {
-            MobileDownloadStore.peek(context, owner, fileId)
-                ?.takeUnless {
-                    it.removing || redeciding(owner) && it.redecidesDirectPlay(download.failedStatus(outcome))
-                }
-                ?.let { post(context, owner, it, outcome) }
+            notifyIfEligible(owner, fileId, download, outcome)
         }
     }
 
-    private fun fallBack(manager: DownloadManager, owner: Long, original: DownloadEntry) {
-        val converted = original.convertedFallback() ?: return
-        stores(owner).updateStatusBlocking(converted.fileId) { converted }
-        val parked = owner != signedInUser()
-        val stopReason = if (parked) MobileDownloadEngine.STOP_REASON_OTHER_USER else Download.STOP_REASON_NONE
-        startDownload(context, manager, owner, converted, stopReason)
+    private fun fallBackIfEligible(manager: DownloadManager, owner: Long, fileId: FilesItemId) {
+        scope.launch {
+            val store = MobileDownloadStore.existingShared(context, owner) ?: stores(owner)
+            var converted: DownloadEntry? = null
+            store.updateStatusBlocking(fileId) { current ->
+                if (current.removing) {
+                    current
+                } else {
+                    current.convertedFallback()?.also { converted = it } ?: current
+                }
+            }
+            val next = converted ?: return@launch
+            withContext(Dispatchers.Main.immediate) {
+                if (store.find(fileId)?.removing == false) {
+                    val parked = owner != signedInUser()
+                    val stopReason = if (parked) {
+                        MobileDownloadEngine.STOP_REASON_OTHER_USER
+                    } else {
+                        Download.STOP_REASON_NONE
+                    }
+                    startDownload(context, manager, owner, next, stopReason)
+                }
+            }
+        }
+    }
+
+    private fun notifyIfEligible(owner: Long, fileId: FilesItemId, download: Download, outcome: DownloadOutcome) {
+        val loaded = MobileDownloadStore.existingShared(context, owner)
+        if (loaded != null) {
+            postIfEligible(owner, loaded.find(fileId), download, outcome)
+            return
+        }
+        scope.launch {
+            val entry = MobileDownloadStore.peek(context, owner, fileId)
+            if (owner == signedInUser()) {
+                withContext(Dispatchers.Main.immediate) {
+                    val liveStore = MobileDownloadStore.existingShared(context, owner)
+                    val current = if (liveStore != null) liveStore.find(fileId) else entry
+                    if (owner == signedInUser()) postIfEligible(owner, current, download, outcome)
+                }
+            }
+        }
+    }
+
+    private fun postIfEligible(
+        owner: Long,
+        entry: DownloadEntry?,
+        download: Download,
+        outcome: DownloadOutcome,
+    ) {
+        entry?.takeUnless {
+            it.removing || redeciding(owner) && it.redecidesDirectPlay(download.failedStatus(outcome))
+        }?.let { post(context, owner, it, outcome) }
     }
 
     companion object {

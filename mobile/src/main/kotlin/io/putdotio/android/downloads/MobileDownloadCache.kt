@@ -45,6 +45,7 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.resume
@@ -163,6 +164,22 @@ internal class MobileDownloadCache private constructor(context: Context) {
             storedTokensCleared,
         )
 
+    private val managerConfigured = AtomicBoolean(false)
+    private val initialConcurrency: Int = MobileDownloadSettings(appContext).concurrency
+    private val rawDownloadManager: DownloadManager = DownloadManager(
+        appContext,
+        DefaultDownloadIndex(databaseProvider),
+        downloaderFactory,
+    ).also { manager ->
+        if (Looper.myLooper() == manager.applicationLooper) {
+            ensureManagerConfigured(appContext, manager, initialConcurrency, managerConfigured)
+        } else {
+            Handler(manager.applicationLooper).post {
+                ensureManagerConfigured(appContext, manager, initialConcurrency, managerConfigured)
+            }
+        }
+    }
+
     /**
      * Media3's DownloadService binds the first manager it sees for the whole
      * process, so there is exactly one. Request ids are `userId:fileId`; each
@@ -170,19 +187,12 @@ internal class MobileDownloadCache private constructor(context: Context) {
      * engine stops requests that belong to a user who is not signed in. Transfers
      * wait for a network and for the system to stop reporting low storage.
      */
-    val downloadManager: DownloadManager = DownloadManager(
-        appContext,
-        DefaultDownloadIndex(databaseProvider),
-        downloaderFactory,
-    ).apply {
-        maxParallelDownloads = MobileDownloadSettings(appContext).concurrency
-        minRetryCount = MIN_RETRIES
-        requirements = DOWNLOAD_REQUIREMENTS
-        addListener(MobileDownloadNotifications(appContext) {
-            (MobileOAuthRuntime.get(appContext).authController.state.value as? MobileAuthState.SignedIn)
-                ?.account?.userId
-        })
-    }
+    val downloadManager: DownloadManager
+        get() = rawDownloadManager.also { manager ->
+            if (!managerConfigured.get() && Looper.myLooper() == manager.applicationLooper) {
+                ensureManagerConfigured(appContext, manager, initialConcurrency, managerConfigured)
+            }
+        }
 
     /**
      * Whether a completed download's bytes are still here. The request URL keys the HLS
@@ -261,8 +271,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
     companion object {
         private const val CACHE_DIRECTORY = "downloads"
         private const val DOWNLOAD_THREADS = 4
-        private const val MIN_RETRIES = 3
-        private val DOWNLOAD_REQUIREMENTS = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
         private const val SESSION_SETTLE_TIMEOUT_SECONDS = 30L
         private const val STORED_TOKENS_SETTLE_TIMEOUT_SECONDS = 30L
         private val REPLACE_TIMEOUT = 10.seconds
@@ -435,6 +443,25 @@ private class HeadlessDownloadParker {
             .filter(Download::shouldParkWhenTokenClears)
             .forEach { manager.setStopReason(it.request.id, MobileDownloadEngine.STOP_REASON_OTHER_USER) }
     }
+}
+
+private const val MIN_RETRIES = 3
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun ensureManagerConfigured(
+    appContext: Context,
+    manager: DownloadManager,
+    concurrency: Int,
+    configured: AtomicBoolean,
+) {
+    if (!configured.compareAndSet(false, true)) return
+    manager.maxParallelDownloads = concurrency
+    manager.minRetryCount = MIN_RETRIES
+    manager.requirements = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
+    manager.addListener(MobileDownloadNotifications(appContext) {
+        (MobileOAuthRuntime.get(appContext).authController.state.value as? MobileAuthState.SignedIn)
+            ?.account?.userId
+    })
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

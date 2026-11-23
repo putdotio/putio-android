@@ -101,7 +101,11 @@ class DirectPlayTransfersTest {
         val store = MobileDownloadStore(preferences, "user-$USER", Dispatchers.Unconfined)
         val original = entry(DownloadArtifact.ORIGINAL, listOf(ENGLISH)).copy(accepted = false)
         store.upsert(original)
-        val listener = MobileDownloadNotifications(context, stores = { store }) { USER }
+        val listener = MobileDownloadNotifications(
+            context,
+            stores = { store },
+            lookupDispatcher = Dispatchers.Unconfined,
+        ) { USER }
 
         listener.onDownloadChanged(downloadManager, failed(request(original), bytes = 0L), rejected(HTTP_NOT_FOUND))
 

@@ -7,6 +7,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
+import io.putdotio.android.auth.MobileSessionKey
+import io.putdotio.android.files.ContinueWatchingEntry
+import io.putdotio.android.files.ContinueWatchingStore
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesFolder
@@ -17,8 +20,10 @@ import io.putdotio.android.files.FilesPaging
 import io.putdotio.android.files.StubFilesRepository
 import io.putdotio.android.files.FilesViewportPosition
 import io.putdotio.sdk.files.PutioFileType
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -67,6 +72,33 @@ class MobileFilesViewModelTest {
         } finally {
             activityController.close()
         }
+    }
+
+    @Test
+    fun prepareContinueWatchingLoadsStoreOffMainThread() {
+        val authState = MutableStateFlow<MobileAuthState>(signedIn(SessionOne))
+        val viewModel = MobileFilesViewModel(authState)
+        var readOnMain = false
+        val expected = ContinueWatchingEntry(Episode.id, Episode.name, 30.0, 120.0, 100L)
+        val store = object : ContinueWatchingStore {
+            override fun read(): List<ContinueWatchingEntry> {
+                readOnMain = Looper.myLooper() == Looper.getMainLooper()
+                return listOf(expected)
+            }
+
+            override fun write(entries: List<ContinueWatchingEntry>) = Unit
+        }
+
+        viewModel.prepareContinueWatching(USER_ID, SessionOne) { store }
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5L)
+        while (viewModel.preparedContinueWatching.value != MobileSessionKey(USER_ID, SessionOne)) {
+            shadowOf(Looper.getMainLooper()).idle()
+            check(System.nanoTime() < deadline) { "Timed out waiting for ContinueWatching" }
+            Thread.sleep(10L)
+        }
+
+        assertFalse(readOnMain)
+        assertEquals(listOf(expected), viewModel.continueWatchingIfPrepared(USER_ID, SessionOne)?.entries?.value)
     }
 
     private fun FilesHostActivity.filesViewModel(

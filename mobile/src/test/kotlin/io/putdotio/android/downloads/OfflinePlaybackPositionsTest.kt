@@ -1,6 +1,8 @@
 package io.putdotio.android.downloads
 
 import android.content.Context
+import android.content.SharedPreferences
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
@@ -10,16 +12,25 @@ import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
@@ -249,6 +260,86 @@ class OfflinePlaybackPositionsTest {
         assertNull(positions.store(USER).pending(FILE))
     }
 
+    @Test
+    fun coldSyncLoadsPositionStoreOffMainThread() = runOnRobolectricMain {
+        OfflinePositionStore(preferences, USER).apply {
+            remote(FILE, 100.0)
+            keep(FILE, 250.0)
+        }
+        var readOnMain = false
+        var writeOnMain = false
+        val countingPrefs = object : SharedPreferences by preferences {
+            override fun getString(key: String?, defValue: String?): String? {
+                if (key == "positions-$USER" && Looper.myLooper() == Looper.getMainLooper()) readOnMain = true
+                return preferences.getString(key, defValue)
+            }
+
+            override fun edit(): SharedPreferences.Editor {
+                val delegate = preferences.edit()
+                return object : SharedPreferences.Editor by delegate {
+                    override fun putString(key: String?, value: String?): SharedPreferences.Editor {
+                        if (key == "positions-$USER" && Looper.myLooper() == Looper.getMainLooper()) {
+                            writeOnMain = true
+                        }
+                        return delegate.putString(key, value)
+                    }
+                }
+            }
+        }
+        remote.online = true
+        remote.positions[FILE] = 100.0
+        val positions = OfflinePlaybackPositions(countingPrefs, { signedIn }, remote, this)
+
+        positions.syncNow(USER)
+
+        assertFalse(readOnMain)
+        assertFalse(writeOnMain)
+        assertEquals(listOf(FILE to 250.0), remote.writes)
+    }
+
+    @Test
+    fun coldAfterWriteLoadsPositionStoreOffMainThread() = runOnRobolectricMain {
+        OfflinePositionStore(preferences, USER).remote(FILE, 100.0)
+        var readOnMain = false
+        val countingPrefs = object : SharedPreferences by preferences {
+            override fun getString(key: String?, defValue: String?): String? {
+                if (key == "positions-$USER" && Looper.myLooper() == Looper.getMainLooper()) readOnMain = true
+                return preferences.getString(key, defValue)
+            }
+        }
+        remote.online = false
+        val positions = OfflinePlaybackPositions(countingPrefs, { signedIn }, remote, this)
+
+        positions.afterWrite(USER, FILE, 260.0, NetworkFailure)
+        assertEquals(260.0, positions.resumePosition(USER, sintel), 0.0)
+
+        assertFalse(readOnMain)
+        assertEquals(260.0, positions.store(USER).pending(FILE)?.seconds)
+    }
+
+    private fun runOnRobolectricMain(block: suspend CoroutineScope.() -> Unit) {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val finished = AtomicBoolean(false)
+        val failure = AtomicReference<Throwable?>(null)
+        scope.async { block() }.invokeOnCompletion { cause ->
+            if (cause != null) failure.compareAndSet(null, cause)
+            finished.set(true)
+        }
+        try {
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(MAIN_WAIT_SECONDS)
+            while (!finished.get()) {
+                if (System.nanoTime() >= deadline) {
+                    throw AssertionError("Timed out waiting for Robolectric main coroutine")
+                }
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(MAIN_POLL_MS)
+            }
+            failure.get()?.let { throw it }
+        } finally {
+            scope.cancel()
+        }
+    }
+
     /** Opened offline, then played to 250 s while put.io could not take it. */
     private suspend fun TestScope.playedOffline(): OfflinePlaybackPositions {
         remote.online = false
@@ -269,6 +360,8 @@ class OfflinePlaybackPositionsTest {
         const val FILE = 10L
         const val HTTP_NOT_FOUND = 404
         const val HTTP_GONE = 410
+        const val MAIN_WAIT_SECONDS = 10L
+        const val MAIN_POLL_MS = 10L
         val AuthenticationFailure = PlaybackFailure.Putio(
             PutioFailure.AuthenticationRequired(PutioConfigurationException("expired")),
         )

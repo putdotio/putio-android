@@ -2,6 +2,7 @@ package io.putdotio.android.downloads
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.edit
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
@@ -129,15 +130,22 @@ internal class MobileDownloadStore internal constructor(
         // Keyed by the application too: a process has one, and each JVM test gets a fresh one.
         private val shared = WeakHashMap<Context, MutableMap<Long, MobileDownloadStore>>()
 
+        internal fun existingShared(context: Context, userId: Long): MobileDownloadStore? {
+            val application = context.applicationContext
+            return synchronized(shared) { shared[application]?.get(userId) }
+        }
+
         /**
          * The process's one store for [userId]. Downloads and a notification's actions write through
          * it, so a pause or cancel from the notification is the row the screen and engine read.
          */
         fun shared(context: Context, userId: Long): MobileDownloadStore {
             val application = context.applicationContext
+            existingShared(application, userId)?.let { return it }
+            val created = MobileDownloadStore(application, userId)
             return synchronized(shared) {
                 shared.getOrPut(application) { mutableMapOf() }
-                    .getOrPut(userId) { MobileDownloadStore(application, userId) }
+                    .getOrPut(userId) { created }
             }
         }
 
@@ -145,8 +153,21 @@ internal class MobileDownloadStore internal constructor(
          * One row as last written, for process-wide readers such as notifications that run
          * without this user's store. Never writes.
          */
-        fun peek(context: Context, userId: Long, fileId: FilesItemId): DownloadEntry? =
-            downloadPreferences(context).readDocument(storeKey(userId)).entries.firstOrNull { it.fileId == fileId }
+        fun peek(context: Context, userId: Long, fileId: FilesItemId): DownloadEntry? {
+            val loaded = existingShared(context, userId)
+            return if (loaded != null) {
+                loaded.find(fileId)
+            } else {
+                downloadPreferences(context).readDocument(storeKey(userId))
+                    .entries.firstOrNull { it.fileId == fileId }
+            }
+        }
+
+        @VisibleForTesting
+        internal fun clearSharedForTest(context: Context) {
+            val application = context.applicationContext
+            synchronized(shared) { shared.remove(application) }
+        }
     }
 }
 
