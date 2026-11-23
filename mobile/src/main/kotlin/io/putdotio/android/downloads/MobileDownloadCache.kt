@@ -81,6 +81,10 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @VisibleForTesting
     internal var httpClient: OkHttpClient = OkHttpClient()
     @VisibleForTesting
+    internal var authState: () -> MobileAuthState = {
+        MobileOAuthRuntime.get(appContext).authController.state.value
+    }
+    @VisibleForTesting
     internal var downloadManagerForParking: DownloadManager? = null
     private val downloadExecutor = Executors.newFixedThreadPool(DOWNLOAD_THREADS)
     private val storedTokensSettled = CountDownLatch(1)
@@ -139,14 +143,17 @@ internal class MobileDownloadCache private constructor(context: Context) {
      * else straight from the network: a null write sink keeps online playback from
      * filling the no-eviction download directory.
      */
-    fun playbackFactory(userId: Long): DataSource.Factory =
+    fun playbackFactory(
+        userId: () -> Long = {
+            resolvePlaybackUserId(
+                authState = authState,
+                awaitSessionSettled = { sessionSettled.await(SESSION_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS) },
+            )
+        },
+    ): DataSource.Factory =
         cacheFactory(userId, upstreamFactory).setCacheWriteDataSinkFactory(null)
 
-    /** Who the signed-in player belongs to; a player built before sign-in matches no cached bytes. */
-    @Volatile
-    var activeUserId: Long? = null
-
-    private fun cacheFactory(userId: Long, upstream: DataSource.Factory): CacheDataSource.Factory =
+    private fun cacheFactory(userId: () -> Long, upstream: DataSource.Factory): CacheDataSource.Factory =
         CacheDataSource.Factory()
             .setCache(cache)
             .setCacheKeyFactory(UserScopedCacheKeys(userId))
@@ -159,7 +166,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     internal val downloaderFactory: DownloaderFactory =
         UserScopedDownloaderFactory(
-            { userId -> cacheFactory(userId, downloadUpstreamFactory) },
+            { userId -> cacheFactory({ userId }, downloadUpstreamFactory) },
             downloadExecutor,
             storedTokensCleared,
         )
@@ -380,10 +387,26 @@ private class AfterTokenCleanupDownloader(
     }
 }
 
+internal const val NO_DOWNLOAD_USER = -1L
+
+internal fun resolvePlaybackUserId(
+    authState: () -> MobileAuthState,
+    awaitSessionSettled: () -> Unit,
+    onMainThread: () -> Boolean = { Looper.myLooper() == Looper.getMainLooper() },
+): Long {
+    val current = authState()
+    val pendingRestore = current is MobileAuthState.RestoringSession ||
+        current is MobileAuthState.ValidatingSession
+    if (pendingRestore && !onMainThread()) awaitSessionSettled()
+    return (authState() as? MobileAuthState.SignedIn)?.account?.userId ?: NO_DOWNLOAD_USER
+}
+
 /** The owning user, then the signed URL minus its token. The token is per-session noise. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal class UserScopedCacheKeys(private val userId: Long) : CacheKeyFactory {
-    override fun buildCacheKey(dataSpec: DataSpec): String = "u$userId|${dataSpec.uri.withoutOauthToken()}"
+internal class UserScopedCacheKeys(private val userId: () -> Long) : CacheKeyFactory {
+    constructor(userId: Long) : this({ userId })
+
+    override fun buildCacheKey(dataSpec: DataSpec): String = "u${userId()}|${dataSpec.uri.withoutOauthToken()}"
 }
 
 internal fun Uri.withoutOauthToken(): Uri {
@@ -447,6 +470,9 @@ private class HeadlessDownloadParker {
 
 private const val MIN_RETRIES = 3
 
+private fun Context.signedInUserId(): Long? =
+    (MobileOAuthRuntime.get(this).authController.state.value as? MobileAuthState.SignedIn)?.account?.userId
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun ensureManagerConfigured(
     appContext: Context,
@@ -458,10 +484,7 @@ private fun ensureManagerConfigured(
     manager.maxParallelDownloads = concurrency
     manager.minRetryCount = MIN_RETRIES
     manager.requirements = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
-    manager.addListener(MobileDownloadNotifications(appContext) {
-        (MobileOAuthRuntime.get(appContext).authController.state.value as? MobileAuthState.SignedIn)
-            ?.account?.userId
-    })
+    manager.addListener(MobileDownloadNotifications(appContext) { appContext.signedInUserId() })
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

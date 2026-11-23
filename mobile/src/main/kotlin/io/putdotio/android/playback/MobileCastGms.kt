@@ -61,8 +61,11 @@ import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.R
 import io.putdotio.android.design.R as DesignR
 import java.io.Closeable
+import java.util.Collections
+import java.util.IdentityHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,22 +85,50 @@ import org.json.JSONObject
  */
 internal object MobileCast {
     @Volatile
-    private var controller: MobileCastController? = null
+    @VisibleForTesting
+    internal var controller: MobileCastController? = null
+
+    private val castSessionPlayers: MutableSet<Player> = Collections.newSetFromMap(IdentityHashMap())
+
+    @VisibleForTesting
+    internal var castScope: CoroutineScope = MainScope()
+        private set
 
     /** Google Play services, which runs Cast in its own process. */
     @VisibleForTesting
     var playServices: (Context) -> Boolean = ::playServicesAvailable
+
+    @VisibleForTesting
+    internal var createGateway: (Context) -> CastGateway = { GmsCastGateway(it).also(GmsCastGateway::start) }
+
+    @VisibleForTesting
+    internal var onCastFinished: (Long) -> Unit = MobilePlaybackService.analytics::castFinished
+
+    @VisibleForTesting
+    internal var connectAudioSession: (Context) -> Closeable = { DefaultMobilePlayerFactory.connectAudio(it) {} }
+
+    @VisibleForTesting
+    internal var createRemotePlayer: (Context) -> Player = ::defaultRemoteCastPlayer
+
+    @VisibleForTesting
+    internal var createCastPlayer: (
+        Context,
+        Player,
+        Player,
+        (MediaItem, CastHandover) -> Unit,
+        () -> Unit,
+    ) -> Player = ::defaultCastPlayer
 
     fun controller(context: Context): MobileCastController? {
         val appContext = context.applicationContext
         if (!playServices(appContext)) return null
         return controller ?: synchronized(this) {
             controller ?: run {
-                val gateway = GmsCastGateway(appContext).also { it.start() }
-                MobileCastController(gateway, MainScope(), SystemClock::elapsedRealtime).also { cast ->
+                val gateway = createGateway(appContext)
+                MobileCastController(gateway, castScope, SystemClock::elapsedRealtime).also { cast ->
                     // The receiver's positions reach put.io as the local player's do, under the item's lease.
                     DefaultMobilePlayerFactory.observePositions(appContext, cast.remotePlayer)
-                    MainScope().launch { cast.finished.collect(MobilePlaybackService.analytics::castFinished) }
+                    castScope.launch { cast.finished.collect { onCastFinished(it) } }
                     holdSessionWhileCasting(appContext, cast)
                     controller = cast
                 }
@@ -110,9 +141,14 @@ internal object MobileCast {
         val gateway = controller(activity)?.gateway as? GmsCastGateway ?: return
         activity.lifecycle.addObserver(
             object : DefaultLifecycleObserver {
-                override fun onStart(owner: LifecycleOwner) = gateway.shown(true)
+                override fun onStart(owner: LifecycleOwner) = gateway.shown(owner, true)
 
-                override fun onStop(owner: LifecycleOwner) = gateway.shown(false)
+                override fun onStop(owner: LifecycleOwner) = gateway.shown(owner, false)
+
+                override fun onDestroy(owner: LifecycleOwner) {
+                    gateway.shown(owner, false)
+                    owner.lifecycle.removeObserver(this)
+                }
             },
         )
     }
@@ -141,26 +177,44 @@ internal object MobileCast {
         }
     }
 
-    @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     fun sessionPlayer(context: Context, local: Player, scope: CoroutineScope, beforeHandover: () -> Unit): Player {
         val cast = controller(context) ?: return local
-        return CastPlayer.Builder(context)
-            .setLocalPlayer(local)
-            .setRemotePlayer(
-                RemoteCastPlayer.Builder(context.applicationContext)
-                    .setMediaItemConverter(PutioCastMediaItemConverter(context))
-                    .build(),
-            )
-            .setTransferCallback(
-                CastTransfer(
-                    toReceiver = { item, handover ->
+        return buildGuardedSessionPlayer(
+            local = local,
+            createRemote = { createRemotePlayer(context) },
+            createCast = { remote ->
+                createCastPlayer(
+                    context,
+                    local,
+                    remote,
+                    { item, handover ->
                         beforeHandover()
                         cast.castFromSession(item, handover, local, scope)
                     },
-                    toLocal = { cast.resumeHere(local, scope) },
-                ),
-            )
-            .build()
+                    { cast.resumeHere(local, scope) },
+                )
+            },
+        ).also { created ->
+            if (created !== local) {
+                synchronized(castSessionPlayers) { castSessionPlayers.add(created) }
+            }
+        }
+    }
+
+    @VisibleForTesting
+    internal fun resetForTests() {
+        synchronized(this) {
+            castScope.cancel()
+            castScope = MainScope()
+            controller = null
+            synchronized(castSessionPlayers) { castSessionPlayers.clear() }
+            playServices = ::playServicesAvailable
+            createGateway = { GmsCastGateway(it).also(GmsCastGateway::start) }
+            onCastFinished = MobilePlaybackService.analytics::castFinished
+            connectAudioSession = { DefaultMobilePlayerFactory.connectAudio(it) {} }
+            createRemotePlayer = ::defaultRemoteCastPlayer
+            createCastPlayer = ::defaultCastPlayer
+        }
     }
 
     fun stopCasting(context: Context) {
@@ -168,25 +222,31 @@ internal object MobileCast {
     }
 
     fun releaseSessionPlayer(context: Context, player: Player) {
-        val cast = controller(context) ?: return player.release()
-        player.releaseOnceCastEnds(cast.availability, MainScope())
+        val ownsCast = synchronized(castSessionPlayers) { castSessionPlayers.remove(player) }
+        val cast = controller(context)?.takeIf { ownsCast } ?: return player.release()
+        player.releaseOnceCastEnds(cast.availability, castScope)
     }
 
     private fun holdSessionWhileCasting(context: Context, cast: MobileCastController) {
         var held: Closeable? = null
-        MainScope().launch {
-            cast.availability
-                .map { it.casting }
-                .distinctUntilChanged()
-                .collectLatest { casting ->
-                    if (casting) {
-                        held = held ?: DefaultMobilePlayerFactory.connectAudio(context) {}
-                    } else {
-                        delay(MOVE_HERE_WAIT_MILLIS)
-                        held?.closeQuietly()
-                        held = null
+        castScope.launch {
+            try {
+                cast.availability
+                    .map { it.casting }
+                    .distinctUntilChanged()
+                    .collectLatest { casting ->
+                        if (casting) {
+                            held = held ?: connectAudioSession(context)
+                        } else {
+                            delay(MOVE_HERE_WAIT_MILLIS)
+                            held?.closeQuietly()
+                            held = null
+                        }
                     }
-                }
+            } finally {
+                held?.closeQuietly()
+                held = null
+            }
         }
     }
 
@@ -200,6 +260,47 @@ internal object MobileCast {
         } catch (_: RuntimeException) {
             false
         }
+}
+
+// Missing or broken Play services Cast falls back to local playback.
+@Suppress("SwallowedException")
+internal fun <R : Player> buildGuardedSessionPlayer(
+    local: Player,
+    createRemote: () -> R,
+    createCast: (R) -> Player,
+): Player {
+    var remote: R? = null
+    var built = false
+    return try {
+        val created = createRemote().also { remote = it }
+        createCast(created).also { built = true }
+    } catch (_: RuntimeException) {
+        local
+    } finally {
+        if (!built) runCatching { remote?.release() }
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun defaultRemoteCastPlayer(context: Context): Player =
+    RemoteCastPlayer.Builder(context.applicationContext)
+        .setMediaItemConverter(PutioCastMediaItemConverter(context))
+        .build()
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+private fun defaultCastPlayer(
+    context: Context,
+    local: Player,
+    remote: Player,
+    toReceiver: (MediaItem, CastHandover) -> Unit,
+    toLocal: () -> Unit,
+): Player {
+    require(remote is RemoteCastPlayer) { "Expected RemoteCastPlayer" }
+    return CastPlayer.Builder(context)
+        .setLocalPlayer(local)
+        .setRemotePlayer(remote)
+        .setTransferCallback(CastTransfer(toReceiver = toReceiver, toLocal = toLocal))
+        .build()
 }
 
 /**
@@ -350,6 +451,41 @@ internal class CastSignOutEnd(private val end: () -> Unit) {
     }
 }
 
+internal interface CastContextHandle {
+    val mergedSelector: MediaRouteSelector?
+    val castState: Int
+    val currentCastSession: CastSession?
+
+    fun addCastStateListener(listener: () -> Unit)
+
+    fun addSessionManagerListener(listener: SessionManagerListener<CastSession>)
+
+    fun addSessionTransferCallback(callback: SessionTransferCallback)
+
+    fun endCurrentSession(stopCasting: Boolean)
+}
+
+private class GmsCastContextHandle(private val cast: CastContext) : CastContextHandle {
+    override val mergedSelector: MediaRouteSelector?
+        get() = cast.mergedSelector
+
+    override val castState: Int
+        get() = cast.castState
+
+    override val currentCastSession: CastSession?
+        get() = cast.sessionManager.currentCastSession
+
+    override fun addCastStateListener(listener: () -> Unit) = cast.addCastStateListener { listener() }
+
+    override fun addSessionManagerListener(listener: SessionManagerListener<CastSession>) =
+        cast.sessionManager.addSessionManagerListener(listener, CastSession::class.java)
+
+    override fun addSessionTransferCallback(callback: SessionTransferCallback) =
+        cast.addSessionTransferCallback(callback)
+
+    override fun endCurrentSession(stopCasting: Boolean) = cast.sessionManager.endCurrentSession(stopCasting)
+}
+
 /**
  * [CastGateway] over the Cast SDK and MediaRouter. Without Google Play services, or when Cast fails
  * to start, it stays [CastAvailability.Unsupported] and touches nothing else.
@@ -372,9 +508,9 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     override val availability: StateFlow<CastAvailability> = mutableAvailability
     private val mutableMovesHere = MutableStateFlow(false)
     override val movesHere: StateFlow<Boolean> = mutableMovesHere
-    private var castContext: CastContext? = null
-    private val signOut = CastSignOutEnd { castContext?.sessionManager?.endCurrentSession(true) }
-    private var shown = false
+    private var castContext: CastContextHandle? = null
+    private val signOut = CastSignOutEnd { castContext?.endCurrentSession(true) }
+    private val startedOwners: MutableSet<LifecycleOwner> = Collections.newSetFromMap(IdentityHashMap())
 
     /**
      * Loads Cast off the main thread and binds it once it answers. Play services runs Cast in its own
@@ -390,7 +526,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         load.addOnCompleteListener(ContextCompat.getMainExecutor(context)) { result ->
             val cast = result.takeIf { it.isSuccessful }?.result ?: return@addOnCompleteListener
             try {
-                bind(cast)
+                bind(GmsCastContextHandle(cast))
             } catch (_: RuntimeException) {
                 castContext = null
                 mutableAvailability.value = CastAvailability.Unsupported
@@ -398,16 +534,17 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         }
     }
 
-    private fun bind(cast: CastContext) {
+    @VisibleForTesting
+    internal fun bind(cast: CastContextHandle) {
         castContext = cast
         routes.selector = cast.mergedSelector
         cast.addCastStateListener { updateAvailability() }
-        cast.sessionManager.addSessionManagerListener(sessions, CastSession::class.java)
+        cast.addSessionManagerListener(sessions)
         cast.addSessionTransferCallback(transfers)
-        cast.sessionManager.currentCastSession?.let { current ->
+        cast.currentCastSession?.let { current ->
             signOut.resumed { if (current.isConnected) attach(current) }
         }
-        if (shown) routes.watch()
+        if (startedOwners.isNotEmpty()) routes.watch()
         updateAvailability()
     }
 
@@ -417,7 +554,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
      */
     private fun updateAvailability() {
         val cast = castContext ?: return
-        val device = cast.sessionManager.currentCastSession?.castDevice?.friendlyName
+        val device = cast.currentCastSession?.castDevice?.friendlyName
         mutableAvailability.value = when {
             remote.attached -> CastAvailability.Connected(device.orEmpty())
             cast.castState == CastState.NO_DEVICES_AVAILABLE && routes.devices.value.isEmpty() ->
@@ -498,7 +635,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     }
 
     override fun stopCasting() {
-        castContext?.sessionManager?.endCurrentSession(true)
+        castContext?.endCurrentSession(true)
     }
 
     /**
@@ -507,12 +644,14 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
      * process restarts. So the app looks for them itself while it shows, and a receiver it finds
      * offers Cast whatever Cast's own state says.
      */
-    fun shown(shown: Boolean) {
-        this.shown = shown
+    fun shown(owner: LifecycleOwner, shown: Boolean) {
         if (shown) {
-            routes.watch()
-            updateAvailability()
-        } else {
+            val becameVisible = startedOwners.isEmpty()
+            if (startedOwners.add(owner) && becameVisible) {
+                routes.watch()
+                updateAvailability()
+            }
+        } else if (startedOwners.remove(owner) && startedOwners.isEmpty()) {
             routes.unwatch()
         }
     }

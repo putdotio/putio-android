@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.DeviceInfo
@@ -18,6 +19,7 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionToken
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.android.downloads.MobileDownloadCache
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.playback.AudioSessionAnalytics
 import io.putdotio.android.playback.CastStopCallback
@@ -31,6 +33,7 @@ import io.putdotio.android.playback.PlaybackPositionObserver
 import io.putdotio.android.playback.playerFailureTelemetry
 import io.putdotio.android.telemetry.PutioDiagnostics
 import java.io.Closeable
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -48,47 +51,35 @@ class MobilePlaybackService : MediaSessionService() {
     private var audioStarted = false
     private var positionObserver: PlaybackPositionObserver? = null
     private var analyticsObserver: Closeable? = null
+    private var localListener: Media3Player.Listener? = null
+    private var sessionListener: Media3Player.Listener? = null
     private val scope = MainScope()
     private val castStop by lazy { CastStopControl(this) { MobileCast.stopCasting(this) } }
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun onCreate() {
         super.onCreate()
-        val player = DefaultMobilePlayerFactory.create(this, PlaybackMediaType.AUDIO)
+        val player = createLocalPlayer(this)
         local = player
         // Streaming with the screen off needs the CPU and radio awake; a foreground service alone does not.
         (player as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
-        positionObserver = MobileOAuthRuntime.get(this).playbackReporting.observe(player)
+        val downloads = MobileDownloadCache.get(this)
+        val runtime = MobileOAuthRuntime.get(this)
+        runtime.ensureSessionRestored(downloads::markSessionSettled)
+        positionObserver = runtime.playbackReporting.observe(player)
         analyticsObserver = analytics.observe(player)
-        player.addListener(
+        localListener = localPlayerListener().also(player::addListener)
+        val sessionPlayer = createSessionPlayer(this, player, scope) { positionObserver?.flush() }
+        sessionListener =
             object : Media3Player.Listener {
                 override fun onEvents(player: Media3Player, events: Media3Player.Events) {
                     if (taskRemoved && player.stopsWithTask()) stopSelf()
                 }
 
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    if (isPlaying) audioStarted = true
-                }
-
-                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                    audioStarted = false
-                }
-
-                override fun onPlayerError(error: PlaybackException) {
-                    val audio = PlaybackMediaType.AUDIO
-                    val telemetry = player.playerFailureTelemetry(error, audio, PlaybackPlatform.Mobile, audioStarted)
-                    PutioDiagnostics.capture(telemetry)
-                }
-            },
-        )
-        val sessionPlayer = MobileCast.sessionPlayer(this, player, scope) { positionObserver?.flush() }
-        sessionPlayer.addListener(
-            object : Media3Player.Listener {
                 override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) {
                     session?.setMediaButtonPreferences(castStop.buttons(deviceInfo))
                 }
-            },
-        )
+            }.also(sessionPlayer::addListener)
         session =
             MediaSession.Builder(this, sessionPlayer)
                 .setCallback(CastStopCallback(castStop))
@@ -109,6 +100,24 @@ class MobilePlaybackService : MediaSessionService() {
         // The sleep timer outlives Now Playing, so the service that owns the player carries it out.
         scope.launch { MobileSleepTimer.Shared.pauseWhenDue { session?.player?.pause() } }
     }
+
+    private fun localPlayerListener(): Media3Player.Listener =
+        object : Media3Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) audioStarted = true
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                audioStarted = false
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                val player = local ?: return
+                val audio = PlaybackMediaType.AUDIO
+                val telemetry = player.playerFailureTelemetry(error, audio, PlaybackPlatform.Mobile, audioStarted)
+                PutioDiagnostics.capture(telemetry)
+            }
+        }
 
     // The app reconnecting means a task exists again; pausing inside it must not stop us.
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -145,10 +154,15 @@ class MobilePlaybackService : MediaSessionService() {
         positionObserver = null
         analyticsObserver?.close()
         analyticsObserver = null
+        localListener?.let { local?.removeListener(it) }
+        localListener = null
         session?.let {
-            MobileCast.releaseSessionPlayer(this, it.player)
+            val sessionPlayer = it.player
+            sessionListener?.let(sessionPlayer::removeListener)
             it.release()
+            releaseSessionPlayer(this, sessionPlayer)
         }
+        sessionListener = null
         session = null
         local = null
         super.onDestroy()
@@ -160,6 +174,18 @@ class MobilePlaybackService : MediaSessionService() {
         private const val ACTION_STOP = "io.putdotio.android.action.STOP_PLAYBACK"
 
         val analytics = AudioSessionAnalytics()
+
+        @VisibleForTesting
+        internal var createLocalPlayer: (Context) -> Media3Player = {
+            DefaultMobilePlayerFactory.create(it, PlaybackMediaType.AUDIO)
+        }
+
+        @VisibleForTesting
+        internal var createSessionPlayer: (Context, Media3Player, CoroutineScope, () -> Unit) -> Media3Player =
+            MobileCast::sessionPlayer
+
+        @VisibleForTesting
+        internal var releaseSessionPlayer: (Context, Media3Player) -> Unit = MobileCast::releaseSessionPlayer
 
         fun sessionToken(context: Context): SessionToken =
             SessionToken(context, ComponentName(context, MobilePlaybackService::class.java))

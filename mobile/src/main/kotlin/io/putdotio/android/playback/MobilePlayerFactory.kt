@@ -110,7 +110,7 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         // Local schemes such as file:// bypass it; network URLs still go through the cache.
         val dataSource = DefaultDataSource.Factory(
             context,
-            MobileDownloadCache.get(context).let { it.playbackFactory(it.activeUserId ?: NO_DOWNLOAD_USER) },
+            MobileDownloadCache.get(context).playbackFactory(),
         )
         return playbackExoPlayer(
             context,
@@ -123,8 +123,5 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         }
     }
 }
-
-/** Players created before sign-in hold no user; the cache then never matches and everything streams. */
-private const val NO_DOWNLOAD_USER = -1L
 
 private const val MOBILE_LIBASS_CACHE_MB = 128

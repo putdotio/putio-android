@@ -94,7 +94,6 @@ internal class MobileDownloadEngine(
     }
 
     init {
-        downloads.activeUserId = userId
         downloads.onTokenClearing = parkOnTokenClearing
         downloadManager.addListener(listener)
         // The index read is SQLite; only the manager calls must run on its looper.
@@ -253,7 +252,6 @@ internal class MobileDownloadEngine(
         closed = true
         reconcileJob.cancel()
         downloadManager.removeListener(listener)
-        if (downloads.activeUserId == userId) downloads.activeUserId = null
         if (downloads.onTokenClearing === parkOnTokenClearing) downloads.onTokenClearing = null
     }
 
