@@ -1,4 +1,5 @@
 import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.variant.HostTestBuilder
 import java.io.File
 import java.util.Properties
 
@@ -6,9 +7,9 @@ import java.util.Properties
 // Read and validated at configuration time for every variant, so a malformed
 // value fails any build on this machine; only the debug BuildConfig embeds it.
 fun localMobileOAuthClientIdOverride(): String {
-    val file = rootProject.file("local.properties")
-    if (!file.isFile) return ""
-    val value = Properties().apply { file.inputStream().use { load(it) } }
+    val text = providers.fileContents(isolated.rootProject.projectDirectory.file("local.properties")).asText.orNull
+        ?: return ""
+    val value = Properties().apply { load(text.reader()) }
         .getProperty("putioMobileOAuthClientIdDebugOverride")
         ?.trim()
         .orEmpty()
@@ -25,6 +26,7 @@ plugins {
     id("putio.android.application")
     id("putio.build-logic")
     alias(libs.plugins.play.publisher)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -77,7 +79,21 @@ android {
     }
 }
 
+baselineProfile {
+    mergeIntoMain = true
+}
+
 androidComponents {
+    beforeVariants(selector().withBuildType("nonMinifiedRelease")) { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+    beforeVariants(selector().withBuildType("benchmarkRelease")) { variant ->
+        variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+    onVariants(selector().withFlavor("channel" to "nightly").withBuildType("debug")) { variant ->
+        val profiles = checkNotNull(variant.sources.baselineProfiles) { "${variant.name} has no baseline profile sources" }
+        profiles.addStaticSourceDirectory(layout.projectDirectory.dir("src/main/generated/baselineProfiles").asFile.absolutePath)
+    }
     onVariants { variant ->
         // Static shortcuts name their target package literally, and each channel and build type
         // installs under its own application id.
@@ -227,12 +243,14 @@ dependencies {
     implementation(libs.androidx.media3.cast)
     implementation(libs.androidx.mediarouter)
     implementation(libs.play.services.cast.framework)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.putio.sdk.kotlin)
 
+    baselineProfile(project(":baselineprofile:mobile"))
     tvPlayBundle(project(":tv"))
 
     debugImplementation(libs.androidx.compose.ui.tooling)

@@ -186,7 +186,20 @@ val markdownCheck = tasks.register<Exec>("markdownCheck") {
     commandLine(if (windows) "npx.cmd" else "npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
 }
 
-val appProjects = setOf(":mobile", ":tv", ":baselineprofile:tv")
+val checkMiddleCut = tasks.register<CheckForbiddenSourceTask>("checkMiddleCut") {
+    group = "verification"
+    description = "Forbid TextOverflow.MiddleEllipsis, so the apps keep one middle cut"
+    sources.from(fileTree(".") {
+        include("**/src/**/*.kt")
+        exclude("**/build/**", ".git/**", ".gradle/**")
+    })
+    pattern.set("""\bMiddleEllipsis\b""")
+    reason.set("Cut names with TvMiddleCutText or MobileMiddleCutText, so the apps keep one middle cut.")
+    repositoryRoot.set(layout.projectDirectory)
+    stamp.set(layout.buildDirectory.file("verification/checkMiddleCut.stamp"))
+}
+
+val appProjects = setOf(":mobile", ":tv", ":baselineprofile:mobile", ":baselineprofile:tv")
 
 fun verifyLane(name: String, summary: String, vararg checks: Any) = tasks.register(name) {
     group = "verification"
@@ -228,7 +241,9 @@ val verifyMobile = verifyLane(
     "verifyMobile",
     "Check the mobile app and assemble its instrumented tests",
     ":mobile:check",
+    ":baselineprofile:mobile:check",
     ":mobile:assembleProductionDebugAndroidTest",
+    checkMiddleCut,
 )
 
 val verifyTv = verifyLane(
@@ -237,6 +252,7 @@ val verifyTv = verifyLane(
     ":tv:check",
     ":baselineprofile:tv:check",
     ":tv:assembleProductionDebugAndroidTest",
+    checkMiddleCut,
 )
 
 val verifyRelease = verifyLane(

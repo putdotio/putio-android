@@ -1,0 +1,6 @@
+-keepattributes Signature,RuntimeVisibleAnnotations,AnnotationDefault
+-keep class com.posthog.PostHogEvent { <fields>; }
+-keep class com.posthog.internal.PostHogBatchEvent { <fields>; }
+-keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.tasks.**
