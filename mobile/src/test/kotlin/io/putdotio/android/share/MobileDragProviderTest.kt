@@ -1,6 +1,7 @@
 package io.putdotio.android.share
 
 import android.content.Context
+import android.os.HandlerThread
 import android.provider.OpenableColumns
 import android.system.ErrnoException
 import android.view.View
@@ -148,6 +149,28 @@ class MobileDragProviderTest {
         assertNull(MobileFileDrags[untaken])
         assertNotNull(MobileFileDrags[later])
         assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun aRuntimeFailureOpeningADragProxyDescriptorReleasesTheReaderAndStopsItsThread() {
+        val key = MobileFileDrags.begin(SESSION, POSTER)
+        val uri = mobileFileDragClip(authority, key, POSTER.name, "image/jpeg").getItemAt(0).uri
+        var thread: Thread? = null
+        MobileDragProvider.openProxyDescriptorForTest = { _, _, handler ->
+            thread = handler.looper.thread
+            error("proxy boom")
+        }
+        try {
+            assertThrows(IllegalStateException::class.java) {
+                context.contentResolver.openFileDescriptor(uri, "r")
+            }
+            val started = requireNotNull(thread)
+            started.join(2_000L)
+            assertFalse(started.isAlive)
+        } finally {
+            (thread as? HandlerThread)?.quitSafely()
+            MobileDragProvider.openProxyDescriptorForTest = null
+        }
     }
 
     /** put.io's download endpoint answering a range from the request's offset. */

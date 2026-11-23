@@ -1,7 +1,9 @@
 package io.putdotio.android.downloads
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Looper
@@ -634,6 +636,34 @@ class MobileDownloadEngineTest {
         assertEquals(earlier, index.offlineRequest(ALICE, FilesItemId(10L))?.url)
         assertNull(index.offlineRequest(BOB, FilesItemId(10L)))
         assertNull(index.offlineRequest(ALICE, FilesItemId(11L)))
+    }
+
+    @Test
+    fun removeFallsBackToDownloadManagerWhenServiceStartIsRefused() {
+        index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
+        val store = store(ALICE)
+        runBlocking { store.upsert(entry(10L, accepted = true, status = DownloadStatus.Completed(TOTAL))) }
+        val manager = manager()
+        val restricted = object : ContextWrapper(context) {
+            override fun getApplicationContext(): Context = this
+
+            override fun startService(service: Intent?): ComponentName? {
+                error("Background start refused")
+            }
+        }
+        val engine = MobileDownloadEngine(
+            restricted,
+            store,
+            ALICE,
+            scope,
+            manager,
+            Dispatchers.Unconfined,
+        ).also { engines += it }
+        awaitMain { manager.isInitialized }
+
+        runBlocking { engine.remove(FilesItemId(10L)) }
+
+        awaitMain { index.getDownload("$ALICE:10") == null && store.find(FilesItemId(10L)) == null }
     }
 
     private fun originalUri(id: Long): Uri = Uri.parse(ORIGINAL_HLS.apiUrl(FilesItemId(id)))

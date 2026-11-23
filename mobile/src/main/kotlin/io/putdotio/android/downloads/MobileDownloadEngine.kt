@@ -181,7 +181,11 @@ internal class MobileDownloadEngine(
         // row is marked; the service queue runs it after any add already posted either way.
         val known = hasRecord(fileId)
         MobileDownloadNotifications.cancel(appContext, userId, fileId)
-        DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId, false)
+        try {
+            DownloadService.sendRemoveDownload(appContext, MobileDownloadService::class.java, contentId, false)
+        } catch (_: IllegalStateException) {
+            downloadManager.removeDownload(contentId)
+        }
         if (known) {
             synchronized(removing) { removing += fileId }
         } else {

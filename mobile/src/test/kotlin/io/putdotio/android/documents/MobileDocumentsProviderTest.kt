@@ -9,6 +9,7 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.HandlerThread
 import android.os.OperationCanceledException
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
@@ -405,6 +406,28 @@ class MobileDocumentsProviderTest {
             revoked,
         )
         assertEquals(listOf(DocumentsContract.buildRootsUri(fixture.authority)), fixture.notified())
+    }
+
+    @Test
+    fun aRuntimeFailureOpeningAProxyDescriptorReleasesTheReaderAndStopsItsThread() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        fixture.offline[FilesItemId(9L)] = "local".toByteArray()
+        var thread: Thread? = null
+        MobileDocumentsProvider.openProxyDescriptorForTest = { _, _, handler ->
+            thread = handler.looper.thread
+            error("proxy boom")
+        }
+        try {
+            assertThrows(IllegalStateException::class.java) {
+                fixture.provider.openDocument("$ALICE:9", "r", null)
+            }
+            val started = requireNotNull(thread)
+            started.join(2_000L)
+            assertFalse(started.isAlive)
+        } finally {
+            (thread as? HandlerThread)?.quitSafely()
+            MobileDocumentsProvider.openProxyDescriptorForTest = null
+        }
     }
 
     private class DocumentsFixture {
