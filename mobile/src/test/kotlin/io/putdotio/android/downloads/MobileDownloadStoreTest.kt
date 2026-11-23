@@ -1,6 +1,7 @@
 package io.putdotio.android.downloads
 
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -174,6 +175,57 @@ class MobileDownloadStoreTest {
             .sortedBy { it.fileId.value }
         assertEquals(listOf(true, false), rows.map { it.pauseRequested })
         assertEquals(DownloadStatus.Completed(1L), rows[1].status)
+    }
+
+    @Test
+    fun settingConcurrencyDoesNotCallSynchronousCommit() {
+        val noCommit = object : SharedPreferences by preferences {
+            override fun edit(): SharedPreferences.Editor {
+                val delegate = preferences.edit()
+                return object : SharedPreferences.Editor by delegate {
+                    override fun commit(): Boolean {
+                        throw AssertionError("commit() must not run on main thread")
+                    }
+                }
+            }
+        }
+        val settings = MobileDownloadSettings(noCommit)
+
+        settings.concurrency = 2
+
+        assertEquals(2, settings.concurrency)
+    }
+
+    @Test
+    fun sharedDoesNotHoldGlobalLockAcrossDiskLoad() {
+        val reading = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val gatedPrefs = object : SharedPreferences by preferences {
+            override fun getString(key: String?, defValue: String?): String? {
+                if (key == "user-101") {
+                    reading.countDown()
+                    release.await()
+                }
+                return preferences.getString(key, defValue)
+            }
+        }
+        val gatedContext = object : ContextWrapper(context) {
+            override fun getApplicationContext(): Context = this
+
+            override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences =
+                if (name == "io.putdotio.android.downloads") gatedPrefs else super.getSharedPreferences(name, mode)
+        }
+        val first = thread { MobileDownloadStore.shared(gatedContext, 101L) }
+        try {
+            assertTrue(reading.await(5, TimeUnit.SECONDS))
+            val second = thread { MobileDownloadStore.shared(gatedContext, 102L) }
+            second.join(TimeUnit.SECONDS.toMillis(2))
+            assertFalse(second.isAlive)
+        } finally {
+            release.countDown()
+            first.join()
+            MobileDownloadStore.clearSharedForTest(gatedContext)
+        }
     }
 
     private class GatedPreferences(private val delegate: SharedPreferences) : SharedPreferences by delegate {

@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.annotation.VisibleForTesting
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -21,6 +22,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * A download notification's actions: Try again on a failed download, Pause and Cancel on the running
@@ -31,23 +33,7 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val link = parseMobileDeepLink(intent.data) as? MobileDeepLink.Downloads
         val userId = link?.userId ?: return
-        val fileId = link.fileId
-        val work: (suspend () -> Unit)? = when {
-            intent.action == ACTION_RETRY && fileId != null -> {
-                val retries = retriesForTest ?: production(context.applicationContext)
-                suspend { retries.retry(userId, fileId) }
-            }
-            intent.action == ACTION_PAUSE && fileId == null -> {
-                val controls = controlsForTest ?: productionControls(context.applicationContext)
-                suspend { controls.pauseAll(userId) }
-            }
-            intent.action == ACTION_CANCEL && fileId == null -> {
-                val controls = controlsForTest ?: productionControls(context.applicationContext)
-                suspend { controls.cancelAll(userId) }
-            }
-            else -> null
-        }
-        if (work == null) return
+        val work = buildAction(context.applicationContext, intent.action, userId, link.fileId) ?: return
         val hold = holdBroadcast()
         scope.launch {
             try {
@@ -70,8 +56,13 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
         @Volatile
         internal var controlsForTest: DownloadNotificationControls? = null
 
-        // Media3's manager belongs on the main thread, as in the engine; the store writes on IO.
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        @VisibleForTesting
+        internal var retriesFactoryForTest: ((Context) -> DownloadNotificationRetries)? = null
+
+        @VisibleForTesting
+        internal var controlsFactoryForTest: ((Context) -> DownloadNotificationControls)? = null
+
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
         /**
          * Restoring a session in a cold process reads put.io. Android lets an app start a foreground
@@ -100,6 +91,36 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
 
+        private fun buildAction(
+            appContext: Context,
+            action: String?,
+            userId: Long,
+            fileId: FilesItemId?,
+        ): (suspend () -> Unit)? =
+            when {
+                action == ACTION_RETRY && fileId != null -> {
+                    {
+                        val retries = retriesForTest ?: (retriesFactoryForTest ?: ::production)(appContext)
+                        retries.retry(userId, fileId)
+                    }
+                }
+                action == ACTION_PAUSE && fileId == null -> {
+                    {
+                        val controls = controlsForTest
+                            ?: (controlsFactoryForTest ?: ::productionControls)(appContext)
+                        controls.pauseAll(userId)
+                    }
+                }
+                action == ACTION_CANCEL && fileId == null -> {
+                    {
+                        val controls = controlsForTest
+                            ?: (controlsFactoryForTest ?: ::productionControls)(appContext)
+                        controls.cancelAll(userId)
+                    }
+                }
+                else -> null
+            }
+
         private fun signedInAccount(context: Context): suspend () -> SignedInAccount {
             val runtime = MobileOAuthRuntime.get(context)
             return {
@@ -119,8 +140,10 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
                 signedIn = signedInAccount(context),
                 find = { userId, fileId -> MobileDownloadStore.peek(context, userId, fileId) },
                 start = { userId, entry ->
-                    downloads.dropReplacedBytes(downloads.downloadManager, userId, entry, Dispatchers.IO)
-                    sendDownloadRequest(context, userId, entry)
+                    withContext(Dispatchers.Main.immediate) {
+                        downloads.dropReplacedBytes(downloads.downloadManager, userId, entry, Dispatchers.IO)
+                        sendDownloadRequest(context, userId, entry)
+                    }
                 },
                 dismiss = { userId, fileId -> MobileDownloadNotifications.cancel(context, userId, fileId) },
                 decision = DownloadRetryDecision(
@@ -139,21 +162,30 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
 
         @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
         private fun productionControls(context: Context): DownloadNotificationControls {
-            val manager = MobileDownloadCache.get(context).downloadManager
+            val downloads = MobileDownloadCache.get(context)
             return DownloadNotificationControls(
                 signedIn = signedInAccount(context),
-                live = { userId -> manager.liveDownloadsOf(userId) },
+                live = { userId ->
+                    withContext(Dispatchers.Main.immediate) { downloads.downloadManager.liveDownloadsOf(userId) }
+                },
                 pause = { userId, fileId ->
+                    val manager = withContext(Dispatchers.Main.immediate) { downloads.downloadManager }
                     pauseFromNotification(MobileDownloadStore.shared(context, userId), manager, userId, fileId)
                 },
                 cancel = { userId, fileId ->
                     cancelFromNotification(MobileDownloadStore.shared(context, userId), userId, fileId) {
-                        // The service that posted this notification runs, so the start is allowed; were
-                        // it refused, the manager removes the download directly.
-                        try {
-                            DownloadService.sendRemoveDownload(context, MobileDownloadService::class.java, it, false)
-                        } catch (_: IllegalStateException) {
-                            manager.removeDownload(it)
+                        withContext(Dispatchers.Main.immediate) {
+                            val manager = downloads.downloadManager
+                            try {
+                                DownloadService.sendRemoveDownload(
+                                    context,
+                                    MobileDownloadService::class.java,
+                                    it,
+                                    false,
+                                )
+                            } catch (_: IllegalStateException) {
+                                manager.removeDownload(it)
+                            }
                         }
                     }
                 },
@@ -184,7 +216,9 @@ internal suspend fun pauseFromNotification(
 ) {
     if (store.find(fileId)?.removing == true) return
     store.updateStatus(fileId) { it.copy(pauseRequested = true) }
-    manager.setStopReason(downloadContentId(userId, fileId), MobileDownloadEngine.STOP_REASON_PAUSED)
+    withContext(Dispatchers.Main.immediate) {
+        manager.setStopReason(downloadContentId(userId, fileId), MobileDownloadEngine.STOP_REASON_PAUSED)
+    }
 }
 
 /**
@@ -196,7 +230,7 @@ internal suspend fun cancelFromNotification(
     store: MobileDownloadStore,
     userId: Long,
     fileId: FilesItemId,
-    remove: (contentId: String) -> Unit,
+    remove: suspend (contentId: String) -> Unit,
 ) {
     store.updateStatus(fileId) { it.copy(removing = true) }
     remove(downloadContentId(userId, fileId))
@@ -301,7 +335,7 @@ private val RETRY_LOOKUP_BUDGET = 4.seconds
  */
 internal class DownloadNotificationControls(
     private val signedIn: suspend () -> SignedInAccount,
-    private val live: (userId: Long) -> List<FilesItemId>,
+    private val live: suspend (userId: Long) -> List<FilesItemId>,
     private val pause: suspend (userId: Long, fileId: FilesItemId) -> Unit,
     private val cancel: suspend (userId: Long, fileId: FilesItemId) -> Unit,
 ) {

@@ -6,11 +6,17 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.retryable
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -64,7 +70,9 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
     val resumeSetting: Boolean? get() = snapshot.resume
 
     @Synchronized
-    fun rememberResumeSetting(enabled: Boolean) = write(snapshot.copy(resume = enabled))
+    fun rememberResumeSetting(enabled: Boolean) {
+        if (snapshot.resume != enabled) write(snapshot.copy(resume = enabled))
+    }
 
     @Synchronized
     fun tracks(fileId: Long): Boolean = fileId in snapshot.known || fileId in snapshot.pending
@@ -238,6 +246,7 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
 internal class OfflinePositionSession(
     val userId: () -> Long?,
     val captureRejection: () -> () -> Unit = { {} },
+    val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 )
 
 internal class OfflinePlaybackPositions(
@@ -256,30 +265,45 @@ internal class OfflinePlaybackPositions(
         writing: suspend (suspend () -> Unit) -> Unit = { it() },
         onSynced: (fileId: Long, seconds: Double) -> Unit = { _, _ -> },
     ) : this(preferences, OfflinePositionSession(signedInUser), remote, scope, writing, onSynced)
-    private val stores = mutableMapOf<Long, OfflinePositionStore>()
+    private val stores = ConcurrentHashMap<Long, OfflinePositionStore>()
+    internal val loadedStores: Map<Long, OfflinePositionStore> get() = stores
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val coldWriteDispatcher = Dispatchers.IO.limitedParallelism(1)
+    private val coldWriteLock = Any()
+    @Volatile
+    private var lastColdWrite: Job? = null
     private val passes = Mutex()
 
     @Volatile
     private var passRequested = false
 
-    @Synchronized
     fun store(userId: Long): OfflinePositionStore =
-        stores.getOrPut(userId) { OfflinePositionStore(preferences, userId) }
+        stores[userId] ?: run {
+            val created = OfflinePositionStore(preferences, userId)
+            stores.putIfAbsent(userId, created) ?: created
+        }
 
     /**
      * After a reporting write for a downloaded file: an accepted position becomes the known one,
      * and one put.io could not take for a transient reason waits for the next sync.
      */
     fun afterWrite(userId: Long, fileId: Long, seconds: Double, result: PlaybackRepositoryResult<Unit>) {
-        val store = store(userId)
-        if (!store.tracks(fileId)) return
-        when (result) {
-            is PlaybackRepositoryResult.Success -> {
-                store.accepted(fileId, seconds)
-                requestSync()
+        val loaded = stores[userId]
+        if (loaded != null && lastColdWrite?.isActive != true) {
+            applyAfterWrite(loaded, fileId, seconds, result, ::requestSync)
+            return
+        }
+        synchronized(coldWriteLock) {
+            val current = stores[userId]
+            val active = lastColdWrite?.takeIf { it.isActive }
+            if (current != null && active == null) {
+                applyAfterWrite(current, fileId, seconds, result, ::requestSync)
+            } else {
+                lastColdWrite = scope.launch(coldWriteDispatcher) {
+                    active?.join()
+                    applyAfterWrite(store(userId), fileId, seconds, result, ::requestSync)
+                }
             }
-            is PlaybackRepositoryResult.Failure ->
-                if (result.failure.retryable || result.failure.isAuthenticationRequired) store.keep(fileId, seconds)
         }
     }
 
@@ -288,7 +312,8 @@ internal class OfflinePlaybackPositions(
      * within [REFRESH_TIMEOUT_MILLIS], else the last known one, else the listing's at download time.
      */
     suspend fun resumePosition(userId: Long, entry: DownloadEntry): Double {
-        val store = store(userId)
+        lastColdWrite?.join()
+        val store = stores[userId] ?: withContext(session.ioDispatcher) { store(userId) }
         val fileId = entry.fileId.value
         val pending = store.pending(fileId)
         if (pending != null) requestSync()
@@ -324,13 +349,16 @@ internal class OfflinePlaybackPositions(
     internal suspend fun syncNow(userId: Long) = passes.withLock { sync(userId) }
 
     private suspend fun sync(userId: Long) {
-        val store = store(userId)
-        if (store.pending().isEmpty() || session.userId() != userId || !resumeStillOn(store)) return
-        // A newer local position replacing one since the pass began goes in the next pass.
-        for (update in store.pending()) {
-            val keepGoing = session.userId() == userId &&
-                (!store.isCurrent(update) || syncRead(userId, store, update))
-            if (!keepGoing) break
+        lastColdWrite?.join()
+        withContext(session.ioDispatcher) {
+            val store = store(userId)
+            if (store.pending().isEmpty() || session.userId() != userId || !resumeStillOn(store)) return@withContext
+            // A newer local position replacing one since the pass began goes in the next pass.
+            for (update in store.pending()) {
+                val keepGoing = session.userId() == userId &&
+                    (!store.isCurrent(update) || syncRead(userId, store, update))
+                if (!keepGoing) break
+            }
         }
     }
 
@@ -415,6 +443,26 @@ internal class OfflinePlaybackPositions(
 private const val HTTP_NOT_FOUND = 404
 private const val HTTP_GONE = 410
 private val PERMANENT_FILE_HTTP_CODES = setOf(HTTP_NOT_FOUND, HTTP_GONE)
+
+internal fun OfflinePlaybackPositions.loadedStore(userId: Long): OfflinePositionStore? = loadedStores[userId]
+
+private fun applyAfterWrite(
+    store: OfflinePositionStore,
+    fileId: Long,
+    seconds: Double,
+    result: PlaybackRepositoryResult<Unit>,
+    onAccepted: () -> Unit,
+) {
+    if (!store.tracks(fileId)) return
+    when (result) {
+        is PlaybackRepositoryResult.Success -> {
+            store.accepted(fileId, seconds)
+            onAccepted()
+        }
+        is PlaybackRepositoryResult.Failure ->
+            if (result.failure.retryable || result.failure.isAuthenticationRequired) store.keep(fileId, seconds)
+    }
+}
 
 private val PlaybackFailure.isAuthenticationRequired: Boolean
     get() = (this as? PlaybackFailure.Putio)?.failure is PutioFailure.AuthenticationRequired

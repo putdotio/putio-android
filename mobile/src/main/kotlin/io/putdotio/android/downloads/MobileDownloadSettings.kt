@@ -17,7 +17,7 @@ internal class MobileDownloadSettings(private val preferences: SharedPreferences
             .takeIf { it in DOWNLOAD_CONCURRENCY_CHOICES } ?: DOWNLOAD_CONCURRENCY_DEFAULT
         set(value) {
             require(value in DOWNLOAD_CONCURRENCY_CHOICES) { "Unsupported download concurrency $value" }
-            preferences.edit(commit = true) { putInt(CONCURRENCY_KEY, value) }
+            preferences.edit { putInt(CONCURRENCY_KEY, value) }
         }
 
     /** The first download asks for notification permission once; later asks come from Downloads. */

@@ -5,8 +5,12 @@ import android.app.Application
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.ComponentName
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Looper
 import androidx.core.content.IntentCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
@@ -28,6 +32,11 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
 import java.net.UnknownHostException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -47,7 +56,10 @@ class MobileDownloadNotificationsTest {
     private val context: Application = ApplicationProvider.getApplicationContext()
     private val manager = context.getSystemService(NotificationManager::class.java)
     private var signedIn: Long? = USER
-    private val notifications = MobileDownloadNotifications(context) { signedIn }
+    private val notifications = MobileDownloadNotifications(
+        context,
+        lookupDispatcher = Dispatchers.Unconfined,
+    ) { signedIn }
     // The listener never reads the manager; Media3 hands it one anyway.
     private val downloadManager = DownloadManager(
         context,
@@ -137,7 +149,11 @@ class MobileDownloadNotificationsTest {
         val store = MobileDownloadStore(context, USER)
         store.upsert(row(13L, "Spring.mp4").copy(artifact = original))
         store.upsert(row(14L, "Summer.mp4").copy(artifact = original, removing = true))
-        val listener = MobileDownloadNotifications(context, stores = { store }) { signedIn }
+        val listener = MobileDownloadNotifications(
+            context,
+            stores = { store },
+            lookupDispatcher = Dispatchers.Unconfined,
+        ) { signedIn }
 
         signedIn = null
         for (id in listOf(13L, 14L)) {
@@ -310,7 +326,11 @@ class MobileDownloadNotificationsTest {
             row(13L, "Stand-in.mkv").copy(artifact = DownloadArtifact.MP4, directPlayUnanswered = true),
         )
         val redeciders = DirectPlayRedeciders()
-        val listener = MobileDownloadNotifications(context, redeciding = redeciders::holds) { signedIn }
+        val listener = MobileDownloadNotifications(
+            context,
+            redeciding = redeciders::holds,
+            lookupDispatcher = Dispatchers.Unconfined,
+        ) { signedIn }
         val refused = download(13L, Download.STATE_FAILED)
         val notFound = rejected(HTTP_NOT_FOUND)
 
@@ -366,6 +386,134 @@ class MobileDownloadNotificationsTest {
                 "Downloaded file · 42%",
                 fallback.extras.getCharSequence(Notification.EXTRA_TEXT).toString(),
             )
+        }
+    }
+
+    @Test
+    fun onDownloadChangedReadsInMemorySnapshotAndMovesColdLookupOffMainThread() {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val reads = AtomicInteger()
+        val mainThreadReads = AtomicInteger()
+        val rawPrefs = downloadPreferences(context)
+        val countingPrefs = object : SharedPreferences by rawPrefs {
+            override fun getString(key: String?, defValue: String?): String? {
+                if (key == "user-$USER") {
+                    reads.incrementAndGet()
+                    if (Looper.myLooper() == Looper.getMainLooper()) mainThreadReads.incrementAndGet()
+                }
+                return rawPrefs.getString(key, defValue)
+            }
+        }
+        val wrappedContext = object : ContextWrapper(context) {
+            override fun getApplicationContext(): Context = this
+
+            override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences =
+                if (name == "io.putdotio.android.downloads") countingPrefs else super.getSharedPreferences(name, mode)
+        }
+        try {
+            MobileDownloadStore.shared(wrappedContext, USER)
+            val listener = MobileDownloadNotifications(wrappedContext) { USER }
+            reads.set(0)
+            mainThreadReads.set(0)
+
+            listener.changed(download(10L, Download.STATE_COMPLETED))
+
+            assertEquals(1, shadowOf(manager).allNotifications.size)
+            assertEquals(0, reads.get())
+            assertEquals(0, mainThreadReads.get())
+
+            MobileDownloadStore.clearSharedForTest(wrappedContext)
+            reads.set(0)
+            mainThreadReads.set(0)
+
+            listener.changed(download(11L, Download.STATE_FAILED), UnknownHostException("offline"))
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5L)
+            while (shadowOf(manager).allNotifications.size < 2) {
+                shadowOf(Looper.getMainLooper()).idle()
+                check(System.nanoTime() < deadline) { "Timed out waiting for cold download notification" }
+                Thread.sleep(10L)
+            }
+
+            assertEquals(0, mainThreadReads.get())
+        } finally {
+            MobileDownloadStore.clearSharedForTest(wrappedContext)
+        }
+    }
+
+    @Test
+    fun coldFallbackDoesNotRestartARowMarkedRemovingBeforeMainRuns() = runBlocking {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val store = MobileDownloadStore(downloadPreferences(context), "user-$USER", Dispatchers.Unconfined)
+        store.upsert(row(15L, "Spring.mp4").copy(artifact = DownloadArtifact.ORIGINAL_HLS))
+        MobileDownloadStore.clearSharedForTest(context)
+        val entering = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val listener = MobileDownloadNotifications(
+            context,
+            stores = {
+                entering.countDown()
+                release.await()
+                store
+            },
+        ) { signedIn }
+
+        listener.changed(failedOriginal(15L), rejected(HTTP_BAD_REQUEST))
+        assertTrue(entering.await(5, TimeUnit.SECONDS))
+        store.updateStatusBlocking(FilesItemId(15L)) { it.copy(removing = true) }
+        release.countDown()
+
+        repeat(10) {
+            shadowOf(Looper.getMainLooper()).idle()
+            Thread.sleep(10L)
+        }
+
+        val current = store.find(FilesItemId(15L))
+        assertTrue(current?.removing == true)
+        assertEquals(DownloadArtifact.ORIGINAL_HLS, current?.artifact)
+        assertTrue(generateSequence { shadowOf(context).nextStartedService }.toList().isEmpty())
+    }
+
+    @Test
+    fun coldNotificationDoesNotPostARowDeletedBeforeMainRuns() {
+        shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        val rawPrefs = downloadPreferences(context)
+        val gate = AtomicBoolean(true)
+        val peeking = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val gatedPrefs = object : SharedPreferences by rawPrefs {
+            override fun getString(key: String?, defValue: String?): String? {
+                val value = rawPrefs.getString(key, defValue)
+                if (key == "user-$USER" && gate.compareAndSet(true, false)) {
+                    peeking.countDown()
+                    release.await()
+                }
+                return value
+            }
+        }
+        val wrappedContext = object : ContextWrapper(context) {
+            override fun getApplicationContext(): Context = this
+
+            override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences =
+                if (name == "io.putdotio.android.downloads") gatedPrefs else super.getSharedPreferences(name, mode)
+        }
+        try {
+            MobileDownloadStore.clearSharedForTest(wrappedContext)
+            val listener = MobileDownloadNotifications(wrappedContext) { USER }
+            listener.changed(download(10L, Download.STATE_COMPLETED))
+            assertTrue(peeking.await(5, TimeUnit.SECONDS))
+
+            MobileDownloadStore.shared(wrappedContext, USER).removeBlocking(FilesItemId(10L))
+            release.countDown()
+
+            repeat(10) {
+                shadowOf(Looper.getMainLooper()).idle()
+                Thread.sleep(10L)
+            }
+
+            assertTrue(shadowOf(manager).allNotifications.isEmpty())
+        } finally {
+            release.countDown()
+            MobileDownloadStore.clearSharedForTest(wrappedContext)
         }
     }
 

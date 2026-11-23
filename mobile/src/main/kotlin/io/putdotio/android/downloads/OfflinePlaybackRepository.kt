@@ -17,18 +17,20 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackStreamFormat
 import io.putdotio.sdk.files.PlaybackSubtitles
 import io.putdotio.sdk.files.PutioCredentialUrl
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withContext
 
 /** Where offline playback resumes, from settings and positions this device kept. */
 internal interface OfflineResume {
     /** The confirmed `use_start_from`, else the one this device last confirmed, else off. */
-    fun enabled(): Boolean
+    suspend fun enabled(): Boolean
 
     suspend fun position(entry: DownloadEntry): Double
 
     companion object {
         val Off: OfflineResume = object : OfflineResume {
-            override fun enabled(): Boolean = false
+            override suspend fun enabled(): Boolean = false
 
             override suspend fun position(entry: DownloadEntry): Double = 0.0
         }
@@ -41,8 +43,11 @@ internal class OfflinePositionsResume(
     private val userId: Long,
     private val settings: StateFlow<AccountSettingsState>,
 ) : OfflineResume {
-    override fun enabled(): Boolean =
-        settings.value.confirmedResumePlayback() ?: positions.store(userId).resumeSetting ?: false
+    override suspend fun enabled(): Boolean =
+        settings.value.confirmedResumePlayback()
+            ?: (positions.loadedStore(userId) ?: withContext(Dispatchers.IO) { positions.store(userId) })
+                .resumeSetting
+            ?: false
 
     override suspend fun position(entry: DownloadEntry): Double = positions.resumePosition(userId, entry)
 }

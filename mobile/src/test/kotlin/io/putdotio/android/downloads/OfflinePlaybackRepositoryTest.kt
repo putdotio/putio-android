@@ -88,7 +88,7 @@ class OfflinePlaybackRepositoryTest {
         val entry = completed().copy(startFromSeconds = 100.0, durationSeconds = 1_800.0)
         val downloads = downloadsOf(entry)
         val resume = object : OfflineResume {
-            override fun enabled() = true
+            override suspend fun enabled() = true
 
             override suspend fun position(entry: DownloadEntry) = 250.0
         }

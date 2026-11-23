@@ -6,6 +6,7 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.downloads.OfflinePlaybackPositions
+import io.putdotio.android.downloads.loadedStore
 import io.putdotio.android.settings.AccountSettingsContent
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.confirmedResumePlayback
@@ -110,7 +111,7 @@ internal class MobilePlaybackReporting(
      */
     private fun resumeAllowed(sessionId: MobileAuthSessionId, userId: Long, fileId: Long): Boolean {
         val state = settings?.takeIf { it.sessionId == sessionId }?.state?.value
-        val offlineStore = offline()?.store(userId)?.takeIf { state?.content !is AccountSettingsContent.Ready }
+        val offlineStore = offline()?.loadedStore(userId)?.takeIf { state?.content !is AccountSettingsContent.Ready }
         return state?.confirmedResumePlayback()
             ?: (offlineStore?.resumeSetting == true && offlineStore.tracks(fileId) && state != null)
     }
