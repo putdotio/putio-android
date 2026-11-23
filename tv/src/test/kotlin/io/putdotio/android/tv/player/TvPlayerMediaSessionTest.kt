@@ -198,28 +198,44 @@ class TvPlayerMediaSessionTest {
 
     @Test
     fun theSystemCannotResumePlaybackWhileTheScreenIsStopped() {
-        val player = FakePlayer()
+        val players = mutableListOf<FakePlayer>()
         val sessions = mutableListOf<MediaSession>()
         val owner = object : LifecycleOwner {
             val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
             override val lifecycle: Lifecycle get() = registry
         }
-        compose.showReady(player, playerFactory = sessionFactory(player, sessions), lifecycleOwner = owner)
+        val factory = object : TvPlayerFactory {
+            override fun create(context: android.content.Context, mediaType: PlaybackMediaType): Player =
+                FakePlayer().also { players += it }
+
+            override fun publish(context: android.content.Context, published: Player): java.io.Closeable {
+                val session = tvMediaSession(context, published).build()
+                sessions += session
+                return java.io.Closeable { session.release() }
+            }
+        }
+        compose.showReady(FakePlayer(), playerFactory = factory, lifecycleOwner = owner)
         val controller = connect(sessions.single())
 
         compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
         compose.settle()
-        compose.runOnIdle { assertFalse(player.playWhenReady) }
+        compose.runOnIdle { assertTrue(players.single().released) }
         controller.play()
         idleSession()
-        compose.runOnIdle { assertFalse("Nothing plays behind another app", player.playWhenReady) }
+        compose.runOnIdle { assertFalse("Nothing plays behind another app", players.single().playWhenReady) }
 
         compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
         compose.settle()
-        controller.play()
+        compose.runOnIdle {
+            assertEquals(2, players.size)
+            assertEquals(2, sessions.size)
+        }
+        val resumedController = connect(sessions.last())
+        resumedController.play()
         idleSession()
-        compose.runOnIdle { assertTrue(player.playWhenReady) }
+        compose.runOnIdle { assertTrue(players.last().playWhenReady) }
         controller.release()
+        resumedController.release()
     }
 
     @Test

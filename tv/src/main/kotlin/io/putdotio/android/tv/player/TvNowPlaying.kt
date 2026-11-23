@@ -15,6 +15,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +83,7 @@ internal fun TvNowPlaying(
     chips: List<TvPlayerControl>,
     chipLabels: TvPlayerChipLabels,
     focused: TvPlayerControl,
+    isReleased: () -> Boolean = { false },
 ) {
     Box(
         modifier = Modifier
@@ -96,7 +98,7 @@ internal fun TvNowPlaying(
             horizontalArrangement = Arrangement.spacedBy(ARTWORK_GAP),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TvNowPlayingArtwork(rememberArtwork(player))
+            TvNowPlayingArtwork(rememberArtwork(player, isReleased))
             Column(Modifier.weight(1f)) {
                 TvMiddleCutText(
                     text = state.title,
@@ -113,7 +115,12 @@ internal fun TvNowPlaying(
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
-                TvNowPlayingProgress(player, state, seekBarFocused = focused == TvPlayerControl.SeekBar)
+                TvNowPlayingProgress(
+                    player = player,
+                    state = state,
+                    seekBarFocused = focused == TvPlayerControl.SeekBar,
+                    isReleased = isReleased,
+                )
                 TvNowPlayingTransport(state, focused)
                 TvPlayerChips(chips = chips, labels = chipLabels, focused = focused)
             }
@@ -122,8 +129,13 @@ internal fun TvNowPlaying(
 }
 
 @Composable
-private fun TvNowPlayingProgress(player: Player, state: TvNowPlayingState, seekBarFocused: Boolean) {
-    val progress = rememberPlayerProgress(player, state.paused, state.startPositionMillis)
+private fun TvNowPlayingProgress(
+    player: Player,
+    state: TvNowPlayingState,
+    seekBarFocused: Boolean,
+    isReleased: () -> Boolean = { false },
+) {
+    val progress = rememberPlayerProgress(player, state.paused, state.startPositionMillis, isReleased)
     val shownMillis = progress.positionMillis
     val duration = knownDurationMillis(progress.durationMillis, state.listingDurationMillis)
     val elapsed = playerTime(shownMillis)
@@ -202,16 +214,26 @@ private fun TvNowPlayingArtwork(artwork: ByteArray?) {
 }
 
 @Composable
-private fun rememberArtwork(player: Player): ByteArray? {
+private fun rememberArtwork(
+    player: Player,
+    isReleased: () -> Boolean = { false },
+): ByteArray? {
+    val currentIsReleased by rememberUpdatedState(isReleased)
     var artwork by remember(player) { mutableStateOf(player.mediaMetadata.artworkData) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
-                artwork = mediaMetadata.artworkData
+                if (!currentIsReleased()) {
+                    artwork = mediaMetadata.artworkData
+                }
             }
         }
         player.addListener(listener)
-        onDispose { player.removeListener(listener) }
+        onDispose {
+            if (!currentIsReleased()) {
+                player.removeListener(listener)
+            }
+        }
     }
     return artwork
 }

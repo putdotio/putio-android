@@ -17,6 +17,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,9 +38,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
@@ -315,18 +317,98 @@ private fun TvReadyPlayer(
     snackbar: TvSnackbarState,
     queue: TvPlaybackQueue?,
 ) {
-    val context = LocalContext.current
     val nowPlaying = target.mediaType == PlaybackMediaType.AUDIO
     val keepsPlaying = backgroundAudio.keepsPlaying(target.mediaType)
-    val hidden = backgroundAudio.hidden
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val lifecycleState by lifecycle.currentStateAsState()
     var stoppedAtMillis by rememberSaveable(source, key = "tv-player-stopped-at-$PROCESS_KEY-${target.fileId.value}") {
         mutableStateOf(resumePositionMillis?.takeUnless { playIntent.value })
     }
+    val playerGeneration = remember(lifecycle, source) { mutableIntStateOf(0) }
+    if (!keepsPlaying && !lifecycleState.isAtLeast(Lifecycle.State.STARTED)) return
+
+    key(playerGeneration.intValue) {
+        TvActiveReadyPlayer(
+            source = source,
+            useStartFrom = useStartFrom,
+            target = target,
+            resumePositionMillis = resumePositionMillis,
+            stoppedAtMillis = stoppedAtMillis,
+            onStoppedAtMillis = { stoppedAtMillis = it },
+            onForegroundStopped = { playerGeneration.intValue += 1 },
+            subtitleStartupPolicy = subtitleStartupPolicy,
+            playerFactory = playerFactory,
+            reporter = reporter,
+            onPlayerFailure = onPlayerFailure,
+            onOriginalRejected = onOriginalRejected,
+            onFirstFrame = onFirstFrame,
+            onOriginalChosen = onOriginalChosen,
+            onExit = onExit,
+            autoplayNextVideo = autoplayNextVideo,
+            onPlaybackEnded = onPlaybackEnded,
+            nextEpisode = nextEpisode,
+            onNextEpisode = onNextEpisode,
+            onUpNext = onUpNext,
+            analytics = analytics,
+            upNext = upNext,
+            neighbours = neighbours,
+            nowPlaying = nowPlaying,
+            keepsPlaying = keepsPlaying,
+            nowPlayingFocus = nowPlayingFocus,
+            optionsState = optionsState,
+            playIntent = playIntent,
+            backgroundAudio = backgroundAudio,
+            snackbar = snackbar,
+            queue = queue,
+        )
+    }
+}
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Composable
+private fun TvActiveReadyPlayer(
+    source: PlaybackSource,
+    useStartFrom: Boolean,
+    target: PlaybackTarget,
+    resumePositionMillis: Long?,
+    stoppedAtMillis: Long?,
+    onStoppedAtMillis: (Long) -> Unit,
+    onForegroundStopped: () -> Unit,
+    subtitleStartupPolicy: SubtitleStartupPolicy?,
+    playerFactory: TvPlayerFactory,
+    reporter: TvPlaybackReporter,
+    onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean,
+    onFirstFrame: () -> Unit,
+    onOriginalChosen: ((Long) -> Boolean)?,
+    onExit: () -> Unit,
+    autoplayNextVideo: Boolean,
+    onPlaybackEnded: () -> Boolean,
+    nextEpisode: Boolean,
+    onNextEpisode: () -> Unit,
+    onUpNext: (PlaybackTarget) -> Boolean,
+    analytics: PlaybackAnalyticsReporter,
+    upNext: PlaybackUpNextLookup,
+    neighbours: PlaybackNeighbours?,
+    nowPlaying: Boolean,
+    keepsPlaying: Boolean,
+    nowPlayingFocus: MutableState<TvPlayerControl>,
+    optionsState: MutableState<TvPlaybackOptions>,
+    playIntent: MutableState<Boolean>,
+    backgroundAudio: TvBackgroundAudio,
+    snackbar: TvSnackbarState,
+    queue: TvPlaybackQueue?,
+) {
+    val context = LocalContext.current
+    val hidden = backgroundAudio.hidden
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     var options by optionsState
     val subtitleMemory = rememberSubtitleLanguageStore()
     val held = rememberHeldPlayer(queue.takeIf { keepsPlaying }, source, playerFactory, target.mediaType)
     val player = held.player
+    val stallWatch = rememberPlaybackStallWatch(player)
+    val stall by stallWatch.stall.collectAsState()
+    val stalled = stall == PlaybackStall.Stalled
     val defaultTrackSelection = remember(player) { player.trackSelectionParameters }
     val prepared = remember(player) {
         source.preparePlayback(target.name, target.mediaType, stoppedAtMillis ?: resumePositionMillis)
@@ -352,10 +434,16 @@ private fun TvReadyPlayer(
     val currentUpNext by rememberUpdatedState(upNext)
     val currentNeighbours by rememberUpdatedState(neighbours)
     val currentOnBackground by rememberUpdatedState(backgroundAudio.onBackground)
+    val currentKeepsPlaying by rememberUpdatedState(keepsPlaying)
+    val currentOnStoppedAtMillis by rememberUpdatedState(onStoppedAtMillis)
+    val currentOnForegroundStopped by rememberUpdatedState(onForegroundStopped)
     val startsPlaying = stoppedAtMillis == null
+    var released by remember(player) { mutableStateOf(false) }
+    var releaseOwned by remember(player) { mutableStateOf({}) }
     var overlay by remember(player) { mutableStateOf(tvPlayerOverlay(nowPlaying, nowPlayingFocus.value)) }
     val apply: (TvPlayerTransition) -> Unit = remember(player) {
-        { transition ->
+        apply@{ transition ->
+            if (released) return@apply
             overlay = transition.overlay
             nowPlayingFocus.value = transition.overlay.focus
             transition.commands.forEach { command ->
@@ -538,12 +626,35 @@ private fun TvReadyPlayer(
                 player.release()
             }
         }
-        onDispose {
-            player.removeListener(listener)
-            (player as? ExoPlayer)?.removeAnalyticsListener(loads)
-            published.close()
+        val disposeAction = {
+            if (!released) {
+                released = true
+                stallWatch.close()
+                player.removeListener(listener)
+                (player as? ExoPlayer)?.removeAnalyticsListener(loads)
+                published.close()
+            }
         }
+        releaseOwned = disposeAction
+        onDispose { disposeAction() }
     }
+    TvPlayerLifecycleEffect(
+        lifecycle = lifecycle,
+        player = player,
+        isReleased = { released },
+        onPause = { currentOnStoppedAtMillis(player.currentPosition.coerceAtLeast(0L)) },
+        onStop = {
+            if (!currentKeepsPlaying) {
+                currentOnStoppedAtMillis(player.currentPosition.coerceAtLeast(0L))
+                leaveForeground({ overlay }, apply, keepsPlaying = false)
+                playIntent.value = false
+                releaseOwned()
+                currentOnForegroundStopped()
+            } else {
+                leaveForeground({ overlay }, apply, keepsPlaying = true)
+            }
+        },
+    )
     LaunchedEffect(player, subtitleStartupPolicy, options.subtitles == null) {
         player.followSubtitlePolicy(
             subtitleStartupPolicy,
@@ -556,14 +667,9 @@ private fun TvReadyPlayer(
     BackHandler(enabled = !hidden) {
         apply(overlay.back(backgrounds = backgroundAudio.backgroundsOnBack(target.mediaType, playWhenReady)))
     }
-    val stallWatch = rememberPlaybackStallWatch(player)
-    val stall by stallWatch.stall.collectAsState()
-    val stalled = stall == PlaybackStall.Stalled
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { leaveForeground({ overlay }, apply, keepsPlaying) }
     BindMiniPlayer(backgroundAudio.miniPlayer.takeIf { nowPlaying }, player, paused = !playWhenReady) { play ->
         apply(overlay.setPlaying(play))
     }
-    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { stoppedAtMillis = player.currentPosition.coerceAtLeast(0L) }
     val view = LocalView.current
     val keepScreenOn = keepsScreenOn(playWhenReady, playbackState, hidden).unless(stalled)
     DisposableEffect(view, keepScreenOn) {
@@ -601,6 +707,7 @@ private fun TvReadyPlayer(
         history = cueHistory,
         delayMillis = options.subtitleOffsetMillis,
         preview = overlay.previewsTiming(playWhenReady),
+        isReleased = { released },
     )
     val cueLayer: @Composable BoxScope.() -> Unit = {
         TvSubtitleCues(
@@ -615,48 +722,28 @@ private fun TvReadyPlayer(
     val focus = remember { FocusRequester() }
     val playerHoldsFocus = overlay.holdsFocusWhenShown(hidden).unless(stalled)
     LaunchedEffect(focus, playerHoldsFocus) { if (playerHoldsFocus) focus.requestFocus() }
-    if (!hidden) Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag(TV_PLAYER_TAG)
-            .focusRequester(focus)
-            .onKeyEvent { event -> overlay.onPlayerKey(event, player, chips, nextTrack, apply) }
-            .focusable(),
-    ) {
-        if (nowPlaying) {
-            TvNowPlaying(
-                player = player,
-                state = TvNowPlayingState(
-                    title = target.name,
-                    neighbours = neighbours,
-                    paused = !playWhenReady,
-                    seeking = overlay.skipHold?.accelerating == true,
-                    startPositionMillis = prepared.startPositionMillis,
-                    listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
-                ),
-                chips = chips,
-                chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed, stream?.current),
-                focused = overlay.shownFocus(chips, nextTrack),
-            )
-        } else {
-            TvPlayerStage(player, target, TvStageState(firstFrameShown, playbackState, overlay.controlsVisible, stall))
-            cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
-            if (overlay.controlsVisible.unless(stalled)) {
-                TvPlayerControls(
-                    player = player,
-                    title = target.name,
-                    paused = !playWhenReady,
-                    seeking = overlay.skipHold?.accelerating == true,
-                    startPositionMillis = prepared.startPositionMillis,
-                    listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
-                    chips = chips,
-                    chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed, stream?.current),
-                    focused = overlay.shownFocus(chips),
-                    circles = !overlay.upNext,
-                )
-            }
-        }
-    }
+    TvPlayerViewport(
+        shown = !hidden,
+        player = player,
+        target = target,
+        nowPlaying = nowPlaying,
+        playWhenReady = playWhenReady,
+        firstFrameShown = firstFrameShown,
+        playbackState = playbackState,
+        stall = stall,
+        stalled = stalled,
+        prepared = prepared,
+        overlay = overlay,
+        readOverlay = { overlay },
+        chips = chips,
+        chipLabels = tvPlayerChipLabels(choices, subtitleSources, speed, stream?.current),
+        nextTrack = nextTrack,
+        focus = focus,
+        neighbours = neighbours,
+        cueLayer = cueLayer,
+        apply = apply,
+        isReleased = { released },
+    )
     TvStalledOr(
         stalled = stalled.unless(hidden),
         target = target,
@@ -719,6 +806,104 @@ private fun TvReadyPlayer(
         stream = stream,
         timingPreview = cueLayer,
     )
+}
+
+@Composable
+private fun TvPlayerViewport(
+    shown: Boolean,
+    player: Player,
+    target: PlaybackTarget,
+    nowPlaying: Boolean,
+    playWhenReady: Boolean,
+    firstFrameShown: Boolean,
+    playbackState: Int,
+    stall: PlaybackStall,
+    stalled: Boolean,
+    prepared: io.putdotio.android.playback.PreparedPlayback,
+    overlay: TvPlayerOverlay,
+    readOverlay: () -> TvPlayerOverlay,
+    chips: List<TvPlayerControl>,
+    chipLabels: TvPlayerChipLabels,
+    nextTrack: Boolean,
+    focus: FocusRequester,
+    neighbours: PlaybackNeighbours?,
+    cueLayer: @Composable BoxScope.() -> Unit,
+    apply: (TvPlayerTransition) -> Unit,
+    isReleased: () -> Boolean,
+) {
+    if (!shown) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag(TV_PLAYER_TAG)
+            .focusRequester(focus)
+            .onKeyEvent { event ->
+                if (isReleased()) false else readOverlay().onPlayerKey(event, player, chips, nextTrack, apply)
+            }
+            .focusable(),
+    ) {
+        if (nowPlaying) {
+            TvNowPlaying(
+                player = player,
+                state = TvNowPlayingState(
+                    title = target.name,
+                    neighbours = neighbours,
+                    paused = !playWhenReady,
+                    seeking = overlay.skipHold?.accelerating == true,
+                    startPositionMillis = prepared.startPositionMillis,
+                    listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
+                ),
+                chips = chips,
+                chipLabels = chipLabels,
+                focused = overlay.shownFocus(chips, nextTrack),
+                isReleased = isReleased,
+            )
+        } else {
+            TvPlayerStage(player, target, TvStageState(firstFrameShown, playbackState, overlay.controlsVisible, stall))
+            cueLayer.takeUnless { overlay.sheet == TvPlayerSheet.SizeAndTiming }?.invoke(this)
+            if (overlay.controlsVisible.unless(stalled)) {
+                TvPlayerControls(
+                    player = player,
+                    title = target.name,
+                    paused = !playWhenReady,
+                    seeking = overlay.skipHold?.accelerating == true,
+                    startPositionMillis = prepared.startPositionMillis,
+                    listingDurationMillis = target.durationSeconds?.toPlaybackMillis(),
+                    chips = chips,
+                    chipLabels = chipLabels,
+                    focused = overlay.shownFocus(chips),
+                    circles = !overlay.upNext,
+                    isReleased = isReleased,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TvPlayerLifecycleEffect(
+    lifecycle: Lifecycle,
+    player: Player,
+    isReleased: () -> Boolean,
+    onPause: () -> Unit,
+    onStop: () -> Unit,
+) {
+    val currentIsReleased by rememberUpdatedState(isReleased)
+    val currentOnPause by rememberUpdatedState(onPause)
+    val currentOnStop by rememberUpdatedState(onStop)
+    DisposableEffect(lifecycle, player) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (!currentIsReleased()) {
+                when (event) {
+                    Lifecycle.Event.ON_PAUSE -> currentOnPause()
+                    Lifecycle.Event.ON_STOP -> currentOnStop()
+                    else -> Unit
+                }
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 }
 
 @Composable
@@ -829,15 +1014,20 @@ private fun rememberShownCues(
     history: DelayedSubtitleCues,
     delayMillis: Long,
     preview: Boolean,
+    isReleased: () -> Boolean,
 ): List<Cue> {
     if (delayMillis <= 0L) return cues
     val current by rememberUpdatedState(cues)
+    val currentIsReleased by rememberUpdatedState(isReleased)
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     var shown by remember(player) { mutableStateOf(emptyList<Cue>()) }
-    LaunchedEffect(player, delayMillis, preview) {
-        while (true) {
-            val delayed = history.atOrNull(player.currentPosition, delayMillis)
-            shown = if (preview) delayed ?: current else delayed.orEmpty()
-            delay(DELAYED_CUE_TICK_MILLIS)
+    LaunchedEffect(player, lifecycle, delayMillis, preview) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (!currentIsReleased()) {
+                val delayed = history.atOrNull(player.currentPosition, delayMillis)
+                shown = if (preview) delayed ?: current else delayed.orEmpty()
+                delay(DELAYED_CUE_TICK_MILLIS)
+            }
         }
     }
     return shown
