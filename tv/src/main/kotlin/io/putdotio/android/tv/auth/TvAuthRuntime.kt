@@ -21,12 +21,18 @@ import io.putdotio.android.tv.watchnext.TvWatchNext
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Process-wide TV session: one SDK client, one controller, one application scope, and the
@@ -38,17 +44,31 @@ internal class TvAuthRuntime(
     private val applicationScope: CoroutineScope,
     internal val watchNext: TvWatchNext,
 ) {
-    private val backgroundRestore = lazy {
-        applicationScope.async { authController.restoreSession(interactive = false) }
-    }
+    private val restoreMutex = Mutex()
+    private var backgroundRestore: Deferred<Boolean>? = null
 
     /**
      * The signed-in session for a caller with no screen, such as the system search provider:
-     * restores a stored session once per process if the app has not, and never starts a sign-in.
+     * restores a stored session when none ran or an earlier failure left auth in
+     * [TvAuthState.Initializing], and never starts a sign-in.
      */
     private suspend fun signedInSession(): TvAuthState.SignedIn? {
         (authController.state.value as? TvAuthState.SignedIn)?.let { return it }
-        backgroundRestore.value.await()
+        val deferred = restoreMutex.withLock {
+            if (authController.state.value is TvAuthState.SignedIn) return@withLock null
+            backgroundRestore ?: applicationScope.async(start = CoroutineStart.LAZY) {
+                try {
+                    authController.restoreSession(interactive = false)
+                } finally {
+                    withContext(NonCancellable) {
+                        if (authController.state.value == TvAuthState.Initializing) {
+                            restoreMutex.withLock { backgroundRestore = null }
+                        }
+                    }
+                }
+            }.also { backgroundRestore = it }
+        }
+        deferred?.await()
         return authController.state.value as? TvAuthState.SignedIn
     }
 

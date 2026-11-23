@@ -35,6 +35,7 @@
         android:theme="@style/Theme.Putio">
         <activity
             android:name=".MainActivity"
+            android:configChanges="orientation|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
             android:exported="true"
             android:launchMode="singleTask">
             <intent-filter>
