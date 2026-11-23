@@ -566,13 +566,15 @@ private fun TvAccountSheets(
                 returnFocus = returnFocus(RowKey.notice(notice)),
             )
         }
-        TvAccountSheet.Libraries -> TvLibrariesSheet(
-            libraries = libraries,
-            selected = library,
-            onOpen = onOpenLibrary,
-            onDismiss = onClose,
-            returnFocus = returnFocus(RowKey.LIBRARIES),
-        )
+        TvAccountSheet.Libraries -> if (libraries.isNotEmpty()) {
+            TvLibrariesSheet(
+                libraries = libraries,
+                selected = library,
+                onOpen = onOpenLibrary,
+                onDismiss = onClose,
+                returnFocus = returnFocus(RowKey.LIBRARIES),
+            )
+        }
         TvAccountSheet.LibraryLicense -> libraries.getOrNull(library)?.let { notice ->
             notice.url?.let { url ->
                 TvQrSheet(
