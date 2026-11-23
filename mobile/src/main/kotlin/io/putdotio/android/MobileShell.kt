@@ -289,7 +289,8 @@ internal fun MobileShell(
         val state = controller.state.collectAsStateWithLifecycle().value
         remember(controller, state) { MobilePublicLinks(state, controller::dispatch) }
     }
-    val downloadsState = downloadsController?.state?.collectAsStateWithLifecycle()?.value ?: DownloadsState()
+    val downloadsStates: State<DownloadsState> =
+        downloadsController?.state?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(DownloadsState()) }
     // The Downloads top bar and list share one selection: in selection its bar replaces the title.
     val downloadsSelection = rememberDownloadsSelection()
     // So do Files' bar and folder; its selection belongs to the folder it started in.
@@ -344,16 +345,14 @@ internal fun MobileShell(
         },
     )
 
-    val playbackFileId = if (isPlayback) backStackEntry?.arguments?.getLong("fileId") else null
     val resolvingTransfer by remember(transfersStates) {
         derivedStateOf { transfersStates.value.navigation as? TransferNavigation.Resolving }
     }
-    NowPlayingNavigationEffect(nowPlayingRequests, playbackPlayerFactory, transferDraft, navController, playbackFileId)
+    NowPlayingNavigationEffect(nowPlayingRequests, playbackPlayerFactory, transferDraft, navController)
     ContentNavigationEffect(
         contentNavigation = contentNavigation,
         transferDraft = transferDraft,
         navController = navController,
-        playbackFileId = playbackFileId,
         searchPlayWith = searchPlayWith,
         onFilesEvent = onFilesEvent,
         onFilesOpened = { leaveSearch(true) },
@@ -457,7 +456,7 @@ internal fun MobileShell(
                             onFilesEvent = onFilesEvent,
                             onNewFolder = requestNewFolder,
                             openNavigation = navigation,
-                            summary = tabSummary(destination, transfersStates, downloadsState),
+                            summary = tabSummary(destination, transfersStates, downloadsStates),
                             tabActions = tabActions(
                                 destination,
                                 transfersStates,
@@ -472,7 +471,7 @@ internal fun MobileShell(
                             subpageActions = trashTopBarActions(route, trashStates, trashController, trashSelection),
                             subpageSelectionBar = trashSelectionBar(route, trashStates, trashSelection),
                             downloads = downloadsController?.let {
-                                MobileDownloadsBar(downloadsState, downloadsSelection, it::dispatch)
+                                MobileDownloadsBar(downloadsStates, downloadsSelection, it::dispatch)
                             },
                             filesSelection = filesSelection.takeIf { filesSelecting },
                             accountSort = accountSettingsState.defaultSort(),
@@ -514,7 +513,7 @@ internal fun MobileShell(
                             trashController = trashController,
                             trashSelection = trashSelection,
                             downloadsController = downloadsController,
-                            downloadsState = downloadsState,
+                            downloadsStates = downloadsStates,
                             downloadsSelection = downloadsSelection,
                             onShareItem = onShareItem,
                             accountSettingsState = accountSettingsState,
@@ -798,11 +797,9 @@ private fun NowPlayingNavigationEffect(
     playbackPlayerFactory: MobilePlayerFactory,
     transferDraft: MobileTransferDraft,
     navController: NavHostController,
-    playbackFileId: Long?,
 ) {
     // The collector outlives any one Activity, so it must not hold one.
     val appContext = LocalContext.current.applicationContext
-    val currentPlaybackFileId by rememberUpdatedState(playbackFileId)
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
@@ -813,7 +810,9 @@ private fun NowPlayingNavigationEffect(
             // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
             nowPlayingRequests.acknowledge()
             if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect
-            val onPlaybackRoute = currentPlaybackFileId
+            val onPlaybackRoute = navController.currentBackStackEntry
+                ?.takeIf { it.destination.route == MOBILE_PLAYBACK_ROUTE }
+                ?.arguments?.getLong("fileId")
             if (onPlaybackRoute == target.fileId.value) return@collect
             // A different item's route, still loading or failed, gives no controls for the live audio.
             navController.navigateToPlayback(
@@ -831,14 +830,12 @@ private fun ContentNavigationEffect(
     contentNavigation: Flow<FilesExternalOpen>,
     transferDraft: MobileTransferDraft,
     navController: NavHostController,
-    playbackFileId: Long?,
     searchPlayWith: MobileSearchPlayWith,
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     onFilesOpened: () -> Unit,
     onNavigationRejected: () -> Unit,
 ) {
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
-    val currentPlaybackFileId by rememberUpdatedState(playbackFileId)
     // Media plays above the screen it was chosen on; anything else opens in Files above its prior location.
     LaunchedEffect(contentNavigation, transferDraft) {
         contentNavigation.collect { (item, origin) ->
@@ -852,7 +849,7 @@ private fun ContentNavigationEffect(
                 if (!editingTransfer) {
                     navController.navigateToPlayback(
                         item,
-                        replaceCurrentPlayback = currentPlaybackFileId != null,
+                        replaceCurrentPlayback = navController.currentDestination?.route == MOBILE_PLAYBACK_ROUTE,
                         method = method,
                     )
                 }
@@ -1191,7 +1188,7 @@ private fun MobileTopBar(
         destination == MobileDestination.Downloads && downloads != null -> MobileDownloadsTopBar(
             title = stringResource(destination.labelRes),
             summary = summary,
-            state = downloads.state,
+            state = downloads.states.value,
             selection = downloads.selection,
             onEvent = downloads.onEvent,
         ) {
@@ -1295,7 +1292,7 @@ private fun MobileBackButton(onClick: () -> Unit, enabled: Boolean = true) {
 
 /** What the Downloads top bar reads: its rows, the selection it shares with the list, and its events. */
 private class MobileDownloadsBar(
-    val state: DownloadsState,
+    val states: State<DownloadsState>,
     val selection: DownloadsSelection,
     val onEvent: (DownloadsEvent) -> Boolean,
 )
@@ -1305,13 +1302,13 @@ private class MobileDownloadsBar(
 private fun tabSummary(
     destination: MobileDestination,
     transfersStates: State<TransfersState>,
-    downloadsState: DownloadsState,
+    downloadsStates: State<DownloadsState>,
 ): AnnotatedString? {
     val context = LocalContext.current
     val mono = summaryMonoStyle()
     return when (destination) {
         MobileDestination.Transfers -> summaryOf(transfersSummaryParts(context, transfersStates.value), mono)
-        MobileDestination.Downloads -> downloadsSummary(downloadsState, mono)
+        MobileDestination.Downloads -> downloadsSummary(downloadsStates.value, mono)
         MobileDestination.Files, MobileDestination.History, MobileDestination.Account -> null
     }
 }

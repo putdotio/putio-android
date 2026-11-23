@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -172,7 +173,7 @@ internal fun MobileNavHost(
     onTransfersEvent: (TransfersEvent) -> Unit,
     onSignOut: (removeDownloads: Boolean) -> Unit,
     downloadsController: DownloadsController?,
-    downloadsState: DownloadsState,
+    downloadsStates: State<DownloadsState>,
     downloadsSelection: DownloadsSelection,
     onShareItem: ((FilesItem) -> Unit)?,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
@@ -220,7 +221,7 @@ internal fun MobileNavHost(
             trashController = trashController,
             publicLinks = publicLinks,
             loggedInApps = loggedInAppsController != null,
-            downloadsState = downloadsState,
+            downloadsStates = downloadsStates,
         )
     }
     val accountPage: @Composable (MobileAccountPage, @Composable () -> Unit) -> Unit = { page, content ->
@@ -268,13 +269,14 @@ internal fun MobileNavHost(
                         backPreview = filesBackPreview,
                         search = {
                             val searchResults = (searchHistoryState.search.content as? SearchContent.Ready)?.items
+                            val currentDownloads = downloadsStates.value
                             MobileSearchResultActionsHost(
                                 results = searchResults.orEmpty(),
                                 actions = MobileSearchResultActions(
                                     itemActions = filesItemActions.copy(
                                         onOpenWith = { fileOpener.openWithAnotherApp(filesContext, it) },
                                     ).playingWithVia(searchHistoryActions.onResultWith),
-                                    downloads = downloadsState,
+                                    downloads = currentDownloads,
                                     // Through the result's own open, so the query joins Recent searches.
                                     onPlayItem = searchHistoryActions.onResult,
                                     onDownloadItem = startDownload,
@@ -293,7 +295,7 @@ internal fun MobileNavHost(
                                     onRecentRetry = searchHistoryActions.onRecentRetry,
                                     onFilterSelected = searchHistoryActions.onFilterSelected,
                                     folderNames = searchHistoryState.folderNames,
-                                    downloadStatus = downloadsState::rowStatus,
+                                    downloadStatus = currentDownloads::rowStatus,
                                     onResultActions = onResultActions,
                                 )
                             }
@@ -308,7 +310,7 @@ internal fun MobileNavHost(
                             onPlayMedia = navController::navigateToPlayback,
                             onAuthenticationRequired = onFilesAuthenticationRequired,
                             confirmedTrashEnabled = accountSettingsState.confirmedTrashEnabled(),
-                            downloads = downloadsState,
+                            downloads = downloadsStates.value,
                             onDownloadItem = startDownload,
                             onShareItem = onShareItem,
                             moveTargetStore = moveTargetStore,
@@ -354,7 +356,7 @@ internal fun MobileNavHost(
                     MobileRouteAnimation(this) {
                         downloadsController?.let { controller ->
                             MobileDownloadsScreen(
-                                state = downloadsState,
+                                state = downloadsStates.value,
                                 onEvent = controller::dispatch,
                                 onPlay = navController::navigateToPlayback,
                                 onShare = onShareItem,
@@ -506,9 +508,12 @@ private fun MobileAccountTab(
     trashController: TrashController?,
     publicLinks: MobilePublicLinks?,
     loggedInApps: Boolean,
-    downloadsState: DownloadsState,
+    downloadsStates: State<DownloadsState>,
 ) {
     val trashState = trashController?.state?.collectAsStateWithLifecycle()?.value
+    val downloadsOnDeviceBytes by remember(downloadsStates) {
+        derivedStateOf { downloadsStates.value.bytesOnDevice() }
+    }
     MobileAccountScreen(
         account = account,
         sessionId = sessionId,
@@ -530,7 +535,7 @@ private fun MobileAccountTab(
             exclusiveLinkCount = (publicLinks?.state?.content as? PublicLinksContent.Ready)?.links?.size,
             trashSizeBytes = (trashState?.content as? TrashContent.Loaded)?.trashSizeBytes,
         ),
-        downloadsOnDeviceBytes = downloadsState.bytesOnDevice(),
+        downloadsOnDeviceBytes = downloadsOnDeviceBytes,
     )
 }
 
@@ -746,6 +751,7 @@ private fun playbackRoute(
 }
 
 private fun NavHostController.navigatePlayback(route: String, replaceCurrentPlayback: Boolean) {
+    if (!replaceCurrentPlayback && currentDestination?.route == MOBILE_PLAYBACK_ROUTE) return
     navigate(route) {
         if (replaceCurrentPlayback) popUpTo(MOBILE_PLAYBACK_ROUTE) { inclusive = true }
     }

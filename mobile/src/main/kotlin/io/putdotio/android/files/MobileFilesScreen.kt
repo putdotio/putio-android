@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -430,7 +432,6 @@ private fun MobileRefreshableFilesContent(
                                 state.stack.size,
                                 state.current.folder.id.value,
                                 shownGeneration,
-                                shownHeaders.itemCount,
                             ) {
                                 MobileFilesList(
                                     content = shownContent,
@@ -965,6 +966,7 @@ private fun MobileFilesList(
         initialFirstVisibleItemIndex = if (atTop) 0 else viewport.firstVisibleItemIndex + headerCount,
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
+    RevealAsyncHeadersAtTopEffect(listState, headerCount, revealItemId)
     val currentHeaderCount by rememberUpdatedState(headerCount)
     val keyboardFocus = rememberFilesKeyboardFocus(content.items, viewport.firstVisibleItemIndex)
     val currentOnEvent by rememberUpdatedState(onEvent)
@@ -1050,6 +1052,43 @@ private fun MobileFilesList(
             }
         }
     }
+}
+
+@Composable
+private fun RevealAsyncHeadersAtTopEffect(
+    listState: LazyListState,
+    headerCount: Int,
+    revealItemId: FilesItemId?,
+) {
+    val state = remember(listState) { AsyncHeaderTopState(headerCount) }
+    SideEffect {
+        if (headerCount != state.previousHeaderCount) {
+            val delta = headerCount - state.previousHeaderCount
+            state.previousHeaderCount = headerCount
+            val atTopBeforeLayout = Snapshot.withoutReadObservation {
+                !listState.isScrollInProgress &&
+                    listState.firstVisibleItemIndex == 0 &&
+                    listState.firstVisibleItemScrollOffset == 0
+            }
+            state.pendingRevealDelta = if (delta > 0 && revealItemId == null && atTopBeforeLayout) delta else 0
+        }
+    }
+    LaunchedEffect(listState, headerCount) {
+        val delta = state.pendingRevealDelta
+        if (delta <= 0) return@LaunchedEffect
+        state.pendingRevealDelta = 0
+        withFrameNanos {}
+        if (!listState.isScrollInProgress &&
+            listState.firstVisibleItemIndex == delta &&
+            listState.firstVisibleItemScrollOffset == 0
+        ) {
+            listState.scrollToItem(0)
+        }
+    }
+}
+
+private class AsyncHeaderTopState(var previousHeaderCount: Int) {
+    var pendingRevealDelta: Int = 0
 }
 
 private fun rowClick(

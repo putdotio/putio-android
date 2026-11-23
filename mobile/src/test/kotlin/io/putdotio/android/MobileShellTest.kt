@@ -2476,6 +2476,45 @@ class MobileShellPlaybackTest {
         assertEquals(1, rejections)
     }
 
+    @Test
+    fun twoDistinctExternalPlaybackOpensInSameFrameLandOnSecond() {
+        val deliveries = Channel<FilesExternalOpen>(Channel.UNLIMITED)
+        val targets = recordingTargets()
+        val first = rootFile(8L, "episode-1.mkv", PutioFileType.VIDEO)
+        val second = rootFile(9L, "episode-2.mkv", PutioFileType.VIDEO)
+        compose.setBuiltContent {
+            PutioTheme {
+                MobileShell(
+                    contentNavigation = deliveries.receiveAsFlow(),
+                    filesStates = rememberUpdatedState(videoFilesState()),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = Account,
+                    playbackRepository = targets.repository,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    sessionId = Session,
+                    onFilesEvent = { true },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                )
+            }
+        }
+
+        compose.runOnIdle {
+            assertTrue(deliveries.trySend(FilesExternalOpen(first, FilesOpenOrigin.HISTORY)).isSuccess)
+            assertTrue(deliveries.trySend(FilesExternalOpen(second, FilesOpenOrigin.SEARCH)).isSuccess)
+        }
+        compose.waitForIdle()
+
+        compose.runOnIdle {
+            assertEquals(second.id, targets.resolved.lastOrNull()?.fileId)
+        }
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
+        deliveries.close()
+    }
+
     private fun ComposeContentTestRule.setPlaybackShell(
         appConfigState: AndroidAppConfigState = readyAndroidAppConfigState(),
         accountSettingsState: AccountSettingsState = readyAccountSettingsState(),

@@ -38,6 +38,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeDown
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.FilesOpenOrigin
 import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
@@ -674,6 +675,86 @@ class MobileFilesListTest {
         compose.runOnIdle { pinned = listOf(filesItem(id = 900L, name = "pinned.txt")) }
 
         compose.onNodeWithText("file-40.txt").assertIsDisplayed()
+    }
+
+    @Test
+    fun asyncHeadersKeepScrollPositionWithoutViewportCatchup() {
+        val items = (0L until 60L).map { index -> filesItem(id = index + 1L, name = "file-$index.txt") }
+        val listed = FilesContent.Ready(items = items, paging = FilesPaging.Complete)
+        var pinned by mutableStateOf(emptyList<FilesItem>())
+        compose.setBuiltContent {
+            PutioTheme {
+                MobileFilesScreen(
+                    state = browserState(listed),
+                    onEvent = {},
+                    onPlayMedia = {},
+                    pinned = pinned,
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(40)
+        compose.onNodeWithText("file-40.txt").assertIsDisplayed()
+
+        compose.runOnIdle { pinned = listOf(filesItem(id = 900L, name = "pinned.txt")) }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("file-40.txt").assertIsDisplayed()
+    }
+
+    @Test
+    fun asyncHeadersAtTopStayVisible() {
+        val items = (0L until 60L).map { index -> filesItem(id = index + 1L, name = "file-$index.txt") }
+        val listed = FilesContent.Ready(items = items, paging = FilesPaging.Complete)
+        var pinned by mutableStateOf(emptyList<FilesItem>())
+        compose.setBuiltContent {
+            PutioTheme {
+                MobileFilesScreen(
+                    state = browserState(listed),
+                    onEvent = {},
+                    onPlayMedia = {},
+                    pinned = pinned,
+                )
+            }
+        }
+
+        compose.onNodeWithText("file-0.txt").assertIsDisplayed()
+
+        compose.runOnIdle { pinned = listOf(filesItem(id = 900L, name = "pinned.txt")) }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("pinned.txt").assertIsDisplayed()
+    }
+
+    @Test
+    fun pinnedArrivingBelowAlignedContinueWatchingDoesNotJumpToTop() {
+        val items = (0L until 60L).map { index -> filesItem(id = index + 1L, name = "file-$index.txt") }
+        val listed = FilesContent.Ready(items = items, paging = FilesPaging.Complete)
+        val watching = listOf(ContinueWatchingEntry(FilesItemId(800L), "Watching.mkv", 10.0, 100.0, watchedAt = 1L))
+        var pinned by mutableStateOf(emptyList<FilesItem>())
+        compose.setBuiltContent {
+            PutioTheme {
+                MobileFilesScreen(
+                    state = browserState(listed),
+                    onEvent = {},
+                    onPlayMedia = {},
+                    continueWatching = watching,
+                    pinned = pinned,
+                )
+            }
+        }
+
+        compose.onNodeWithTag(MOBILE_FILES_LIST_TAG).performScrollToIndex(1)
+        compose.waitForIdle()
+        compose.onNodeWithText("Continue watching").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Watching.mkv", substring = true).assertIsDisplayed()
+
+        compose.runOnIdle { pinned = listOf(filesItem(id = 900L, name = "pinned.txt")) }
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Continue watching").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Watching.mkv", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("pinned.txt").assertIsDisplayed()
     }
 
     @Test
