@@ -2,9 +2,12 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.files.PutioFileType
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -335,6 +338,39 @@ class DownloadsControllerTest {
         assertEquals(0L, controller.state.value.speeds[video.fileId])
     }
 
+    @Test
+    fun removeAllStopsOnCancellationAndContinuesPastOtherErrors() = runBlocking {
+        val videoEntry = DownloadEntry(
+            video.fileId, video.name, video.type, DownloadArtifact.HLS,
+            DownloadStatus.Completed(1_000L), createdAt = 1L, accepted = true,
+        )
+        val audioEntry = DownloadEntry(
+            audio.fileId, audio.name, audio.type, DownloadArtifact.ORIGINAL,
+            DownloadStatus.Completed(2_000L), createdAt = 2L, accepted = true,
+        )
+        store.upsert(videoEntry)
+        store.upsert(audioEntry)
+        engine.onRemove = { if (it == video.fileId) error("boom") }
+
+        DownloadsController(store, engine, this).use { controller ->
+            controller.removeAll()
+        }
+        assertEquals(listOf(video.fileId, audio.fileId), engine.removed)
+
+        engine.removed.clear()
+        val firstEntered = CompletableDeferred<Unit>()
+        engine.onRemove = {
+            firstEntered.complete(Unit)
+            awaitCancellation()
+        }
+        val controller = DownloadsController(store, engine, this)
+        val job = launch { controller.removeAll() }
+        firstEntered.await()
+        controller.close()
+        job.join()
+        assertEquals(1, engine.removed.size)
+    }
+
     private suspend fun DownloadsController.awaitState(predicate: (DownloadsState) -> Boolean): DownloadsState =
         withTimeout(5_000L) { state.first(predicate) }
 }
@@ -380,6 +416,7 @@ internal class FakeDownloadEngine : DownloadEngine {
         private set
     var progressRefreshes = 0
         private set
+    var onRemove: (suspend (FilesItemId) -> Unit)? = null
     private val removing = mutableSetOf<FilesItemId>()
     private val version = MutableStateFlow(0)
 
@@ -397,6 +434,7 @@ internal class FakeDownloadEngine : DownloadEngine {
         removed += fileId
         removing += fileId
         version.value += 1
+        onRemove?.invoke(fileId)
     }
 
     override fun isRemoving(fileId: FilesItemId): Boolean = fileId in removing

@@ -200,6 +200,55 @@ class OfflinePlaybackPositionsTest {
         assertEquals(250.0, positions.store(USER).pending(FILE)?.seconds)
     }
 
+    @Test
+    fun a401KeepsPendingPositionsAndRejectsTheSessionWhileOnlyPermanentFileErrorsDiscard() = runTest {
+        remote.online = false
+        var sessionToken = "session-1"
+        val rejected = mutableListOf<String>()
+        val positions = OfflinePlaybackPositions(
+            preferences = preferences,
+            session = OfflinePositionSession(
+                userId = { signedIn },
+                captureRejection = {
+                    val captured = sessionToken
+                    { rejected += captured }
+                },
+            ),
+            remote = remote,
+            scope = backgroundScope,
+            onSynced = { fileId, seconds -> synced += fileId to seconds },
+        )
+        positions.resumePosition(USER, sintel)
+        positions.afterWrite(USER, FILE, 250.0, PlaybackRepositoryResult.Failure(AuthenticationFailure))
+        assertEquals(250.0, positions.store(USER).pending(FILE)?.seconds)
+
+        remote.online = true
+        remote.readFailure = AuthenticationFailure
+        remote.afterRead = { sessionToken = "session-2" }
+        positions.syncNow(USER)
+
+        assertEquals(listOf("session-1"), rejected)
+        assertEquals(250.0, positions.store(USER).pending(FILE)?.seconds)
+
+        remote.readFailure = PlaybackFailure.Putio(
+            PutioFailure.Misconfigured(PutioConfigurationException("bad config")),
+        )
+        positions.syncNow(USER)
+        assertEquals(250.0, positions.store(USER).pending(FILE)?.seconds)
+
+        remote.readFailure = PlaybackFailure.Putio(
+            PutioFailure.ApiRejected(HTTP_GONE, "Gone", PutioConfigurationException("gone")),
+        )
+        positions.syncNow(USER)
+        assertNull(positions.store(USER).pending(FILE))
+
+        positions.resumePosition(USER, sintel)
+        positions.afterWrite(USER, FILE, 300.0, NetworkFailure)
+        remote.readFailure = PlaybackFailure.Putio(PutioFailure.AccessDenied(PutioConfigurationException("denied")))
+        positions.syncNow(USER)
+        assertNull(positions.store(USER).pending(FILE))
+    }
+
     /** Opened offline, then played to 250 s while put.io could not take it. */
     private suspend fun TestScope.playedOffline(): OfflinePlaybackPositions {
         remote.online = false
@@ -219,6 +268,10 @@ class OfflinePlaybackPositionsTest {
         const val OTHER = 8L
         const val FILE = 10L
         const val HTTP_NOT_FOUND = 404
+        const val HTTP_GONE = 410
+        val AuthenticationFailure = PlaybackFailure.Putio(
+            PutioFailure.AuthenticationRequired(PutioConfigurationException("expired")),
+        )
         val NetworkFailure = PlaybackRepositoryResult.Failure(
             PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(IOException("offline"))),
         )

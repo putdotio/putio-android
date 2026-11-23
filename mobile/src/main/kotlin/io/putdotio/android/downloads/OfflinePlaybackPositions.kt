@@ -2,6 +2,8 @@ package io.putdotio.android.downloads
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import io.putdotio.android.PutioFailure
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackRepositoryResult
 import io.putdotio.android.playback.retryable
 import kotlin.math.abs
@@ -233,14 +235,27 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
  * Its writes go through [writing], between the player's own, so an older position this device
  * played offline never lands after a newer one the player sent.
  */
+internal class OfflinePositionSession(
+    val userId: () -> Long?,
+    val captureRejection: () -> () -> Unit = { {} },
+)
+
 internal class OfflinePlaybackPositions(
     private val preferences: SharedPreferences,
-    private val signedInUser: () -> Long?,
+    private val session: OfflinePositionSession,
     private val remote: PositionRemote,
     private val scope: CoroutineScope,
     private val writing: suspend (suspend () -> Unit) -> Unit = { it() },
     private val onSynced: (fileId: Long, seconds: Double) -> Unit = { _, _ -> },
 ) {
+    constructor(
+        preferences: SharedPreferences,
+        signedInUser: () -> Long?,
+        remote: PositionRemote,
+        scope: CoroutineScope,
+        writing: suspend (suspend () -> Unit) -> Unit = { it() },
+        onSynced: (fileId: Long, seconds: Double) -> Unit = { _, _ -> },
+    ) : this(preferences, OfflinePositionSession(signedInUser), remote, scope, writing, onSynced)
     private val stores = mutableMapOf<Long, OfflinePositionStore>()
     private val passes = Mutex()
 
@@ -263,7 +278,8 @@ internal class OfflinePlaybackPositions(
                 store.accepted(fileId, seconds)
                 requestSync()
             }
-            is PlaybackRepositoryResult.Failure -> if (result.failure.retryable) store.keep(fileId, seconds)
+            is PlaybackRepositoryResult.Failure ->
+                if (result.failure.retryable || result.failure.isAuthenticationRequired) store.keep(fileId, seconds)
         }
     }
 
@@ -276,9 +292,14 @@ internal class OfflinePlaybackPositions(
         val fileId = entry.fileId.value
         val pending = store.pending(fileId)
         if (pending != null) requestSync()
+        val rejectIfUnauthorized = session.captureRejection()
         return pending?.seconds ?: when (val read = withTimeoutOrNull(REFRESH_TIMEOUT_MILLIS) { remote.read(fileId) }) {
             is PlaybackRepositoryResult.Success -> read.value.also { store.remote(fileId, it) }
-            else -> store.known(fileId) ?: entry.startFromSeconds.also { store.remote(fileId, it) }
+            is PlaybackRepositoryResult.Failure -> {
+                if (read.failure.isAuthenticationRequired) rejectIfUnauthorized()
+                store.known(fileId) ?: entry.startFromSeconds.also { store.remote(fileId, it) }
+            }
+            null -> store.known(fileId) ?: entry.startFromSeconds.also { store.remote(fileId, it) }
         }
     }
 
@@ -290,7 +311,7 @@ internal class OfflinePlaybackPositions(
             try {
                 while (passRequested) {
                     passRequested = false
-                    signedInUser()?.let { sync(it) }
+                    session.userId()?.let { sync(it) }
                 }
             } finally {
                 passes.unlock()
@@ -304,35 +325,50 @@ internal class OfflinePlaybackPositions(
 
     private suspend fun sync(userId: Long) {
         val store = store(userId)
-        if (store.pending().isEmpty() || signedInUser() != userId || !resumeStillOn(store)) return
+        if (store.pending().isEmpty() || session.userId() != userId || !resumeStillOn(store)) return
         // A newer local position replacing one since the pass began goes in the next pass.
         for (update in store.pending()) {
-            if (signedInUser() != userId) break
-            if (store.isCurrent(update)) syncRead(userId, store, update)
+            val keepGoing = session.userId() == userId &&
+                (!store.isCurrent(update) || syncRead(userId, store, update))
+            if (!keepGoing) break
         }
     }
 
-    private suspend fun syncRead(userId: Long, store: OfflinePositionStore, update: PendingPosition) {
-        when (val read = remote.read(update.fileId)) {
-            // The owner may have signed out while the read was in flight.
+    private suspend fun syncRead(userId: Long, store: OfflinePositionStore, update: PendingPosition): Boolean {
+        val rejectIfUnauthorized = session.captureRejection()
+        return when (val read = remote.read(update.fileId)) {
             is PlaybackRepositoryResult.Success ->
-                if (signedInUser() == userId) syncOne(userId, store, update, read.value)
-            // A deleted or no longer accessible file would cost a read on every pass, forever.
-            is PlaybackRepositoryResult.Failure -> if (!read.failure.retryable) store.discard(update)
+                if (session.userId() == userId) syncOne(userId, store, update, read.value) else false
+            is PlaybackRepositoryResult.Failure ->
+                handleRemoteFailure(store, update, read.failure, rejectIfUnauthorized)
         }
     }
 
     /** Resume turned off on the account: nothing this device played may reach put.io. */
     private suspend fun resumeStillOn(store: OfflinePositionStore): Boolean {
-        val setting = (remote.resumeEnabled() as? PlaybackRepositoryResult.Success)?.value ?: return false
-        store.rememberResumeSetting(setting)
-        if (!setting) store.dropPending()
-        return setting
+        val rejectIfUnauthorized = session.captureRejection()
+        return when (val result = remote.resumeEnabled()) {
+            is PlaybackRepositoryResult.Success -> {
+                store.rememberResumeSetting(result.value)
+                if (!result.value) store.dropPending()
+                result.value
+            }
+            is PlaybackRepositoryResult.Failure -> {
+                if (result.failure.isAuthenticationRequired) rejectIfUnauthorized()
+                false
+            }
+        }
     }
 
-    private suspend fun syncOne(userId: Long, store: OfflinePositionStore, update: PendingPosition, current: Double) {
+    private suspend fun syncOne(
+        userId: Long,
+        store: OfflinePositionStore,
+        update: PendingPosition,
+        current: Double,
+    ): Boolean {
         val attempted = update.attempted
         val expected = update.expectedRemote
+        var keepSyncing = true
         when {
             samePosition(current, update.seconds) -> settle(store, update, current)
             // An earlier write landed without a reply; compare later positions against it.
@@ -343,16 +379,21 @@ internal class OfflinePlaybackPositions(
             expected != null && !samePosition(current, expected) -> store.yieldTo(update, current)
             else -> writing {
                 // The player's own write may have landed since the read; the newer position then stands.
-                if (store.isCurrent(update) && signedInUser() == userId) {
+                if (store.isCurrent(update) && session.userId() == userId) {
                     store.attempted(update)
                     // The player's writes wait meanwhile. Cancelling here would let them overtake a
                     // request already on its way, so only the transport's own timeouts end it.
-                    val written = remote.write(update.fileId, update.seconds) is PlaybackRepositoryResult.Success
-                    // After a sign-out mid-write, the next pass finds the attempted position and settles it.
-                    if (written && signedInUser() == userId) settle(store, update, update.seconds)
+                    val rejectIfUnauthorized = session.captureRejection()
+                    when (val write = remote.write(update.fileId, update.seconds)) {
+                        is PlaybackRepositoryResult.Success ->
+                            if (session.userId() == userId) settle(store, update, update.seconds)
+                        is PlaybackRepositoryResult.Failure ->
+                            keepSyncing = handleRemoteFailure(store, update, write.failure, rejectIfUnauthorized)
+                    }
                 }
             }
         }
+        return keepSyncing
     }
 
     private fun settle(store: OfflinePositionStore, update: PendingPosition, seconds: Double) {
@@ -370,6 +411,35 @@ internal class OfflinePlaybackPositions(
         const val REFRESH_TIMEOUT_MILLIS = 3_000L
     }
 }
+
+private const val HTTP_NOT_FOUND = 404
+private const val HTTP_GONE = 410
+private val PERMANENT_FILE_HTTP_CODES = setOf(HTTP_NOT_FOUND, HTTP_GONE)
+
+private val PlaybackFailure.isAuthenticationRequired: Boolean
+    get() = (this as? PlaybackFailure.Putio)?.failure is PutioFailure.AuthenticationRequired
+
+private fun handleRemoteFailure(
+    store: OfflinePositionStore,
+    update: PendingPosition,
+    failure: PlaybackFailure,
+    onAuthenticationRequired: () -> Unit,
+): Boolean {
+    if (failure.isAuthenticationRequired) {
+        onAuthenticationRequired()
+        return false
+    }
+    if (failure.isPermanentFileError) store.discard(update)
+    return true
+}
+
+private val PlaybackFailure.isPermanentFileError: Boolean
+    get() = when (val putio = (this as? PlaybackFailure.Putio)?.failure) {
+        is PutioFailure.AccessDenied -> true
+        is PutioFailure.ApiRejected ->
+            putio.statusCode in PERMANENT_FILE_HTTP_CODES || putio.httpStatusCode in PERMANENT_FILE_HTTP_CODES
+        else -> false
+    }
 
 // put.io may round what it stores; positions within a second are the same position.
 private fun samePosition(first: Double, second: Double): Boolean = abs(first - second) < 1.0
