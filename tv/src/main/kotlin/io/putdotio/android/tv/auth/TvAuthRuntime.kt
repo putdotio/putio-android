@@ -1,11 +1,14 @@
 package io.putdotio.android.tv.auth
 
 import android.content.Context
+import coil3.SingletonImageLoader
+import io.putdotio.android.auth.CommonSessionCaches
 import io.putdotio.android.auth.KeystoreAuthTokenStore
 import io.putdotio.android.auth.PendingTokenRevocations
 import io.putdotio.android.auth.PutioAuthTokenRevoker
 import io.putdotio.android.auth.watchNetworkReturns
 import io.putdotio.android.files.DeviceContinueWatchingStore
+import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.playback.DataStoreSwitchedToConvertedFiles
 import io.putdotio.android.search.SdkSearchRepository
 import io.putdotio.android.settings.SdkAccountSettingsRepository
@@ -20,15 +23,19 @@ import io.putdotio.android.tv.watchnext.TvProviderWatchNextStore
 import io.putdotio.android.tv.watchnext.TvWatchNext
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -43,7 +50,20 @@ internal class TvAuthRuntime(
     val authController: TvAuthController,
     private val applicationScope: CoroutineScope,
     internal val watchNext: TvWatchNext,
+    private val onSessionEnded: () -> Unit = {},
 ) {
+    init {
+        applicationScope.launch {
+            authController.quietSignOuts.filter { it > 0 }.collect { onSessionEnded() }
+        }
+        applicationScope.launch {
+            authController.state
+                .map { it is TvAuthState.Linking }
+                .distinctUntilChanged()
+                .filter { it }
+                .collect { onSessionEnded() }
+        }
+    }
     private val restoreMutex = Mutex()
     private var backgroundRestore: Deferred<Boolean>? = null
 
@@ -132,11 +152,7 @@ internal class TvAuthRuntime(
             applicationScope.launch {
                 authController.quietSignOuts.filter { it > 0 }.collect {
                     ProductAnalytics.update(null, enabled = false)
-                    clearAccountLocalState(context)
                 }
-            }
-            applicationScope.launch {
-                authController.state.filter { it is TvAuthState.Linking }.collect { clearAccountLocalState(context) }
             }
             return TvAuthRuntime(
                 putioClient = putioClient,
@@ -148,15 +164,35 @@ internal class TvAuthRuntime(
                     quietSignOuts = authController.quietSignOuts,
                     scope = applicationScope,
                 ),
+                onSessionEnded = { clearTvSessionCaches(context, applicationScope) },
             )
         }
     }
 }
 
-private fun clearAccountLocalState(context: Context) {
-    DeviceContinueWatchingStore.clearAll(context)
-    TvDeviceShowHomeStore.clearAll(context)
-    DataStoreSwitchedToConvertedFiles.get(context).clear()
+internal fun clearTvSessionCaches(
+    context: Context,
+    scope: CoroutineScope,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+): Job {
+    val appContext = context.applicationContext
+    return CommonSessionCaches(
+        clearImageMemoryCache = { SingletonImageLoader.get(appContext).memoryCache?.clear() },
+        clearImageDiskCache = {
+            SingletonImageLoader.get(appContext).diskCache?.let { diskCache ->
+                diskCache.clear()
+                diskCache.directory.toFile()
+            }
+        },
+        clearPdfCache = { FilesPdfDocument.clearCache(appContext) },
+        clearContinueWatching = { DeviceContinueWatchingStore.clearAll(appContext) },
+        clearSwitchedToConverted = { DataStoreSwitchedToConvertedFiles.get(appContext).clear() },
+        ioDispatcher = ioDispatcher,
+    ).clear(
+        context = appContext,
+        scope = scope,
+        clearAppLocalState = { TvDeviceShowHomeStore.clearAll(appContext) },
+    )
 }
 
 internal fun TvAuthState.diagnosticsAnswer(): DiagnosticsAnswer? =

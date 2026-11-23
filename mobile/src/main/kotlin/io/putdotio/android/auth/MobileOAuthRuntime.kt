@@ -3,6 +3,7 @@ package io.putdotio.android.auth
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import coil3.SingletonImageLoader
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.MobilePlaybackService
 import io.putdotio.android.playback.MobileCast
@@ -28,6 +29,7 @@ import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.widgets.MobileWidgets
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.PutioConfig
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -219,7 +221,7 @@ internal class MobileOAuthRuntime(
                     revoker = PutioAuthTokenRevoker(putioClient.config),
                     scope = applicationScope,
                 ),
-                clearAccountLocalState = { clearAccountLocalState(context) },
+                clearAccountLocalState = { clearMobileSessionCaches(context, applicationScope) },
                 validatedAccounts = SharedPreferencesValidatedAccountStore(context),
             )
             reportConsent(authController, putioClient, applicationScope)
@@ -273,7 +275,6 @@ internal class MobileOAuthRuntime(
         ) {
             applicationScope.launch(Dispatchers.IO) {
                 MobileFileShareService.endSession(context, session)
-                FilesPdfDocument.clearCache(context)
             }
             MobileFileDrags.endSession(session)
             MobileDocumentsProvider.sessionLeft(context)
@@ -287,13 +288,32 @@ internal class MobileOAuthRuntime(
             MobileCast.sessionLeft(context, session)
             if (session != null) MobilePlaybackService.stop(context)
         }
-
-        private fun clearAccountLocalState(context: Context) {
-            MobileMoveTargetStore.clearAll(context)
-            DeviceContinueWatchingStore.clearAll(context)
-            DataStoreSwitchedToConvertedFiles.get(context).clear()
-        }
     }
+}
+
+internal fun clearMobileSessionCaches(
+    context: Context,
+    scope: CoroutineScope,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+): Job {
+    val appContext = context.applicationContext
+    return CommonSessionCaches(
+        clearImageMemoryCache = { SingletonImageLoader.get(appContext).memoryCache?.clear() },
+        clearImageDiskCache = {
+            SingletonImageLoader.get(appContext).diskCache?.let { diskCache ->
+                diskCache.clear()
+                diskCache.directory.toFile()
+            }
+        },
+        clearPdfCache = { FilesPdfDocument.clearCache(appContext) },
+        clearContinueWatching = { DeviceContinueWatchingStore.clearAll(appContext) },
+        clearSwitchedToConverted = { DataStoreSwitchedToConvertedFiles.get(appContext).clear() },
+        ioDispatcher = ioDispatcher,
+    ).clear(
+        context = appContext,
+        scope = scope,
+        clearAppLocalState = { MobileMoveTargetStore.clearAll(appContext) },
+    )
 }
 
 private object AndroidOAuthRuntimeFailureReporter : OAuthRuntimeFailureReporter {
