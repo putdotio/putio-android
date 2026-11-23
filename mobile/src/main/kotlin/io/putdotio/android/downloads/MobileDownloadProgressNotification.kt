@@ -95,7 +95,8 @@ private fun progressText(context: Context, running: List<Download>, percent: Int
 /** The name a request carries for its row; a request without one reads as a recovered download. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.name(context: Context): String =
-    request.data.takeIf { it.isNotEmpty() }?.decodeToString()
-        ?: context.getString(R.string.mobile_downloads_recovered_name)
+    request.data.toDownloadRequestData().name.ifBlank {
+        context.getString(R.string.mobile_downloads_recovered_name)
+    }
 
 private const val PERCENT_MAX = 100

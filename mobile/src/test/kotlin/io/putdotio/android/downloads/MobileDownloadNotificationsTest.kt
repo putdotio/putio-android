@@ -324,6 +324,51 @@ class MobileDownloadNotificationsTest {
         assertEquals("Download failed", posted.extras.getString(Notification.EXTRA_TITLE))
     }
 
+    @Test
+    fun aRunningDirectPlayNotificationDecodesItsJsonNameAndFallsBackWhenBlank() {
+        val subtitle = DownloadSubtitle(
+            key = "eng",
+            url = "https://api.put.io/v2/files/10/subtitles/eng",
+            format = "srt",
+            language = "English",
+            languageCode = "eng",
+            name = "Sample.Show.S01E02-eng.srt",
+            source = "mkv",
+        )
+        val decoded = downloadProgressNotification(
+            context,
+            "downloads",
+            listOf(
+                runningWithData(
+                    10L,
+                    downloadRequestData("Sample.Show.S01E02.mkv", listOf(subtitle)),
+                    percent = 42f,
+                ),
+            ),
+            0,
+        )
+        val decodedText = decoded.extras.getCharSequence(Notification.EXTRA_TEXT).toString()
+        assertEquals("Sample.Show.S01E02.mkv · 42%", decodedText)
+        assertFalse(decodedText.contains("{"))
+        assertFalse(decodedText.contains("subtitles"))
+        assertFalse(decodedText.contains("api.put.io"))
+        assertEquals(Notification.VISIBILITY_PRIVATE, decoded.visibility)
+        assertEquals(null, decoded.publicVersion.extras.getCharSequence(Notification.EXTRA_TEXT))
+
+        for (blankData in listOf(downloadRequestData("   ", listOf(subtitle)), ByteArray(0))) {
+            val fallback = downloadProgressNotification(
+                context,
+                "downloads",
+                listOf(runningWithData(10L, blankData, percent = 42f)),
+                0,
+            )
+            assertEquals(
+                "Downloaded file · 42%",
+                fallback.extras.getCharSequence(Notification.EXTRA_TEXT).toString(),
+            )
+        }
+    }
+
     private fun assertOpensMainActivityFromThisAppOnly(intent: Intent) {
         val entry = context.packageManager.getActivityInfo(checkNotNull(intent.component), 0)
         assertEquals(MainActivity::class.java.name, entry.targetActivity)
@@ -382,6 +427,19 @@ class MobileDownloadNotificationsTest {
             DownloadProgress().also { it.percentDownloaded = percent },
         )
     }
+
+    private fun runningWithData(fileId: Long, data: ByteArray, percent: Float): Download = Download(
+        DownloadRequest.Builder("$USER:$fileId", Uri.parse("https://api.put.io/v2/files/$fileId/stream"))
+            .setData(data)
+            .build(),
+        Download.STATE_DOWNLOADING,
+        0L,
+        0L,
+        0L,
+        Download.STOP_REASON_NONE,
+        Download.FAILURE_REASON_NONE,
+        DownloadProgress().also { it.percentDownloaded = percent },
+    )
 
     private fun rejected(code: Int) = HttpDataSource.InvalidResponseCodeException(
         code, null, null, emptyMap(), DataSpec(Uri.EMPTY), ByteArray(0),
