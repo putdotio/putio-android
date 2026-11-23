@@ -2824,7 +2824,7 @@ internal class ListenerCountingPlayer(
     }
 }
 
-private class PlayerLifecycleOwner : LifecycleOwner {
+internal class PlayerLifecycleOwner : LifecycleOwner {
     private val registry = LifecycleRegistry(this)
 
     override val lifecycle: Lifecycle = registry
@@ -2914,7 +2914,7 @@ internal class RecordingPlayer(
         mediaItemUpdates += 1
         val playlist =
             mediaItems.mapIndexed { index, mediaItem ->
-                MediaItemData.Builder(index)
+                MediaItemData.Builder(mediaItemUpdates to index)
                     .setMediaItem(mediaItem)
                     .setDurationUs(durationMillis * 1_000L)
                     .setIsSeekable(seekable)

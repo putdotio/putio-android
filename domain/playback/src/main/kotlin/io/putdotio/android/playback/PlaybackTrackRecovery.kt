@@ -65,7 +65,8 @@ public class PlaybackTrackRecovery(
         gaveUp: Boolean,
         atMillis: Long,
     ): PlaybackTrackRecoveryStep.DropSubtitles? {
-        forgetBefore(atMillis)
+        failingSubtitles.forgetBefore(atMillis)
+        failingAudio.forgetBefore(atMillis)
         if (isAudio(trackType, uri)) failingAudio[uri] = atMillis
         if (!isSubtitle(trackType, uri)) return null
         failingSubtitles[uri] = atMillis
@@ -87,9 +88,19 @@ public class PlaybackTrackRecovery(
         audioSwitch = null
     }
 
+    public fun reset() {
+        failingSubtitles.clear()
+        failingAudio.clear()
+        droppedAtMillis = null
+        droppedUris = emptySet()
+        audioSwitch = null
+        audioSwitchedAtMillis = 0L
+    }
+
     public fun recover(failure: PlaybackTrackFailure, atMillis: Long): PlaybackTrackRecoveryStep? {
         val switch = audioSwitch?.takeIf { atMillis - audioSwitchedAtMillis <= TRACK_FAILURE_WINDOW_MILLIS }
-        forgetBefore(atMillis)
+        failingSubtitles.forgetBefore(atMillis)
+        failingAudio.forgetBefore(atMillis)
         val justDropped = droppedAtMillis?.let { atMillis - it <= TRACK_FAILURE_WINDOW_MILLIS } == true
         val dropped = droppedUris.takeIf { justDropped }.orEmpty()
         droppedAtMillis = null
@@ -127,16 +138,15 @@ public class PlaybackTrackRecovery(
         return step
     }
 
-    private fun forgetBefore(atMillis: Long) {
-        failingSubtitles.values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
-        failingAudio.values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
-    }
-
     private fun isSubtitle(trackType: Int, uri: String): Boolean =
         trackType == C.TRACK_TYPE_TEXT || uri in sidecarUris() || uri in manifestSubtitleUris()
 
     private fun isAudio(trackType: Int, uri: String): Boolean =
         trackType == C.TRACK_TYPE_AUDIO || uri in manifestAudioUris()
+}
+
+private fun MutableMap<String, Long>.forgetBefore(atMillis: Long) {
+    values.removeAll { atMillis - it > TRACK_FAILURE_WINDOW_MILLIS }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
