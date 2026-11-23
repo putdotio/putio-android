@@ -43,22 +43,24 @@ public fun watchNetworkReturns(
 ) {
     val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return
     val returns = NetworkReturns(onReturn)
-    connectivity.registerDefaultNetworkCallback(
-        object : ConnectivityManager.NetworkCallback() {
-            override fun onLost(network: Network) {
-                returns.onLost()
-            }
+    val callback = object : ConnectivityManager.NetworkCallback() {
+        override fun onLost(network: Network) {
+            returns.onLost()
+        }
 
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-                if (validated) onValidated()
-                returns.onCapabilities(validated)
-            }
-        },
-    )
-    returns.onRegistered {
-        connectivity.activeNetwork
-            ?.let(connectivity::getNetworkCapabilities)
-            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            val validated = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            if (validated) onValidated()
+            returns.onCapabilities(validated)
+        }
     }
+    if (connectivity.runCatching { registerDefaultNetworkCallback(callback) }.isFailure) return
+    returns.onRegistered { connectivity.isDefaultNetworkValidated() }
 }
+
+private fun ConnectivityManager.isDefaultNetworkValidated(): Boolean =
+    runCatching {
+        activeNetwork
+            ?.let(::getNetworkCapabilities)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+    }.getOrDefault(false)
