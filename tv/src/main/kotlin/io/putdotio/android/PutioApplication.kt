@@ -1,10 +1,12 @@
 package io.putdotio.android
 
 import android.app.Application
+import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.ProductAnalyticsConfiguration
 import io.putdotio.android.telemetry.PutioDiagnostics
 import io.putdotio.android.telemetry.SentryConfiguration
+import kotlin.concurrent.thread
 
 class PutioApplication : Application() {
     override fun onCreate() {
@@ -21,5 +23,6 @@ class PutioApplication : Application() {
                 BuildConfig.VERSION_CODE,
             ),
         )
+        thread(name = "viewer-cache-clear") { FilesPdfDocument.clearCache(this) }
     }
 }

@@ -321,6 +321,7 @@ internal class MobileAuthController(
                     val sessionId = if (result.account.userId == current.account.userId) {
                         current.sessionId
                     } else {
+                        clearAccountLocalState()
                         nextSessionId()
                     }
                     mutableState.value = MobileAuthState.SignedIn(result.account, sessionId)
