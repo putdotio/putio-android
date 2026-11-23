@@ -1,6 +1,13 @@
 package io.putdotio.android
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.Resources
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
@@ -155,37 +162,127 @@ class MobileShellDownloadsTest {
         }
     }
 
+    @Test
+    fun downloadProgressTicksDoNotRecomposeMobileShell() {
+        val activeId = FilesItemId(30L)
+        runBlocking {
+            store.upsert(
+                DownloadEntry(
+                    fileId = activeId,
+                    name = "Sintel.mkv",
+                    type = PutioFileType.VIDEO,
+                    artifact = DownloadArtifact.HLS,
+                    status = DownloadStatus.Downloading(bytesDownloaded = 100L, percent = 10f),
+                    createdAt = 30L,
+                    accepted = true,
+                ),
+            )
+        }
+        lateinit var countingResources: CountingResources
+        lateinit var countingContext: CountingContext
+        setShell(
+            wrapContent = { content ->
+                val baseResources = LocalResources.current
+                val baseContext = LocalContext.current
+                countingResources = remember(baseResources) { CountingResources(baseResources) }
+                countingContext = remember(baseContext) { CountingContext(baseContext) }
+                CompositionLocalProvider(
+                    LocalResources provides countingResources,
+                    LocalContext provides countingContext,
+                    content = content,
+                )
+            },
+        )
+        compose.waitForIdle()
+        countingResources.accountLabelReads = 0
+        countingContext.applicationContextReads = 0
+
+        listOf(250L to 25f, 500L to 50f).forEach { (bytes, pct) ->
+            runBlocking { store.report(activeId, DownloadStatus.Downloading(bytes, pct)) }
+            compose.waitForIdle()
+        }
+        assertEquals(0, countingResources.accountLabelReads)
+        assertEquals(0, countingContext.applicationContextReads)
+
+        compose.onNode(hasText("Transfers") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+        compose.waitForIdle()
+        countingResources.accountLabelReads = 0
+        countingContext.applicationContextReads = 0
+
+        runBlocking { store.report(activeId, DownloadStatus.Downloading(750L, 75f)) }
+        compose.waitForIdle()
+        assertEquals(0, countingResources.accountLabelReads)
+        assertEquals(0, countingContext.applicationContextReads)
+
+        compose.onNode(hasText("Downloads") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).performClick()
+        compose.waitForIdle()
+        countingResources.accountLabelReads = 0
+        countingContext.applicationContextReads = 0
+
+        runBlocking { store.report(activeId, DownloadStatus.Downloading(900L, 90f)) }
+        compose.waitForIdle()
+
+        assertEquals(0, countingResources.accountLabelReads)
+        assertEquals(0, countingContext.applicationContextReads)
+        compose.onNodeWithText("90%", substring = true).assertIsDisplayed()
+    }
+
     private fun setShell(
         links: MobileDeepLinkRequests = MobileDeepLinkRequests.None,
         filesState: FilesBrowserState = filesState(),
         showSubtitles: Boolean = true,
+        wrapContent: @androidx.compose.runtime.Composable (@androidx.compose.runtime.Composable () -> Unit) -> Unit = {
+            it()
+        },
     ) {
         val controller = DownloadsController(store, engine, scope)
         compose.setBuiltContent {
-            PutioTheme {
-                MobileShell(
-                    filesStates = rememberUpdatedState(filesState),
-                    filesRepository = repository,
-                    downloadsController = controller,
-                    deepLinkRequests = links,
-                    playbackPlayerFactory = NoAudioSessionFactory,
-                    accountSettingsState = readyAccountSettingsState(
-                        DefaultAccountSettingsPreferences.copy(showSubtitles = showSubtitles),
-                    ),
-                    appConfigState = readyAndroidAppConfigState(),
-                    transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
-                    account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),
-                    playbackRepository = Converting,
-                    sessionId = MobileAuthSessionId(1L),
-                    onFilesEvent = {
-                        filesEvents += it
-                        true
-                    },
-                    onAccountSettingsEvent = {},
-                    onPlaybackAuthenticationRequired = {},
-                    onSignOut = {},
-                )
+            wrapContent {
+                PutioTheme {
+                    MobileShell(
+                        filesStates = rememberUpdatedState(filesState),
+                        filesRepository = repository,
+                        downloadsController = controller,
+                        deepLinkRequests = links,
+                        playbackPlayerFactory = NoAudioSessionFactory,
+                        accountSettingsState = readyAccountSettingsState(
+                            DefaultAccountSettingsPreferences.copy(showSubtitles = showSubtitles),
+                        ),
+                        appConfigState = readyAndroidAppConfigState(),
+                        transfersStates = rememberUpdatedState(transfersState(TransfersContent.Empty)),
+                        account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),
+                        playbackRepository = Converting,
+                        sessionId = MobileAuthSessionId(1L),
+                        onFilesEvent = {
+                            filesEvents += it
+                            true
+                        },
+                        onAccountSettingsEvent = {},
+                        onPlaybackAuthenticationRequired = {},
+                        onSignOut = {},
+                    )
+                }
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private class CountingResources(private val base: Resources) :
+        Resources(base.assets, base.displayMetrics, base.configuration) {
+        var accountLabelReads = 0
+
+        override fun getString(id: Int): String {
+            if (id == R.string.mobile_destination_account) accountLabelReads += 1
+            return base.getString(id)
+        }
+    }
+
+    private class CountingContext(base: Context) : ContextWrapper(base) {
+        var applicationContextReads = 0
+
+        override fun getApplicationContext(): Context {
+            applicationContextReads += 1
+            return super.getApplicationContext()
         }
     }
 

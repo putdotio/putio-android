@@ -33,6 +33,7 @@ import io.putdotio.android.settings.DefaultAccountSettingsPreferences
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -139,6 +140,20 @@ class MobileFilesBarsTest {
         assertEquals(FilesItemId(7L), stale.item.parentId)
         assertEquals(FilesBrowserEvent.Refresh, events.last())
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun newFolderDialogFocusesNameFieldWhenOpened() {
+        val creator = object : FilesFolderCreator {
+            override suspend fun createFolder(parentId: FilesItemId, name: String): PutioResult<FilesItem> =
+                PutioResult.Success(file(31L, name, PutioFileType.FOLDER).copy(parentId = parentId))
+        }
+        compose.setShell({ folderState() }, creator = creator)
+
+        compose.onNodeWithTag(MOBILE_FILES_NEW_FOLDER_ACTION_TAG).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).assertIsFocused()
     }
 
     @Test

@@ -12,13 +12,24 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.files.FilesBrowserEvent
+import io.putdotio.android.files.FilesItem
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 import io.putdotio.android.sharing.MOBILE_PUBLIC_LINKS_ROUTE
 import io.putdotio.android.transfers.AppTransferStatus
@@ -29,9 +40,11 @@ import io.putdotio.android.transfers.TransfersPaging
 import io.putdotio.android.transfers.transfersState
 import io.putdotio.android.trash.MOBILE_MANAGE_TRASH_TAG
 import io.putdotio.android.trash.MOBILE_TRASH_ROUTE
+import io.putdotio.sdk.files.PutioFileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -244,4 +257,84 @@ class MobileTabSummaryTest {
         createdAt = "2026-10-24T10:00:00",
         userFileExists = null,
     )
+}
+
+@RunWith(AndroidJUnit4::class)
+@Config(sdk = [35])
+class MobilePlaybackNavigationTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun doubleTapNavigateToPlaybackPushesOnlyOneEntry() {
+        val navController = mountPlaybackNavHost()
+        val video = FilesItem(
+            id = FilesItemId(10L),
+            parentId = FilesItemId(0L),
+            name = "Sintel.mkv",
+            type = PutioFileType.VIDEO,
+            sizeBytes = 1_000L,
+            createdAt = "2026-10-24T10:00:00Z",
+        )
+
+        compose.runOnIdle {
+            navController.navigateToPlayback(video)
+            navController.navigateToPlayback(video)
+        }
+        compose.waitForIdle()
+
+        val playbackCount = compose.runOnIdle {
+            navController.currentBackStack.value.count { it.destination.route == MOBILE_PLAYBACK_ROUTE }
+        }
+        assertEquals(1, playbackCount)
+
+        compose.runOnIdle { navController.popBackStack() }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(MobileDestination.Files.route, navController.currentDestination?.route)
+        }
+    }
+
+    @Test
+    fun replacingPlaybackNavigationReplacesCurrentEntry() {
+        val navController = mountPlaybackNavHost()
+        val first = FilesItem(
+            id = FilesItemId(10L),
+            parentId = FilesItemId(0L),
+            name = "first.mkv",
+            type = PutioFileType.VIDEO,
+            sizeBytes = 1_000L,
+            createdAt = "2026-10-24T10:00:00Z",
+        )
+        val second = first.copy(id = FilesItemId(20L), name = "second.mkv")
+
+        compose.runOnIdle {
+            navController.navigateToPlayback(first)
+            navController.navigateToPlayback(second, replaceCurrentPlayback = true)
+        }
+        compose.waitForIdle()
+
+        compose.runOnIdle {
+            val entries = navController.currentBackStack.value.filter { it.destination.route == MOBILE_PLAYBACK_ROUTE }
+            assertEquals(1, entries.size)
+            assertEquals(second.id.value, navController.currentBackStackEntry?.arguments?.getLong("fileId"))
+        }
+    }
+
+    private fun mountPlaybackNavHost(): NavHostController {
+        lateinit var controller: NavHostController
+        compose.setBuiltContent {
+            val navController = rememberNavController()
+            LaunchedEffect(navController) { controller = navController }
+            NavHost(navController = navController, startDestination = MobileDestination.Files.route) {
+                composable(MobileDestination.Files.route) {}
+                composable(
+                    route = MOBILE_PLAYBACK_ROUTE,
+                    arguments = listOf(navArgument("fileId") { type = NavType.LongType }),
+                ) {}
+            }
+        }
+        compose.waitForIdle()
+        return controller
+    }
 }

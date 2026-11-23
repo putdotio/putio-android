@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.CircularProgressIndicator
@@ -317,16 +318,24 @@ internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
 @Composable
 private fun MobileTextLines(preview: FilesTextPreview, onOpenWithAnotherApp: () -> Unit) {
     // A few hundred lines per item keep each layout small without a node per line.
-    val chunks = preview.lines.chunked(TEXT_LINES_PER_ITEM).map { it.joinToString("\n") }
+    val chunks = remember(preview) {
+        preview.lines.chunked(TEXT_LINES_PER_ITEM).map { it.joinToString("\n") }
+    }
     val style = PutioTypeScale.mono.copy(color = MaterialTheme.colorScheme.onSurface)
     SelectionContainer {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = viewerContentPadding(horizontal = 16.dp),
         ) {
-            items(chunks) { chunk -> Text(chunk, style = style) }
+            itemsIndexed(
+                items = chunks,
+                key = { index, _ -> index },
+                contentType = { _, _ -> "chunk" },
+            ) { _, chunk ->
+                Text(chunk, style = style)
+            }
             if (preview.truncated) {
-                item {
+                item(key = "truncated", contentType = "truncated") {
                     Text(
                         text = stringResource(R.string.mobile_viewer_text_truncated, TEXT_LIMIT_LABEL),
                         style = MaterialTheme.typography.bodyMedium,

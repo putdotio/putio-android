@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -135,6 +136,16 @@ internal fun MobileFilesRow(
         else -> null
     }
 
+    val tracksPlaybackBounds = item.isPlayable && playbackBounds
+    var visibleInViewport by remember(tracksPlaybackBounds) { mutableStateOf(false) }
+    val visibilityGate = if (tracksPlaybackBounds) {
+        Modifier.onVisibilityChanged(minFractionVisible = MIN_SHARED_BOUNDS_VISIBLE_FRACTION) { visible ->
+            visibleInViewport = visible
+        }
+    } else {
+        Modifier
+    }
+
     MobileRow(
         leading = { FileTypeIcon(type = item.type, modifier = Modifier.size(FILES_ICON_SIZE)) },
         headline = { MobileMiddleCutText(text = item.name) },
@@ -146,8 +157,8 @@ internal fun MobileFilesRow(
             else -> Color.Transparent
         },
         modifier = modifier
-            // A playable row is the player's starting bounds.
-            .playbackContainer(item.id.value, playable = item.isPlayable && playbackBounds)
+            .then(visibilityGate)
+            .playbackContainer(item.id.value, playable = tracksPlaybackBounds && visibleInViewport)
             .onFocusChanged { focused = it.isFocused }
             .focusOutline(focused, outline)
             .then(interaction)
@@ -177,7 +188,6 @@ private fun MobileFilesSelectableRow(
         meta = { MobileFilesMeta(item, text, downloadStatus = downloadStatus, place = place) },
         containerColor = if (checked) MobileSelectedRowTint else Color.Transparent,
         modifier = modifier
-            .playbackContainer(item.id.value, playable = item.isPlayable)
             .onFocusChanged { focused = it.isFocused }
             .focusOutline(focused, outline)
             .then(
@@ -349,6 +359,7 @@ private fun Modifier.focusOutline(focused: Boolean, color: Color): Modifier =
     if (focused) border(FILES_FOCUS_OUTLINE, color) else this
 
 private const val SELECTED_ROW_ALPHA = 0.09f
+private const val MIN_SHARED_BOUNDS_VISIBLE_FRACTION = 0.001f
 private val FILES_ICON_SIZE = 26.dp
 private val FILES_CHEVRON_SIZE = 20.dp
 private val FILES_META_GAP = 6.dp

@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -121,7 +122,6 @@ internal fun MobileNewFolderDialog(
     var failure by remember { mutableStateOf<PutioFailure?>(null) }
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
-    LaunchedEffect(focus) { focus.requestFocus() }
     val canCreate = name.isNotBlank() && !creating
     val create: () -> Unit = create@{
         // Read the state now, not as composed: two Done presses can land before a recomposition.
@@ -146,6 +146,10 @@ internal fun MobileNewFolderDialog(
         modifier = Modifier.padding(horizontal = 24.dp),
         title = { Text(stringResource(R.string.mobile_files_new_folder)) },
         text = {
+            LaunchedEffect(focus) {
+                withFrameNanos {}
+                focus.requestFocus()
+            }
             // Scrolls in short windows and at large text, so the field stays reachable.
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(
