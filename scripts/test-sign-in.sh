@@ -63,6 +63,7 @@ case "$*" in
   "exec-in run-as io.put.putio.mobile.debug sh -c 'mkdir -p files/harness && cat > files/harness/import-token'")
     cat > "${FAKE_STATE}/pushed-token" ;;
   "exec-out run-as io.put.putio.mobile.debug sh -c 'cat files/harness/export-token && rm -f files/harness/export-token'")
+    if [[ -e "${FAKE_STATE}/not-debuggable" ]]; then echo "run-as: package not debuggable: io.put.putio.mobile.debug"; exit 0; fi
     [[ -e "${FAKE_STATE}/approved" && ! -e "${FAKE_STATE}/no-export" ]] && printf 'fake-app-token-from-approval' ;;
   *"am start -W --activity-clear-task --ez io.putdotio.android.harness.EXPORT_TOKEN true -n io.put.putio.mobile.debug/io.putdotio.android.auth.DebugDeviceSignInActivity")
     # The activity consumes a pushed token on launch.
@@ -230,6 +231,10 @@ run_case stale-cached-token "cache=${STALE_TOKEN}"
 run_case no-export no-export
 [[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
 [[ ! -e "${cache}" ]] || fail "cached an empty token"
+
+run_case not-debuggable not-debuggable
+[[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
+[[ ! -e "${cache}" ]] || fail "cached run-as's error as a token"
 
 run_case already-signed-in "app-account=${ACCOUNT}"
 [[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
