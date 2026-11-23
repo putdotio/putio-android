@@ -186,7 +186,7 @@ cache_app_token() {
   (umask 077 && mkdir -p "${CACHE_DIR}") || die "could not create ${CACHE_DIR}"
   tmp="$(umask 077 && mktemp "${CACHE_DIR}/.${package}.XXXXXX")" || die "could not write to ${CACHE_DIR}"
   if adb_ exec-out "run-as ${package} sh -c 'cat ${EXPORT_FILE} && rm -f ${EXPORT_FILE}'" >"${tmp}" 2>/dev/null &&
-    [[ -s "${tmp}" ]]; then
+    LC_ALL=C grep -qxE '[A-Za-z0-9._~-]+' "${tmp}"; then
     mv -f "${tmp}" "${cache_file}"
     log "cached the app's token for later runs on this host"
   else
