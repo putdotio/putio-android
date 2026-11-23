@@ -126,6 +126,8 @@ import io.putdotio.android.sharing.MobilePublicLinks
 import io.putdotio.android.sharing.MobilePublicLinksScreen
 import io.putdotio.android.sharing.PublicLinksContent
 import io.putdotio.android.telemetry.PutioDiagnostics
+import io.putdotio.android.telemetry.PutioFailureReports
+import io.putdotio.android.telemetry.isUnknown
 import io.putdotio.android.transfers.MobileTransferDraft
 import io.putdotio.android.transfers.MobileTransfersScreen
 import io.putdotio.android.transfers.TransfersEvent
@@ -632,7 +634,9 @@ private fun MobilePlaybackRoute(
                 playing.target.mediaType == PlaybackMediaType.VIDEO
             ) {
                 val shown = firstFrameSource.value
-                PutioDiagnostics.capture(playing.playerFailureTelemetry(failure, PlaybackPlatform.Mobile, shown))
+                val telemetry = playing.playerFailureTelemetry(failure, PlaybackPlatform.Mobile, shown)
+                val id = PutioDiagnostics.capture(telemetry)
+                failure.putioFailure?.takeIf { it.isUnknown }?.let { PutioFailureReports.record(it, id) }
             }
         },
         onFirstFrame = {

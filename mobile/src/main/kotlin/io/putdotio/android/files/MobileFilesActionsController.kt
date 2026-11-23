@@ -17,6 +17,7 @@ import io.putdotio.android.PutioResult
 import io.putdotio.android.R
 import io.putdotio.android.auth.openStoreListing
 import io.putdotio.android.apiReason
+import io.putdotio.android.mobileUnknownMessage
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.trash.undoTrashMove
 import io.putdotio.sdk.files.PutioFileType
@@ -49,7 +50,9 @@ internal class MobileFilesNotice(
     @param:StringRes val actionLabel: Int = R.string.mobile_action_retry,
 ) {
     fun text(context: Context): String {
-        val reason = failure?.let { it.apiReason ?: context.getString(it.mobileMessageResource()) }.orEmpty()
+        val reason = failure?.let {
+            it.apiReason ?: it.mobileUnknownMessage(context, context.getString(it.mobileMessageResource()))
+        }.orEmpty()
         val text = if (count == null) {
             context.getString(message, name, reason)
         } else {

@@ -65,6 +65,7 @@ import io.putdotio.android.isUnreachable
 import io.putdotio.android.MobileLoadingState
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
+import io.putdotio.android.mobileUnknownMessage
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.PutioEmptyGlyph
@@ -527,7 +528,7 @@ private fun MobileTransfersPaging(
                     .padding(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text(stringResource(R.string.mobile_transfers_paging_error))
+                Text(paging.failure.mobileUnknownMessage(stringResource(R.string.mobile_transfers_paging_error)))
                 TextButton(
                     colors = neutralTextButtonColors(),
                     onClick = { onEvent(TransfersEvent.RetryLoad) },
@@ -550,7 +551,7 @@ private fun MobileTransfersRefreshFailure(
         val retry = { onEvent(TransfersEvent.Refresh) }
         if (interactionsEnabled && refresh.failure.isUnreachable) RetryWhenOnline(refresh, retry)
         MobileInlineError(
-            message = stringResource(R.string.mobile_transfers_refresh_error),
+            message = refresh.failure.mobileUnknownMessage(stringResource(R.string.mobile_transfers_refresh_error)),
             onRetry = retry,
             retryEnabled = interactionsEnabled,
         )

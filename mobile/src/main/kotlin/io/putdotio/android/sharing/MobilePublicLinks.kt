@@ -74,14 +74,13 @@ import io.putdotio.android.PutioFailure
 import io.putdotio.android.MobileEmptyState
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioEmptyGlyph
-import io.putdotio.android.apiReason
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.FilesItem
-import io.putdotio.android.files.mobileMessageResource
+import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.neutralTextButtonColors
 import java.time.Duration
 import java.time.Instant
@@ -556,9 +555,11 @@ private fun PublicLinksOutcome.message(): String =
 /** put.io's reason for a refused request, else the shared copy; a bare 403 names links, not a folder. */
 @Composable
 private fun PutioFailure.publicLinksMessage(): String =
-    apiReason ?: stringResource(
-        if (this is PutioFailure.AccessDenied) R.string.mobile_public_links_access_denied else mobileMessageResource(),
-    )
+    if (this is PutioFailure.AccessDenied) {
+        stringResource(R.string.mobile_public_links_access_denied)
+    } else {
+        mobileMessage()
+    }
 
 @StringRes
 private fun PublicLinkRefusal.messageResource(): Int =

@@ -13,6 +13,7 @@ dependencies {
     implementation(libs.sentry.android.core)
     implementation(libs.sentry.android.ndk)
     implementation(libs.okhttp)
+    testImplementation(libs.putio.sdk.kotlin)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
 }

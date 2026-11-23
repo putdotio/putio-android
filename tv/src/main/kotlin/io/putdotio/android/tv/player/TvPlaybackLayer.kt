@@ -41,7 +41,7 @@ import io.putdotio.android.playback.rememberUpNext
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 import io.putdotio.android.telemetry.PutioDiagnostics
-import io.putdotio.android.tv.TvFailureReports
+import io.putdotio.android.telemetry.PutioFailureReports
 import io.putdotio.android.tv.TvBrief
 import io.putdotio.android.tv.TvBriefShown
 import io.putdotio.android.tv.TvSnackbarHost
@@ -113,7 +113,7 @@ internal fun TvPlaybackRoute(
         val telemetry = playing.playerFailureTelemetry(failure, PlaybackPlatform.Tv, firstFrameSource)
         if (controller.showsPlayerFailure(failure, positionMillis)) {
             val id = PutioDiagnostics.capture(telemetry)
-            failure.putioFailure?.takeIf { it.isUnknown }?.let { TvFailureReports.record(it, id) }
+            failure.putioFailure?.takeIf { it.isUnknown }?.let { PutioFailureReports.record(it, id) }
         }
     }
     val queue = rememberPlaybackQueue(

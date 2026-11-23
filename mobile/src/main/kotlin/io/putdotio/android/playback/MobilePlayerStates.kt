@@ -61,6 +61,8 @@ import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioEmptyState
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.isNotFound
+import io.putdotio.android.mobileReportedMessage
+import io.putdotio.android.mobileUnknownMessage
 import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
 
@@ -79,30 +81,32 @@ internal fun MobilePlaybackFailureState(
 ) {
     val message = failure.apiReason?.takeUnless { failure.putioFailure.isNotFound }
         ?: stringResource(failure.messageResource())
+    val needsAnotherPlayer = failure is PlaybackFailure.MediaUnsupported
+    val baseMessage = when {
+        !video -> message
+        needsAnotherPlayer -> stringResource(R.string.mobile_playback_cant_play_message)
+        failure.playerFault -> stringResource(R.string.mobile_playback_error_player)
+        else -> message
+    }
+    val resolvedMessage = failure.formattedMessage(baseMessage, includeUnreported = !needsAnotherPlayer)
     if (!video) {
         if (failure.retryable) {
             MobileErrorState(
                 title = title,
-                message = message,
+                message = resolvedMessage,
                 retryLabel = stringResource(R.string.mobile_action_retry),
                 onRetry = onRetry,
             )
         } else {
-            MobileEmptyState(title = title, message = message)
+            MobileEmptyState(title = title, message = resolvedMessage)
         }
         return
-    }
-    val needsAnotherPlayer = failure is PlaybackFailure.MediaUnsupported
-    val videoMessage = when {
-        needsAnotherPlayer -> stringResource(R.string.mobile_playback_cant_play_message)
-        failure.playerFault -> stringResource(R.string.mobile_playback_error_player)
-        else -> message
     }
     MobilePlayerStateBox {
         PutioEmptyState(
             glyph = PutioEmptyGlyph.CantPlay,
             headline = if (needsAnotherPlayer) stringResource(R.string.mobile_playback_cant_play_title) else title,
-            message = videoMessage,
+            message = resolvedMessage,
             action = when {
                 failure.retryable -> {
                     { MobilePlayerStateAction(stringResource(R.string.mobile_action_retry), onClick = onRetry) }
@@ -118,6 +122,16 @@ internal fun MobilePlaybackFailureState(
                 else -> null
             },
         )
+    }
+}
+
+@Composable
+private fun PlaybackFailure.formattedMessage(fallback: String, includeUnreported: Boolean): String {
+    val failure = putioFailure ?: return fallback
+    return when {
+        playerFault -> failure.mobileReportedMessage(fallback)
+        includeUnreported -> failure.mobileUnknownMessage(fallback)
+        else -> fallback
     }
 }
 
