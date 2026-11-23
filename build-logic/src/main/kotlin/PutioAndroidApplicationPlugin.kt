@@ -67,6 +67,10 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 buildTypes.getByName("release").signingConfig = upload
             }
 
+            buildTypes.configureEach {
+                optimization { keepRules { ignoreFrom("com.posthog:posthog-android") } }
+            }
+
             buildTypes {
                 getByName("debug") {
                     applicationIdSuffix = ".debug"

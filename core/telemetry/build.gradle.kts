@@ -4,6 +4,7 @@ plugins {
 
 android {
     namespace = "io.putdotio.android.telemetry"
+    defaultConfig.consumerProguardFiles("consumer-rules.pro")
 }
 
 dependencies {
