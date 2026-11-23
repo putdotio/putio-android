@@ -11,8 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.NonSkippableComposable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -79,7 +81,9 @@ private class TvLastRowHandOff {
 private fun rememberLastRowHandOff(built: Boolean, paging: HistoryPaging): TvLastRowHandOff {
     val handOff = remember { TvLastRowHandOff() }
     SideEffect { handOff.built = built }
-    handOff.latchWhenPagingLeaves(paging)
+    LaunchedEffect(paging !is HistoryPaging.Failed, handOff.pagingHeldFocus.value) {
+        handOff.latchWhenPagingLeaves(paging)
+    }
     return handOff
 }
 
@@ -151,6 +155,7 @@ internal fun TvHistoryList(
     val restoreRow = remember { FocusRequester() }
     val built = history.isBuiltFrom(content.items)
     val handOff = rememberLastRowHandOff(built, content.paging)
+    val pagingFailed by rememberUpdatedState(content.paging is HistoryPaging.Failed)
     val entryActions = remember(actions, handOff) {
         TvHistoryListActions(
             onOpen = actions.onOpen,
@@ -222,7 +227,9 @@ internal fun TvHistoryList(
                         onRetry = actions.onRetry,
                         buttonModifier = Modifier
                             .tracksFocusedItem(focused, PAGING_KEY)
-                            .onFocusChanged { handOff.pagingHeldFocus.value = it.isFocused },
+                            .onFocusChanged {
+                                if (it.isFocused || pagingFailed) handOff.pagingHeldFocus.value = it.isFocused
+                            },
                     )
                 }
             }

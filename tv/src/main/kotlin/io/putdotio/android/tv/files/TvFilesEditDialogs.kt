@@ -16,7 +16,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,6 +24,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -215,7 +215,7 @@ internal fun TvFilesMovePicker(
             controller.close()
         }
     }
-    val destination by controller.state.collectAsState()
+    val destination by controller.state.collectAsStateWithLifecycle()
     val sessionFailure = destination.current.content.authoritativeSessionFailure() != null
     LaunchedEffect(sessionFailure) { if (sessionFailure) onAuthenticationRequired() }
     val confirm = {
@@ -348,11 +348,13 @@ private fun TvMovePagingHandOff(
     lastRowFocus: FocusRequester,
 ) {
     val handOffToLastRow = remember(lastRowFocus) { mutableStateOf(false) }
-    if (paging == FilesPaging.Complete && pagingHeldFocus.value) {
-        pagingHeldFocus.value = false
-        handOffToLastRow.value = true
+    LaunchedEffect(lastRowFocus, paging == FilesPaging.Complete, pagingHeldFocus.value) {
+        if (paging == FilesPaging.Complete && pagingHeldFocus.value) {
+            pagingHeldFocus.value = false
+            handOffToLastRow.value = true
+        }
     }
-    LaunchedEffect(handOffToLastRow.value) {
+    LaunchedEffect(lastRowFocus, handOffToLastRow.value) {
         if (!handOffToLastRow.value) return@LaunchedEffect
         withFrameNanos {}
         lastRowFocus.requestFocusIfAttached()
@@ -420,6 +422,7 @@ private fun TvMovePaging(
     pagingHeldFocus: MutableState<Boolean>,
     onEvent: (FilesMoveDestinationEvent) -> Unit,
 ) {
+    val buttonRemains by rememberUpdatedState(paging != FilesPaging.Complete)
     val label = when (paging) {
         is FilesPaging.Available -> R.string.tv_files_move_more
         is FilesPaging.Loading -> R.string.tv_files_loading_more
@@ -442,7 +445,7 @@ private fun TvMovePaging(
             },
             modifier = Modifier
                 .focusRequester(pagingFocus)
-                .onFocusChanged { pagingHeldFocus.value = it.isFocused },
+                .onFocusChanged { if (it.isFocused || buttonRemains) pagingHeldFocus.value = it.isFocused },
         ) { Text(stringResource(label)) }
     }
 }
@@ -481,7 +484,7 @@ internal fun TvItemEditLayer(
     snackbar: TvSnackbarState?,
     onAuthenticationRequired: suspend () -> Unit,
 ) {
-    val state by edits.state.collectAsState()
+    val state by edits.state.collectAsStateWithLifecycle()
     val stale = rememberStaleEditResult(edits)
     val busy = edits.rememberBusy()
     val busyNotice = stringResource(R.string.tv_files_edit_busy)
@@ -602,7 +605,7 @@ private fun TvItemEditNotices(
 }
 
 @Composable
-internal fun TvFilesEdits?.rememberBusy(): Boolean = this?.busy?.collectAsState()?.value ?: false
+internal fun TvFilesEdits?.rememberBusy(): Boolean = this?.busy?.collectAsStateWithLifecycle()?.value ?: false
 
 private val RENAME_ERROR_GAP = 8.dp
 private val MOVE_HERE_GAP = 8.dp

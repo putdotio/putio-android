@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
@@ -466,7 +467,7 @@ private fun TvActiveReadyPlayer(
     var tracks by remember(player) { mutableStateOf(player.currentTracks) }
     var parameters by remember(player) { mutableStateOf(player.trackSelectionParameters) }
     var speed by remember(player) { mutableFloatStateOf(player.playbackParameters.speed) }
-    var cues by remember(player) { mutableStateOf(emptyList<Cue>()) }
+    val cues = remember(player) { mutableStateOf(emptyList<Cue>()) }
     val cueHistory = remember(player) { DelayedSubtitleCues() }
     var videoSize by remember(player) { mutableStateOf(player.videoSize) }
     var firstFrameShown by remember(player) { mutableStateOf(false) }
@@ -552,7 +553,7 @@ private fun TvActiveReadyPlayer(
             }
 
             override fun onCues(cueGroup: CueGroup) {
-                cues = cueGroup.cues
+                cues.value = cueGroup.cues
                 cueHistory.record(player.currentPosition, cueGroup.cues)
             }
 
@@ -701,18 +702,15 @@ private fun TvActiveReadyPlayer(
             apply(overlay.hideTimedOut())
         }
     }
-    val shownCues = rememberShownCues(
-        player = player,
-        cues = cues,
-        history = cueHistory,
-        delayMillis = options.subtitleOffsetMillis,
-        preview = overlay.previewsTiming(playWhenReady),
-        isReleased = { released },
-    )
     val cueLayer: @Composable BoxScope.() -> Unit = {
         TvSubtitleCues(
             shown = target.mediaType == PlaybackMediaType.VIDEO && choices.subtitlesOn,
-            cues = shownCues,
+            player = player,
+            cues = cues,
+            history = cueHistory,
+            delayMillis = options.subtitleOffsetMillis,
+            preview = overlay.previewsTiming(playWhenReady),
+            isReleased = { released },
             videoSize = videoSize,
             overlay = overlay,
             textScale = appearance.textSize.scale,
@@ -989,14 +987,27 @@ private fun TvSubtitleOffsetEffect(player: Player, offsetMillis: Long) {
 @Composable
 private fun BoxScope.TvSubtitleCues(
     shown: Boolean,
-    cues: List<Cue>,
+    player: Player,
+    cues: State<List<Cue>>,
+    history: DelayedSubtitleCues,
+    delayMillis: Long,
+    preview: Boolean,
+    isReleased: () -> Boolean,
     videoSize: VideoSize,
     overlay: TvPlayerOverlay,
     textScale: Float,
 ) {
     if (!shown) return
+    val shownCues = rememberShownCues(
+        player = player,
+        cues = cues.value,
+        history = history,
+        delayMillis = delayMillis,
+        preview = preview,
+        isReleased = isReleased,
+    )
     SubtitleCueOverlay(
-        cues = cues,
+        cues = shownCues,
         videoAspectRatio = videoSize.displayAspectRatioOrNull(),
         modifier = Modifier
             .align(Alignment.Center)

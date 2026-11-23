@@ -9,7 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
@@ -32,8 +30,16 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -48,6 +54,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -95,13 +102,6 @@ internal fun TvPlayerControls(
     circles: Boolean = true,
     isReleased: () -> Boolean = { false },
 ) {
-    val progress = rememberPlayerProgress(player, paused, startPositionMillis, isReleased)
-    val shownMillis = progress.positionMillis
-    val knownDuration = knownDurationMillis(progress.durationMillis, listingDurationMillis)
-    val elapsed = playerTime(shownMillis)
-    val seekBarDescription = knownDuration?.let {
-        stringResource(R.string.tv_player_seek_bar, elapsed, playerTime(it))
-    } ?: elapsed
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -114,21 +114,49 @@ internal fun TvPlayerControls(
                 TvPlayerCircles(paused = paused, focused = focused, modifier = Modifier.align(Alignment.Center))
             }
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-                TvPlayerTimes(
-                    elapsed = elapsed,
-                    remaining = knownDuration?.let { "-" + playerTime((it - shownMillis).coerceAtLeast(0L)) },
-                )
-                TvSeekBar(
-                    fraction = knownDuration?.let { (shownMillis.toFloat() / it).coerceIn(0f, 1f) } ?: 0f,
-                    description = seekBarDescription,
-                    scrubbing = seeking,
+                TvSeekRow(
+                    player = player,
+                    paused = paused,
+                    seeking = seeking,
+                    startPositionMillis = startPositionMillis,
+                    listingDurationMillis = listingDurationMillis,
                     focused = focused == TvPlayerControl.SeekBar,
-                    modifier = Modifier.padding(top = 10.dp, bottom = 12.dp),
+                    isReleased = isReleased,
                 )
                 TvPlayerChips(chips = chips, labels = chipLabels, focused = focused)
             }
         }
     }
+}
+
+@Composable
+private fun TvSeekRow(
+    player: Player,
+    paused: Boolean,
+    seeking: Boolean,
+    startPositionMillis: Long,
+    listingDurationMillis: Long?,
+    focused: Boolean,
+    isReleased: () -> Boolean,
+) {
+    val progress = rememberPlayerProgress(player, paused, startPositionMillis, isReleased)
+    val shownMillis = progress.positionMillis
+    val knownDuration = knownDurationMillis(progress.durationMillis, listingDurationMillis)
+    val elapsed = playerTime(shownMillis)
+    val seekBarDescription = knownDuration?.let {
+        stringResource(R.string.tv_player_seek_bar, elapsed, playerTime(it))
+    } ?: elapsed
+    TvPlayerTimes(
+        elapsed = elapsed,
+        remaining = knownDuration?.let { "-" + playerTime((it - shownMillis).coerceAtLeast(0L)) },
+    )
+    TvSeekBar(
+        fraction = knownDuration?.let { (shownMillis.toFloat() / it).coerceIn(0f, 1f) } ?: 0f,
+        description = seekBarDescription,
+        scrubbing = seeking,
+        focused = focused,
+        modifier = Modifier.padding(top = 10.dp, bottom = 12.dp),
+    )
 }
 
 internal data class TvPlayerProgress(val positionMillis: Long, val durationMillis: Long)
@@ -304,9 +332,15 @@ internal fun TvSeekBar(
     focused: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val knob = (if (scrubbing) SEEK_KNOB_SCRUBBING else SEEK_KNOB) + if (focused) SEEK_RING * 2 else 0.dp
+    val clampedFraction = (fraction.takeIf { !it.isNaN() } ?: 0f).coerceIn(0f, 1f)
+    val knobDiameter = if (scrubbing) SEEK_KNOB_SCRUBBING else SEEK_KNOB
+    val ring = if (focused) SEEK_RING else 0.dp
     val yellow = PutioDesignTokens.yellowSolid
-    BoxWithConstraints(
+    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = TRACK_ALPHA)
+    val ringColor = TvFocus.container
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val trackClip = remember { Path() }
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .height(SEEK_TRACK)
@@ -314,29 +348,33 @@ internal fun TvSeekBar(
             .clearAndSetSemantics {
                 contentDescription = description
                 selected = focused
-                progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
+                progressBarRangeInfo = ProgressBarRangeInfo(clampedFraction, 0f..1f)
+            }
+            .drawBehind {
+                if (size.width <= 0f || size.height <= 0f) return@drawBehind
+                val corner = CornerRadius(size.height / 2f, size.height / 2f)
+                drawRoundRect(color = trackColor, cornerRadius = corner)
+                val fillWidth = size.width * clampedFraction
+                val fillLeft = if (isRtl) size.width - fillWidth else 0f
+                trackClip.reset()
+                trackClip.addRoundRect(RoundRect(0f, 0f, size.width, size.height, corner))
+                clipPath(trackClip) {
+                    drawRect(
+                        color = yellow,
+                        topLeft = Offset(fillLeft, 0f),
+                        size = Size(fillWidth, size.height),
+                    )
+                }
+                val innerRadius = knobDiameter.toPx() / 2f
+                val ringPx = ring.toPx()
+                val outerRadius = innerRadius + ringPx
+                val minCenter = outerRadius.coerceAtMost(size.width / 2f)
+                val rawX = if (isRtl) size.width * (1f - clampedFraction) else size.width * clampedFraction
+                val center = Offset(rawX.coerceIn(minCenter, size.width - minCenter), size.height / 2f)
+                if (focused) drawCircle(color = ringColor, radius = outerRadius, center = center)
+                drawCircle(color = yellow, radius = innerRadius, center = center)
             },
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(SEEK_TRACK)
-                .clip(RoundedCornerShape(SEEK_TRACK / 2))
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = TRACK_ALPHA)),
-        ) {
-            Box(Modifier.fillMaxWidth(fraction).height(SEEK_TRACK).background(yellow))
-        }
-        Box(
-            modifier = Modifier
-                .offset(x = (maxWidth * fraction - knob / 2).coerceIn(0.dp, maxWidth - knob))
-                .requiredSize(knob)
-                .then(if (focused) Modifier.border(SEEK_RING, TvFocus.container, CircleShape) else Modifier)
-                .padding(if (focused) SEEK_RING else 0.dp)
-                .clip(CircleShape)
-                .background(yellow),
-        )
-    }
+    )
 }
 
 @Composable

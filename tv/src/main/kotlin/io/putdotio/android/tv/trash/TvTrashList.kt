@@ -97,10 +97,8 @@ internal fun TvTrashList(
     val pagingHeldFocus = remember { mutableStateOf(false) }
     val handOffToLastRow = remember { mutableStateOf(false) }
     val pagingShown = content.showsPaging
-    if (content.pageFailure == null && pagingHeldFocus.value) {
-        pagingHeldFocus.value = false
-        handOffToLastRow.value = true
-    }
+    val pagingRetryShown by rememberUpdatedState(content.pageFailure != null && !content.isLoadingMore)
+    TvTrashPagingHandOff(content.pageFailure == null, pagingHeldFocus, handOffToLastRow)
     val listState = rememberLazyListState()
     val rowsHoldFocus = remember { mutableStateOf(false) }
     val focused = remember { TvFocusedItem() }
@@ -172,10 +170,26 @@ internal fun TvTrashList(
                         buttonModifier = Modifier
                             .tracksFocusedItem(focused, TV_TRASH_PAGING_KEY)
                             .focusRequester(pagingFocus)
-                            .onFocusChanged { pagingHeldFocus.value = it.isFocused },
+                            .onFocusChanged {
+                                if (it.isFocused || pagingRetryShown) pagingHeldFocus.value = it.isFocused
+                            },
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TvTrashPagingHandOff(
+    pageCleared: Boolean,
+    pagingHeldFocus: MutableState<Boolean>,
+    handOffToLastRow: MutableState<Boolean>,
+) {
+    LaunchedEffect(pageCleared, pagingHeldFocus.value) {
+        if (pageCleared && pagingHeldFocus.value) {
+            pagingHeldFocus.value = false
+            handOffToLastRow.value = true
         }
     }
 }
