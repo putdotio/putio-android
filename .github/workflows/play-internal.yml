@@ -114,7 +114,7 @@ jobs:
           cache-disabled: true
       # Release bundles fail without every locked font.
       - name: Fetch brand fonts
-        run: ./scripts/sync-brand-fonts.sh
+        run: ./scripts/sync-brand-fonts.sh --no-daemon
       - name: Write the release notes file
         env:
           NOTES: ${{ needs.notes.outputs.notes }}
@@ -137,17 +137,22 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           PUTIO_SENTRY_DSN: ${{ vars.PUTIO_SENTRY_DSN }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ !inputs.dry_run && secrets.SENTRY_AUTH_TOKEN || '' }}
+          SENTRY_PROJECT: ${{ !inputs.dry_run && vars.SENTRY_PROJECT || '' }}
         run: |
-          for name in ANDROID_PUBLISHER_CREDENTIALS PUTIO_SENTRY_DSN SENTRY_AUTH_TOKEN SENTRY_PROJECT; do
+          required=(ANDROID_PUBLISHER_CREDENTIALS PUTIO_SENTRY_DSN)
+          no_commit=()
+          if [ "$DRY_RUN" = true ]; then
+            no_commit=(--no-commit)
+          else
+            required+=(SENTRY_AUTH_TOKEN SENTRY_PROJECT)
+          fi
+          for name in "${required[@]}"; do
             if [ -z "${!name}" ]; then
               echo "The release Environment must set $name" >&2
               exit 1
             fi
           done
-          no_commit=()
-          if [ "$DRY_RUN" = true ]; then no_commit=(--no-commit); fi
           ./gradlew --no-daemon --no-configuration-cache -PputioVersionName="$VERSION_NAME" \
             :mobile:publishProductionReleaseBundle --release-status completed "${no_commit[@]}"
 

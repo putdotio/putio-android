@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.HostTestBuilder
 import com.android.build.api.variant.ResValue
 
@@ -32,6 +33,10 @@ baselineProfile {
     mergeIntoMain = true
 }
 
+val playBundle = configurations.consumable("playBundle") {
+    attributes.attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage::class.java, PlayBundles.USAGE))
+}
+
 androidComponents {
     beforeVariants(selector().withBuildType("nonMinifiedRelease")) { variant ->
         variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
@@ -42,6 +47,9 @@ androidComponents {
     onVariants(selector().withFlavor("channel" to "nightly").withBuildType("debug")) { variant ->
         val profiles = checkNotNull(variant.sources.baselineProfiles) { "${variant.name} has no baseline profile sources" }
         profiles.addStaticSourceDirectory(layout.projectDirectory.dir("src/main/generated/baselineProfiles").asFile.absolutePath)
+    }
+    onVariants(selector().withFlavor("channel" to "production").withBuildType("release")) { variant ->
+        artifacts.add(playBundle.name, variant.artifacts.get(SingleArtifact.BUNDLE))
     }
     onVariants { variant ->
         // searchable.xml names the suggestions provider, whose authority follows the variant's id.
