@@ -1,5 +1,6 @@
 [versions]
 agp = "9.5.1"
+aboutlibraries = "15.3.0"
 kotlin = "2.4.21"
 activityCompose = "1.13.0"
 browser = "1.10.0"
@@ -36,6 +37,8 @@ junit = "4.13.2"
 robolectric = "4.18.1"
 
 [libraries]
+aboutlibraries-core = { module = "com.mikepenz:aboutlibraries-core", version.ref = "aboutlibraries" }
+aboutlibraries-gradle-plugin = { module = "com.mikepenz.aboutlibraries.plugin:aboutlibraries-plugin", version.ref = "aboutlibraries" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
@@ -107,6 +110,7 @@ sentry-gradle-plugin = { module = "io.sentry:sentry-android-gradle-plugin", vers
 play-publisher-gradle-plugin = { module = "com.github.triplet.gradle:play-publisher", version.ref = "playPublisher" }
 
 [plugins]
+aboutlibraries-android = { id = "com.mikepenz.aboutlibraries.plugin.android", version.ref = "aboutlibraries" }
 android-test = { id = "com.android.test", version.ref = "agp" }
 androidx-baselineprofile = { id = "androidx.baselineprofile", version.ref = "benchmark" }
 android-application = { id = "com.android.application", version.ref = "agp" }

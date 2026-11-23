@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -48,6 +49,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,6 +64,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import io.putdotio.android.BuildConfig
+import io.putdotio.android.LibraryNotice
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.account.PrivacyLinks
@@ -69,6 +72,7 @@ import io.putdotio.android.appSourceNotice
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 import io.putdotio.android.isSupportedAvatarUrl
+import io.putdotio.android.libraryNotices
 import io.putdotio.android.playback.confirmedStreamingMethod
 import io.putdotio.android.playback.playbackNotices
 import io.putdotio.android.playback.playbackPreference
@@ -102,6 +106,8 @@ import io.putdotio.android.tv.files.tvLabel
 import io.putdotio.android.tv.rememberTvPaneHasFocus
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.android.account.R as AccountR
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal const val TV_ACCOUNT_STORAGE_TAG = "tv-account-storage"
 
@@ -123,6 +129,8 @@ internal enum class TvAccountSheet {
     PrivacyPolicy,
     ServicesWeUse,
     OpenSourceNotice,
+    Libraries,
+    LibraryLicense,
     ManageAccount,
     TrashOff,
     ResumeOff,
@@ -158,6 +166,8 @@ private object RowKey {
     const val RETRY_CONFIG = "retry-config"
     const val RETRY_CHANGE = "retry-change"
     const val RETRY_CONFIG_CHANGE = "retry-config-change"
+
+    const val LIBRARIES = "open-source-libraries"
 
     fun notice(index: Int): String = "open-source-notice-$index"
 }
@@ -283,6 +293,13 @@ private fun TvAccountBody(
 ) {
     var sheet by rememberSaveable { mutableStateOf<TvAccountSheet?>(null) }
     var notice by rememberSaveable { mutableIntStateOf(0) }
+    var library by rememberSaveable { mutableIntStateOf(0) }
+    val resources = LocalResources.current
+    val libraries by produceState(emptyList<LibraryNotice>()) {
+        value = withContext(Dispatchers.IO) {
+            libraryNotices(resources.openRawResource(R.raw.aboutlibraries).bufferedReader().use { it.readText() })
+        }
+    }
     val focus = remember { TvAccountFocus() }
     val paneHasFocus = rememberTvPaneHasFocus()
     val refocus = remember { mutableIntStateOf(0) }
@@ -366,6 +383,13 @@ private fun TvAccountBody(
         onSignOut = onSignOut,
         loadTunnelRoutes = loadTunnelRoutes,
         notice = notice,
+        libraries = libraries,
+        library = library,
+        onOpenLibrary = { index ->
+            library = index
+            sheet = TvAccountSheet.LibraryLicense
+        },
+        onCloseLibrary = { sheet = TvAccountSheet.Libraries },
         returnFocus = { key -> focus.requester(key) },
         onClose = { sheet = null },
     )
@@ -479,6 +503,10 @@ private fun TvAccountSheets(
     onSignOut: () -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
     notice: Int,
+    libraries: List<LibraryNotice>,
+    library: Int,
+    onOpenLibrary: (Int) -> Unit,
+    onCloseLibrary: () -> Unit,
     returnFocus: (String) -> FocusRequester,
     onClose: () -> Unit,
 ) {
@@ -537,6 +565,25 @@ private fun TvAccountSheets(
                 onDismiss = onClose,
                 returnFocus = returnFocus(RowKey.notice(notice)),
             )
+        }
+        TvAccountSheet.Libraries -> if (libraries.isNotEmpty()) {
+            TvLibrariesSheet(
+                libraries = libraries,
+                selected = library,
+                onOpen = onOpenLibrary,
+                onDismiss = onClose,
+                returnFocus = returnFocus(RowKey.LIBRARIES),
+            )
+        }
+        TvAccountSheet.LibraryLicense -> libraries.getOrNull(library)?.let { notice ->
+            notice.url?.let { url ->
+                TvQrSheet(
+                    title = stringResource(R.string.tv_account_open_source_name, notice.name, notice.version),
+                    url = url,
+                    onDismiss = onCloseLibrary,
+                    returnFocus = null,
+                )
+            }
         }
         TvAccountSheet.ManageAccount -> TvQrSheet(
             title = stringResource(R.string.tv_account_manage_account),
@@ -921,12 +968,13 @@ private class TvAccountRowsScope(
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
         )
         val qr = AnnotatedString(stringResource(R.string.tv_account_qr_value))
+        val rows = OPEN_SOURCE_NOTICES.size + 1
         TvSegments {
             OPEN_SOURCE_NOTICES.forEachIndexed { index, notice ->
                 TvSettingRow(
                     title = stringResource(R.string.tv_account_open_source_name, notice.name, notice.version),
                     icon = R.drawable.ic_ph_file_text,
-                    segment = segmentOf(index, OPEN_SOURCE_NOTICES.size),
+                    segment = segmentOf(index, rows),
                     description = stringResource(
                         R.string.tv_account_open_source_terms,
                         notice.license,
@@ -936,6 +984,13 @@ private class TvAccountRowsScope(
                     modifier = Modifier.accountFocus(context, RowKey.notice(index)),
                 ) { focused -> TvSettingValue(qr, focused) }
             }
+            TvSettingRow(
+                title = stringResource(R.string.tv_account_open_source_libraries),
+                icon = R.drawable.ic_ph_file_text,
+                segment = segmentOf(OPEN_SOURCE_NOTICES.size, rows),
+                onClick = { open(TvAccountSheet.Libraries, RowKey.LIBRARIES) },
+                modifier = Modifier.accountFocus(context, RowKey.LIBRARIES),
+            )
         }
     }
 

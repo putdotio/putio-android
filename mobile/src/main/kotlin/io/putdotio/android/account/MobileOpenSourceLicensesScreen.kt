@@ -11,12 +11,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -25,12 +29,16 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.BuildConfig
+import io.putdotio.android.LibraryNotice
 import io.putdotio.android.OpenSourceNotice
 import io.putdotio.android.R
 import io.putdotio.android.appSourceNotice
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.libraryNotices
 import io.putdotio.android.playback.playbackNotices
 import io.putdotio.android.telemetry.telemetryNotices
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 internal const val MOBILE_OPEN_SOURCE_LICENSES_ROUTE = "account/open-source-licenses"
 internal const val MOBILE_OPEN_SOURCE_LICENSES_ROW_TAG = "mobile-open-source-licenses-row"
@@ -39,6 +47,12 @@ internal const val MOBILE_OPEN_SOURCE_LICENSES_LIST_TAG = "mobile-open-source-li
 @Composable
 internal fun MobileOpenSourceLicensesScreen(modifier: Modifier = Modifier) {
     val uriHandler = LocalUriHandler.current
+    val resources = LocalResources.current
+    val libraries by produceState(emptyList<LibraryNotice>()) {
+        value = withContext(Dispatchers.IO) {
+            libraryNotices(resources.openRawResource(R.raw.aboutlibraries).bufferedReader().use { it.readText() })
+        }
+    }
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -54,6 +68,63 @@ internal fun MobileOpenSourceLicensesScreen(modifier: Modifier = Modifier) {
         }
         items(OPEN_SOURCE_NOTICES, key = { it.name }) { notice ->
             NoticeGroup(notice, onOpen = { uriHandler.openSafely(it) })
+        }
+        if (libraries.isNotEmpty()) {
+            item(key = LIBRARIES_KEY) {
+                MobileSettingsLabel(stringResource(R.string.mobile_settings_open_source_libraries))
+            }
+        }
+        itemsIndexed(libraries, key = { _, library -> library.id }) { index, library ->
+            LibraryRow(
+                library = library,
+                segment = settingsSegment(index, libraries.size),
+                onOpen = { uriHandler.openSafely(it) },
+                modifier = Modifier.padding(top = if (index == 0) 0.dp else 2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LibraryRow(
+    library: LibraryNotice,
+    segment: SettingsSegment,
+    onOpen: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val url = library.url
+    MobileSettingsGroup(modifier) {
+        MobileSettingsSegment(
+            segment = segment,
+            interaction = if (url == null) Modifier else Modifier.clickable(role = Role.Button) { onOpen(url) },
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        stringResource(R.string.mobile_settings_open_source_name, library.name, library.version),
+                        style = PutioTypeScale.bodyMd,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        library.license,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+                if (url != null) {
+                    Icon(
+                        painterResource(R.drawable.ic_ph_arrow_square_out),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
         }
     }
 }
@@ -117,4 +188,5 @@ private fun NoticeLink(segment: SettingsSegment, @StringRes title: Int, onClick:
 }
 
 private const val INTRO_KEY = "open-source-licenses-intro"
+private const val LIBRARIES_KEY = "open-source-licenses-libraries"
 private val OPEN_SOURCE_NOTICES = listOf(appSourceNotice(BuildConfig.VERSION_NAME)) + playbackNotices + telemetryNotices

@@ -3,7 +3,8 @@ plugins {
 }
 
 dependencies {
-    // The root build puts AGP, detekt and the Sentry plugin on the classpath; the convention plugin only compiles against them.
+    // The root build puts AboutLibraries, AGP, detekt and the Sentry plugin on the classpath; the convention plugin only compiles against them.
+    compileOnly(libs.aboutlibraries.gradle.plugin)
     compileOnly(libs.android.gradle.plugin)
     compileOnly(libs.detekt.gradle.plugin)
     compileOnly(libs.sentry.gradle.plugin)

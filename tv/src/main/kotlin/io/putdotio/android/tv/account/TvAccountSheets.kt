@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,10 +27,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import io.putdotio.android.LibraryNotice
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioRadius
@@ -246,6 +251,39 @@ internal fun TvQrSheet(
                 style = TvButtonStyle.Text,
                 modifier = Modifier.focusRequester(initialFocus),
             ) { Text(stringResource(R.string.tv_account_done)) }
+        }
+    }
+}
+
+@Composable
+internal fun TvLibrariesSheet(
+    libraries: List<LibraryNotice>,
+    selected: Int,
+    onOpen: (Int) -> Unit,
+    onDismiss: () -> Unit,
+    returnFocus: FocusRequester?,
+) {
+    TvSideSheet(
+        onDismiss = onDismiss,
+        returnFocus = returnFocus,
+        title = stringResource(R.string.tv_account_open_source_libraries),
+    ) { initialFocus ->
+        val start = selected.coerceIn(0, (libraries.size - 1).coerceAtLeast(0))
+        LazyColumn(
+            state = rememberLazyListState(initialFirstVisibleItemIndex = start),
+            modifier = Modifier.weight(1f, fill = false),
+        ) {
+            itemsIndexed(libraries, key = { _, library -> library.id }) { index, library ->
+                TvSheetOption(
+                    label = stringResource(R.string.tv_account_open_source_name, library.name, library.version),
+                    detail = AnnotatedString(library.license),
+                    selected = false,
+                    onClick = { onOpen(index) },
+                    enabled = library.url != null,
+                    role = Role.Button,
+                    modifier = Modifier.focusRequesterIf(index == start, initialFocus),
+                )
+            }
         }
     }
 }
