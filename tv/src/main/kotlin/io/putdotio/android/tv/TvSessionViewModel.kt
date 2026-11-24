@@ -531,11 +531,13 @@ internal class TvSession internal constructor(
         fileActionFailures.dismiss()
         watchedJobs.remove(item.id)?.cancel()
         val job = scope.launch(start = CoroutineStart.LAZY) {
-            val result = playbackReporting.supersede(item.id.value) {
-                if (watched) {
-                    watchedRepository.setPosition(item.id, seconds)
-                } else {
-                    watchedRepository.clearPosition(item.id)
+            val result = audio.host.supersede(item.id.value) {
+                playbackReporting.supersede(item.id.value) {
+                    if (watched) {
+                        watchedRepository.setPosition(item.id, seconds)
+                    } else {
+                        watchedRepository.clearPosition(item.id)
+                    }
                 }
             }
             if (!isActive || watchedJobs[item.id] !== coroutineContext[Job]) return@launch

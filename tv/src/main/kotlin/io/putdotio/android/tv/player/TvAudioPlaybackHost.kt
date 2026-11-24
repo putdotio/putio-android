@@ -176,6 +176,9 @@ internal class TvAudioPlaybackHost {
     fun owns(controller: PlaybackController): Boolean =
         mutableActive.value?.controller === controller
 
+    suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T =
+        mutableActive.value?.reporting?.supersede(fileId, block) ?: block()
+
     fun stop() {
         val hosted = mutableActive.getAndUpdate { null } ?: return
         val job = hostJob
@@ -193,16 +196,16 @@ internal class TvAudioPlaybackHost {
         stop()
         playerFactory = DefaultTvPlayerFactory
     }
+}
 
-    private fun reportFailure(controller: PlaybackController, failure: PlaybackFailure, positionMillis: Long) {
-        val playing = controller.state.value
-        val telemetry = playing.playerFailureTelemetry(failure, PlaybackPlatform.Tv, firstFrameSource = null)
-        val shown = controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
-            controller.state.value.content is PlaybackContent.Failed
-        if (shown) {
-            val id = PutioDiagnostics.capture(telemetry)
-            failure.putioFailure?.takeIf { it.isUnknown }?.let { PutioFailureReports.record(it, id) }
-        }
+private fun reportFailure(controller: PlaybackController, failure: PlaybackFailure, positionMillis: Long) {
+    val playing = controller.state.value
+    val telemetry = playing.playerFailureTelemetry(failure, PlaybackPlatform.Tv, firstFrameSource = null)
+    val shown = controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
+        controller.state.value.content is PlaybackContent.Failed
+    if (shown) {
+        val id = PutioDiagnostics.capture(telemetry)
+        failure.putioFailure?.takeIf { it.isUnknown }?.let { PutioFailureReports.record(it, id) }
     }
 }
 

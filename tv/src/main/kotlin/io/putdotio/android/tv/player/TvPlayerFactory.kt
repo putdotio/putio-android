@@ -75,7 +75,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
         TvBackgroundSessions.host(context, launchingSession(context, player))
 
     override fun publishQueue(context: Context, player: Player): TvQueueSession {
-        val session = launchingSession(context, player)
+        val session = launchingSession(context, player, queue = true)
         val hosted = TvBackgroundSessions.host(context, session)
         return object : TvQueueSession {
             override fun swap(player: Player) {
@@ -86,12 +86,12 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
         }
     }
 
-    private fun launchingSession(context: Context, player: Player): MediaSession {
+    private fun launchingSession(context: Context, player: Player, queue: Boolean = false): MediaSession {
         val launch = (
             context.packageManager.getLeanbackLaunchIntentForPackage(context.packageName)
                 ?: Intent(context, MainActivity::class.java)
             ).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        return tvMediaSession(context, player)
+        return tvMediaSession(context, player, queue)
             .setSessionActivity(
                 PendingIntent.getActivity(
                     context,
@@ -110,7 +110,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
  * still reports positions for the first.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun tvMediaSession(context: Context, player: Player): MediaSession.Builder =
+internal fun tvMediaSession(context: Context, player: Player, queue: Boolean = false): MediaSession.Builder =
     MediaSession.Builder(context, player)
         // A recreated screen can publish its player before the old session is gone.
         .setId("tv-player-${UUID.randomUUID()}")
@@ -122,7 +122,7 @@ internal fun tvMediaSession(context: Context, player: Player): MediaSession.Buil
                 ): MediaSession.ConnectionResult =
                     MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                         .setAvailablePlayerCommands(
-                            if ((session.player as? TvSessionPlayer)?.skipsTracks == true) {
+                            if (queue || (session.player as? TvSessionPlayer)?.skipsTracks == true) {
                                 TV_QUEUE_SESSION_PLAYER_COMMANDS
                             } else {
                                 TV_SESSION_PLAYER_COMMANDS

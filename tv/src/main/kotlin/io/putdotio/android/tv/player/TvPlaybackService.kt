@@ -13,10 +13,21 @@ import io.putdotio.android.telemetry.TelemetryFailure
 import java.io.Closeable
 
 internal class TvPlaybackService : MediaSessionService() {
+    private var hostedSession: MediaSession? = null
+    private var stopping = false
     private val sync: (MediaSession?) -> Unit = { hosted ->
-        if (hosted != null && !isSessionAdded(hosted)) addSession(hosted)
-        sessions.filter { it !== hosted }.forEach(::removeSession)
-        if (hosted == null) stopSelf()
+        if (hosted != null) {
+            stopping = false
+            hostedSession = hosted
+            if (!isSessionAdded(hosted)) addSession(hosted)
+            sessions.filter { it !== hosted }.forEach(::removeSession)
+        } else {
+            stopping = true
+            hostedSession = null
+            sessions.toList().forEach(::removeSession)
+            TvBackgroundSessions.detach(sync)
+            stopSelf()
+        }
     }
 
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -50,7 +61,11 @@ internal class TvPlaybackService : MediaSessionService() {
     override fun onDestroy() {
         TvBackgroundSessions.detach(sync)
         sessions.forEach(::removeSession)
-        if (TvBackgroundSessions.hosted != null) audioHost.stop()
+        val activeHosted = hostedSession
+        hostedSession = null
+        if (!stopping && activeHosted != null && TvBackgroundSessions.hosted === activeHosted) {
+            audioHost.stop()
+        }
         super.onDestroy()
     }
 
