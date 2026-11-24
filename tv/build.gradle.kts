@@ -7,7 +7,6 @@ fun originalVideoPolicy(): String =
 
 plugins {
     id("putio.android.application")
-    id("putio.build-logic")
     alias(libs.plugins.androidx.baselineprofile)
 }
 
