@@ -2,6 +2,7 @@ package io.putdotio.android.tv.player
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import android.media.session.PlaybackState as PlatformPlaybackState
 import android.os.Looper
 import io.putdotio.android.tv.setTvContent
 import androidx.activity.ComponentActivity
@@ -256,6 +257,75 @@ class TvPlayerMediaSessionTest {
         compose.onNodeWithContentDescription("Pause").assertIsDisplayed()
         compose.mainClock.advanceTimeBy(TV_PLAYER_CONTROLS_HIDE_DELAY_MILLIS + 100L)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun audioSessionUpdatesPlatformPlaybackStateAcrossBufferingPlaySeekAndPause() {
+        val player = FakePlayer()
+        player.setMediaItem(item("9"))
+        player.playWhenReady = true
+        player.buffer()
+        idleSession()
+        val session = tvMediaSession(
+            compose.activity,
+            tvSessionPlayer(
+                player = player,
+                onSkipRequested = {},
+                onPlayingRequested = { player.playWhenReady = it },
+            ),
+        ).build()
+        val controller = connect(session)
+        try {
+            idleSession()
+            val buffering = platformPlaybackState(session)!!
+            assertEquals(PlatformPlaybackState.STATE_BUFFERING, buffering.state)
+            assertEquals(0L, buffering.position)
+
+            player.ready()
+            idleSession()
+            assertEquals(Player.STATE_READY, controller.playbackState)
+            assertTrue(controller.playWhenReady)
+            assertEquals(PlatformPlaybackState.STATE_PLAYING, platformPlaybackState(session)?.state)
+
+            player.seekTo(30_000L)
+            idleSession()
+            val playingSeeked = platformPlaybackState(session)!!
+            assertEquals(30_000L, controller.currentPosition)
+            assertEquals(PlatformPlaybackState.STATE_PLAYING, playingSeeked.state)
+            assertEquals(30_000L, playingSeeked.position)
+
+            player.playWhenReady = false
+            idleSession()
+            val paused = platformPlaybackState(session)!!
+            assertFalse(controller.playWhenReady)
+            assertEquals(PlatformPlaybackState.STATE_PAUSED, paused.state)
+            assertEquals(0f, paused.playbackSpeed)
+            assertEquals(30_000L, paused.position)
+
+            player.allow(Player.COMMAND_SET_SPEED_AND_PITCH)
+            idleSession()
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_SET_SPEED_AND_PITCH))
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM))
+            val actions = platformPlaybackState(session)!!.actions
+            assertTrue((actions and PlatformPlaybackState.ACTION_SKIP_TO_NEXT) != 0L)
+            assertTrue((actions and PlatformPlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L)
+        } finally {
+            controller.release()
+            session.release()
+        }
+    }
+
+    private fun platformPlaybackState(session: MediaSession): PlatformPlaybackState? {
+        val impl = MediaSession::class.java.getDeclaredField("impl").apply { isAccessible = true }.get(session)
+        val stub = impl.javaClass.getDeclaredField("sessionLegacyStub").apply { isAccessible = true }.get(impl)
+        val compat = stub.javaClass.getMethod("getSessionCompat").apply { isAccessible = true }.invoke(stub)
+        val compatImpl = compat.javaClass.getDeclaredField("impl").apply { isAccessible = true }.get(compat)
+        val stateCompat = compatImpl.javaClass.getMethod("getPlaybackState")
+            .apply { isAccessible = true }
+            .invoke(compatImpl)
+            ?: return null
+        return stateCompat.javaClass.getMethod("getPlaybackState").apply { isAccessible = true }
+            .invoke(stateCompat) as? PlatformPlaybackState
     }
 
     private fun sessionFactory(player: FakePlayer, sessions: MutableList<MediaSession>) = object : TvPlayerFactory {
