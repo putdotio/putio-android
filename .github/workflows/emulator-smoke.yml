@@ -6,8 +6,8 @@ name: Emulator smoke
 # XML result passed (verifyCiPhone*Proof); an empty or skipped run fails.
 # Other device suites require explicit opt-in.
 # Not a PR gate — emulator boots on shared runners are too slow and flaky to
-# block merges; the PR gate is the CI workflow. Local day-to-day proof stays
-# on scripts/prove.sh.
+# block merges; the PR gate is the CI workflow. Interactive mobile proof stays
+# on verify-putio-android, and TV launch proof on scripts/prove.sh tv.
 
 on:
   workflow_dispatch:

@@ -483,22 +483,31 @@ fi
 [[ "$(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls")" == "1" ]] || fail "API mismatch was retried"
 grep -q "pm path" "${state}/adb-calls" && fail "wrong API level reached Chrome preparation"
 
-# prove.sh must stop between boot readiness and install when the real
-# emulator.sh rejects the browser's Auth Tab service.
+tv_target_image="system-images;android-36;android-tv;$(sdk_arch)"
+mkdir -p "${fake_sdk}/$(tr ';' '/' <<<"${tv_target_image}")"
+
+# emulator.sh boot must reject a reused phone without Chrome Auth Tab support
+# without stopping the reused emulator.
 reset_avd "${PHONE_AVD}" "${target_image}" 1
 reset_runtime 37 1 1 com.android.chrome com.example.browser
+if "${REPO_ROOT}/scripts/emulator.sh" boot phone --headless >/dev/null 2>&1; then
+  fail "emulator.sh accepted a reused phone without Chrome Auth Tab support"
+fi
+[[ "$(<"${state}/running")" == "1" ]] || fail "reuse readiness failure stopped a reused emulator"
+grep -q " emu kill" "${state}/adb-calls" && fail "reuse readiness failure killed a reused emulator"
+
+# prove.sh mobile must fail directly with the GMD replacement without touching adb.
 prove_out="${tmpdir}/prove-negative.log"
 fake_apk="${tmpdir}/app.apk"
 : > "${fake_apk}"
+: > "${state}/adb-calls"
 if PUTIO_PROVE_APK="${fake_apk}" "${REPO_ROOT}/scripts/prove.sh" mobile --skip-build >"${prove_out}" 2>&1; then
-  fail "prove.sh accepted a phone without Chrome Auth Tab support"
+  fail "prove.sh still accepted mobile flavor"
 fi
-grep -q '^PROOF FAIL mobile$' "${prove_out}" || fail "negative proof omitted its failure marker"
-grep -q " install " "${state}/adb-calls" && fail "negative proof attempted app install"
-[[ "$(<"${state}/running")" == "1" ]] || fail "negative proof stopped a reused emulator"
-grep -q " emu kill" "${state}/adb-calls" && fail "negative proof killed a reused emulator"
+grep -Fq "verifyCiPhoneLaunchProof" "${prove_out}" || fail "mobile refusal omitted GMD replacement command"
+grep -q " install " "${state}/adb-calls" && fail "mobile refusal attempted app install"
 
-# Exercise the real launch-proof script through its Gradle boundary without
+# Exercise the TV launch-proof script through its Gradle boundary without
 # starting a device or reaching screenshot capture.
 proof_repo="${tmpdir}/proof-repo"
 mkdir -p "${proof_repo}/scripts"
@@ -506,7 +515,7 @@ cp "${REPO_ROOT}/scripts/"{prove,emulator,lib}.sh "${proof_repo}/scripts/"
 cat > "${proof_repo}/gradlew" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$#" == 2 && "$1" == ":mobile:verifyLaunchProof" &&
+[[ "$#" == 2 && "$1" == ":tv:verifyLaunchProof" &&
   "$2" == "-Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest" ]] || {
   echo "unscoped instrumentation would run opt-in feature suites" >&2
   exit 1
@@ -516,18 +525,18 @@ echo "stopping after selected instrumentation boundary" >&2
 exit 1
 EOF
 chmod +x "${proof_repo}/gradlew"
-reset_avd "${PHONE_AVD}" "${target_image}" 1
+reset_avd "${TV_AVD}" "${tv_target_image}" 1
 reset_runtime
-if PUTIO_PROVE_APK="${fake_apk}" "${proof_repo}/scripts/prove.sh" mobile --skip-build >"${prove_out}" 2>&1; then
-  fail "launch proof ignored its failed instrumentation gate"
+if PUTIO_PROVE_APK="${fake_apk}" "${proof_repo}/scripts/prove.sh" tv --skip-build >"${prove_out}" 2>&1; then
+  fail "tv launch proof ignored its failed instrumentation gate"
 fi
-[[ -f "${state}/proof-selection" ]] || fail "launch proof did not select only LaunchSmokeTest"
+[[ -f "${state}/proof-selection" ]] || fail "tv launch proof did not select only LaunchSmokeTest"
 [[ "$(wc -l < "${state}/proof-selection" | tr -d ' ')" == "1" ]] || fail "non-render failure retried instrumentation"
-[[ "$(<"${state}/running")" == "1" ]] || fail "launch-proof failure stopped a reused emulator"
-grep -q '^PROOF FAIL mobile$' "${prove_out}" || fail "launch-proof failure omitted its failure marker"
+[[ "$(<"${state}/running")" == "1" ]] || fail "tv launch-proof failure stopped a reused emulator"
+grep -q '^PROOF FAIL tv$' "${prove_out}" || fail "tv launch-proof failure omitted its failure marker"
 
 # A readiness failure after this invocation starts an emulator must stop that
-# exact process. prove.sh must also delete an ephemeral registration it created.
+# exact process. prove.sh tv must also delete an ephemeral registration it created.
 reset_avd "${PHONE_AVD}" "${target_image}" 0
 reset_runtime 37 1 1 com.android.chrome com.example.browser
 if "${REPO_ROOT}/scripts/emulator.sh" boot phone --headless >/dev/null 2>&1; then
@@ -535,19 +544,19 @@ if "${REPO_ROOT}/scripts/emulator.sh" boot phone --headless >/dev/null 2>&1; the
 fi
 [[ "$(<"${state}/running")" == "0" ]] || fail "fresh readiness failure leaked its emulator"
 
-reset_avd "${PHONE_AVD}" "${target_image}" 0
-reset_runtime 37 1 1 com.android.chrome com.example.browser
-if PUTIO_PROVE_APK="${fake_apk}" "${REPO_ROOT}/scripts/prove.sh" mobile --skip-build --ephemeral >"${prove_out}" 2>&1; then
-  fail "ephemeral proof accepted a phone without Chrome Auth Tab support"
+reset_avd "${TV_AVD}" "${tv_target_image}" 0
+reset_runtime
+if PUTIO_PROVE_FAIL_AT=after-boot PUTIO_PROVE_APK="${fake_apk}" "${REPO_ROOT}/scripts/prove.sh" tv --skip-build --ephemeral >"${prove_out}" 2>&1; then
+  fail "ephemeral tv proof accepted injected failure"
 fi
-[[ "$(<"${state}/running")" == "0" ]] || fail "ephemeral readiness failure leaked its emulator"
-if find "${state}/avds" -mindepth 1 -maxdepth 1 -type d -name 'putio-phone-eph-*' | grep -q .; then
-  fail "ephemeral readiness failure leaked its AVD registration"
+grep -qx 'INJECTED_FAILURE after-boot' "${prove_out}" || fail "ephemeral tv proof omitted injected failure"
+grep -q '^PROOF FAIL tv$' "${prove_out}" || fail "ephemeral tv proof omitted its failure marker"
+[[ "$(<"${state}/running")" == "0" ]] || fail "ephemeral tv failure leaked its emulator"
+if find "${state}/avds" -mindepth 1 -maxdepth 1 -type d -name 'putio-tv-eph-*' | grep -q .; then
+  fail "ephemeral tv failure leaked its AVD registration"
 fi
 
 # Bootstrap provisioning: a refused phone AVD must not block the TV AVD.
-tv_target_image="system-images;android-36;android-tv;$(sdk_arch)"
-mkdir -p "${fake_sdk}/$(tr ';' '/' <<<"${tv_target_image}")"
 reset_avd "${PHONE_AVD}" "${legacy_image}" 0
 provision_out="${tmpdir}/provision.log"
 if (provision_avds) >"${provision_out}" 2>&1; then

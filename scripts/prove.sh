@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# One-command launch proof: boot emulator, install the debug APK, run the
+# One-command TV launch proof: boot emulator, install the debug APK, run the
 # instrumented smoke test (LaunchSmokeTest via connectedAndroidTest), capture
-# evidence, tear down.
+# evidence, tear down. Mobile launch proof uses :mobile:verifyCiPhoneLaunchProof.
 #
-#   scripts/prove.sh <mobile|tv> [flags]
+#   scripts/prove.sh tv [flags]
 #
 # Flags:
 #   --record        also capture a screen recording (default: screenshot only)
@@ -66,12 +66,16 @@ fi
 # anything rather than after a full verification.
 command -v ffprobe >/dev/null 2>&1 || die "ffprobe not found; run scripts/bootstrap.sh (installs ffmpeg)"
 
+OWNED=0
+CREATED_EPHEMERAL=0
+SERIAL=""
+BOOT_STATE=""
+BOOT_PID=""
+PROOF_OK=0
+
 case "${FLAVOR}" in
   mobile)
-    PROFILE="phone"
-    APP_ID="io.put.putio.mobile.debug"
-    GRADLE_TASK=":mobile:assembleProductionDebug"
-    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/mobile/build/outputs/apk/production/debug/mobile-production-debug.apk}"
+    die "mobile launch proof moved to Gradle Managed Device: ./gradlew :mobile:verifyCiPhoneLaunchProof -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader"
     ;;
   tv)
     PROFILE="tv"
@@ -79,21 +83,14 @@ case "${FLAVOR}" in
     GRADLE_TASK=":tv:assembleProductionDebug"
     APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/tv/build/outputs/apk/production/debug/tv-production-debug.apk}"
     ;;
-  *) die "unknown flavor '${FLAVOR}' (expected mobile|tv)" ;;
+  *) die "unknown flavor '${FLAVOR}' (expected tv)" ;;
 esac
 COMPONENT="${APP_ID}/io.putdotio.android.MainActivity"
 
 AVD_NAME="$(avd_name_for "${PROFILE}")"
-CREATED_EPHEMERAL=0
 if [[ "${EPHEMERAL}" == "1" ]]; then
   AVD_NAME="putio-${PROFILE}-eph-$(date +%s)-$$"
 fi
-
-OWNED=0
-SERIAL=""
-BOOT_STATE=""
-BOOT_PID=""
-PROOF_OK=0
 
 fail_marker() { echo "PROOF FAIL ${FLAVOR}"; }
 

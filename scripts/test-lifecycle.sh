@@ -4,7 +4,7 @@
 #
 #   scripts/test-lifecycle.sh
 #
-# Needs a completed bootstrap and a built mobile debug APK (built here if
+# Needs a completed bootstrap and a built TV debug APK (built here if
 # missing). Boots emulators several times; expect ~5-10 minutes.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -12,7 +12,7 @@ require_sdk_root
 
 PROVE="${REPO_ROOT}/scripts/prove.sh"
 EMU="${REPO_ROOT}/scripts/emulator.sh"
-APK="${REPO_ROOT}/mobile/build/outputs/apk/production/debug/mobile-production-debug.apk"
+APK="${REPO_ROOT}/tv/build/outputs/apk/production/debug/tv-production-debug.apk"
 
 fail() { log "LIFECYCLE FAIL: $*"; exit 1; }
 
@@ -35,12 +35,12 @@ booted_serial() {
   sed -n 's/^BOOTED //p' "$1" | head -1 | tr -d '\r'
 }
 
-[[ -f "${APK}" ]] || (cd "${REPO_ROOT}" && ./gradlew -q :mobile:assembleProductionDebug)
+[[ -f "${APK}" ]] || (cd "${REPO_ROOT}" && ./gradlew -q :tv:assembleProductionDebug)
 
-phone_avd_image="$(avd_image_for_name "${PHONE_AVD}")" || \
-  fail "precondition: could not determine ${PHONE_AVD} system image"
-[[ "${phone_avd_image}" == "$(phone_image)" ]] || \
-  fail "precondition: ${PHONE_AVD} uses ${phone_avd_image}; run scripts/bootstrap.sh"
+tv_avd_image="$(avd_image_for_name "${TV_AVD}")" || \
+  fail "precondition: could not determine ${TV_AVD} system image"
+[[ "${tv_avd_image}" == "$(tv_image)" ]] || \
+  fail "precondition: ${TV_AVD} uses ${tv_avd_image}; run scripts/bootstrap.sh"
 
 # No emulator may be running at the start; the assertions depend on it.
 if "${ADB}" devices | awk '$1 ~ /^emulator-/ {found=1} END {exit !found}'; then
@@ -68,29 +68,27 @@ trap cleanup_suite EXIT
 # --- case 0: normal completion stops the owned emulator, keeps the AVD
 log "case 0: successful proof tears down its own emulator"
 out="${tmpdir}/case0.log"
-"${PROVE}" mobile --skip-build >"${out}" 2>&1 || fail "case 0: prove.sh failed ($(tail -5 "${out}"))"
+"${PROVE}" tv --skip-build >"${out}" 2>&1 || fail "case 0: prove.sh failed ($(tail -5 "${out}"))"
 serial="$(booted_serial "${out}")"
 [[ -n "${serial}" ]] || fail "case 0: no BOOTED marker"
-grep -q "PROOF PASS mobile" "${out}" || fail "case 0: missing PROOF PASS marker"
-grep -q "phone runtime ready on ${serial}: API ${PHONE_API_LEVEL}.*AndroidX Auth Tab" "${out}" || \
-  fail "case 0: missing API ${PHONE_API_LEVEL} Auth Tab readiness proof"
+grep -q "PROOF PASS tv" "${out}" || fail "case 0: missing PROOF PASS marker"
 assert_serial_gone "${serial}" "case 0"
-assert_avd_exists "${PHONE_AVD}" "case 0"
-log "case 0 passed (owned ${serial} stopped after success, ${PHONE_AVD} preserved)"
+assert_avd_exists "${TV_AVD}" "case 0"
+log "case 0 passed (owned ${serial} stopped after success, ${TV_AVD} preserved)"
 
 # --- case 1: forced failure stops the owned emulator, keeps the reusable AVD
 log "case 1: forced failure after boot"
 out="${tmpdir}/case1.log"
-if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" mobile --skip-build >"${out}" 2>&1; then
+if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" tv --skip-build >"${out}" 2>&1; then
   fail "case 1: prove.sh unexpectedly succeeded"
 fi
 grep -qx 'INJECTED_FAILURE after-boot' "${out}" || fail "case 1: injected failure was not reached"
 serial="$(booted_serial "${out}")"
 [[ -n "${serial}" ]] || fail "case 1: no BOOTED marker (log: $(cat "${out}"))"
-grep -q "PROOF FAIL mobile" "${out}" || fail "case 1: missing PROOF FAIL marker"
+grep -q "PROOF FAIL tv" "${out}" || fail "case 1: missing PROOF FAIL marker"
 assert_serial_gone "${serial}" "case 1"
-assert_avd_exists "${PHONE_AVD}" "case 1"
-log "case 1 passed (owned ${serial} stopped, ${PHONE_AVD} preserved)"
+assert_avd_exists "${TV_AVD}" "case 1"
+log "case 1 passed (owned ${serial} stopped, ${TV_AVD} preserved)"
 
 # --- cases 2 and 3: SIGINT / SIGTERM after boot
 for sig in INT TERM; do
@@ -99,7 +97,7 @@ for sig in INT TERM; do
   # Without job control, background jobs inherit SIGINT=ignore and prove.sh
   # could never trap it; -m gives the child default signal dispositions.
   set -m
-  "${PROVE}" mobile --skip-build >"${out}" 2>&1 &
+  "${PROVE}" tv --skip-build >"${out}" 2>&1 &
   pid=$!
   set +m
   deadline=$(( $(date +%s) + 300 ))
@@ -119,18 +117,18 @@ for sig in INT TERM; do
   [[ "${status}" -eq "${expected}" ]] || \
     fail "case ${sig}: expected exit ${expected}, got ${status}"
   assert_serial_gone "${serial}" "case ${sig}"
-  assert_avd_exists "${PHONE_AVD}" "case ${sig}"
+  assert_avd_exists "${TV_AVD}" "case ${sig}"
   log "case ${sig} passed (owned ${serial} stopped on SIG${sig})"
 done
 
 # --- case 4: preexisting emulator is reused and never stopped; an ephemeral
 # --- run alongside it stops only its own emulator and deletes only its AVD
 log "case 4: preexisting emulator preserved across reuse-failure and ephemeral runs"
-PRE_SERIAL="$("${EMU}" boot phone --headless | tail -1)"
+PRE_SERIAL="$("${EMU}" boot tv --headless | tail -1)"
 [[ "${PRE_SERIAL}" == emulator-* ]] || fail "case 4: could not boot preexisting emulator"
 
 out="${tmpdir}/case4-reuse.log"
-if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" mobile --skip-build >"${out}" 2>&1; then
+if PUTIO_PROVE_FAIL_AT=after-boot "${PROVE}" tv --skip-build >"${out}" 2>&1; then
   fail "case 4: reuse prove.sh unexpectedly succeeded"
 fi
 grep -qx 'INJECTED_FAILURE after-boot' "${out}" || fail "case 4: reuse injected failure was not reached"
@@ -140,18 +138,18 @@ reuse_serial="$(booted_serial "${out}")"
 assert_serial_present "${PRE_SERIAL}" "case 4 (after reuse failure)"
 
 out="${tmpdir}/case4-eph.log"
-if PUTIO_PROVE_FAIL_AT=after-install "${PROVE}" mobile --skip-build --ephemeral >"${out}" 2>&1; then
+if PUTIO_PROVE_FAIL_AT=after-install "${PROVE}" tv --skip-build --ephemeral >"${out}" 2>&1; then
   fail "case 4: ephemeral prove.sh unexpectedly succeeded"
 fi
 grep -qx 'INJECTED_FAILURE after-install' "${out}" || fail "case 4: ephemeral injected failure was not reached"
 eph_serial="$(booted_serial "${out}")"
 [[ -n "${eph_serial}" && "${eph_serial}" != "${PRE_SERIAL}" ]] || fail "case 4: ephemeral run had no distinct serial"
-eph_avd="$(sed -n 's/.*creating ephemeral AVD \(putio-phone-eph-[0-9-]*\).*/\1/p' "${out}" | head -1)"
+eph_avd="$(sed -n 's/.*creating ephemeral AVD \(putio-tv-eph-[0-9-]*\).*/\1/p' "${out}" | head -1)"
 [[ -n "${eph_avd}" ]] || fail "case 4: could not determine ephemeral AVD name"
 assert_serial_gone "${eph_serial}" "case 4 (ephemeral)"
 assert_avd_absent "${eph_avd}" "case 4 (ephemeral)"
 assert_serial_present "${PRE_SERIAL}" "case 4 (after ephemeral failure)"
-assert_avd_exists "${PHONE_AVD}" "case 4"
+assert_avd_exists "${TV_AVD}" "case 4"
 
 "${EMU}" stop "${PRE_SERIAL}"
 log "case 4 passed (preexisting ${PRE_SERIAL} survived both runs, ephemeral ${eph_serial}/${eph_avd} fully cleaned)"
