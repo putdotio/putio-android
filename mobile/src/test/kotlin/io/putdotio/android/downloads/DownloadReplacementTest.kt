@@ -117,6 +117,24 @@ class DownloadReplacementTest {
     }
 
     @Test
+    fun aStartChangingOnlyDefaultSubtitleKeepsHeldBytesWhileUpdatingTheFlag() {
+        val subtitles = listOf(ENGLISH.copy(isDefault = true), FRENCH)
+        val partial = entry(14L, DownloadArtifact.ORIGINAL, NO_BYTES, subtitles)
+        index.putDownload(record(partial, Download.STATE_FAILED))
+        val held = listOf(request(partial).uri.toString(), ENGLISH.url, FRENCH.url)
+        held.forEach(::cache)
+        runBlocking { store.upsert(partial) }
+        val engine = engine()
+
+        val flipped = listOf(ENGLISH, FRENCH.copy(isDefault = true))
+        runBlocking { engine.start(partial.copy(subtitles = flipped, status = DownloadStatus.Queued)) }
+
+        assertEquals(listOf(true, true, true), held.map(::cached))
+        val sent = sentAdds().single()
+        assertEquals(listOf(false, true), sent.data.toDownloadRequestData().subtitles.map { it.isDefault })
+    }
+
+    @Test
     fun aDirectPlayVideoLostMidLookupIsLeftForTheControllersLookup() {
         runBlocking {
             store.upsert(entry(20L, DownloadArtifact.MP4, DownloadStatus.Queued).copy(accepted = false))
