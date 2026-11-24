@@ -1,5 +1,7 @@
 package io.putdotio.android.tv
 
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesPlaybackProgress
@@ -71,6 +73,7 @@ import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.home.TvMemoryContinueWatchingStore
 import io.putdotio.android.tv.home.TvShowHomeStore
+import io.putdotio.android.tv.player.TvPlaybackService
 import io.putdotio.android.tv.watchnext.TvWatchNextMedia
 import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
 import io.putdotio.sdk.errors.PutioConfigurationException
@@ -165,7 +168,10 @@ class TvSessionViewModelTest {
     fun main() = Dispatchers.setMain(UnconfinedTestDispatcher())
 
     @After
-    fun reset() = Dispatchers.resetMain()
+    fun reset() {
+        TvPlaybackService.resetForTests()
+        Dispatchers.resetMain()
+    }
 
     @Test
     fun `the same session reuses its controllers and a new session replaces them`() {
@@ -399,6 +405,49 @@ class TvSessionViewModelTest {
         session.stopPlayback()
         assertNull(session.playback.value)
         assertFalse(session.playbackInBackground.value)
+    }
+
+    @Test
+    fun `destroying the activity keeps background audio alive and reattaches the new session`() {
+        val firstStore = ViewModelStore()
+        val firstViewModel = ViewModelProvider(firstStore, tvSessionViewModelFactory(auth))
+            .get(TvSessionViewModel::class.java)
+        val firstSession = checkNotNull(firstViewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+        firstSession.play(media(10, "song.mp3", PutioFileType.AUDIO))
+        val audio = checkNotNull(firstSession.playback.value)
+        firstSession.backgroundPlayback()
+
+        firstStore.clear()
+
+        val secondStore = ViewModelStore()
+        try {
+            val secondViewModel = ViewModelProvider(secondStore, tvSessionViewModelFactory(auth))
+                .get(TvSessionViewModel::class.java)
+            val secondSession = checkNotNull(secondViewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+
+            assertSame(audio, secondSession.playback.value)
+            assertTrue(secondSession.playbackInBackground.value)
+        } finally {
+            secondStore.clear()
+        }
+    }
+
+    @Test
+    fun `quiet sign out while the activity is destroyed stops service owned audio`() {
+        val store = ViewModelStore()
+        val viewModel = ViewModelProvider(store, tvSessionViewModelFactory(auth))[TvSessionViewModel::class.java]
+        val session = checkNotNull(viewModel.sessionFor(account(), TvAuthSessionId(1), dependencies))
+        session.play(media(10, "song.mp3", PutioFileType.AUDIO))
+        val audio = checkNotNull(session.playback.value)
+        session.backgroundPlayback()
+
+        store.clear()
+        assertNotNull(TvPlaybackService.audioHost.active.value)
+
+        auth.value = TvAuthState.Initializing
+
+        assertNull(TvPlaybackService.audioHost.active.value)
+        assertFalse(audio.dispatch(PlaybackEvent.Retry))
     }
 
     @Test

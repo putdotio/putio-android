@@ -3,14 +3,22 @@ package io.putdotio.android.tv.player
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.ForwardingSimpleBasePlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.SimpleBasePlayer
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.session.MediaSession
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import io.putdotio.android.MainActivity
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.playback.audioAttributes
 import io.putdotio.android.playback.playbackLoadControl
 import io.putdotio.android.playback.libassSubtitles
@@ -32,15 +40,9 @@ internal fun interface TvPlayerFactory {
     fun publishInBackground(context: Context, player: Player): Closeable = publish(context, player)
 
     fun publishQueue(context: Context, player: Player): TvQueueSession = object : TvQueueSession {
-        private var published = publishInBackground(context, player)
+        override fun swap(player: Player) = Unit
 
-        override fun swap(player: Player) {
-            val previous = published
-            published = publishInBackground(context, player)
-            previous.close()
-        }
-
-        override fun close() = published.close()
+        override fun close() = Unit
     }
 }
 
@@ -73,7 +75,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
         TvBackgroundSessions.host(context, launchingSession(context, player))
 
     override fun publishQueue(context: Context, player: Player): TvQueueSession {
-        val session = launchingSession(context, player)
+        val session = launchingSession(context, player, queue = true)
         val hosted = TvBackgroundSessions.host(context, session)
         return object : TvQueueSession {
             override fun swap(player: Player) {
@@ -84,12 +86,12 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
         }
     }
 
-    private fun launchingSession(context: Context, player: Player): MediaSession {
+    private fun launchingSession(context: Context, player: Player, queue: Boolean = false): MediaSession {
         val launch = (
             context.packageManager.getLeanbackLaunchIntentForPackage(context.packageName)
-                ?: Intent(context, context.javaClass)
+                ?: Intent(context, MainActivity::class.java)
             ).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        return tvMediaSession(context, player)
+        return tvMediaSession(context, player, queue)
             .setSessionActivity(
                 PendingIntent.getActivity(
                     context,
@@ -108,7 +110,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
  * still reports positions for the first.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun tvMediaSession(context: Context, player: Player): MediaSession.Builder =
+internal fun tvMediaSession(context: Context, player: Player, queue: Boolean = false): MediaSession.Builder =
     MediaSession.Builder(context, player)
         // A recreated screen can publish its player before the old session is gone.
         .setId("tv-player-${UUID.randomUUID()}")
@@ -120,7 +122,7 @@ internal fun tvMediaSession(context: Context, player: Player): MediaSession.Buil
                 ): MediaSession.ConnectionResult =
                     MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                         .setAvailablePlayerCommands(
-                            if ((session.player as? TvSessionPlayer)?.skipsTracks == true) {
+                            if (queue || (session.player as? TvSessionPlayer)?.skipsTracks == true) {
                                 TV_QUEUE_SESSION_PLAYER_COMMANDS
                             } else {
                                 TV_SESSION_PLAYER_COMMANDS
@@ -176,6 +178,50 @@ private class SkipCommandsPlayer(player: Player) : ForwardingSimpleBasePlayer(pl
 internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = tvSessionPlayerCommands()
 
 private val TV_QUEUE_SESSION_PLAYER_COMMANDS: Player.Commands = withSkipCommands(TV_SESSION_PLAYER_COMMANDS)
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal class LoadingAudioPlayer(target: PlaybackTarget) : SimpleBasePlayer(Looper.getMainLooper()) {
+    private var state = State.Builder()
+        .setAvailableCommands(
+            Player.Commands.Builder()
+                .addAll(
+                    COMMAND_PLAY_PAUSE,
+                    COMMAND_GET_CURRENT_MEDIA_ITEM,
+                    COMMAND_GET_METADATA,
+                )
+                .build(),
+        )
+        .setPlaybackState(STATE_BUFFERING)
+        .setPlayWhenReady(true, PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+        .setPlaylist(
+            listOf(
+                MediaItemData.Builder(target.fileId.value.toString())
+                    .setMediaItem(
+                        MediaItem.Builder()
+                            .setMediaId(target.fileId.value.toString())
+                            .setMediaMetadata(
+                                MediaMetadata.Builder()
+                                    .setTitle(target.name)
+                                    .setDisplayTitle(target.name)
+                                    .build(),
+                            )
+                            .build(),
+                    )
+                    .build(),
+            ),
+        )
+        .setCurrentMediaItemIndex(0)
+        .build()
+
+    override fun getState(): State = state
+
+    override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
+        state = state.buildUpon()
+            .setPlayWhenReady(playWhenReady, PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST)
+            .build()
+        return Futures.immediateVoidFuture()
+    }
+}
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun withSkipCommands(commands: Player.Commands): Player.Commands = Player.Commands.Builder()

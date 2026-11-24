@@ -68,6 +68,8 @@ class TvNowPlayingTest {
 
     private val players = mutableListOf<FakePlayer>()
     private val sessions = mutableListOf<MediaSession>()
+    private val publishQueueStates = mutableListOf<Lifecycle.State?>()
+    private var currentOwner: LifecycleOwner? = null
     private var exits = 0
     private val folderRead = CompletableDeferred(Unit)
     private val repository = FolderRepository(folderRead)
@@ -379,8 +381,58 @@ class TvNowPlayingTest {
         compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
         assertPlaying(controller, SECOND)
         compose.runOnIdle {
+            assertEquals(1, sessions.size)
             assertEquals(3, players.size)
             assertTrue(players.last().playWhenReady)
+        }
+    }
+
+    @Test
+    fun openingAudioAndStoppingBeforeReadyStillHostsOneServiceSession() {
+        val gate = CompletableDeferred<Unit>()
+        val owner = stoppableOwner()
+        val controller = showRoute(
+            start = SECOND,
+            folder = FolderRepository(folderRead, resolveGate = gate),
+            lifecycleOwner = owner,
+            onBackground = {},
+        )
+
+        compose.runOnIdle {
+            assertEquals(1, sessions.size)
+            assertEquals(listOf(Lifecycle.State.RESUMED), publishQueueStates)
+        }
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        gate.complete(Unit)
+        idleSession()
+
+        compose.runOnIdle {
+            assertEquals(listOf(Lifecycle.State.RESUMED), publishQueueStates)
+            assertEquals(1, sessions.size)
+            assertEquals(SECOND.fileId, controller.state.value.target.fileId)
+            assertTrue(players.single().playWhenReady)
+            assertEquals(SECOND.fileId.value.toString(), sessions.single().player.currentMediaItem?.mediaId)
+        }
+    }
+
+    @Test
+    fun publishQueueIsNeverCalledWhileStopped() {
+        val gate = CompletableDeferred<Unit>()
+        val owner = stoppableOwner().apply { registry.currentState = Lifecycle.State.CREATED }
+        showRoute(
+            start = SECOND,
+            folder = FolderRepository(folderRead, resolveGate = gate),
+            lifecycleOwner = owner,
+            onBackground = {},
+        )
+        gate.complete(Unit)
+        idleSession()
+
+        compose.runOnIdle {
+            assertTrue(publishQueueStates.isEmpty())
+            assertTrue(sessions.isEmpty())
         }
     }
 
@@ -455,7 +507,45 @@ class TvNowPlayingTest {
         next.release()
     }
 
+    @Test
+    fun systemControlsPreviousBeforeRestartThresholdMovesBackAndAfterRestarts() {
+        val controller = showFolder(start = SECOND, onBackground = {})
+        val session = connect(sessions.last())
+        try {
+            compose.runOnIdle { players.last().advanceTo(1_500L) }
+            idleSession()
+            session.seekToPrevious()
+            idleSession()
+            assertPlaying(controller, FIRST)
+
+            session.seekToNext()
+            idleSession()
+            assertPlaying(controller, SECOND)
+
+            compose.runOnIdle { players.last().advanceTo(5_000L) }
+            idleSession()
+            session.seekToPrevious()
+            idleSession()
+            assertPlaying(controller, SECOND)
+            compose.runOnIdle {
+                assertEquals(0L, players.last().currentPosition)
+            }
+        } finally {
+            session.release()
+        }
+    }
+
     private fun showFolder(
+        start: PlaybackTarget,
+        folder: FolderRepository = repository,
+        lifecycleOwner: LifecycleOwner? = null,
+        findUpNext: Boolean = true,
+        onBackground: (() -> Unit)? = null,
+    ): PlaybackController = showRoute(start, folder, lifecycleOwner, findUpNext, onBackground).also {
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
+    }
+
+    private fun showRoute(
         start: PlaybackTarget,
         folder: FolderRepository = repository,
         lifecycleOwner: LifecycleOwner? = null,
@@ -468,7 +558,9 @@ class TvNowPlayingTest {
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
         compose.setTvContent {
-            CompositionLocalProvider(LocalLifecycleOwner provides (lifecycleOwner ?: LocalLifecycleOwner.current)) {
+            val activeOwner = lifecycleOwner ?: LocalLifecycleOwner.current
+            currentOwner = activeOwner
+            CompositionLocalProvider(LocalLifecycleOwner provides activeOwner) {
                 TvPlaybackRoute(
                     controller = controller,
                     onExit = { exits += 1 },
@@ -481,7 +573,6 @@ class TvNowPlayingTest {
             }
         }
         compose.waitForIdle()
-        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
         return controller
     }
 
@@ -493,6 +584,19 @@ class TvNowPlayingTest {
             val session = tvMediaSession(context, player).build()
             sessions += session
             return Closeable { session.release() }
+        }
+
+        override fun publishQueue(context: android.content.Context, player: Player): TvQueueSession {
+            publishQueueStates += currentOwner?.lifecycle?.currentState
+            val session = tvMediaSession(context, player).build()
+            sessions += session
+            return object : TvQueueSession {
+                override fun swap(player: Player) {
+                    session.player = player
+                }
+
+                override fun close() = session.release()
+            }
         }
     }
 
@@ -535,14 +639,16 @@ class TvNowPlayingTest {
         private val savedSeconds: Double = 0.0,
         private val rejected: Boolean = false,
         private val unplayable: FilesItemId? = null,
+        private val resolveGate: CompletableDeferred<Unit> = CompletableDeferred(Unit),
     ) : PlaybackRepository {
         private val folder = listOf(FIRST, SECOND, THIRD)
 
         override suspend fun resolve(
             target: PlaybackTarget,
             convertedOnly: Boolean,
-        ): PlaybackRepositoryResult<PlaybackResolution> =
-            if (target.fileId == unplayable) {
+        ): PlaybackRepositoryResult<PlaybackResolution> {
+            resolveGate.await()
+            return if (target.fileId == unplayable) {
                 PlaybackRepositoryResult.Failure(
                     PlaybackFailure.Putio(PutioFailure.NetworkUnavailable(PutioConfigurationException("offline"))),
                 )
@@ -554,6 +660,7 @@ class TvNowPlayingTest {
                     ),
                 )
             }
+        }
 
         override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult = PlaybackNextResult.Ended
 

@@ -25,7 +25,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.MediaSession
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackMediaType
+import io.putdotio.android.playback.PlaybackTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -312,6 +314,39 @@ class TvPlayerMediaSessionTest {
         } finally {
             controller.release()
             session.release()
+        }
+    }
+
+    @Test
+    fun queueSessionGrantsSkipCommandsToExistingControllerOnceTrackTakesOver() {
+        val loading = tvSessionPlayer(
+            player = LoadingAudioPlayer(PlaybackTarget(FilesItemId(9), "01 Track.mp3", PlaybackMediaType.AUDIO)),
+            onSkipRequested = null,
+            onPlayingRequested = {},
+        )
+        val real = FakePlayer().apply {
+            setMediaItem(item("9"))
+            ready()
+        }
+        val queue = DefaultTvPlayerFactory.publishQueue(compose.activity, loading)
+        val hosted = checkNotNull(TvBackgroundSessions.hosted)
+        val controller = connect(hosted)
+        try {
+            idleSession()
+            assertFalse(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+            assertFalse(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
+
+            queue.swap(tvSessionPlayer(real, onSkipRequested = {}, onPlayingRequested = {}))
+            idleSession()
+
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
+            val actions = platformPlaybackState(hosted)!!.actions
+            assertTrue((actions and PlatformPlaybackState.ACTION_SKIP_TO_NEXT) != 0L)
+            assertTrue((actions and PlatformPlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L)
+        } finally {
+            controller.release()
+            queue.close()
         }
     }
 
