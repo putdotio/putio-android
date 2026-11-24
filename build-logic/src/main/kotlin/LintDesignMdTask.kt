@@ -6,11 +6,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
@@ -24,11 +26,16 @@ abstract class LintDesignMdTask @Inject constructor(private val exec: ExecOperat
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val designMd: RegularFileProperty
 
-    @get:Input
-    abstract val linterVersion: Property<String>
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val packageJson: RegularFileProperty
 
-    @get:Input
-    abstract val npx: Property<String>
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val packageLock: RegularFileProperty
+
+    @get:Internal
+    abstract val nodeModulesDirectory: DirectoryProperty
 
     @get:Input
     abstract val nodeVersion: Property<String>
@@ -38,14 +45,18 @@ abstract class LintDesignMdTask @Inject constructor(private val exec: ExecOperat
 
     @TaskAction
     fun lint() {
+        val executable = NodeTools.requireToolExecutable(
+            nodeModulesDir = nodeModulesDirectory.get().asFile,
+            packageJson = packageJson.get().asFile,
+            packageLock = packageLock.get().asFile,
+            packageName = "@google/design.md",
+            binName = "designmd",
+        )
         val design = designMd.get().asFile
         val output = ByteArrayOutputStream()
         val result = exec.exec {
             workingDir = design.parentFile
-            commandLine(
-                npx.get(), "--yes", "-p", "@google/design.md@${linterVersion.get()}",
-                "designmd", "lint", design.name,
-            )
+            commandLine(executable.absolutePath, "lint", design.name)
             standardOutput = output
             isIgnoreExitValue = true
         }

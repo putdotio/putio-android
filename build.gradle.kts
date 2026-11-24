@@ -1,5 +1,3 @@
-import groovy.json.JsonSlurper
-
 plugins {
     alias(libs.plugins.aboutlibraries.android) apply false
     alias(libs.plugins.android.application) apply false
@@ -70,7 +68,7 @@ val testBaselineProfileHarness = tasks.register<Exec>("testBaselineProfileHarnes
 val phosphorLock = layout.projectDirectory.file("design/phosphor-icons.lock.json")
 val phosphorDrawables = fileTree(".") {
     include(PhosphorIcons.DRAWABLE_PATTERNS)
-    exclude("**/build/**", ".git/**", ".gradle/**")
+    exclude("**/build/**", ".git/**", ".gradle/**", "node_modules/**")
 }
 
 val checkIcons = tasks.register<CheckIconsTask>("checkIcons") {
@@ -130,12 +128,10 @@ val checkShellScripts = tasks.register<Exec>("checkShellScripts") {
     commandLine(bash, "-c", "shellcheck -x -S warning scripts/*.sh")
 }
 
-// package.json pins the Node tools so Renovate can bump them; they need Node on PATH.
-fun pinnedNodeTool(name: String) =
-    providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
-        val devDependencies = (JsonSlurper().parseText(text) as? Map<*, *>)?.get("devDependencies") as? Map<*, *>
-        devDependencies?.get(name) as? String ?: error("package.json must pin $name in devDependencies")
-    }
+// package.json and package-lock.json lock the Node tools installed by npm ci / bootstrap.sh.
+val nodePackageJson = layout.projectDirectory.file("package.json")
+val nodePackageLock = layout.projectDirectory.file("package-lock.json")
+val nodeModulesDir = layout.projectDirectory.dir("node_modules")
 
 val designMdFile = layout.projectDirectory.file("DESIGN.md")
 val designTokens = layout.projectDirectory.file("design/tokens.dtcg.json")
@@ -159,8 +155,9 @@ val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
     group = "verification"
     description = "Lint DESIGN.md against the design.md format; warnings fail too"
     designMd.set(designMdFile)
-    linterVersion.set(pinnedNodeTool("@google/design.md"))
-    npx.set(if (windows) "npx.cmd" else "npx")
+    packageJson.set(nodePackageJson)
+    packageLock.set(nodePackageLock)
+    nodeModulesDirectory.set(nodeModulesDir)
     val nodeVersionCommand = if (windows) listOf("cmd", "/c", "node", "--version") else listOf("node", "--version")
     nodeVersion.set(providers.exec { commandLine(nodeVersionCommand) }.standardOutput.asText.map { it.trim() })
     stamp.set(layout.buildDirectory.file("verification/lintDesignMd.stamp"))
@@ -186,11 +183,14 @@ val checkSkillLinks = tasks.register<CheckSkillLinksTask>("checkSkillLinks") {
     repositoryRoot.set(layout.projectDirectory)
 }
 
-val markdownCheck = tasks.register<Exec>("markdownCheck") {
+val markdownCheck = tasks.register<CheckMarkdownTask>("markdownCheck") {
     group = "verification"
     description = "Check Markdown formatting with oxfmt, and the DESIGN.md contract"
     dependsOn(checkDesignMdColors, lintDesignMd)
-    commandLine(if (windows) "npx.cmd" else "npx", "--yes", "oxfmt@${pinnedNodeTool("oxfmt").get()}", "--check", "**/*.md")
+    repositoryRoot.set(layout.projectDirectory)
+    packageJson.set(nodePackageJson)
+    packageLock.set(nodePackageLock)
+    nodeModulesDirectory.set(nodeModulesDir)
 }
 
 val checkMiddleCut = tasks.register<CheckForbiddenSourceTask>("checkMiddleCut") {
