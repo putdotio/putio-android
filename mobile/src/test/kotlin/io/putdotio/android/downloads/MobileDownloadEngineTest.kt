@@ -433,7 +433,7 @@ class MobileDownloadEngineTest {
 
         // Media3 has no record yet, so the stop reason lands nowhere; the index keeps the pause.
         runBlocking { engine.setPaused(FilesItemId(10L), paused = true) }
-        val url = Uri.parse(DownloadArtifact.ORIGINAL.apiUrl(FilesItemId(10L)))
+        val url = Uri.parse(DownloadArtifact.ORIGINAL.apiUrl(FilesItemId(10L), testDownloadFilesApi))
         manager.addDownload(DownloadRequest.Builder("$ALICE:10", url).build())
 
         awaitMain { manager.stopReasonOf("$ALICE:10") == MobileDownloadEngine.STOP_REASON_PAUSED }
@@ -544,7 +544,7 @@ class MobileDownloadEngineTest {
         val ids = listOf(REJECTED, PARTIAL, OFFLINE)
         runBlocking { for (id in ids) store.upsert(entry(id, accepted = true).copy(artifact = ORIGINAL_HLS)) }
         val manager = manager(concurrency = ids.size).apply { minRetryCount = 0 }
-        manager.addListener(MobileDownloadNotifications(context, stores = { store }) { ALICE })
+        manager.addListener(MobileDownloadNotifications(context, { store }, files = { testDownloadFilesApi }) { ALICE })
         engine(ALICE, store, manager)
         awaitMain { manager.isInitialized }
         generateSequence { shadowOf(context).nextStartedService }.toList()
@@ -565,7 +565,7 @@ class MobileDownloadEngineTest {
             IntentCompat.getParcelableExtra(intent, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java),
         )
         assertEquals("$ALICE:$REJECTED", resent.id)
-        assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(REJECTED)), resent.uri.toString())
+        assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(REJECTED), testDownloadFilesApi), resent.uri.toString())
         assertEquals(MimeTypes.APPLICATION_M3U8, resent.mimeType)
         assertEquals(Download.STOP_REASON_NONE, intent.getIntExtra(DownloadService.KEY_STOP_REASON, -1))
         manager.addDownload(resent)
@@ -601,15 +601,15 @@ class MobileDownloadEngineTest {
     fun anOriginalOverHlsAsksForTheSameSubtitlesAndARebuiltRowKeepsIt() {
         assertEquals(
             "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all&max_subtitle_count=-1&original=1",
-            ORIGINAL_HLS.apiUrl(FilesItemId(10L)),
+            ORIGINAL_HLS.apiUrl(FilesItemId(10L), testDownloadFilesApi),
         )
         assertEquals(
             "https://api.put.io/v2/files/10/hls/media.m3u8?subtitle_key=all&max_subtitle_count=0&original=1",
-            ORIGINAL_HLS.apiUrl(FilesItemId(10L), subtitlesHidden = true),
+            ORIGINAL_HLS.apiUrl(FilesItemId(10L), testDownloadFilesApi, subtitlesHidden = true),
         )
         val sent = mutableListOf<Pair<DownloadRequest, Int>>()
         val paused = entry(10L, accepted = false).copy(artifact = ORIGINAL_HLS, pauseRequested = true)
-        sendDownloadRequest(context, ALICE, paused) { request, stopReason -> sent += request to stopReason }
+        paused.sendDownloadRequest(context, ALICE, testDownloadFilesApi) { req, reason -> sent += req to reason }
         val (request, stopReason) = sent.single()
         assertEquals(MimeTypes.APPLICATION_M3U8, request.mimeType)
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, stopReason)
@@ -651,14 +651,8 @@ class MobileDownloadEngineTest {
                 error("Background start refused")
             }
         }
-        val engine = MobileDownloadEngine(
-            restricted,
-            store,
-            ALICE,
-            scope,
-            manager,
-            Dispatchers.Unconfined,
-        ).also { engines += it }
+        val id = MobileDownloadAccount(ALICE, store, testDownloadFilesApi)
+        val engine = MobileDownloadEngine(restricted, id, scope, manager, Dispatchers.Unconfined).also { engines += it }
         awaitMain { manager.isInitialized }
 
         runBlocking { engine.remove(FilesItemId(10L)) }
@@ -666,7 +660,7 @@ class MobileDownloadEngineTest {
         awaitMain { index.getDownload("$ALICE:10") == null && store.find(FilesItemId(10L)) == null }
     }
 
-    private fun originalUri(id: Long): Uri = Uri.parse(ORIGINAL_HLS.apiUrl(FilesItemId(id)))
+    private fun originalUri(id: Long): Uri = Uri.parse(ORIGINAL_HLS.apiUrl(FilesItemId(id), testDownloadFilesApi))
 
     private fun rejected(code: Int) = HttpDataSource.InvalidResponseCodeException(
         code, null, null, emptyMap(), DataSpec(Uri.EMPTY), ByteArray(0),
@@ -684,8 +678,10 @@ class MobileDownloadEngineTest {
         store: MobileDownloadStore,
         manager: DownloadManager,
         io: CoroutineDispatcher = Dispatchers.Unconfined,
-    ): MobileDownloadEngine =
-        MobileDownloadEngine(context, store, userId, scope, manager, io).also { engines += it }
+    ): MobileDownloadEngine {
+        val account = MobileDownloadAccount(userId, store, testDownloadFilesApi)
+        return MobileDownloadEngine(context, account, scope, manager, io).also { engines += it }
+    }
 
     /** Writes a few bytes under the request's own cache key, as a finished download leaves them. */
     private fun cacheBytes(download: Download) {
@@ -766,12 +762,7 @@ class MobileDownloadEngineTest {
 
     private fun queued(id: String, startTimeMs: Long) = Download(
         DownloadRequest.Builder(id, Uri.parse("https://api.put.io/v2/files/$id/stream")).build(),
-        Download.STATE_QUEUED,
-        startTimeMs,
-        startTimeMs,
-        TOTAL,
-        Download.STOP_REASON_NONE,
-        Download.FAILURE_REASON_NONE,
+        Download.STATE_QUEUED, startTimeMs, startTimeMs, TOTAL, Download.STOP_REASON_NONE, Download.FAILURE_REASON_NONE,
     )
 
     private companion object {

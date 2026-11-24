@@ -57,6 +57,7 @@ import coil3.compose.SubcomposeAsyncImage
 import coil3.compose.SubcomposeAsyncImageContent
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import io.putdotio.android.PutioHttpClient
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioTypeScale
@@ -510,7 +511,7 @@ private fun openViewerStream(url: String): InputStream {
     return response.body.byteStream()
 }
 
-private val viewerHttp: OkHttpClient by lazy { OkHttpClient() }
+internal val viewerHttp: OkHttpClient by lazy { PutioHttpClient.newBuilder().build() }
 
 private const val TEXT_LINES_PER_ITEM = 200
 private const val POSITION_SCRIM_ALPHA = 0.6f

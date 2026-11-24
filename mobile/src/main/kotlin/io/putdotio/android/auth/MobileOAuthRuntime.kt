@@ -6,6 +6,7 @@ import android.util.Log
 import coil3.SingletonImageLoader
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.MobilePlaybackService
+import io.putdotio.android.PutioHttpClient
 import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.SdkPlaybackPositionRepository
 import io.putdotio.android.documents.MobileDocumentsProvider
@@ -56,6 +57,8 @@ internal class MobileOAuthRuntime(
     onSessionStarted: (MobileAuthSessionId) -> Unit = {},
 ) {
     private val positions = SdkPlaybackPositionRepository(putioClient)
+
+    internal val uploadClient: PutioClient = PutioClient(putioClient.config, okHttpClient = PutioHttpClient.shared)
 
     /** Saved positions of downloaded files; attached by [create], absent in runtimes tests build. */
     internal var offlinePositions: OfflinePlaybackPositions? = null
@@ -199,6 +202,7 @@ internal class MobileOAuthRuntime(
                     clientId = configuredClientId,
                     clientName = MOBILE_OAUTH_CLIENT_NAME,
                 ),
+                okHttpClient = mobileHttpClient(),
             )
             val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val tokenStore = KeystoreAuthTokenStore(context)
@@ -218,7 +222,7 @@ internal class MobileOAuthRuntime(
                 tokenRevocations = PendingTokenRevocations(
                     stores = KeystoreAuthTokenStore.pendingRevocations(context),
                     sessionStore = tokenStore,
-                    revoker = PutioAuthTokenRevoker(putioClient.config),
+                    revoker = PutioAuthTokenRevoker(putioClient),
                     scope = applicationScope,
                 ),
                 clearAccountLocalState = { clearMobileSessionCaches(context, applicationScope) },

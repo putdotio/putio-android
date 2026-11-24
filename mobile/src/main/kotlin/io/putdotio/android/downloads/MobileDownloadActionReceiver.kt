@@ -135,14 +135,16 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
         @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
         private fun production(context: Context): DownloadNotificationRetries {
             val downloads = MobileDownloadCache.get(context)
-            val directPlay = mobileDirectPlayDownloads(context, MobileOAuthRuntime.get(context).putioClient)
+            val runtime = MobileOAuthRuntime.get(context)
+            val directPlay = mobileDirectPlayDownloads(context, runtime.putioClient)
             return DownloadNotificationRetries(
                 signedIn = signedInAccount(context),
                 find = { userId, fileId -> MobileDownloadStore.peek(context, userId, fileId) },
                 start = { userId, entry ->
                     withContext(Dispatchers.Main.immediate) {
-                        downloads.dropReplacedBytes(downloads.downloadManager, userId, entry, Dispatchers.IO)
-                        sendDownloadRequest(context, userId, entry)
+                        val files = runtime.putioClient.files
+                        downloads.dropReplacedBytes(downloads.downloadManager, userId, entry, Dispatchers.IO, files)
+                        entry.sendDownloadRequest(context, userId, files)
                     }
                 },
                 dismiss = { userId, fileId -> MobileDownloadNotifications.cancel(context, userId, fileId) },

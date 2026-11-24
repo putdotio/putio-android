@@ -84,7 +84,7 @@ public class SdkTransfersRepository internal constructor(
     private val retryTransfer: suspend (Long) -> Transfer,
     private val cleanTransfers: suspend (List<Long>) -> TransfersCleanResponse,
 ) : TransfersRepository {
-    public constructor(client: PutioClient) : this(
+    public constructor(client: PutioClient, uploadClient: PutioClient) : this(
         reads =
             TransfersReadOperations(
                 list = client.transfers::list,
@@ -95,7 +95,7 @@ public class SdkTransfersRepository internal constructor(
             TransfersAddOperations(
                 add = client.transfers::add,
                 addMany = client.transfers::addMany,
-                upload = client.files::upload,
+                upload = uploadClient.files::upload,
             ),
         cancelTransfers = { client.transfers.cancel(it) },
         retryTransfer = client.transfers::retry,

@@ -37,11 +37,14 @@ import io.putdotio.android.downloads.DownloadArtifact
 import io.putdotio.android.downloads.DownloadEntry
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsController
+import io.putdotio.android.downloads.MobileDownloadAccount
 import io.putdotio.android.downloads.MobileDownloadEngine
 import io.putdotio.android.downloads.MobileDownloadStore
 import io.putdotio.android.downloads.MobileDownloadsScreen
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.dispatch
+import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.util.UUID
@@ -132,7 +135,16 @@ class MobileDownloadsProgressProofTest {
                     executor,
                 ),
             ).apply { requirements = Requirements(0) }
-            val engine = MobileDownloadEngine(context, store, USER_ID, scope, manager)
+            val engine = MobileDownloadEngine(
+                context,
+                MobileDownloadAccount(
+                    USER_ID,
+                    store,
+                    PutioClient(PutioConfig(), okHttpClient = PutioHttpClient.shared).files,
+                ),
+                scope,
+                manager,
+            )
             controller = DownloadsController(store, engine, scope)
             cleanup = {
                 instrumentation.runOnMainSync {

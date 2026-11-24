@@ -14,9 +14,11 @@ import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import io.putdotio.android.MobileDeepLink
 import io.putdotio.android.R
+import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.pendingIntent
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.files.FilesApi
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +47,7 @@ internal class MobileDownloadNotifications(
     private val stores: (Long) -> MobileDownloadStore = { MobileDownloadStore.shared(context, it) },
     private val redeciding: (Long) -> Boolean = DirectPlayRedeciders.shared::holds,
     lookupDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val files: () -> FilesApi = { MobileOAuthRuntime.get(context).putioClient.files },
     private val signedInUser: () -> Long?,
 ) : DownloadManager.Listener {
     private val scope = CoroutineScope(SupervisorJob() + lookupDispatcher)
@@ -91,7 +94,7 @@ internal class MobileDownloadNotifications(
                     } else {
                         Download.STOP_REASON_NONE
                     }
-                    startDownload(context, manager, owner, next, stopReason)
+                    next.startDownload(context, manager, owner, files(), stopReason)
                 }
             }
         }

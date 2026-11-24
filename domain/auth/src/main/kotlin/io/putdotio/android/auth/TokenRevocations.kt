@@ -1,7 +1,6 @@
 package io.putdotio.android.auth
 
 import io.putdotio.sdk.PutioClient
-import io.putdotio.sdk.PutioConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -31,19 +30,17 @@ public fun interface AuthTokenRevoker {
 }
 
 /**
- * Revokes a specific token with its own short-lived client, so a retry never
- * touches the live session's client or revokes whatever token it holds now.
+ * Revokes a specific token through [client] without touching the live session's
+ * access token, reusing the app's shared HTTP transport.
  */
 public class PutioAuthTokenRevoker(
-    private val sessionConfig: PutioConfig,
+    private val client: PutioClient,
 ) : AuthTokenRevoker {
     // The SDK is a process boundary; any failure other than cancellation is "no verdict yet".
     @Suppress("TooGenericExceptionCaught")
     override suspend fun revoke(accessToken: AccessToken): TokenRevocationResult =
         try {
-            PutioClient(sessionConfig.copy(accessToken = accessToken.reveal())).use { client ->
-                client.auth.logout()
-            }
+            client.auth.logout(accessToken.reveal())
             TokenRevocationResult.REVOKED
         } catch (error: CancellationException) {
             throw error

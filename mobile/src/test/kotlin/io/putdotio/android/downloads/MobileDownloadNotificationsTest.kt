@@ -59,6 +59,7 @@ class MobileDownloadNotificationsTest {
     private val notifications = MobileDownloadNotifications(
         context,
         lookupDispatcher = Dispatchers.Unconfined,
+        files = { testDownloadFilesApi },
     ) { signedIn }
     // The listener never reads the manager; Media3 hands it one anyway.
     private val downloadManager = DownloadManager(
@@ -153,6 +154,7 @@ class MobileDownloadNotificationsTest {
             context,
             stores = { store },
             lookupDispatcher = Dispatchers.Unconfined,
+            files = { testDownloadFilesApi },
         ) { signedIn }
 
         signedIn = null
@@ -165,7 +167,7 @@ class MobileDownloadNotificationsTest {
         val request =
             IntentCompat.getParcelableExtra(sent, DownloadService.KEY_DOWNLOAD_REQUEST, DownloadRequest::class.java)
         assertEquals("$USER:13", request?.id)
-        assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(13L)), request?.uri.toString())
+        assertEquals(DownloadArtifact.HLS.apiUrl(FilesItemId(13L), testDownloadFilesApi), request?.uri.toString())
         assertEquals(
             MobileDownloadEngine.STOP_REASON_OTHER_USER,
             sent.getIntExtra(DownloadService.KEY_STOP_REASON, -1),
@@ -330,6 +332,7 @@ class MobileDownloadNotificationsTest {
             context,
             redeciding = redeciders::holds,
             lookupDispatcher = Dispatchers.Unconfined,
+            files = { testDownloadFilesApi },
         ) { signedIn }
         val refused = download(13L, Download.STATE_FAILED)
         val notFound = rejected(HTTP_NOT_FOUND)
@@ -412,7 +415,7 @@ class MobileDownloadNotificationsTest {
         }
         try {
             MobileDownloadStore.shared(wrappedContext, USER)
-            val listener = MobileDownloadNotifications(wrappedContext) { USER }
+            val listener = MobileDownloadNotifications(wrappedContext, files = { testDownloadFilesApi }) { USER }
             reads.set(0)
             mainThreadReads.set(0)
 
@@ -455,6 +458,7 @@ class MobileDownloadNotificationsTest {
                 release.await()
                 store
             },
+            files = { testDownloadFilesApi },
         ) { signedIn }
 
         listener.changed(failedOriginal(15L), rejected(HTTP_BAD_REQUEST))
@@ -498,7 +502,7 @@ class MobileDownloadNotificationsTest {
         }
         try {
             MobileDownloadStore.clearSharedForTest(wrappedContext)
-            val listener = MobileDownloadNotifications(wrappedContext) { USER }
+            val listener = MobileDownloadNotifications(wrappedContext, files = { testDownloadFilesApi }) { USER }
             listener.changed(download(10L, Download.STATE_COMPLETED))
             assertTrue(peeking.await(5, TimeUnit.SECONDS))
 
@@ -551,8 +555,10 @@ class MobileDownloadNotificationsTest {
     )
 
     private fun failedOriginal(fileId: Long) = Download(
-        DownloadRequest.Builder("$USER:$fileId", Uri.parse(DownloadArtifact.ORIGINAL_HLS.apiUrl(FilesItemId(fileId))))
-            .build(),
+        DownloadRequest.Builder(
+            "$USER:$fileId",
+            Uri.parse(DownloadArtifact.ORIGINAL_HLS.apiUrl(FilesItemId(fileId), testDownloadFilesApi)),
+        ).build(),
         Download.STATE_FAILED,
         0L,
         0L,

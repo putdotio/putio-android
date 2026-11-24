@@ -13,6 +13,7 @@ import androidx.media3.exoplayer.scheduler.PlatformScheduler
 import androidx.media3.exoplayer.scheduler.Scheduler
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileOAuthRuntime
+import io.putdotio.sdk.files.FilesApi
 import io.putdotio.sdk.files.PutioFileType
 
 /**
@@ -54,39 +55,39 @@ class MobileDownloadService : DownloadService(
  * service has the request; a start the system refuses throws and leaves it, Try again included.
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun sendDownloadRequest(
+internal fun DownloadEntry.sendDownloadRequest(
     context: Context,
     userId: Long,
-    entry: DownloadEntry,
-    stopReason: Int = entry.stopReason,
+    files: FilesApi,
+    stopReason: Int = this.stopReason,
     send: (DownloadRequest, Int) -> Unit = { request, reason ->
         DownloadService.sendAddDownload(context, MobileDownloadService::class.java, request, reason, true)
     },
 ) {
-    send(entry.downloadRequest(userId), stopReason)
-    MobileDownloadNotifications.cancel(context, userId, entry.fileId)
+    send(downloadRequest(userId, files), stopReason)
+    MobileDownloadNotifications.cancel(context, userId, fileId)
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun startDownload(
+internal fun DownloadEntry.startDownload(
     context: Context,
     manager: DownloadManager,
     userId: Long,
-    entry: DownloadEntry,
-    stopReason: Int = entry.stopReason,
+    files: FilesApi,
+    stopReason: Int = this.stopReason,
 ) {
     try {
-        sendDownloadRequest(context, userId, entry, stopReason)
+        sendDownloadRequest(context, userId, files, stopReason)
     } catch (_: IllegalStateException) {
-        sendDownloadRequest(context, userId, entry, stopReason) { request, reason ->
+        sendDownloadRequest(context, userId, files, stopReason) { request, reason ->
             manager.addDownload(request, reason)
         }
     }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-internal fun DownloadEntry.downloadRequest(userId: Long): DownloadRequest {
-    val url = artifact.apiUrl(fileId, subtitlesHidden = subtitlesHidden == true)
+internal fun DownloadEntry.downloadRequest(userId: Long, files: FilesApi): DownloadRequest {
+    val url = artifact.apiUrl(fileId, files, subtitlesHidden = subtitlesHidden == true)
     return DownloadRequest.Builder(downloadContentId(userId, fileId), url.toUri())
         .setMimeType(requestMimeType)
         .setData(downloadRequestData(name, subtitles))

@@ -30,12 +30,14 @@ import androidx.media3.exoplayer.offline.Downloader
 import androidx.media3.exoplayer.offline.DownloaderFactory
 import androidx.media3.exoplayer.offline.ProgressiveDownloader
 import androidx.media3.exoplayer.scheduler.Requirements
+import io.putdotio.android.PutioHttpClient
 import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.errors.PutioException
+import io.putdotio.sdk.files.FilesApi
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
@@ -79,7 +81,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
         databaseProvider,
     )
     @VisibleForTesting
-    internal var httpClient: OkHttpClient = OkHttpClient()
+    internal var httpClient: OkHttpClient = PutioHttpClient.newBuilder().build()
     @VisibleForTesting
     internal var authState: () -> MobileAuthState = {
         MobileOAuthRuntime.get(appContext).authController.state.value
@@ -234,7 +236,13 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     val replacing: Set<String> get() = replacingIds
 
-    suspend fun dropReplacedBytes(manager: DownloadManager, userId: Long, entry: DownloadEntry, io: CoroutineContext) {
+    suspend fun dropReplacedBytes(
+        manager: DownloadManager,
+        userId: Long,
+        entry: DownloadEntry,
+        io: CoroutineContext,
+        files: FilesApi,
+    ) {
         val contentId = downloadContentId(userId, entry.fileId)
         val recorded = withContext(io) {
             try {
@@ -243,7 +251,7 @@ internal class MobileDownloadCache private constructor(context: Context) {
                 null
             }
         }
-        if (recorded == null || recorded.request.fetchesSameAs(entry.downloadRequest(userId))) return
+        if (recorded == null || recorded.request.fetchesSameAs(entry.downloadRequest(userId, files))) return
         if (recorded.isTerminalState) {
             withContext(io) { downloaderFactory.createDownloader(recorded.request).remove() }
             return
@@ -484,7 +492,13 @@ private fun ensureManagerConfigured(
     manager.maxParallelDownloads = concurrency
     manager.minRetryCount = MIN_RETRIES
     manager.requirements = Requirements(Requirements.NETWORK or Requirements.DEVICE_STORAGE_NOT_LOW)
-    manager.addListener(MobileDownloadNotifications(appContext) { appContext.signedInUserId() })
+    manager.addListener(
+        MobileDownloadNotifications(
+            context = appContext,
+            files = { MobileOAuthRuntime.get(appContext).putioClient.files },
+            signedInUser = { appContext.signedInUserId() },
+        ),
+    )
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])

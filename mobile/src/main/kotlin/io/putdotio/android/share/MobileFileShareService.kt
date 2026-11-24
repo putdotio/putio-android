@@ -12,6 +12,7 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import androidx.core.content.FileProvider
+import io.putdotio.android.PutioHttpClient
 import io.putdotio.android.R
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.auth.MobileAuthState
@@ -352,7 +353,7 @@ internal class MobileShareDependencies(
     }
 }
 
-private val sharedHttp: OkHttpClient by lazy { OkHttpClient() }
+internal val sharedHttp: OkHttpClient by lazy { PutioHttpClient.newBuilder().build() }
 
 /** Stream only. Recipients receive a read grant on the content URI and nothing else. */
 private fun Context.shareChooser(file: File): Intent {

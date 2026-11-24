@@ -1,5 +1,6 @@
 package io.putdotio.android.tv.auth
 
+import io.putdotio.android.PutioHttpClient
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
@@ -8,7 +9,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Response
 
 internal fun tvHttpClient(pause: (millis: Long, canceled: () -> Boolean) -> Unit = ::pauseFor): OkHttpClient =
-    OkHttpClient.Builder()
+    PutioHttpClient.newBuilder()
         .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .addInterceptor(RateLimitRetry(pause))
         .build()
