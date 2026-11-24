@@ -10,6 +10,7 @@ android {
 }
 
 dependencies {
+    api(libs.okhttp)
     implementation(libs.aboutlibraries.core)
     implementation(libs.putio.sdk.kotlin)
     implementation(libs.kotlinx.coroutines.android)

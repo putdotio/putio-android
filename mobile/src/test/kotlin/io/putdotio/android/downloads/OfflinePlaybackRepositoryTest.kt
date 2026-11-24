@@ -12,7 +12,6 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackStreamFormat
 import io.putdotio.sdk.files.PlaybackSubtitles
-import io.putdotio.sdk.files.PutioCredentialUrl
 import io.putdotio.sdk.files.PutioFileType
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,7 +54,7 @@ class OfflinePlaybackRepositoryTest {
     @Test
     fun completedDownloadResolvesLocallyWithoutTouchingTheNetwork() = runBlocking {
         val downloads = downloadsOf(completed())
-        val repository = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of)
+        val repository = OfflinePlaybackRepository(downloads, delegate, testDownloadFilesApi)
         val result = repository.resolve(target) as PlaybackRepositoryResult.Success
         val ready = result.value as PlaybackResolution.Ready
         assertEquals(PlaybackSourceKind.HLS, ready.source.kind)
@@ -72,14 +71,14 @@ class OfflinePlaybackRepositoryTest {
         // A download from before the URL gained max_subtitle_count is cached under its own URL.
         val earlier = "https://api.put.io/v2/files/7/hls/media.m3u8?subtitle_key=all"
         val replayed =
-            OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of) { OfflineRequest(earlier) }
-        val unknown = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of) { null }
+            OfflinePlaybackRepository(downloads, delegate, testDownloadFilesApi) { OfflineRequest(earlier) }
+        val unknown = OfflinePlaybackRepository(downloads, delegate, testDownloadFilesApi) { null }
 
         val ready = (replayed.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
         val fallback = (unknown.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
 
         assertEquals(earlier, ready.source.url.value)
-        assertEquals(DownloadArtifact.HLS.apiUrl(target.fileId), fallback.source.url.value)
+        assertEquals(DownloadArtifact.HLS.apiUrl(target.fileId, testDownloadFilesApi), fallback.source.url.value)
         assertTrue(delegateCalls.isEmpty())
     }
 
@@ -92,7 +91,7 @@ class OfflinePlaybackRepositoryTest {
 
             override suspend fun position(entry: DownloadEntry) = 250.0
         }
-        val repository = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of, resume = resume)
+        val repository = OfflinePlaybackRepository(downloads, delegate, testDownloadFilesApi, resume = resume)
 
         val ready = (repository.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
 
@@ -106,7 +105,7 @@ class OfflinePlaybackRepositoryTest {
     @Test
     fun aHideSubtitlesDownloadCarriesNoSubtitlesAndHidesThePickerOnAColdOfflineStart() = runBlocking {
         val downloads = downloadsOf(completed().copy(subtitlesHidden = true))
-        val repository = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of)
+        val repository = OfflinePlaybackRepository(downloads, delegate, testDownloadFilesApi)
 
         val ready = (repository.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
 
@@ -119,7 +118,7 @@ class OfflinePlaybackRepositoryTest {
     fun aCopyWhoseBytesAreGoneStreamsInstead() = runBlocking {
         val downloads = downloadsOf(completed())
         val repository = OfflinePlaybackRepository(
-            downloads, delegate, PutioCredentialUrl::of, localCopyAvailable = { false },
+            downloads, delegate, testDownloadFilesApi, localCopyAvailable = { false },
         )
 
         assertTrue(repository.resolve(target) is PlaybackRepositoryResult.Failure)
@@ -129,7 +128,7 @@ class OfflinePlaybackRepositoryTest {
     @Test
     fun anythingElseStreamsThroughTheDelegate() = runBlocking {
         val downloads = downloadsOf(completed().copy(status = DownloadStatus.Downloading(1L, 50f)))
-        val repository = OfflinePlaybackRepository(downloads, delegate, PutioCredentialUrl::of)
+        val repository = OfflinePlaybackRepository(downloads, delegate, testDownloadFilesApi)
         assertTrue(repository.resolve(target) is PlaybackRepositoryResult.Failure)
         assertTrue(repository.resolve(target.copy(fileId = FilesItemId(8L))) is PlaybackRepositoryResult.Failure)
         assertEquals(2, delegateCalls.size)
@@ -138,9 +137,9 @@ class OfflinePlaybackRepositoryTest {
     @Test
     fun convertedOnlyStreamsInPlaceOfAnOriginalVideoDownload() = runBlocking {
         val original = OfflinePlaybackRepository(
-            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL)), delegate, PutioCredentialUrl::of,
+            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL)), delegate, testDownloadFilesApi,
         )
-        val hls = OfflinePlaybackRepository(downloadsOf(completed()), delegate, PutioCredentialUrl::of)
+        val hls = OfflinePlaybackRepository(downloadsOf(completed()), delegate, testDownloadFilesApi)
 
         assertTrue(original.resolve(target) is PlaybackRepositoryResult.Success)
         assertTrue(original.resolve(target, convertedOnly = true) is PlaybackRepositoryResult.Failure)
@@ -151,7 +150,7 @@ class OfflinePlaybackRepositoryTest {
     @Test
     fun anOriginalOverHlsPlaysOfflineAsAnOriginalSourceAndConvertedOnlyStreams() = runBlocking {
         val repository = OfflinePlaybackRepository(
-            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL_HLS)), delegate, PutioCredentialUrl::of,
+            downloadsOf(completed().copy(artifact = DownloadArtifact.ORIGINAL_HLS)), delegate, testDownloadFilesApi,
         )
 
         val ready = (repository.resolve(target) as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready
@@ -177,7 +176,7 @@ class OfflinePlaybackRepositoryTest {
         )
         val converted = completed().copy(artifact = DownloadArtifact.MP4, subtitles = listOf(english))
         val mp4Url = "https://api.put.io/v2/files/7/mp4/stream"
-        val repository = OfflinePlaybackRepository(downloadsOf(converted), delegate, PutioCredentialUrl::of) {
+        val repository = OfflinePlaybackRepository(downloadsOf(converted), delegate, testDownloadFilesApi) {
             OfflineRequest(mp4Url, listOf(english))
         }
 
@@ -195,7 +194,7 @@ class OfflinePlaybackRepositoryTest {
         assertTrue(ready.offline)
 
         val original = OfflinePlaybackRepository(
-            downloadsOf(converted.copy(artifact = DownloadArtifact.ORIGINAL)), delegate, PutioCredentialUrl::of,
+            downloadsOf(converted.copy(artifact = DownloadArtifact.ORIGINAL)), delegate, testDownloadFilesApi,
         ) { OfflineRequest("https://api.put.io/v2/files/7/stream", listOf(english)) }
         val originalSource = ((original.resolve(target) as PlaybackRepositoryResult.Success).value
             as PlaybackResolution.Ready).source
@@ -203,7 +202,7 @@ class OfflinePlaybackRepositoryTest {
         assertEquals(PlaybackStreamFormat.PROGRESSIVE, originalSource.format)
         assertEquals(listOf("en-key"), (originalSource.subtitles as PlaybackSubtitles.Sidecar).tracks.map { it.key })
 
-        val bare = OfflinePlaybackRepository(downloadsOf(converted), delegate, PutioCredentialUrl::of) {
+        val bare = OfflinePlaybackRepository(downloadsOf(converted), delegate, testDownloadFilesApi) {
             OfflineRequest(mp4Url)
         }
         val bareSource = ((bare.resolve(target) as PlaybackRepositoryResult.Success).value
@@ -215,7 +214,7 @@ class OfflinePlaybackRepositoryTest {
     @Test
     fun castingADirectPlayDownloadStreamsStandardFromPutio() = runBlocking {
         val converted = completed().copy(artifact = DownloadArtifact.MP4)
-        val repository = OfflinePlaybackRepository(downloadsOf(converted), delegate, PutioCredentialUrl::of)
+        val repository = OfflinePlaybackRepository(downloadsOf(converted), delegate, testDownloadFilesApi)
         val cast = target.copy(method = StreamingMethod.Hls)
 
         repository.resolve(cast, convertedOnly = true)
@@ -263,7 +262,7 @@ class OfflinePlaybackRepositoryTest {
         ((result as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Ready)?.offline == true
 
     private fun repositoryOf(artifact: DownloadArtifact) =
-        OfflinePlaybackRepository(downloadsOf(completed().copy(artifact = artifact)), delegate, PutioCredentialUrl::of)
+        OfflinePlaybackRepository(downloadsOf(completed().copy(artifact = artifact)), delegate, testDownloadFilesApi)
 
     private fun completed() = DownloadEntry(
         target.fileId, target.name, PutioFileType.VIDEO, DownloadArtifact.HLS, DownloadStatus.Completed(1L), 0L,

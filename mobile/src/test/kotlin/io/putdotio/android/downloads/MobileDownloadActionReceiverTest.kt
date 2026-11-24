@@ -219,7 +219,7 @@ class MobileDownloadActionReceiverTest {
             signedIn = { SignedInAccount.User(USER) },
             find = { _, _ -> failed },
             start = { userId, entry ->
-                sendDownloadRequest(context, userId, entry) { request, _ ->
+                entry.sendDownloadRequest(context, userId, testDownloadFilesApi) { request, _ ->
                     // Android 12+ refuses a foreground service start once the tap's allowance has passed.
                     check(!refuse) { "ForegroundServiceStartNotAllowedException" }
                     sent += request.id

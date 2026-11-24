@@ -11,6 +11,7 @@ import io.putdotio.android.downloads.DownloadSources
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.downloads.DownloadsController
 import io.putdotio.android.downloads.DownloadsEvent
+import io.putdotio.android.downloads.MobileDownloadAccount
 import io.putdotio.android.downloads.MobileDownloadEngine
 import io.putdotio.android.downloads.MobileDownloadStore
 import io.putdotio.android.downloads.mobileDirectPlayDownloads
@@ -28,6 +29,7 @@ import io.putdotio.android.playback.PlaybackFallbackReason
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.PlaybackPreference
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PutioFileType
@@ -259,7 +261,15 @@ class MobilePlaybackPickProofTest {
         sources: DownloadSources,
         val store: MobileDownloadStore = MobileDownloadStore(context, userId),
     ) {
-        private val engine = MobileDownloadEngine(context, store, userId, scope)
+        private val engine = MobileDownloadEngine(
+            context,
+            MobileDownloadAccount(
+                userId,
+                store,
+                PutioClient(PutioConfig(), okHttpClient = PutioHttpClient.shared).files,
+            ),
+            scope,
+        )
         val controller = runCatching { DownloadsController(store, engine, scope, sources) }
             .onFailure { engine.close() }
             .getOrThrow()

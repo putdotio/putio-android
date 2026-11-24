@@ -13,8 +13,6 @@ import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.Requirements
 import io.putdotio.android.R
 import io.putdotio.android.files.FilesItemId
-import io.putdotio.sdk.PutioClient
-import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.FilesApi
 import io.putdotio.sdk.files.HLS_ALL_SUBTITLES
 import io.putdotio.sdk.files.PutioFileType
@@ -29,6 +27,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+internal data class MobileDownloadAccount(
+    val userId: Long,
+    val store: MobileDownloadStore,
+    val files: FilesApi,
+)
+
 /**
  * Bridges one user's download index to the process-wide Media3 manager.
  * Requests carry the token-free API URL; Media3 persists them, resumes them, and
@@ -40,12 +44,14 @@ import kotlinx.coroutines.withContext
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadEngine(
     context: Context,
-    private val store: MobileDownloadStore,
-    private val userId: Long,
+    account: MobileDownloadAccount,
     scope: CoroutineScope,
     private val downloadManager: DownloadManager = MobileDownloadCache.get(context).downloadManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : DownloadEngine {
+    private val store: MobileDownloadStore = account.store
+    private val userId: Long = account.userId
+    private val files: FilesApi = account.files
     private val appContext = context.applicationContext
     private val downloads = MobileDownloadCache.get(appContext)
     private val settings = MobileDownloadSettings(appContext)
@@ -166,8 +172,8 @@ internal class MobileDownloadEngine(
     }
 
     override suspend fun start(entry: DownloadEntry) {
-        downloads.dropReplacedBytes(downloadManager, userId, entry, ioDispatcher)
-        if (!closed) startDownload(appContext, downloadManager, userId, entry)
+        downloads.dropReplacedBytes(downloadManager, userId, entry, ioDispatcher, files)
+        if (!closed) entry.startDownload(appContext, downloadManager, userId, files)
     }
 
     override fun notifyFailed(entry: DownloadEntry, reason: DownloadFailureReason) {
@@ -398,8 +404,11 @@ private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =
  * rendition, or for none when the account hides subtitles, as streaming does; an original over HLS asks the same.
  * The original and the converted MP4 are the files File stream playback reads.
  */
-internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boolean = false): String {
-    val files = mediaRequestUrls
+internal fun DownloadArtifact.apiUrl(
+    fileId: FilesItemId,
+    files: FilesApi,
+    subtitlesHidden: Boolean = false,
+): String {
     val subtitles = if (subtitlesHidden) 0 else HLS_ALL_SUBTITLES
     return when (this) {
         DownloadArtifact.HLS -> files.buildHlsStreamRequestUrl(fileId.value, maxSubtitleCount = subtitles)
@@ -409,8 +418,6 @@ internal fun DownloadArtifact.apiUrl(fileId: FilesItemId, subtitlesHidden: Boole
         DownloadArtifact.MP4 -> files.buildMp4StreamRequestUrl(fileId.value)
     }
 }
-
-private val mediaRequestUrls: FilesApi by lazy { PutioClient(PutioConfig()).files }
 
 private const val ORIGINAL_QUERY = "original"
 private const val MP4_PATH = "/mp4/stream"

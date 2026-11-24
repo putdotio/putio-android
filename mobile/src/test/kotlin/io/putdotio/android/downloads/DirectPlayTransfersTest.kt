@@ -105,6 +105,7 @@ class DirectPlayTransfersTest {
             context,
             stores = { store },
             lookupDispatcher = Dispatchers.Unconfined,
+            files = { testDownloadFilesApi },
         ) { USER }
 
         listener.onDownloadChanged(downloadManager, failed(request(original), bytes = 0L), rejected(HTTP_NOT_FOUND))
@@ -203,7 +204,7 @@ class DirectPlayTransfersTest {
 
     private fun request(entry: DownloadEntry): DownloadRequest {
         var sent: DownloadRequest? = null
-        sendDownloadRequest(context, USER, entry) { request, _ -> sent = request }
+        entry.sendDownloadRequest(context, USER, testDownloadFilesApi) { request, _ -> sent = request }
         return checkNotNull(sent)
     }
 

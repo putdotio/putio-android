@@ -11,6 +11,7 @@ import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileSessionKey
 import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.session.SessionScopedHolder
+import io.putdotio.sdk.files.FilesApi
 import java.io.Closeable
 import kotlinx.coroutines.flow.StateFlow
 
@@ -35,10 +36,15 @@ internal class MobileDownloadsViewModel(
         userId: Long,
         sessionId: MobileAuthSessionId,
         sources: DownloadSources,
+        files: FilesApi,
     ): DownloadsController? =
         session.valueFor(MobileSessionKey(userId, sessionId)) {
             val store = MobileDownloadStore.shared(context, userId)
-            val engine = MobileDownloadEngine(context.applicationContext, store, userId, viewModelScope)
+            val engine = MobileDownloadEngine(
+                context.applicationContext,
+                MobileDownloadAccount(userId, store, files),
+                viewModelScope,
+            )
             ActiveDownloads(
                 DownloadsController(store, engine, viewModelScope, sources = sources),
                 engine,

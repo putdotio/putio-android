@@ -40,6 +40,7 @@ import androidx.media3.exoplayer.offline.DownloadRequest
 import androidx.media3.exoplayer.scheduler.Requirements
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import io.putdotio.android.PutioHttpClient
 import io.putdotio.android.design.PutioTheme
 import io.putdotio.android.downloads.DownloadArtifact
 import io.putdotio.android.downloads.DownloadEngine
@@ -53,6 +54,7 @@ import io.putdotio.android.downloads.MOBILE_DOWNLOADS_OVERFLOW_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECTION_DELETE_TAG
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_SELECT_TAG
+import io.putdotio.android.downloads.MobileDownloadAccount
 import io.putdotio.android.downloads.MobileDownloadEngine
 import io.putdotio.android.downloads.MobileDownloadNotifications
 import io.putdotio.android.downloads.MobileDownloadSettings
@@ -63,6 +65,8 @@ import io.putdotio.android.downloads.rememberDownloadsSelection
 import io.putdotio.android.downloads.downloadContentId
 import io.putdotio.android.downloads.downloadPreferences
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.sdk.PutioClient
+import io.putdotio.sdk.PutioConfig
 import io.putdotio.sdk.files.PutioFileType
 import java.io.File
 import java.io.IOException
@@ -160,6 +164,7 @@ class MobileDownloadsQueueProofTest {
                         Download.FAILURE_REASON_NONE))
                 }
             }
+            val files = PutioClient(PutioConfig(), okHttpClient = PutioHttpClient.shared).files
             manager = DownloadManager(
                 context,
                 index,
@@ -170,9 +175,14 @@ class MobileDownloadsQueueProofTest {
             ).apply {
                 requirements = Requirements(Requirements.DEVICE_STORAGE_NOT_LOW)
                 minRetryCount = 0
-                addListener(MobileDownloadNotifications(context) { USER_ID })
+                addListener(MobileDownloadNotifications(context, files = { files }) { USER_ID })
             }
-            val engine = MobileDownloadEngine(context, store, USER_ID, scope, manager)
+            val engine = MobileDownloadEngine(
+                context,
+                MobileDownloadAccount(USER_ID, store, files),
+                scope,
+                manager,
+            )
             // Adds and removes go to this manager; the app's own service drives the real one.
             val local = object : DownloadEngine by engine {
                 override suspend fun start(entry: DownloadEntry) =

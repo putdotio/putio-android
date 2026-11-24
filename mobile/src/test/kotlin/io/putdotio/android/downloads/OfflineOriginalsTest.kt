@@ -81,7 +81,7 @@ class OfflineOriginalsTest {
         cachedBytes: Int = bytes.size,
     ) {
         val id = FilesItemId(fileId)
-        val uri = Uri.parse(artifact.apiUrl(id))
+        val uri = Uri.parse(artifact.apiUrl(id, testDownloadFilesApi))
         val keys = UserScopedCacheKeys(ALICE)
         val writer = CacheDataSource.Factory().setCache(cache).setCacheKeyFactory(keys)
             .setUpstreamDataSourceFactory { ByteArrayDataSource(bytes.copyOf(cachedBytes)) }

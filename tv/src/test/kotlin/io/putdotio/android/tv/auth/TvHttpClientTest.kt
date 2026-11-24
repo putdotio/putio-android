@@ -10,8 +10,10 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import java.io.IOException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Test
+import io.putdotio.android.PutioHttpClient
 
 class TvHttpClientTest {
     private val pauses = mutableListOf<Long>()
@@ -39,6 +41,14 @@ class TvHttpClientTest {
     @Test
     fun requestsFailAfterTenSeconds() {
         assertEquals(10_000, tvHttpClient().callTimeoutMillis)
+    }
+
+    @Test
+    fun tvHttpClientSharesBaseConnectionPoolAndDispatcher() {
+        val tv = tvHttpClient()
+
+        assertSame(PutioHttpClient.shared.connectionPool, tv.connectionPool)
+        assertSame(PutioHttpClient.shared.dispatcher, tv.dispatcher)
     }
 
     @Test

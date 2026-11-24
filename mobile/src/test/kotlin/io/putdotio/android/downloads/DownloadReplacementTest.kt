@@ -135,7 +135,13 @@ class DownloadReplacementTest {
             requirements = Requirements(0)
             managers += this
         }
-        return MobileDownloadEngine(context, store, USER, scope, manager, Dispatchers.Unconfined).also { engines += it }
+        return MobileDownloadEngine(
+            context,
+            MobileDownloadAccount(USER, store, testDownloadFilesApi),
+            scope,
+            manager,
+            Dispatchers.Unconfined,
+        ).also { engines += it }
     }
 
     private fun sentAdds(): List<DownloadRequest> =
@@ -165,7 +171,7 @@ class DownloadReplacementTest {
 
     private fun request(entry: DownloadEntry): DownloadRequest {
         var sent: DownloadRequest? = null
-        sendDownloadRequest(context, USER, entry) { request, _ -> sent = request }
+        entry.sendDownloadRequest(context, USER, testDownloadFilesApi) { request, _ -> sent = request }
         return checkNotNull(sent)
     }
 

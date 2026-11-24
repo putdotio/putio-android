@@ -125,7 +125,6 @@ import io.putdotio.android.trash.SdkTrashRepository
 import io.putdotio.android.trash.TrashController
 import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.widgets.MobileWidgets
-import io.putdotio.sdk.files.PutioCredentialUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
@@ -193,7 +192,9 @@ internal fun SignedInMobileRoot(
         }
     val searchRepository = remember(runtime.putioClient) { SdkSearchRepository(runtime.putioClient) }
     val historyRepository = remember(runtime.putioClient) { SdkHistoryRepository(runtime.putioClient) }
-    val transfersRepository = remember(runtime.putioClient) { SdkTransfersRepository(runtime.putioClient) }
+    val transfersRepository = remember(runtime.putioClient, runtime.uploadClient) {
+        SdkTransfersRepository(runtime.putioClient, runtime.uploadClient)
+    }
     val searchHistorySession =
         remember(searchHistoryViewModel, runtime.putioClient, account, sessionId) {
             searchHistoryViewModel.controllersFor(
@@ -225,7 +226,13 @@ internal fun SignedInMobileRoot(
                     online = validatedNetwork(downloadsContext),
                     directPlay = { id, subtitles, chosen -> directPlay.resolve(id, subtitles, chosen = chosen) },
                 )
-                downloadsViewModel?.controllerFor(downloadsContext, account.userId, sessionId, sources)
+                downloadsViewModel?.controllerFor(
+                    downloadsContext,
+                    account.userId,
+                    sessionId,
+                    sources,
+                    runtime.putioClient.files,
+                )
             }
         }
     val publicLinksRepository = remember(runtime.putioClient) { SdkPublicLinksRepository(runtime.putioClient) }
@@ -726,7 +733,7 @@ private fun DownloadsController.offlineFirstPlayback(
     OfflinePlaybackRepository(
         downloads = state,
         delegate = streaming,
-        credentialUrl = PutioCredentialUrl::of,
+        files = runtime.putioClient.files,
         localCopyAvailable = { fileId ->
             withContext(Dispatchers.IO) { downloads.hasLocalCopy(userId, fileId) }.also { present ->
                 if (!present) dispatch(DownloadsEvent.LocalCopyMissing(fileId))

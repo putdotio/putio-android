@@ -127,7 +127,7 @@ internal class TvAuthRuntime(
                 tokenRevocations = PendingTokenRevocations(
                     stores = KeystoreAuthTokenStore.pendingRevocations(context),
                     sessionStore = tokenStore,
-                    revoker = PutioAuthTokenRevoker(putioClient.config),
+                    revoker = PutioAuthTokenRevoker(putioClient),
                     scope = applicationScope,
                 ),
                 scope = applicationScope,

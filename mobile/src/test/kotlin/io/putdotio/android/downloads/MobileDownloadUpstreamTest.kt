@@ -67,17 +67,17 @@ class MobileDownloadUpstreamTest {
         val token = AccountDownloadToken(DOWNLOAD_TOKEN)
         val id = FilesItemId(FILE_ID)
 
-        assertEquals(files.buildOriginalStreamRequest(FILE_ID, token).url, DownloadArtifact.ORIGINAL.apiUrl(id))
-        assertEquals(files.buildMp4StreamRequest(FILE_ID, token).url, DownloadArtifact.MP4.apiUrl(id))
+        assertEquals(files.buildOriginalStreamRequest(FILE_ID, token).url, DownloadArtifact.ORIGINAL.apiUrl(id, files))
+        assertEquals(files.buildMp4StreamRequest(FILE_ID, token).url, DownloadArtifact.MP4.apiUrl(id, files))
         for (hidden in listOf(false, true)) {
             val subtitles = if (hidden) 0 else HLS_ALL_SUBTITLES
             assertEquals(
                 files.buildHlsStreamRequest(FILE_ID, token, maxSubtitleCount = subtitles).url,
-                DownloadArtifact.HLS.apiUrl(id, subtitlesHidden = hidden),
+                DownloadArtifact.HLS.apiUrl(id, files, subtitlesHidden = hidden),
             )
             assertEquals(
                 files.buildHlsStreamRequest(FILE_ID, token, maxSubtitleCount = subtitles, original = true).url,
-                DownloadArtifact.ORIGINAL_HLS.apiUrl(id, subtitlesHidden = hidden),
+                DownloadArtifact.ORIGINAL_HLS.apiUrl(id, files, subtitlesHidden = hidden),
             )
         }
     }
@@ -97,12 +97,12 @@ class MobileDownloadUpstreamTest {
                 "$hls=0&original=1",
             ),
             listOf(
-                DownloadArtifact.ORIGINAL.apiUrl(id),
-                DownloadArtifact.MP4.apiUrl(id),
-                DownloadArtifact.HLS.apiUrl(id),
-                DownloadArtifact.HLS.apiUrl(id, subtitlesHidden = true),
-                DownloadArtifact.ORIGINAL_HLS.apiUrl(id),
-                DownloadArtifact.ORIGINAL_HLS.apiUrl(id, subtitlesHidden = true),
+                DownloadArtifact.ORIGINAL.apiUrl(id, testDownloadFilesApi),
+                DownloadArtifact.MP4.apiUrl(id, testDownloadFilesApi),
+                DownloadArtifact.HLS.apiUrl(id, testDownloadFilesApi),
+                DownloadArtifact.HLS.apiUrl(id, testDownloadFilesApi, subtitlesHidden = true),
+                DownloadArtifact.ORIGINAL_HLS.apiUrl(id, testDownloadFilesApi),
+                DownloadArtifact.ORIGINAL_HLS.apiUrl(id, testDownloadFilesApi, subtitlesHidden = true),
             ),
         )
     }

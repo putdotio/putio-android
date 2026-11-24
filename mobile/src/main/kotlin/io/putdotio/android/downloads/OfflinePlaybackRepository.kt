@@ -12,6 +12,7 @@ import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.android.settings.AccountSettingsState
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.android.settings.confirmedResumePlayback
+import io.putdotio.sdk.files.FilesApi
 import io.putdotio.sdk.files.PlaybackSource
 import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackStreamFormat
@@ -75,7 +76,7 @@ private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boole
 internal class OfflinePlaybackRepository(
     private val downloads: StateFlow<DownloadsState>,
     private val delegate: PlaybackRepository,
-    private val credentialUrl: (String) -> PutioCredentialUrl,
+    private val files: FilesApi,
     private val localCopyAvailable: suspend (FilesItemId) -> Boolean = { true },
     private val resume: OfflineResume = OfflineResume.Off,
     private val requested: suspend (FilesItemId) -> OfflineRequest? = { null },
@@ -106,13 +107,13 @@ internal class OfflinePlaybackRepository(
         val source = PlaybackSource(
             fileId = entry.fileId.value,
             kind = entry.artifact.sourceKind,
-            url = credentialUrl(request?.url ?: entry.artifact.apiUrl(entry.fileId, subtitlesHidden)),
+            url = PutioCredentialUrl.of(request?.url ?: entry.artifact.apiUrl(entry.fileId, files, subtitlesHidden)),
             startFromSeconds = if (resumeEnabled) resume.position(entry) else 0.0,
             // HLS subtitle renditions are inside the downloaded playlist set.
             subtitles = when {
                 hls && !subtitlesHidden -> PlaybackSubtitles.Embedded
                 sidecars.isEmpty() -> PlaybackSubtitles.None
-                else -> PlaybackSubtitles.Sidecar(sidecars.map { it.toPlaybackSubtitle(credentialUrl) })
+                else -> PlaybackSubtitles.Sidecar(sidecars.map { it.toPlaybackSubtitle(PutioCredentialUrl::of) })
             },
             format = if (hls) PlaybackStreamFormat.HLS else PlaybackStreamFormat.PROGRESSIVE,
         )

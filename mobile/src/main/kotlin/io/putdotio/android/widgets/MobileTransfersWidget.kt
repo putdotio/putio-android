@@ -213,7 +213,7 @@ internal object MobileWidgets {
 
     private fun createTransfers(context: Context): TransfersWidgetUpdater {
         val runtime = MobileOAuthRuntime.get(context)
-        val repository = SdkTransfersRepository(runtime.putioClient)
+        val repository = SdkTransfersRepository(runtime.putioClient, runtime.uploadClient)
         return TransfersWidgetUpdater(
             context = context,
             source = TransfersWidgetSource(

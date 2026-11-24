@@ -66,7 +66,7 @@ class UserScopedCacheKeysTest {
 
     @Test
     fun tokenFreeApiUrlsAreKeptVerbatim() {
-        val api = DownloadArtifact.HLS.apiUrl(FilesItemId(7L))
+        val api = DownloadArtifact.HLS.apiUrl(FilesItemId(7L), testDownloadFilesApi)
 
         assertEquals("u3|$api", UserScopedCacheKeys(3L).buildCacheKey(DataSpec(Uri.parse(api))))
     }
