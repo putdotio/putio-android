@@ -4,12 +4,13 @@
 # Machine preconditions (everything else is installed by this script):
 #   - macOS or Linux with a JDK 21 on PATH (this repo pins `.java-version` 21;
 #     `mise install` or Homebrew temurin@21 both work)
+#   - Node and npm on PATH (this repo pins `.node-version`)
 #   - Homebrew on macOS if the Android cmdline-tools are not yet installed
 #   - Network access for several GB of SDK packages on first run
 #
 # Installs: platform/build-tools for the compileSdk, emulator, the API 37
 # Google Play phone image, the API 36 Android TV image, both reusable AVDs,
-# and the licensed brand fonts. Writes local.properties.
+# locked Node tools (`npm ci`), and the licensed brand fonts. Writes local.properties.
 # Idempotent: safe to re-run; already-installed packages are skipped.
 #
 #   scripts/bootstrap.sh [--google-tv]
@@ -35,6 +36,10 @@ log "checking JDK"
 java -version >/dev/null 2>&1 || die "no java on PATH; install JDK 21 (mise install / brew install temurin@21)"
 JAVA_MAJOR="$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+).*/\1/')"
 [[ "${JAVA_MAJOR}" -ge 21 ]] || die "JDK 21+ required, found ${JAVA_MAJOR}"
+
+log "checking Node and npm"
+command -v node >/dev/null 2>&1 || die "no node on PATH; install Node from .node-version"
+command -v npm >/dev/null 2>&1 || die "no npm on PATH; install Node from .node-version"
 
 if ! SDK_ROOT="$(resolve_sdk_root)"; then
   log "no Android SDK root found; installing cmdline-tools via Homebrew"
@@ -142,6 +147,9 @@ SDK_KOTLIN_PATH="$(sed -n 's/^putioSdkKotlinPath=//p' "${REPO_ROOT}/local.proper
 if [[ -n "${SDK_KOTLIN_PATH}" && ! -d "${SDK_KOTLIN_PATH}" ]]; then
   die "putioSdkKotlinPath in local.properties points at a missing checkout (${SDK_KOTLIN_PATH}); fix the path or remove the key to use the Maven Central SDK, then re-run bootstrap"
 fi
+
+log "installing locked Node tools"
+(cd "${REPO_ROOT}" && npm ci) || die "npm ci failed"
 
 log "fetching licensed brand fonts"
 "${REPO_ROOT}/gradlew" -p "${REPO_ROOT}" syncBrandFonts || die "brand font sync failed; builds fall back to the system face until it succeeds"

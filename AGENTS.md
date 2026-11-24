@@ -111,8 +111,9 @@ refreshes them; `verify` fails when their files differ from the lock.
 The script checks in [`verify`](build.gradle.kts) need `bash` 3.2+, `python3`,
 `node`, `shellcheck`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
 encoder on PATH.
-`markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
-`npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
+`markdownCheck` runs the locked tools from [package-lock.json](package-lock.json)
+via `node_modules` (`./scripts/bootstrap.sh` or `npm ci`);
+`npx --no oxfmt '**/*.md'` fixes its findings.
 
 - Fix lint and detekt findings at the source; suppress only the narrowest
   declaration, with a comment naming the constraint. Every module runs detekt
