@@ -64,13 +64,10 @@ android {
     testOptions {
         managedDevices {
             localDevices {
-                // CI smoke lane device (workflow_dispatch/scheduled); local
-                // proof stays on scripts/prove.sh with the reusable AVDs.
                 create("ciPhone") {
                     device = "Pixel 7"
                     apiLevel = 37
                     systemImageSource = "google"
-                    testedAbi = "x86_64"
                 }
             }
         }
@@ -152,14 +149,6 @@ tasks.matching { it.name == "publishProductionReleaseBundle" }.configureEach {
 }
 
 val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
-
-tasks.register<VerifyInstrumentationProofTask>("verifyLaunchProof") {
-    group = "verification"
-    description = "Require a successful mobile launch smoke test result"
-    dependsOn("connectedProductionDebugAndroidTest")
-    resultsDirectory.set(layout.buildDirectory.dir("outputs/androidTest-results/connected/debug/flavors/production"))
-    requiredTest.set(launchSmokeTest)
-}
 
 // Emulator smoke workflow: one invocation per suite, each gated on its own XML result.
 mapOf(

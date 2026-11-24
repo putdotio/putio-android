@@ -16,8 +16,8 @@ import org.junit.runner.RunWith
 
 /**
  * The harness launch proof: the shell reaches RESUMED, stays there through a
- * stability window, and actually composites pixels. `scripts/prove.sh` runs
- * this through `verifyLaunchProof`; a crash or ANR fails the instrumentation.
+ * stability window, and actually composites pixels. `:mobile:verifyCiPhoneLaunchProof`
+ * runs this on the `ciPhone` Gradle Managed Device; a crash or ANR fails the instrumentation.
  *
  * The pixel assertion exists because a resumed activity can still render
  * black under emulator load; the shell's dark surface (#161616) composites
