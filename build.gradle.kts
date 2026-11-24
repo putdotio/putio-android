@@ -23,7 +23,7 @@ val bash: String = HostBash.path
 val scriptCheckTools = providers.exec {
     commandLine(
         bash, "-c",
-        "for tool in bash python3 ffmpeg ffprobe shellcheck; do \"\$tool\" --version 2>&1 | head -1; done",
+        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done; shellcheck --version 2>&1 | awk '/^version:/ { print \"shellcheck \" \$2; exit }'",
     )
     isIgnoreExitValue = true
 }.standardOutput.asText
