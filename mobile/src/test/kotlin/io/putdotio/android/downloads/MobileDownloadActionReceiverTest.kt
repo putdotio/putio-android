@@ -11,11 +11,14 @@ import io.putdotio.android.playback.DirectPlayDownload
 import io.putdotio.android.playback.DirectPlayDownloadSource
 import io.putdotio.sdk.files.FileSubtitle
 import io.putdotio.sdk.files.PutioFileType
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -315,28 +318,29 @@ class MobileDownloadActionReceiverTest {
 
     @Test
     fun onReceiveBuildsProductionWorkOffMainThreadAfterBroadcastReturn() = runBlocking {
-        val factoryEntered = CompletableDeferred<Boolean>()
-        var insideOnReceive = false
-        var enteredDuringOnReceive = false
+        val factoryStartedOnMain = CompletableDeferred<Boolean>()
+        val allowFactoryToReturn = CountDownLatch(1)
+        val factoryCompletedAfterReturn = CompletableDeferred<Boolean>()
         MobileDownloadActionReceiver.retriesFactoryForTest = {
-            enteredDuringOnReceive = insideOnReceive
-            factoryEntered.complete(Looper.myLooper() == Looper.getMainLooper())
+            factoryStartedOnMain.complete(Looper.myLooper() == Looper.getMainLooper())
+            val releasedAfterReturn = allowFactoryToReturn.await(5, TimeUnit.SECONDS)
+            factoryCompletedAfterReturn.complete(releasedAfterReturn)
             retries
         }
         rows[USER to 11L] = row(11L, DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L))
 
         val receiver = MobileDownloadActionReceiver()
         val intent = shadowOf(MobileDownloadActionReceiver.retry(context, USER, FilesItemId(11L))).savedIntent
-        insideOnReceive = true
         try {
             receiver.onReceive(context, intent)
         } finally {
-            insideOnReceive = false
+            allowFactoryToReturn.countDown()
         }
 
-        val calledOnMain = kotlinx.coroutines.withTimeout(5_000L) { factoryEntered.await() }
-        assertTrue(!calledOnMain)
-        assertTrue(!enteredDuringOnReceive)
+        val calledOnMain = withTimeout(5_000L) { factoryStartedOnMain.await() }
+        val releasedAfterReturn = withTimeout(5_000L) { factoryCompletedAfterReturn.await() }
+        assertFalse(calledOnMain)
+        assertTrue(releasedAfterReturn)
     }
 
     private fun row(fileId: Long, status: DownloadStatus) = DownloadEntry(

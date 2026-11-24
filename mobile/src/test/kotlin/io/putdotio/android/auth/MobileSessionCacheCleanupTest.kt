@@ -11,6 +11,7 @@ import coil3.asImage
 import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.memory.MemoryCache
+import io.putdotio.android.PutioApplication
 import io.putdotio.android.files.ContinueWatchingEntry
 import io.putdotio.android.files.DeviceContinueWatchingStore
 import io.putdotio.android.files.FilesFolder
@@ -33,6 +34,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -43,6 +45,13 @@ class MobileSessionCacheCleanupTest {
     private val context: Context = ApplicationProvider.getApplicationContext()
     private val scopes = mutableListOf<CoroutineScope>()
     private var installedLoader: ImageLoader? = null
+
+    @Before
+    fun waitForStartupViewerCacheClear() {
+        val clearThread = (context.applicationContext as? PutioApplication)?.viewerCacheClearThread ?: return
+        clearThread.join(STARTUP_CLEAR_JOIN_MS)
+        assertFalse(clearThread.isAlive)
+    }
 
     @After
     fun tearDown() {
@@ -257,6 +266,7 @@ class MobileSessionCacheCleanupTest {
         const val CACHE_BYTES = 1024L * 1024L
         const val SWITCHED_FILE_ID = 42L
         const val POLL_DELAY_MS = 10L
+        const val STARTUP_CLEAR_JOIN_MS = 5_000L
         const val DATASTORE_TIMEOUT_MS = 5_000L
         const val DISK_KEY = "thumb-key"
         val MEMORY_KEY = MemoryCache.Key("avatar")

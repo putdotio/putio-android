@@ -13,6 +13,10 @@ import io.putdotio.android.telemetry.SentryConfiguration
 import kotlin.concurrent.thread
 
 class PutioApplication : Application(), SingletonImageLoader.Factory {
+    @Volatile
+    internal var viewerCacheClearThread: Thread? = null
+        private set
+
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
             .components {
@@ -33,6 +37,6 @@ class PutioApplication : Application(), SingletonImageLoader.Factory {
                 BuildConfig.VERSION_CODE,
             ),
         )
-        thread(name = "viewer-cache-clear") { FilesPdfDocument.clearCache(this) }
+        viewerCacheClearThread = thread(name = "viewer-cache-clear") { FilesPdfDocument.clearCache(this) }
     }
 }
