@@ -88,7 +88,6 @@ internal class MobileFilesActionsController(
     private val handoff: MobileVlcHandoff,
 ) {
     private val watchedJobs = mutableMapOf<FilesItemId, Deferred<PutioResult<Unit>>>()
-    // put.io has no bulk watched write in the Kotlin SDK yet, so a selection writes file by file.
     private val watchedPermits = Semaphore(WATCHED_CONCURRENCY)
     private var vlcHandoff: Job? = null
     private val mutableNotices = MutableSharedFlow<MobileFilesNotice>(
@@ -111,12 +110,25 @@ internal class MobileFilesActionsController(
     fun setWatched(item: FilesItem, watched: Boolean) = setWatched(listOf(item), watched)
 
     /**
-     * The sheet's watched toggle, or the selection's Watched. put.io has no bulk write in the Kotlin
-     * SDK yet, so each file is written on its own, a few at a time; each one put.io takes settles its
-     * row and Continue watching at once. One line then names the file it refused, or counts them.
+     * The sheet's watched toggle, or the selection's Watched. Marking several items unwatched
+     * clears their positions in one bulk request; marking watched writes each file's duration,
+     * a few at a time. Each accepted write settles its row and Continue watching at once.
      */
     fun setWatched(items: List<FilesItem>, watched: Boolean) {
-        val writes = items.mapNotNull { item -> writeWatched(item, watched)?.let { item to it } }
+        val targets = if (watched) items else items.distinctBy { it.id }
+        if (!watched && targets.size > 1) {
+            val write = writeBulkUnwatched(targets)
+            scope.launch {
+                val failure = (write.await() as? PutioResult.Failure)?.failure ?: return@launch
+                report(
+                    watchedRefusal(false, targets.first(), failure, targets.size) {
+                        setWatched(targets, false)
+                    },
+                )
+            }
+            return
+        }
+        val writes = targets.mapNotNull { item -> writeWatched(item, watched)?.let { item to it } }
         if (writes.isEmpty()) return
         // A 401 is the session's verdict: it signs out as soon as its write answers, not after the rest.
         writes.forEach { (_, write) ->
@@ -136,6 +148,38 @@ internal class MobileFilesActionsController(
             val retry = { setWatched(failed, watched) }.takeIf { writes.size > 1 }
             report(watchedRefusal(watched, item, failure, refused.size, retry))
         }
+    }
+
+    private fun writeBulkUnwatched(items: List<FilesItem>): Deferred<PutioResult<Unit>> {
+        val ids = items.map { it.id }
+        val orderedIds = ids.sortedBy(FilesItemId::value)
+        val previous = ids.mapNotNull { watchedJobs[it] }.distinct()
+        val write = scope.async(start = CoroutineStart.LAZY) {
+            previous.forEach { it.join() }
+            val result = watchedPermits.withPermit {
+                orderedIds.dropLast(1).forEach { id ->
+                    sources.positionWrites(id) { PutioResult.Success(Unit) }
+                }
+                sources.positionWrites(orderedIds.last()) {
+                    sources.watched.clearPositions(ids)
+                }
+            }
+            ensureActive()
+            val current = coroutineContext[Job]
+            ids.forEach { id ->
+                if (watchedJobs[id] === current) watchedJobs.remove(id)
+            }
+            if (result is PutioResult.Success) {
+                ids.forEach { id ->
+                    onFilesEvent(FilesBrowserEvent.PlaybackPositionReported(id, 0.0))
+                    onPositionSaved(id, 0.0)
+                }
+            }
+            result
+        }
+        ids.forEach { id -> watchedJobs[id] = write }
+        write.start()
+        return write
     }
 
     /**

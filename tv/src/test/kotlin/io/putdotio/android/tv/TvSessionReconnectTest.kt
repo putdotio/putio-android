@@ -136,6 +136,8 @@ class TvSessionReconnectTest {
             override suspend fun setPosition(itemId: FilesItemId, seconds: Double) = PutioResult.Failure(offline)
 
             override suspend fun clearPosition(itemId: FilesItemId) = PutioResult.Failure(offline)
+
+            override suspend fun clearPositions(itemIds: List<FilesItemId>) = PutioResult.Failure(offline)
         },
         streamUrls = FilesStreamUrls { error("No stream expected") },
         filesItemResolver = object : FilesItemResolver {

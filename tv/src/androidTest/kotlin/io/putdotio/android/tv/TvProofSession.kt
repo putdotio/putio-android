@@ -127,6 +127,8 @@ internal fun tvProofDependencies(
             PutioResult.Success(Unit)
 
         override suspend fun clearPosition(itemId: FilesItemId) = PutioResult.Success(Unit)
+
+        override suspend fun clearPositions(itemIds: List<FilesItemId>) = PutioResult.Success(Unit)
     },
     streamUrls = FilesStreamUrls { FilesStreamUrlResult.DownloadTokenUnavailable },
     filesItemResolver = object : FilesItemResolver {
