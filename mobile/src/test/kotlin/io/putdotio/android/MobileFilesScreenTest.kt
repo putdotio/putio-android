@@ -391,6 +391,14 @@ class MobileFilesScreenTest {
         }
         compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertIsDisplayed()
         compose.onNodeWithText("not a folder").assertDoesNotExist()
+
+        compose.runOnIdle {
+            state = browserState(
+                FilesContent.Failed(putioRefusal(404, putioErrorBody(404, "NOT_FOUND")).toPutioFailure()),
+            )
+        }
+        compose.onNodeWithText("It may have been moved or deleted.").assertIsDisplayed()
+        compose.onNodeWithText("put.io is temporarily unavailable. Try again.").assertDoesNotExist()
     }
 
     @Test
