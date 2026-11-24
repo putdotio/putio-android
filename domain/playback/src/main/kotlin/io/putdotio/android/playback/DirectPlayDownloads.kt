@@ -4,6 +4,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.files.FileDetailsQuery
 import io.putdotio.sdk.files.FileSubtitle
+import io.putdotio.sdk.files.FileSubtitlesResponse
 import io.putdotio.sdk.files.PlaybackCapabilities
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
@@ -25,6 +26,7 @@ public enum class DirectPlayDownloadSource {
 public data class DirectPlayDownload(
     val source: DirectPlayDownloadSource,
     val subtitles: List<FileSubtitle> = emptyList(),
+    val defaultSubtitleKey: String? = null,
 )
 
 public class DirectPlayDownloads internal constructor(
@@ -32,7 +34,7 @@ public class DirectPlayDownloads internal constructor(
     private val decision: OriginalPlaybackDecision,
     private val switchedToConverted: SwitchedToConvertedFiles,
     private val loadFile: suspend (Long) -> PutioFile,
-    private val listSubtitles: suspend (Long) -> List<FileSubtitle>,
+    private val listSubtitles: suspend (Long) -> FileSubtitlesResponse,
     private val io: CoroutineContext = Dispatchers.IO,
 ) {
     public constructor(
@@ -45,7 +47,7 @@ public class DirectPlayDownloads internal constructor(
         decision = OriginalPlaybackDecision(decoders),
         switchedToConverted = switchedToConverted,
         loadFile = { fileId -> client.files.get(fileId, MEDIA_INFO_QUERY) },
-        listSubtitles = { fileId -> client.files.listSubtitles(fileId).subtitles },
+        listSubtitles = { fileId -> client.files.listSubtitles(fileId) },
     )
 
     /**
@@ -65,8 +67,10 @@ public class DirectPlayDownloads internal constructor(
                     ?: return@withTimeoutOrNull
                 answer = DirectPlayDownload(source)
                 if (includeSubtitles && source != DirectPlayDownloadSource.Unavailable) {
-                    val subtitles = withTimeoutOrNull(SUBTITLES_TIMEOUT) { subtitles(fileId.value) }.orEmpty()
-                    answer = DirectPlayDownload(source, subtitles)
+                    val found = withTimeoutOrNull(SUBTITLES_TIMEOUT) { subtitles(fileId.value) }
+                    val subtitles = found?.subtitles.orEmpty()
+                    val defaultSubtitleKey = found?.defaultKey?.takeIf { key -> subtitles.any { it.key == key } }
+                    answer = DirectPlayDownload(source, subtitles, defaultSubtitleKey)
                 }
             }
             answer
@@ -101,13 +105,13 @@ public class DirectPlayDownloads internal constructor(
     }
 
     @Suppress("TooGenericExceptionCaught")
-    private suspend fun subtitles(fileId: Long): List<FileSubtitle> =
+    private suspend fun subtitles(fileId: Long): FileSubtitlesResponse? =
         try {
             listSubtitles(fileId)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
-            emptyList()
+            null
         }
 
     private fun PlaybackCapabilities.accept(file: PutioFile): Boolean =

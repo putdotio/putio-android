@@ -113,7 +113,10 @@ internal class OfflinePlaybackRepository(
             subtitles = when {
                 hls && !subtitlesHidden -> PlaybackSubtitles.Embedded
                 sidecars.isEmpty() -> PlaybackSubtitles.None
-                else -> PlaybackSubtitles.Sidecar(sidecars.map { it.toPlaybackSubtitle(PutioCredentialUrl::of) })
+                else -> PlaybackSubtitles.Sidecar(
+                    tracks = sidecars.map { it.toPlaybackSubtitle(PutioCredentialUrl::of) },
+                    defaultKey = sidecars.firstOrNull { it.isDefault }?.key,
+                )
             },
             format = if (hls) PlaybackStreamFormat.HLS else PlaybackStreamFormat.PROGRESSIVE,
         )

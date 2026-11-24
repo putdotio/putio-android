@@ -20,6 +20,7 @@ internal data class DownloadSubtitle(
     val languageCode: String,
     val name: String,
     val source: String,
+    val isDefault: Boolean = false,
 )
 
 internal class DownloadSources(
@@ -29,10 +30,10 @@ internal class DownloadSources(
         { _, _, _ -> null },
 )
 
-internal fun FileSubtitle.toDownloadSubtitle(): DownloadSubtitle? {
+internal fun FileSubtitle.toDownloadSubtitle(isDefault: Boolean = false): DownloadSubtitle? {
     val parsed = url.toHttpUrlOrNull()?.takeIf { it.isHttps && it.host == API_HOST } ?: return null
     val tokenFree = parsed.newBuilder().removeAllQueryParameters(OAUTH_TOKEN_QUERY).build()
-    return DownloadSubtitle(key, tokenFree.toString(), format, language, languageCode, name, source)
+    return DownloadSubtitle(key, tokenFree.toString(), format, language, languageCode, name, source, isDefault)
 }
 
 internal fun DownloadSubtitle.toPlaybackSubtitle(credentialUrl: (String) -> PutioCredentialUrl): PlaybackSubtitle =
@@ -49,7 +50,10 @@ internal fun List<DownloadSubtitle>.toJson(): JSONArray =
                     .put("languageCode", subtitle.languageCode)
                     .put("name", subtitle.name)
                     .put("source", subtitle.source)
-                    .also { json -> subtitle.format?.let { json.put("format", it) } },
+                    .also { json ->
+                        subtitle.format?.let { json.put("format", it) }
+                        if (subtitle.isDefault) json.put("isDefault", true)
+                    },
             )
         }
     }
@@ -75,6 +79,7 @@ private fun JSONObject.toDownloadSubtitleOrNull(): DownloadSubtitle? {
             languageCode = optString("languageCode"),
             name = optString("name"),
             source = optString("source"),
+            isDefault = optBoolean("isDefault", false),
         )
     }
 }
