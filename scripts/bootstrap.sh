@@ -98,6 +98,18 @@ if ! command -v ffmpeg >/dev/null 2>&1 || ! command -v ffprobe >/dev/null 2>&1; 
 fi
 command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg install did not put ffmpeg on PATH"
 
+if ! command -v shellcheck >/dev/null 2>&1; then
+  if command -v brew >/dev/null 2>&1; then
+    log "installing shellcheck for script linting"
+    brew install shellcheck
+  elif command -v apt-get >/dev/null 2>&1; then
+    apt_install shellcheck "script linting"
+  else
+    die "shellcheck missing; install it with your system package manager and re-run"
+  fi
+fi
+command -v shellcheck >/dev/null 2>&1 || die "shellcheck install did not put shellcheck on PATH"
+
 # emulator.sh needs lsof to find a free console port; macOS ships it, Debian images do not.
 if ! command -v lsof >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then

@@ -172,6 +172,21 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 if (variant.buildType == "release") {
                     val bundle = "bundle${variant.name.replaceFirstChar(Char::titlecase)}"
                     tasks.matching { it.name == bundle }.configureEach { dependsOn(":core:design:requireBrandFonts") }
+
+                    tasks.register<VerifyR8KeepTask>(
+                        "verify${variant.name.replaceFirstChar(Char::titlecase)}R8Keep",
+                    ) {
+                        group = "verification"
+                        description = "Require R8 to keep PostHog event classes and fields in ${variant.name}"
+                        seedsFile.set(
+                            layout.file(
+                                variant.artifacts.get(SingleArtifact.OBFUSCATION_MAPPING_FILE)
+                                    .map { it.asFile.parentFile.resolve("seeds.txt") },
+                            ),
+                        )
+                        requiredClasses.addAll(REQUIRED_R8_KEPT_CLASSES)
+                        stamp.set(layout.buildDirectory.file("verification/${variant.name}R8Keep.stamp"))
+                    }
                 }
             }
         }
@@ -251,6 +266,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
 
     private companion object {
         val ALLOWED_LICENSES = listOf("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "ASDKL")
+        val REQUIRED_R8_KEPT_CLASSES = listOf("com.posthog.PostHogEvent", "com.posthog.internal.PostHogBatchEvent")
         // PostHog's public project token, shared with putio-web and iOS; it only names the project.
         const val POSTHOG_TOKEN = "phc_DcWvN8MzbwTfNxki3GhGuBBBDHY5sfvtxfaKZQ3iRDvm" // gitleaks:allow
         // Keeps the highest code under Google Play's 2_100_000_000 ceiling.
