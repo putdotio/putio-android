@@ -125,7 +125,10 @@ class TvBackgroundAudioProofTest {
             }
             val playingDump = sessionBlock(shell("dumpsys media_session"), activeSession.id)
             Log.i("TvBgAudioProof", "879_PLAYING:\n$playingDump")
-            assertTrue("Expected state=PLAYING(3) in:\n$playingDump", playingDump.contains("state=PLAYING(3)"))
+            assertTrue(
+                "Expected PLAYING(3) in:\n$playingDump",
+                playingDump.hasDumpsysPlaybackState("PLAYING", PlatformPlaybackState.STATE_PLAYING),
+            )
             val playingPos = Regex("""position=(\d+)""").find(playingDump)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
             assertTrue("Expected position >= 2000 in:\n$playingDump", playingPos >= 2_000L)
 
@@ -139,7 +142,10 @@ class TvBackgroundAudioProofTest {
             }
             val pausedDump = sessionBlock(shell("dumpsys media_session"), activeSession.id)
             Log.i("TvBgAudioProof", "879_PAUSED:\n$pausedDump")
-            assertTrue("Expected state=PAUSED(2) in:\n$pausedDump", pausedDump.contains("state=PAUSED(2)"))
+            assertTrue(
+                "Expected PAUSED(2) in:\n$pausedDump",
+                pausedDump.hasDumpsysPlaybackState("PAUSED", PlatformPlaybackState.STATE_PAUSED),
+            )
         } finally {
             runOnMain {
                 session?.release()
@@ -234,9 +240,11 @@ class TvBackgroundAudioProofTest {
                         session.player.playWhenReady
                 }
             }
-            val dump = shell("dumpsys media_session")
-            val afterDestroyLine = dump.lines().firstOrNull { it.contains("state=PLAYING(3)") }
-            assertNotNull("Expected state=PLAYING(3) after activity destruction:\n$dump", afterDestroyLine)
+            val dump = sessionBlock(shell("dumpsys media_session"), initialSession.id)
+            val afterDestroyLine = dump.lines().firstOrNull {
+                it.hasDumpsysPlaybackState("PLAYING", PlatformPlaybackState.STATE_PLAYING)
+            }
+            assertNotNull("Expected PLAYING(3) after activity destruction:\n$dump", afterDestroyLine)
             Log.i("TvBgAudioProof", "880_AFTER_DESTROY: $afterDestroyLine")
 
             val relaunched = ActivityScenario.launch(TvProofActivity::class.java)
@@ -269,9 +277,10 @@ class TvBackgroundAudioProofTest {
 
     @Test
     fun coldMediaButtonStartWithoutHostedSessionDoesNotCrashService() {
+        val serviceComponent = "${context.packageName}/${TvPlaybackService::class.java.name}"
         runOnMain { TvPlaybackService.resetForTests() }
         waitUntil(5_000L) {
-            !shell("dumpsys activity services io.put.putio/.tv.player.TvPlaybackService").contains("isForeground=true")
+            !shell("dumpsys activity services $serviceComponent").contains("isForeground=true")
         }
 
         val intent = Intent(context, TvPlaybackService::class.java)
@@ -283,7 +292,7 @@ class TvBackgroundAudioProofTest {
         val latch = CountDownLatch(1)
         Handler(Looper.getMainLooper()).post { latch.countDown() }
         assertTrue("Main thread stalled after cold ACTION_MEDIA_BUTTON start", latch.await(5, TimeUnit.SECONDS))
-        val services = shell("dumpsys activity services io.put.putio/.tv.player.TvPlaybackService")
+        val services = shell("dumpsys activity services $serviceComponent")
         assertFalse("Service remained foregrounded unexpectedly:\n$services", services.contains("isForeground=true"))
     }
 
@@ -355,9 +364,9 @@ class TvBackgroundAudioProofTest {
 
     private fun sessionBlock(dump: String, tag: String): String {
         val lines = dump.lines()
-        val start = lines.indexOfFirst { it.contains(tag) }
+        val start = lines.indexOfLast { it.contains(tag) }
         if (start < 0) return dump
-        return lines.drop(start).take(12).joinToString("\n")
+        return lines.drop(start).take(14).joinToString("\n")
     }
 
     private fun shell(command: String): String {
@@ -387,3 +396,6 @@ class TvBackgroundAudioProofTest {
         const val ENABLED = "putio.tv.backgroundAudio.enabled"
     }
 }
+
+private fun String.hasDumpsysPlaybackState(name: String, code: Int): Boolean =
+    contains("state=$name($code)") || contains("state=$code,")
