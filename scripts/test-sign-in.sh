@@ -64,6 +64,9 @@ case "$*" in
     cat > "${FAKE_STATE}/pushed-token" ;;
   "exec-out run-as io.put.putio.mobile.debug sh -c 'cat files/harness/export-token && rm -f files/harness/export-token'")
     if [[ -e "${FAKE_STATE}/not-debuggable" ]]; then echo "run-as: package not debuggable: io.put.putio.mobile.debug"; exit 0; fi
+    if [[ -e "${FAKE_STATE}/multiline-export" ]]; then printf 'fake-app-token-from-approval\nextra-line\n'; exit 0; fi
+    if [[ -e "${FAKE_STATE}/leading-noise-export" ]]; then printf 'run-as: warning\nfake-app-token-from-approval\n'; exit 0; fi
+    if [[ -e "${FAKE_STATE}/single-line-newline-export" ]]; then printf 'fake-app-token-from-approval\n'; exit 0; fi
     [[ -e "${FAKE_STATE}/approved" && ! -e "${FAKE_STATE}/no-export" ]] && printf 'fake-app-token-from-approval' ;;
   *"am start -W --activity-clear-task --ez io.putdotio.android.harness.EXPORT_TOKEN true -n io.put.putio.mobile.debug/io.putdotio.android.auth.DebugDeviceSignInActivity")
     # The activity consumes a pushed token on launch.
@@ -235,6 +238,18 @@ run_case no-export no-export
 run_case not-debuggable not-debuggable
 [[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
 [[ ! -e "${cache}" ]] || fail "cached run-as's error as a token"
+
+run_case multiline-export multiline-export
+[[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
+[[ ! -e "${cache}" ]] || fail "cached a multi-line export"
+
+run_case leading-noise-export leading-noise-export
+[[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
+[[ ! -e "${cache}" ]] || fail "cached an export with leading noise"
+
+run_case single-line-newline-export single-line-newline-export
+[[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"
+[[ "$(cat "${cache}" 2>/dev/null)" == "${APP_TOKEN}" ]] || fail "did not cache single-line token ending in newline"
 
 run_case already-signed-in "app-account=${ACCOUNT}"
 [[ "${status}" == 0 && "${out}" == *"PROOF PASS"* ]] || fail "exit ${status}: ${err}"

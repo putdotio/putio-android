@@ -23,7 +23,7 @@ val bash: String = HostBash.path
 val scriptCheckTools = providers.exec {
     commandLine(
         bash, "-c",
-        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done",
+        "for tool in bash python3 ffmpeg ffprobe shellcheck; do \"\$tool\" --version 2>&1 | head -1; done",
     )
     isIgnoreExitValue = true
 }.standardOutput.asText
@@ -124,6 +124,12 @@ val checkDataSafety = tasks.register<Exec>("checkDataSafety") {
     commandLine("python3", "-B", "scripts/check-data-safety.py", "play/data-safety.csv")
 }
 
+val checkShellScripts = tasks.register<Exec>("checkShellScripts") {
+    description = "Lint every shell script in scripts/ with shellcheck"
+    cacheableCheck()
+    commandLine(bash, "-c", "shellcheck -x -S warning scripts/*.sh")
+}
+
 // package.json pins the Node tools so Renovate can bump them; they need Node on PATH.
 fun pinnedNodeTool(name: String) =
     providers.fileContents(layout.projectDirectory.file("package.json")).asText.map { text ->
@@ -197,6 +203,19 @@ val checkMiddleCut = tasks.register<CheckForbiddenSourceTask>("checkMiddleCut") 
     stamp.set(layout.buildDirectory.file("verification/checkMiddleCut.stamp"))
 }
 
+val checkOkHttpClient = tasks.register<CheckForbiddenSourceTask>("checkOkHttpClient") {
+    group = "verification"
+    description = "Forbid direct OkHttpClient construction outside core/common"
+    sources.from(
+        subprojects.filter { it.path != ":core:common" }
+            .map { project -> fileTree(project.projectDir.resolve("src/main")) { include("**/*.kt") } },
+    )
+    pattern.set("""\bOkHttpClient\s*(?:\(|\.\s*Builder\b|::)|\bokhttp3\.OkHttpClient\.Builder\b""")
+    reason.set("Derive HTTP clients from PutioHttpClient.newBuilder() instead of constructing OkHttpClient directly.")
+    repositoryRoot.set(layout.projectDirectory)
+    stamp.set(layout.buildDirectory.file("verification/checkOkHttpClient.stamp"))
+}
+
 val appProjects = setOf(":mobile", ":tv", ":baselineprofile:mobile", ":baselineprofile:tv")
 
 fun verifyLane(name: String, summary: String, vararg checks: Any) = tasks.register(name) {
@@ -215,10 +234,11 @@ val verifyDocs = verifyLane(
 
 val verifyScripts = verifyLane(
     "verifyScripts",
-    "Run the harness, design asset, icon and Data safety script checks",
+    "Run the harness, design asset, icon, shellcheck and Data safety script checks",
     checkDataSafety,
     checkDesignAssets,
     checkIcons,
+    checkShellScripts,
     testBaselineProfileHarness,
     testEmulatorHarness,
     testEvidence,
@@ -232,6 +252,7 @@ val verifyLibraries = verifyLane(
     subprojects.filter { it.buildFile.isFile && it.path !in appProjects }.map { "${it.path}:check" },
     ":domain:auth:assembleDebugAndroidTest",
     ":domain:transfers:assembleDebugAndroidTest",
+    checkOkHttpClient,
     gradle.includedBuild("build-logic").task(":test"),
 )
 
@@ -242,6 +263,7 @@ val verifyMobile = verifyLane(
     ":baselineprofile:mobile:check",
     ":mobile:assembleProductionDebugAndroidTest",
     checkMiddleCut,
+    checkOkHttpClient,
 )
 
 val verifyTv = verifyLane(
@@ -251,14 +273,18 @@ val verifyTv = verifyLane(
     ":baselineprofile:tv:check",
     ":tv:assembleProductionDebugAndroidTest",
     checkMiddleCut,
+    checkOkHttpClient,
 )
 
 val verifyRelease = verifyLane(
     "verifyRelease",
-    "Assemble the minified release builds",
+    "Assemble the minified release builds and check kept R8 symbols",
     ":mobile:assembleProductionRelease",
+    ":mobile:verifyProductionReleaseR8Keep",
     ":tv:assembleProductionRelease",
+    ":tv:verifyProductionReleaseR8Keep",
     ":tv:assembleNightlyRelease",
+    ":tv:verifyNightlyReleaseR8Keep",
 )
 
 tasks.register("verify") {

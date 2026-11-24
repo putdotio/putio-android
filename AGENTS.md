@@ -29,6 +29,10 @@ script headers and `--help` own the harness.
   sessions, and platform search.
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
   API boundary. Close an SDK gap there.
+- Derive every `OkHttpClient` from `PutioHttpClient.newBuilder()` outside
+  `core/common`, and use `PutioHttpClient.shared` (`callTimeout = 0`) for
+  multipart uploads because a custom SDK client drops the SDK's
+  upload-timeout exemption (`MobileNetworkingPoolTest`).
 - A change to TV startup, sign-in or Home regenerates the TV baseline profile
   with `scripts/generate-baseline-profile.sh` on an emulator you booted.
 - Design values and icons are generated: change the locks in `design/`, then
@@ -105,7 +109,7 @@ refreshes them; `verify` fails when their files differ from the lock.
 ```
 
 The script checks in [`verify`](build.gradle.kts) need `bash` 3.2+, `python3`,
-`node`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
+`node`, `shellcheck`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
 encoder on PATH.
 `markdownCheck` runs oxfmt at the version [package.json](package.json) pins;
 `npx --yes oxfmt@<version> '**/*.md'` fixes its findings.
