@@ -413,6 +413,20 @@ class SdkFilesRepositoryTest {
         assertNull(sdkFile(9L, "i.mkv", PutioFileType.VIDEO).copy(startFrom = Double.NaN).toFilesItem().playback)
     }
 
+    @Test
+    fun mapsContentTypeAndDropsBlankValues() {
+        assertEquals(
+            "text/plain",
+            sdkFile(1L, "README", PutioFileType.TEXT).copy(contentType = "text/plain").toFilesItem().contentType,
+        )
+        assertNull(
+            sdkFile(2L, "notes", PutioFileType.FILE).copy(contentType = "   ").toFilesItem().contentType,
+        )
+        assertNull(
+            sdkFile(3L, "notes", PutioFileType.FILE).copy(contentType = null).toFilesItem().contentType,
+        )
+    }
+
     private fun sdkFile(
         id: Long,
         name: String,

@@ -28,6 +28,8 @@ public data class FilesItem(
     val screenshotUrl: String? = null,
     /** The API's `updated_at`; absent when the response omits it. */
     val updatedAt: String? = null,
+    /** The API's `content_type`; null when omitted or blank. */
+    val contentType: String? = null,
 ) {
     val isFolder: Boolean
         get() = type == PutioFileType.FOLDER
