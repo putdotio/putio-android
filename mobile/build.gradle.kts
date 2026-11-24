@@ -1,6 +1,5 @@
 import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.HostTestBuilder
-import java.io.File
 import java.util.Properties
 
 // Ignored root local.properties key `putioMobileOAuthClientIdDebugOverride`.
@@ -177,22 +176,6 @@ mapOf(
         ))
         requiredTest.set(test)
     }
-}
-
-// Separate from connectedAndroidTest: preserve the installed app's encrypted session.
-tasks.register<RunAuthenticatedRenameProofTask>("proveAuthenticatedRename") {
-    group = "verification"
-    description = "Run the opted-in authenticated rename flow on an existing API 37 emulator"
-    dependsOn("assembleProductionDebug", "assembleProductionDebugAndroidTest")
-    proofEnabled.set(providers.gradleProperty("putioRenameEnabled").map { it == "true" }.orElse(false))
-    serial.set(providers.gradleProperty("putioRenameSerial").orElse(""))
-    val proofRoot = rootProject.projectDir.absolutePath
-    fixtureFile.set(rootProject.layout.file(providers.gradleProperty("putioRenameFixture").map {
-        File(it).let { path -> if (path.isAbsolute) path else File(proofRoot, it) }
-    }))
-    repositoryDirectory.set(rootProject.layout.projectDirectory)
-    apkDirectory.set(layout.buildDirectory.dir("outputs/apk/production/debug"))
-    testApkDirectory.set(layout.buildDirectory.dir("outputs/apk/androidTest/production/debug"))
 }
 
 dependencies {
