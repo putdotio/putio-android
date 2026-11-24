@@ -568,7 +568,7 @@ internal class TvSession internal constructor(
     fun dismissHistoryOpenFailure() = historyOpener.dismissFailure()
 
     internal fun closeOnSessionEnded() {
-        audio.host.stop()
+        audio.host.stop(cancelWrites = true)
         close()
     }
 

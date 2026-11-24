@@ -78,6 +78,7 @@ internal class TvAudioPlaybackHost {
     private val mutableActive = MutableStateFlow<TvHostedAudio?>(null)
     private val settingsSnapshot = MutableStateFlow(AccountSettingsReducer.start().state)
     private var hostJob: Job? = null
+    private var sessionReporting: SessionReporting? = null
     private var onSaved: ((fileId: Long, seconds: Double) -> Unit)? = null
     private var onAuthRejected: (() -> Unit)? = null
     private var sessionRejected = false
@@ -87,25 +88,35 @@ internal class TvAudioPlaybackHost {
     val active: StateFlow<TvHostedAudio?> = mutableActive.asStateFlow()
 
     fun start(request: TvAudioStartRequest): PlaybackController {
-        stop()
         val identity = request.identity
         val media = request.media
         val callbacks = request.callbacks
+        val retained = sessionReporting?.takeIf { it.matches(identity) }
+        stop(cancelWrites = retained == null)
         settingsSnapshot.value = callbacks.settings.value
         onSaved = callbacks.onSaved
         onAuthRejected = callbacks.onAuthenticationRejected
-        sessionRejected = false
+        val reporting = if (retained != null) {
+            retained.writePosition = callbacks.writePlaybackPosition
+            retained.reporting.startPlayback()
+            retained.reporting
+        } else {
+            sessionRejected = false
+            createSessionReporting(
+                request = request,
+                settings = settingsSnapshot,
+                onSaved = { fileId, seconds -> onSaved?.invoke(fileId, seconds) },
+                onRejected = {
+                    sessionRejected = true
+                    onAuthRejected?.invoke()
+                },
+                onSessionEnded = { stop(cancelWrites = true) },
+            ).also { sessionReporting = it }.reporting
+        }
         val job = SupervisorJob()
         val scope = CoroutineScope(Dispatchers.Main.immediate + job)
         hostJob = job
         val controller = PlaybackController(media.target, callbacks.playbackRepository, scope, analytics = true)
-        val reporting = TvPlaybackReporting(
-            scope = scope,
-            settings = settingsSnapshot,
-            sessionCurrent = { identity.authState.value.matches(identity.sessionKey) },
-            write = callbacks.writePlaybackPosition,
-            onSaved = { fileId, seconds -> onSaved?.invoke(fileId, seconds) },
-        )
         val queue = identity.application?.let { app ->
             TvPlaybackQueue(
                 context = app.applicationContext,
@@ -119,7 +130,7 @@ internal class TvAudioPlaybackHost {
                 },
                 defaultAnalytics = controller.analyticsReporter,
                 onFailure = { failure, positionMillis -> reportFailure(controller, failure, positionMillis) },
-                onQueueFinished = ::stop,
+                onQueueFinished = { stop() },
             ).also(TvPlaybackQueue::start)
         }
         mutableActive.value = TvHostedAudio(
@@ -132,26 +143,17 @@ internal class TvAudioPlaybackHost {
             reporting = reporting,
         )
         scope.launch { controller.answerResumePrompts(media.startItem.id, media.startAnswer) }
-        scope.launch {
-            reporting.authenticationRejected.collect { rejected ->
-                if (rejected) {
-                    sessionRejected = true
-                    onAuthRejected?.invoke()
-                }
-            }
-        }
-        scope.launch {
-            identity.authState.collect { auth -> if (!auth.matches(identity.sessionKey)) stop() }
-        }
         return controller
     }
 
     fun reattach(attachments: TvAudioSessionAttachments): TvHostedAudio? {
-        val hosted = mutableActive.value?.takeIf { it.sessionKey == attachments.sessionKey } ?: return null
-        settingsSnapshot.value = attachments.settings.value
-        onSaved = attachments.onSaved
-        onAuthRejected = attachments.onAuthenticationRejected
-        if (sessionRejected) attachments.onAuthenticationRejected()
+        val hosted = mutableActive.value?.takeIf { it.sessionKey == attachments.sessionKey }
+        if (hosted != null || sessionReporting?.sessionKey == attachments.sessionKey) {
+            settingsSnapshot.value = attachments.settings.value
+            onSaved = attachments.onSaved
+            onAuthRejected = attachments.onAuthenticationRejected
+            if (sessionRejected) attachments.onAuthenticationRejected()
+        }
         return hosted
     }
 
@@ -177,25 +179,74 @@ internal class TvAudioPlaybackHost {
         mutableActive.value?.controller === controller
 
     suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T =
-        mutableActive.value?.reporting?.supersede(fileId, block) ?: block()
+        sessionReporting?.reporting?.supersede(fileId, block) ?: block()
 
-    fun stop() {
-        val hosted = mutableActive.getAndUpdate { null } ?: return
+    fun stop(cancelWrites: Boolean = false) {
+        if (cancelWrites) {
+            onSaved = null
+            onAuthRejected = null
+            sessionRejected = false
+            sessionReporting?.close()
+            sessionReporting = null
+        }
+        val hosted = mutableActive.getAndUpdate { null }
         val job = hostJob
         hostJob = null
-        onSaved = null
-        onAuthRejected = null
-        sessionRejected = false
-        hosted.queue?.close()
-        hosted.reporting.close()
-        hosted.controller.close()
+        hosted?.queue?.close()
+        hosted?.controller?.close()
         job?.cancel()
     }
 
     fun resetForTests() {
-        stop()
+        stop(cancelWrites = true)
         playerFactory = DefaultTvPlayerFactory
     }
+}
+
+private class SessionReporting(
+    val sessionKey: TvSessionKey?,
+    val authState: StateFlow<TvAuthState>,
+    val job: Job,
+    val reporting: TvPlaybackReporting,
+    var writePosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
+) {
+    fun matches(identity: TvAudioSessionIdentity): Boolean =
+        sessionKey == identity.sessionKey && authState === identity.authState
+
+    fun close() {
+        reporting.close()
+        job.cancel()
+    }
+}
+
+private fun createSessionReporting(
+    request: TvAudioStartRequest,
+    settings: StateFlow<AccountSettingsState>,
+    onSaved: (Long, Double) -> Unit,
+    onRejected: () -> Unit,
+    onSessionEnded: () -> Unit,
+): SessionReporting {
+    val identity = request.identity
+    val job = SupervisorJob()
+    val scope = CoroutineScope(Dispatchers.Main.immediate + job)
+    lateinit var created: SessionReporting
+    val reporting = TvPlaybackReporting(
+        scope = scope,
+        settings = settings,
+        sessionCurrent = { identity.authState.value.matches(identity.sessionKey) },
+        write = { fileId, seconds -> created.writePosition(fileId, seconds) },
+        onSaved = onSaved,
+    )
+    created = SessionReporting(
+        sessionKey = identity.sessionKey,
+        authState = identity.authState,
+        job = job,
+        reporting = reporting,
+        writePosition = request.callbacks.writePlaybackPosition,
+    )
+    scope.launch { reporting.authenticationRejected.collect { rejected -> if (rejected) onRejected() } }
+    scope.launch { identity.authState.collect { auth -> if (!auth.matches(identity.sessionKey)) onSessionEnded() } }
+    return created
 }
 
 private fun reportFailure(controller: PlaybackController, failure: PlaybackFailure, positionMillis: Long) {
