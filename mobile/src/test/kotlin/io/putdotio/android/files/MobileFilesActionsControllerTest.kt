@@ -28,6 +28,8 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.test.runCurrent
 
@@ -110,9 +112,7 @@ class MobileFilesActionsControllerTest {
         advanceUntilIdle()
 
         assertEquals(videos.map { it.id }, watched.positions.map { it.first })
-        // The Kotlin SDK has no bulk write yet: at most four writes are in flight at once.
         assertEquals(4, mostInFlight)
-        // Every write put.io took settles its row and Continue watching; the two it refused do not.
         val settled = videos.map { it.id } - watched.failing
         assertEquals(settled.map { FilesBrowserEvent.PlaybackPositionReported(it, 3_000.0) }, events)
         val notice = notices.single()
@@ -341,9 +341,145 @@ class MobileFilesActionsControllerTest {
         assertEquals(listOf(R.string.mobile_files_undo_failed), notices.map { it.message })
     }
 
-    private fun TestScope.controller(scope: CoroutineScope = this) = MobileFilesActionsController(
+    @Test
+    fun markingASelectionUnwatchedClearsAllItemsInOneBulkRequest() = runTest {
+        val controller = controller()
+        val videoB = video.copy(id = FilesItemId(8L), name = "Episode 2.mkv")
+        row.opened(videoB.id, videoB.name, 3_000.0)
+        row.positionSaved(videoB.id, 600.0)
+
+        controller.setWatched(listOf(video, videoB, video), watched = false)
+        advanceUntilIdle()
+
+        assertEquals(listOf(listOf(video.id, videoB.id)), watched.clearedBulk)
+        assertTrue(watched.cleared.isEmpty())
+        assertEquals(
+            listOf(
+                FilesBrowserEvent.PlaybackPositionReported(video.id, 0.0),
+                FilesBrowserEvent.PlaybackPositionReported(videoB.id, 0.0),
+            ),
+            events,
+        )
+        assertTrue(row.entries.value.isEmpty())
+    }
+
+    @Test
+    fun bulkUnwatchedSupersedesEveryItemWithoutDeadlockingOnASharedPositionLock() = runTest {
+        val lock = Mutex()
+        val superseded = mutableListOf<FilesItemId>()
+        val controller = controller(
+            positionWrites = { id, write ->
+                superseded += id
+                lock.withLock { write() }
+            },
+        )
+        val videoB = video.copy(id = FilesItemId(8L), name = "Episode 2.mkv")
+
+        controller.setWatched(listOf(videoB, video), watched = false)
+        advanceUntilIdle()
+
+        assertEquals(listOf(video.id, videoB.id), superseded)
+        assertEquals(listOf(listOf(videoB.id, video.id)), watched.clearedBulk)
+    }
+
+    @Test
+    fun aFailedBulkUnwatchedEmitsPluralNoticeWithRetryAndA401RejectsSession() = runTest {
+        val controller = controller()
+        val notices = mutableListOf<MobileFilesNotice>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.notices.toList(notices) }
+        val videoB = video.copy(id = FilesItemId(8L), name = "Episode 2.mkv")
+        row.opened(videoB.id, videoB.name, 3_000.0)
+        row.positionSaved(videoB.id, 600.0)
+
+        watched.result = PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
+        controller.setWatched(listOf(video, videoB), watched = false)
+        advanceUntilIdle()
+
+        val notice = notices.single()
+        assertEquals(R.plurals.mobile_files_mark_unwatched_failed_many, notice.message)
+        assertEquals(2, notice.count)
+        assertTrue(notice.action != null)
+        assertTrue(events.isEmpty())
+        assertEquals(2, row.entries.value.size)
+
+        watched.result = PutioResult.Success(Unit)
+        checkNotNull(notice.action).invoke()
+        advanceUntilIdle()
+
+        assertEquals(2, watched.clearedBulk.size)
+        assertEquals(
+            listOf(
+                FilesBrowserEvent.PlaybackPositionReported(video.id, 0.0),
+                FilesBrowserEvent.PlaybackPositionReported(videoB.id, 0.0),
+            ),
+            events,
+        )
+        assertTrue(row.entries.value.isEmpty())
+
+        events.clear()
+        watched.result = PutioResult.Failure(PutioFailure.AuthenticationRequired(PutioConfigurationException("401")))
+        controller.setWatched(listOf(video, videoB), watched = false)
+        advanceUntilIdle()
+
+        assertEquals(1, rejected)
+        assertEquals(1, notices.size)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun bulkUnwatchedOrdersWithPriorAndSubsequentPerFileWrites() = runTest {
+        val controller = controller()
+        val videoB = video.copy(id = FilesItemId(8L), name = "Episode 2.mkv")
+        val first = CompletableDeferred<PutioResult<Unit>>()
+        val bulkGate = CompletableDeferred<PutioResult<Unit>>()
+        var step = 0
+        watched.next = {
+            when (++step) {
+                1 -> first.await()
+                2 -> bulkGate.await()
+                else -> PutioResult.Success(Unit)
+            }
+        }
+
+        controller.setWatched(video, watched = true)
+        runCurrent()
+        controller.setWatched(listOf(video, videoB), watched = false)
+        runCurrent()
+        controller.setWatched(video, watched = true)
+        runCurrent()
+
+        assertEquals(listOf("set"), watched.answered)
+
+        first.complete(PutioResult.Success(Unit))
+        runCurrent()
+        assertEquals(listOf("set", "clearBulk"), watched.answered)
+
+        bulkGate.complete(PutioResult.Success(Unit))
+        advanceUntilIdle()
+        assertEquals(listOf("set", "clearBulk", "set"), watched.answered)
+        assertEquals(
+            listOf(
+                FilesBrowserEvent.PlaybackPositionReported(video.id, 3_000.0),
+                FilesBrowserEvent.PlaybackPositionReported(video.id, 0.0),
+                FilesBrowserEvent.PlaybackPositionReported(videoB.id, 0.0),
+                FilesBrowserEvent.PlaybackPositionReported(video.id, 3_000.0),
+            ),
+            events,
+        )
+    }
+
+    private fun TestScope.controller(
+        scope: CoroutineScope = this,
+        positionWrites: suspend (FilesItemId, suspend () -> PutioResult<Unit>) -> PutioResult<Unit> =
+            { _, write -> write() },
+    ) = MobileFilesActionsController(
         scope = scope,
-        sources = MobileFilesActionSources(watched, { streamGate?.await(); stream }, trash),
+        sources = MobileFilesActionSources(
+            watched = watched,
+            streamUrls = { streamGate?.await(); stream },
+            trash = trash,
+            positionWrites = positionWrites,
+        ),
         onFilesEvent = { events += it; true },
         onPositionSaved = row::positionSaved,
         onAuthenticationRequired = { rejected++ },
@@ -362,6 +498,7 @@ class MobileFilesActionsControllerTest {
     private class RecordingWatched : FilesWatchedRepository {
         val positions = mutableListOf<Pair<FilesItemId, Double>>()
         val cleared = mutableListOf<FilesItemId>()
+        val clearedBulk = mutableListOf<List<FilesItemId>>()
         var result: PutioResult<Unit> = PutioResult.Success(Unit)
         var next: (suspend () -> PutioResult<Unit>)? = null
         var failing: Set<FilesItemId> = emptySet()
@@ -380,6 +517,12 @@ class MobileFilesActionsControllerTest {
         override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> {
             cleared += itemId
             answered += "clear"
+            return next?.let { answer -> withContext(NonCancellable) { answer() } } ?: result
+        }
+
+        override suspend fun clearPositions(itemIds: List<FilesItemId>): PutioResult<Unit> {
+            clearedBulk += itemIds
+            answered += "clearBulk"
             return next?.let { answer -> withContext(NonCancellable) { answer() } } ?: result
         }
     }

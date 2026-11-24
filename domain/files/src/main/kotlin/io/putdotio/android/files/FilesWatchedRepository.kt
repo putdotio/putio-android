@@ -8,6 +8,7 @@ import io.putdotio.sdk.PutioClient
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.account.AccountInfo
 import io.putdotio.sdk.errors.PutioException
+import io.putdotio.sdk.files.FilesWatchStatusInput
 import java.util.concurrent.CancellationException
 
 /** The account's saved position for a media file, which is what "watched" means on put.io. */
@@ -17,6 +18,9 @@ public interface FilesWatchedRepository {
 
     /** Drops the saved position, so the file reads as unwatched. */
     public suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit>
+
+    /** Drops saved positions for [itemIds] in one request, so they read as unwatched. */
+    public suspend fun clearPositions(itemIds: List<FilesItemId>): PutioResult<Unit>
 }
 
 public class SdkFilesWatchedRepository(
@@ -27,6 +31,15 @@ public class SdkFilesWatchedRepository(
 
     override suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit> =
         putioRequest { client.files.resetStartFrom(itemId.value) }
+
+    override suspend fun clearPositions(itemIds: List<FilesItemId>): PutioResult<Unit> {
+        if (itemIds.isEmpty()) return PutioResult.Success(Unit)
+        return putioRequest {
+            client.files.setWatchStatus(
+                FilesWatchStatusInput(watched = false, ids = itemIds.map(FilesItemId::value)),
+            )
+        }
+    }
 }
 
 /**

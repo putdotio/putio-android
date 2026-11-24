@@ -1053,6 +1053,11 @@ private class FakeWatchedRepository : FilesWatchedRepository {
         calls += itemId to null
         return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
     }
+
+    override suspend fun clearPositions(itemIds: List<FilesItemId>): PutioResult<Unit> {
+        itemIds.forEach { calls += it to null }
+        return failure?.let { PutioResult.Failure(it) } ?: PutioResult.Success(Unit)
+    }
 }
 
 private object StubAccountSettingsRepository : AccountSettingsRepository {
