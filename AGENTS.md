@@ -108,7 +108,7 @@ refreshes them; `verify` fails when their files differ from the lock.
 ./gradlew :mobile:assembleProductionDebug :tv:assembleProductionDebug
 ```
 
-The script checks in [`verify`](build.gradle.kts) need `bash` 3.2+, `python3`,
+The script checks in [`verify`](build-logic/src/main/kotlin/PutioRootPlugin.kt) need `bash` 3.2+, `python3`,
 `node`, `shellcheck`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
 encoder on PATH.
 `markdownCheck` runs the locked tools from [pnpm-lock.yaml](pnpm-lock.yaml)

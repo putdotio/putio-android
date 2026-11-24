@@ -1,6 +1,5 @@
 plugins {
     id("putio.android.library")
-    id("putio.build-logic")
 }
 
 android {

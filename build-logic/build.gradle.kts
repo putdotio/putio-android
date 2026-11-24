@@ -30,5 +30,9 @@ gradlePlugin {
             id = "putio.android.library"
             implementationClass = "PutioAndroidLibraryPlugin"
         }
+        register("root") {
+            id = "putio.root"
+            implementationClass = "PutioRootPlugin"
+        }
     }
 }
