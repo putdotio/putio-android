@@ -7,6 +7,7 @@ import io.putdotio.android.playback.DirectPlayDownloadSource.Converted
 import io.putdotio.android.playback.DirectPlayDownloadSource.Original
 import io.putdotio.android.playback.DirectPlayDownloadSource.Unavailable
 import io.putdotio.sdk.files.FileSubtitle
+import io.putdotio.sdk.files.FileSubtitlesResponse
 import io.putdotio.sdk.files.PutioFile
 import io.putdotio.sdk.files.PutioFileType
 import io.putdotio.sdk.files.PutioMediaInfo
@@ -96,6 +97,30 @@ class DirectPlayDownloadsTest {
     }
 
     @Test
+    fun subtitleDefaultKeySurvivesWhenListedAndDropsWhenUnknown() = runBlocking {
+        val video = file(H264_MKV, captured("h264-high-aac.mkv"))
+        val listed = listOf(ENGLISH, TURKISH)
+
+        val matched = downloads(OriginalVideoPolicy.Check, subtitles = listed, defaultSubtitleKey = "tr-key")
+        assertEquals(
+            DirectPlayDownload(Original, listed, defaultSubtitleKey = "tr-key"),
+            matched.resolve(video, includeSubtitles = true),
+        )
+
+        val unknown = downloads(OriginalVideoPolicy.Check, subtitles = listed, defaultSubtitleKey = "unknown-key")
+        assertEquals(
+            DirectPlayDownload(Original, listed, defaultSubtitleKey = null),
+            unknown.resolve(video, includeSubtitles = true),
+        )
+
+        val none = downloads(OriginalVideoPolicy.Check, subtitles = listed, defaultSubtitleKey = null)
+        assertEquals(
+            DirectPlayDownload(Original, listed, defaultSubtitleKey = null),
+            none.resolve(video, includeSubtitles = true),
+        )
+    }
+
+    @Test
     fun aFailedSubtitleListingKeepsTheFileAndAFailedFileLookupAnswersNothing() = runBlocking {
         val noSubtitles = DirectPlayDownloads(
             originalVideoPolicy = { OriginalVideoPolicy.Check },
@@ -113,7 +138,7 @@ class DirectPlayDownloadsTest {
             decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
             switchedToConverted = SwitchedToConvertedFiles.None,
             loadFile = { error("offline") },
-            listSubtitles = { emptyList() },
+            listSubtitles = { FileSubtitlesResponse(status = "OK") },
         )
         assertNull(offline.resolve(FilesItemId(H264_MP4), includeSubtitles = true))
     }
@@ -139,7 +164,7 @@ class DirectPlayDownloadsTest {
             decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
             switchedToConverted = SwitchedToConvertedFiles.None,
             loadFile = { awaitCancellation() },
-            listSubtitles = { emptyList() },
+            listSubtitles = { FileSubtitlesResponse(status = "OK") },
             io = EmptyCoroutineContext,
         )
         val answer = async { silent.resolve(video, includeSubtitles = true) }
@@ -200,6 +225,7 @@ class DirectPlayDownloadsTest {
         policy: OriginalVideoPolicy,
         switched: Set<Long> = emptySet(),
         subtitles: List<FileSubtitle> = emptyList(),
+        defaultSubtitleKey: String? = null,
     ) = DirectPlayDownloads(
         originalVideoPolicy = { policy },
         decision = OriginalPlaybackDecision(FakeDecoderInventory(PHONE)),
@@ -213,7 +239,7 @@ class DirectPlayDownloadsTest {
         loadFile = { files.getValue(it) },
         listSubtitles = { id ->
             subtitleLookups += id
-            subtitles
+            FileSubtitlesResponse(defaultKey = defaultSubtitleKey, subtitles = subtitles, status = "OK")
         },
     )
 
@@ -237,6 +263,15 @@ class DirectPlayDownloadsTest {
             name = "Sintel.en.srt",
             source = "opensubtitles",
             url = "https://api.put.io/v2/files/15/subtitles/en-key?oauth_token=download",
+        )
+        val TURKISH = FileSubtitle(
+            format = "srt",
+            key = "tr-key",
+            language = "Turkish",
+            languageCode = "tur",
+            name = "Sintel.tr.srt",
+            source = "opensubtitles",
+            url = "https://api.put.io/v2/files/15/subtitles/tr-key?oauth_token=download",
         )
     }
 }

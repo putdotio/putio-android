@@ -144,7 +144,9 @@ internal fun DownloadEntry.decidedBy(directPlay: DirectPlayDownload?): DownloadE
         )
         else -> copy(
             artifact = artifact,
-            subtitles = directPlay.subtitles.mapNotNull { it.toDownloadSubtitle() },
+            subtitles = directPlay.subtitles.mapNotNull {
+                it.toDownloadSubtitle(isDefault = it.key == directPlay.defaultSubtitleKey)
+            },
             directPlayUnanswered = false,
         )
     }

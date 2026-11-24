@@ -96,7 +96,9 @@ internal fun DownloadEntry.downloadRequest(userId: Long, files: FilesApi): Downl
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun DownloadRequest.fetchesSameAs(other: DownloadRequest): Boolean =
-    uri == other.uri && data.toDownloadRequestData().subtitles == other.data.toDownloadRequestData().subtitles
+    uri == other.uri &&
+        data.toDownloadRequestData().subtitles.map { it.copy(isDefault = false) } ==
+        other.data.toDownloadRequestData().subtitles.map { it.copy(isDefault = false) }
 
 private val DownloadEntry.requestMimeType: String?
     get() = when {
