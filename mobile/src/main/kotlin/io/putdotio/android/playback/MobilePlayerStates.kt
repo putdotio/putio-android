@@ -79,8 +79,7 @@ internal fun MobilePlaybackFailureState(
     video: Boolean = false,
     onOpenInVlc: (() -> Unit)? = null,
 ) {
-    val message = failure.apiReason?.takeUnless { failure.putioFailure.isNotFound }
-        ?: stringResource(failure.messageResource())
+    val message = failure.apiReason ?: stringResource(failure.messageResource())
     val needsAnotherPlayer = failure is PlaybackFailure.MediaUnsupported
     val baseMessage = when {
         !video -> message

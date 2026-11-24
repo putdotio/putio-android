@@ -104,6 +104,15 @@ class TvFilesFailureTest {
     }
 
     @Test
+    fun aMissingFolderWithPutiosProseReasonKeepsTheAppsNotFoundCopy() {
+        val failure = putioRefusal(404, putioErrorBody(404, "File not found.")).toPutioFailure()
+        compose.showFiles(state = { state(FilesContent.Failed(failure)) })
+        compose.onNodeWithText("File not found").assertIsDisplayed()
+        compose.onNodeWithText("It may have been moved or deleted.").assertIsDisplayed()
+        compose.onNodeWithText("File not found.").assertDoesNotExist()
+    }
+
+    @Test
     fun anOfflineFolderOffersTryNowAndNoSort() {
         val events = mutableListOf<FilesBrowserEvent>()
         compose.showFiles(state = { state(FilesContent.Failed(networkFailure())) }, onEvent = { events += it; true })

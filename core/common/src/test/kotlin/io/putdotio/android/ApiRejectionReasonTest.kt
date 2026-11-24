@@ -20,7 +20,7 @@ class ApiRejectionReasonTest {
         )
 
         assertEquals("A file with this name already exists.", wrapped.apiRejectionReason())
-        assertEquals("not a folder", refusal(404, "not a folder").apiRejectionReason())
+        assertEquals("not a folder", refusal(422, "not a folder").apiRejectionReason())
         assertEquals("invalid sort_by param", refusal(400, "invalid sort_by param").apiRejectionReason())
         listOf("Read-only", "This file cannot be tokenized.").forEach { prose ->
             assertEquals(prose, refusal(400, prose).apiRejectionReason())
@@ -29,10 +29,11 @@ class ApiRejectionReasonTest {
 
     @Test
     fun `statuses the app explains itself, server errors and transport failures keep the app's copy`() {
-        listOf(401, 403, 408, 429, 500, 503).forEach { status ->
+        listOf(401, 403, 404, 408, 429, 500, 503).forEach { status ->
             assertNull("$status", refusal(status, REASON).apiRejectionReason())
             assertNull("$status", refusal(status, REASON).toPutioFailure().apiReason)
         }
+        assertNull(refusal(404, "not a folder").apiRejectionReason())
         assertNull(refusal(400, REASON, httpStatusCode = 502).apiRejectionReason())
         val transport =
             PutioTransportException(PutioRequestData("GET", "https://api.put.io/v2/files/list"), IOException("reset"))
