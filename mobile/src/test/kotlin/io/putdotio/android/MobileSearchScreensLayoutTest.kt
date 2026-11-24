@@ -125,6 +125,32 @@ class MobileSearchScreensLayoutTest {
     }
 
     @Test
+    fun sharedByAndSizeKeepTimeUnwrappedAtDoubleFontScale() {
+        setScreen(
+            history = HistoryEventKind.File(
+                id = HistoryFileId(7),
+                name = HISTORY_NAME,
+                sharedBy = "alice.longname",
+                fileSizeBytes = 1_500_000_000L,
+            ),
+        )
+        compose.onNodeWithText("Shared by", substring = true, useUnmergedTree = true).assertIsDisplayed()
+        val sizeLayouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("1.5 GB", substring = true, useUnmergedTree = true)
+            .assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(sizeLayouts) }
+        assertEquals(1, sizeLayouts.single().lineCount)
+        assertFalse(sizeLayouts.single().didOverflowWidth)
+
+        val timeLayouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(":", substring = true, useUnmergedTree = true)
+            .assertIsDisplayed()
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(timeLayouts) }
+        assertEquals(1, timeLayouts.single().lineCount)
+        assertFalse(timeLayouts.single().didOverflowWidth)
+    }
+
+    @Test
     fun recentSearchErrorUsesFullWidthAndPlacesRetryAfterTheMessage() {
         var retries = 0
         setScreen(

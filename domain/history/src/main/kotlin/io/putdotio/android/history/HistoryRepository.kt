@@ -40,16 +40,31 @@ private fun HistoryEvent.toHistoryItem(): HistoryItem =
 
 private fun HistoryEvent.toHistoryEventKind(): HistoryEventKind =
     when (type) {
-        HistoryEventType.FILE_SHARED -> HistoryEventKind.File(fileId?.let(::HistoryFileId), fileName.nonBlank())
+        HistoryEventType.FILE_SHARED -> HistoryEventKind.File(
+            id = fileId?.let(::HistoryFileId),
+            name = fileName.nonBlank(),
+            sharedBy = sharingUserName.nonBlank(),
+            fileSizeBytes = fileSize.nonNegative(),
+        )
         HistoryEventType.TRANSFER_COMPLETED ->
             HistoryEventKind.Transfer(
                 transferId = transferId?.let(::HistoryTransferId),
                 fileId = fileId?.let(::HistoryFileId),
                 name = transferName.nonBlank() ?: fileName.nonBlank(),
+                transferSizeBytes = transferSize.nonNegative(),
             )
-        HistoryEventType.UPLOAD -> notice(HistoryNoticeType.Upload, fileName, fileId?.let(::HistoryFileId))
+        HistoryEventType.UPLOAD -> notice(
+            type = HistoryNoticeType.Upload,
+            subject = fileName,
+            fileId = fileId?.let(::HistoryFileId),
+            fileSizeBytes = fileSize.nonNegative(),
+        )
         HistoryEventType.TRANSFER_ERROR -> notice(HistoryNoticeType.TransferError, transferName)
-        HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE -> notice(HistoryNoticeType.RssFileDeleted, fileName)
+        HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE -> notice(
+            type = HistoryNoticeType.RssFileDeleted,
+            subject = fileName,
+            fileSizeBytes = fileSize.nonNegative(),
+        )
         HistoryEventType.RSS_FILTER_PAUSED -> notice(HistoryNoticeType.RssFilterPaused, rssFilterTitle)
         HistoryEventType.TRANSFER_FROM_RSS_ERROR -> notice(HistoryNoticeType.RssTransferError, transferName)
         HistoryEventType.TRANSFER_CALLBACK_ERROR -> notice(HistoryNoticeType.TransferCallbackError, transferName)
@@ -60,9 +75,13 @@ private fun HistoryEvent.notice(
     type: HistoryNoticeType,
     subject: String?,
     fileId: HistoryFileId? = null,
+    fileSizeBytes: Long? = null,
 ): HistoryEventKind =
-    subject.nonBlank()?.let { HistoryEventKind.Notice(type, it, fileId) } ?: HistoryEventKind.Other(this.type.raw)
+    subject.nonBlank()?.let { HistoryEventKind.Notice(type, it, fileId, fileSizeBytes) }
+        ?: HistoryEventKind.Other(this.type.raw)
 
 private fun String?.nonBlank(): String? = this?.takeIf(String::isNotBlank)
+
+private fun Long?.nonNegative(): Long? = this?.takeIf { it >= 0L }
 
 private const val HISTORY_PAGE_SIZE = 50

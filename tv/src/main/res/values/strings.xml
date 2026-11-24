@@ -264,6 +264,7 @@
     <string name="tv_history_yesterday">Yesterday</string>
     <string name="tv_history_no_title">No title</string>
     <string name="tv_history_kind_shared">Shared with you</string>
+    <string name="tv_history_shared_by">Shared by %1$s</string>
     <string name="tv_history_kind_transfer_completed">Transfer completed</string>
     <string name="tv_history_kind_uploaded">Uploaded</string>
     <string name="tv_history_kind_transfer_failed">Transfer failed</string>
@@ -272,6 +273,7 @@
     <string name="tv_history_kind_rss_transfer_failed">RSS transfer failed</string>
     <string name="tv_history_kind_callback_failed">Callback failed</string>
     <string name="tv_history_open_file">Open %1$s</string>
+    <string name="tv_history_detail_shared_by">Shared by</string>
     <string name="tv_history_detail_size">Size</string>
     <string name="tv_history_detail_saved_to">Saved to</string>
     <string name="tv_history_empty">No activity yet.</string>

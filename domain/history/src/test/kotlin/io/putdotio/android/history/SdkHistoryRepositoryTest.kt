@@ -9,6 +9,7 @@ import io.putdotio.sdk.history.HistoryListResponse
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -117,6 +118,71 @@ class SdkHistoryRepositoryTest {
             ),
             kinds,
         )
+    }
+
+    @Test
+    fun mapsSharerAndNonNegativeSizesWhenPresent() = runBlocking {
+        val events = listOf(
+            event(1L, HistoryEventType.FILE_SHARED, fileName = "shared.mkv", fileId = 10L)
+                .copy(sharingUserName = "alice", fileSize = 1_500_000_000L),
+            event(2L, HistoryEventType.FILE_SHARED, fileName = "empty.txt", fileId = 11L)
+                .copy(sharingUserName = "bob", fileSize = 0L),
+            event(3L, HistoryEventType.TRANSFER_COMPLETED, transferName = "movie.mkv", fileId = 12L)
+                .copy(transferSize = 3_100_000_000L),
+            event(4L, HistoryEventType.UPLOAD, fileName = "clip.mp4", fileId = 13L)
+                .copy(fileSize = 42_000_000L),
+            event(5L, HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE, fileName = "old.mkv")
+                .copy(fileSize = 850_000_000L),
+        )
+        val kinds = (SdkHistoryRepository({ response(events, hasMore = false) }, {}).load(null) as PutioResult.Success)
+            .value.items.map { it.kind }
+
+        assertEquals(
+            listOf(
+                HistoryEventKind.File(HistoryFileId(10L), "shared.mkv", "alice", 1_500_000_000L),
+                HistoryEventKind.File(HistoryFileId(11L), "empty.txt", "bob", 0L),
+                HistoryEventKind.Transfer(null, HistoryFileId(12L), "movie.mkv", 3_100_000_000L),
+                HistoryEventKind.Notice(HistoryNoticeType.Upload, "clip.mp4", HistoryFileId(13L), 42_000_000L),
+                HistoryEventKind.Notice(HistoryNoticeType.RssFileDeleted, "old.mkv", fileSizeBytes = 850_000_000L),
+            ),
+            kinds,
+        )
+    }
+
+    @Test
+    fun dropsBlankSharerNegativeSizesAndSizesOnErrorEvents() = runBlocking {
+        val events = listOf(
+            event(6L, HistoryEventType.FILE_SHARED, fileName = "blank.mkv")
+                .copy(sharingUserName = " ", fileSize = -1L),
+            event(7L, HistoryEventType.TRANSFER_COMPLETED, transferName = "neg-transfer.mkv")
+                .copy(transferSize = -5L),
+            event(8L, HistoryEventType.UPLOAD, fileName = "neg-upload.mp4")
+                .copy(fileSize = -10L),
+            event(9L, HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE, fileName = "neg-rss.mkv")
+                .copy(fileSize = -1L),
+            event(10L, HistoryEventType.TRANSFER_ERROR, transferName = "err.mkv")
+                .copy(fileSize = 500L, transferSize = 500L),
+        )
+        val kinds = (SdkHistoryRepository({ response(events, hasMore = false) }, {}).load(null) as PutioResult.Success)
+            .value.items.map { it.kind }
+
+        assertEquals(
+            listOf(
+                HistoryEventKind.File(id = null, name = "blank.mkv", sharedBy = null, fileSizeBytes = null),
+                HistoryEventKind.Transfer(null, null, "neg-transfer.mkv", transferSizeBytes = null),
+                HistoryEventKind.Notice(HistoryNoticeType.Upload, "neg-upload.mp4", fileSizeBytes = null),
+                HistoryEventKind.Notice(HistoryNoticeType.RssFileDeleted, "neg-rss.mkv", fileSizeBytes = null),
+                HistoryEventKind.Notice(HistoryNoticeType.TransferError, "err.mkv", fileSizeBytes = null),
+            ),
+            kinds,
+        )
+    }
+
+    @Test
+    fun sizeBytesDropsNegativeAndUnsupportedNoticeSizes() {
+        assertNull(HistoryEventKind.File(null, "x", fileSizeBytes = -1L).sizeBytes())
+        assertNull(HistoryEventKind.Transfer(null, null, "x", transferSizeBytes = -1L).sizeBytes())
+        assertNull(HistoryEventKind.Notice(HistoryNoticeType.TransferError, "x", fileSizeBytes = 500L).sizeBytes())
     }
 
     @Test
