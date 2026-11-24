@@ -17,7 +17,7 @@ class NodeToolsTest {
         val executable = NodeTools.requireToolExecutable(
             nodeModulesDir = root.resolve("node_modules"),
             packageJson = root.resolve("package.json"),
-            packageLock = root.resolve("package-lock.json"),
+            pnpmLock = root.resolve("pnpm-lock.yaml"),
             packageName = "@google/design.md",
             binName = "designmd",
             isWindows = false,
@@ -31,12 +31,26 @@ class NodeToolsTest {
         val executable = NodeTools.requireToolExecutable(
             nodeModulesDir = root.resolve("node_modules"),
             packageJson = root.resolve("package.json"),
-            packageLock = root.resolve("package-lock.json"),
+            pnpmLock = root.resolve("pnpm-lock.yaml"),
             packageName = "oxfmt",
             binName = "oxfmt",
             isWindows = true,
         )
         assertEquals(root.resolve("node_modules/.bin/oxfmt.cmd"), executable)
+    }
+
+    @Test
+    fun stripsPeerSuffixFromLockfileVersion() {
+        val root = createFixture(lockedDesignMdVersion = "0.4.0(zod@3.24.0)")
+        val executable = NodeTools.requireToolExecutable(
+            nodeModulesDir = root.resolve("node_modules"),
+            packageJson = root.resolve("package.json"),
+            pnpmLock = root.resolve("pnpm-lock.yaml"),
+            packageName = "@google/design.md",
+            binName = "designmd",
+            isWindows = false,
+        )
+        assertEquals(root.resolve("node_modules/.bin/designmd"), executable)
     }
 
     @Test
@@ -46,24 +60,24 @@ class NodeToolsTest {
             NodeTools.requireToolExecutable(
                 nodeModulesDir = root.resolve("node_modules"),
                 packageJson = root.resolve("package.json"),
-                packageLock = root.resolve("package-lock.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
                 packageName = "oxfmt",
                 binName = "oxfmt",
                 isWindows = false,
             )
         }
         assertTrue(error.message.orEmpty().contains("not installed in node_modules (found none)"))
-        assertTrue(error.message.orEmpty().contains("run npm ci"))
+        assertTrue(error.message.orEmpty().contains("run pnpm install --frozen-lockfile"))
     }
 
     @Test
-    fun rejectsMissingNodeModulesLockStamp() {
-        val root = createFixture(createModulesLockStamp = false)
+    fun rejectsMissingModulesYamlStamp() {
+        val root = createFixture(createModulesStamp = false)
         val error = assertThrows(GradleException::class.java) {
             NodeTools.requireToolExecutable(
                 nodeModulesDir = root.resolve("node_modules"),
                 packageJson = root.resolve("package.json"),
-                packageLock = root.resolve("package-lock.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
                 packageName = "oxfmt",
                 binName = "oxfmt",
                 isWindows = false,
@@ -79,7 +93,7 @@ class NodeToolsTest {
             NodeTools.requireToolExecutable(
                 nodeModulesDir = root.resolve("node_modules"),
                 packageJson = root.resolve("package.json"),
-                packageLock = root.resolve("package-lock.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
                 packageName = "oxfmt",
                 binName = "oxfmt",
                 isWindows = false,
@@ -95,13 +109,13 @@ class NodeToolsTest {
             NodeTools.requireToolExecutable(
                 nodeModulesDir = root.resolve("node_modules"),
                 packageJson = root.resolve("package.json"),
-                packageLock = root.resolve("package-lock.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
                 packageName = "oxfmt",
                 binName = "oxfmt",
                 isWindows = false,
             )
         }
-        assertTrue(error.message.orEmpty().contains("package-lock.json has oxfmt 0.78.0, expected 0.79.0"))
+        assertTrue(error.message.orEmpty().contains("pnpm-lock.yaml has oxfmt 0.78.0, expected 0.79.0"))
     }
 
     @Test
@@ -111,7 +125,7 @@ class NodeToolsTest {
             NodeTools.requireToolExecutable(
                 nodeModulesDir = root.resolve("node_modules"),
                 packageJson = root.resolve("package.json"),
-                packageLock = root.resolve("package-lock.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
                 packageName = "oxfmt",
                 binName = "oxfmt",
                 isWindows = false,
@@ -127,7 +141,7 @@ class NodeToolsTest {
             NodeTools.requireToolExecutable(
                 nodeModulesDir = root.resolve("node_modules"),
                 packageJson = root.resolve("package.json"),
-                packageLock = root.resolve("package-lock.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
                 packageName = "@google/design.md",
                 binName = "designmd",
                 isWindows = false,
@@ -139,9 +153,10 @@ class NodeToolsTest {
     private fun createFixture(
         windows: Boolean = false,
         createNodeModules: Boolean = true,
-        createModulesLockStamp: Boolean = true,
+        createModulesStamp: Boolean = true,
         createBinFiles: Boolean = true,
         includeOxfmtInPackageJson: Boolean = true,
+        lockedDesignMdVersion: String = "0.4.0",
         lockedOxfmtVersion: String = "0.79.0",
         installedOxfmtVersion: String = "0.79.0",
     ): File {
@@ -156,31 +171,49 @@ class NodeToolsTest {
             """
             {
               "private": true,
+              "packageManager": "pnpm@12.21.0",
               "devDependencies": {
             $devDeps
               }
             }
             """.trimIndent(),
         )
-        root.resolve("package-lock.json").writeText(
+        root.resolve("pnpm-lock.yaml").writeText(
             """
-            {
-              "lockfileVersion": 3,
-              "packages": {
-                "node_modules/@google/design.md": {
-                  "version": "0.4.0"
-                },
-                "node_modules/oxfmt": {
-                  "version": "$lockedOxfmtVersion"
-                }
-              }
-            }
+            ---
+            lockfileVersion: '9.0'
+
+            importers:
+
+              .:
+                configDependencies: {}
+                packageManagerDependencies:
+                  pnpm:
+                    specifier: 12.21.0
+                    version: 12.21.0
+            ---
+            lockfileVersion: '9.0'
+
+            settings:
+              autoInstallPeers: true
+              excludeLinksFromLockfile: false
+
+            importers:
+
+              .:
+                devDependencies:
+                  '@google/design.md':
+                    specifier: 0.4.0
+                    version: $lockedDesignMdVersion
+                  oxfmt:
+                    specifier: 0.79.0
+                    version: $lockedOxfmtVersion
             """.trimIndent(),
         )
         if (createNodeModules) {
             val nodeModules = root.resolve("node_modules").apply { mkdirs() }
-            if (createModulesLockStamp) {
-                nodeModules.resolve(".package-lock.json").writeText("{}")
+            if (createModulesStamp) {
+                nodeModules.resolve(".modules.yaml").writeText("storeDir: /tmp/store\n")
             }
             nodeModules.resolve("@google/design.md").apply { mkdirs() }
                 .resolve("package.json").writeText("""{"version":"0.4.0"}""")

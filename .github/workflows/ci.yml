@@ -91,16 +91,22 @@ jobs:
         with:
           validate-wrappers: true
 
+      - name: Set up pnpm
+        if: env.NODE == 'true'
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          cache: false
+
       - name: Set up Node
         if: env.NODE == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
-          cache: npm
+          cache: pnpm
 
       - name: Install Node tools
         if: env.NODE == 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Fetch brand fonts
         if: env.BRAND_FONTS == 'true'

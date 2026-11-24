@@ -22,7 +22,7 @@ abstract class CheckMarkdownTask @Inject constructor(private val exec: ExecOpera
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
-    abstract val packageLock: RegularFileProperty
+    abstract val pnpmLock: RegularFileProperty
 
     @get:Internal
     abstract val nodeModulesDirectory: DirectoryProperty
@@ -32,7 +32,7 @@ abstract class CheckMarkdownTask @Inject constructor(private val exec: ExecOpera
         val executable = NodeTools.requireToolExecutable(
             nodeModulesDir = nodeModulesDirectory.get().asFile,
             packageJson = packageJson.get().asFile,
-            packageLock = packageLock.get().asFile,
+            pnpmLock = pnpmLock.get().asFile,
             packageName = "oxfmt",
             binName = "oxfmt",
         )
