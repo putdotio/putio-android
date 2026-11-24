@@ -10,7 +10,6 @@ dependencies {
     compileOnly(libs.sentry.gradle.plugin)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
     testImplementation("junit:junit:4.13.2")
-    testImplementation(gradleTestKit())
 }
 
 // The codegen tests read the repository's design contract, token graph and design, font and icon locks.
