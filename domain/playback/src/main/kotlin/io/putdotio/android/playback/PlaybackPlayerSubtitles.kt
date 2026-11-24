@@ -10,13 +10,21 @@ public fun PlaybackSource.playerSubtitles(): PlaybackSubtitles {
     val sidecar = subtitles as? PlaybackSubtitles.Sidecar
     if (kind != PlaybackSourceKind.ORIGINAL || sidecar == null) return subtitles
     val added = sidecar.tracks.filterNot { it.source == SOURCE_MKV }
-    return if (added.isEmpty()) PlaybackSubtitles.None else PlaybackSubtitles.Sidecar(added)
+    return if (added.isEmpty()) {
+        PlaybackSubtitles.None
+    } else {
+        PlaybackSubtitles.Sidecar(
+            tracks = added,
+            defaultKey = sidecar.defaultKey?.takeIf { key -> added.any { it.key == key } },
+        )
+    }
 }
 
 internal fun PlaybackSource.inFileSubtitleLanguage(): String? {
-    val ranked = subtitles.sidecarTracks().firstOrNull() ?: return null
-    return ranked.languageCode
-        ?.takeIf { it.isNotBlank() && kind == PlaybackSourceKind.ORIGINAL && ranked.source == SOURCE_MKV }
+    val sidecar = subtitles as? PlaybackSubtitles.Sidecar
+    val defaultTrack = sidecar?.defaultKey?.let { key -> sidecar.tracks.firstOrNull { it.key == key } }
+    return defaultTrack?.languageCode
+        ?.takeIf { it.isNotBlank() && kind == PlaybackSourceKind.ORIGINAL && defaultTrack.source == SOURCE_MKV }
 }
 
 public fun Player.inFileSubtitleLanguage(): String? = currentMediaItem.inFileSubtitleLanguage()

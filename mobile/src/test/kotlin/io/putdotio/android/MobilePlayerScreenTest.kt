@@ -1315,6 +1315,7 @@ class MobilePlayerMediaItemTest {
                         subtitle("Declared unknown", "es", "future-format", "subtitle.vtt"),
                         subtitle("Missing", "fr", null),
                     ),
+                    defaultKey = "en",
                 ),
         )
 
@@ -1332,7 +1333,6 @@ class MobilePlayerMediaItemTest {
         assertEquals("en", local.subtitleConfigurations.first().language)
         assertEquals(MimeTypes.TEXT_VTT, local.subtitleConfigurations[2].mimeType)
         assertEquals("tr", local.subtitleConfigurations[2].language)
-        // put.io's list names its first subtitle `default`; only that one carries the flag.
         assertEquals(
             listOf(C.SELECTION_FLAG_DEFAULT, 0, 0),
             local.subtitleConfigurations.map { it.selectionFlags },

@@ -51,9 +51,11 @@ class PlaybackTrackLabelsTest {
                 subtitle("os-en", "opensubtitles"),
                 subtitle("folder-en", "folder"),
             ),
+            defaultKey = "mkv-en",
         )
 
         val original = source(PlaybackSourceKind.ORIGINAL, subtitles)
+        assertEquals(PlaybackSubtitles.Sidecar(subtitles.tracks.drop(2), defaultKey = null), original.playerSubtitles())
         assertEquals(listOf("os-en", "folder-en"), original.playerSubtitles().sidecarTracks().map { it.key })
         val configurations = requireNotNull(original.toMediaItem("episode.mkv").localConfiguration)
             .subtitleConfigurations
@@ -61,9 +63,13 @@ class PlaybackTrackLabelsTest {
         assertEquals(listOf(0, 0), configurations.map { it.selectionFlags })
         assertEquals("eng", original.toMediaItem("episode.mkv").inFileSubtitleLanguage())
         assertNull(source(PlaybackSourceKind.MP4, subtitles).toMediaItem("episode.mp4").inFileSubtitleLanguage())
-        val rankedExternal = PlaybackSubtitles.Sidecar(subtitles.tracks.drop(2))
-        val externalItem = source(PlaybackSourceKind.ORIGINAL, rankedExternal).toMediaItem("episode.mkv")
+        val rankedExternal = PlaybackSubtitles.Sidecar(subtitles.tracks.drop(2), defaultKey = "os-en")
+        val externalSource = source(PlaybackSourceKind.ORIGINAL, rankedExternal)
+        assertEquals(rankedExternal, externalSource.playerSubtitles())
+        val externalItem = externalSource.toMediaItem("episode.mkv")
         assertNull(externalItem.inFileSubtitleLanguage())
+        val externalConfigs = requireNotNull(externalItem.localConfiguration).subtitleConfigurations
+        assertEquals(listOf(C.SELECTION_FLAG_DEFAULT, 0), externalConfigs.map { it.selectionFlags })
 
         listOf(PlaybackSourceKind.MP4, PlaybackSourceKind.HLS).forEach { kind ->
             assertEquals(subtitles, source(kind, subtitles).playerSubtitles())
