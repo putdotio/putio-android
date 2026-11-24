@@ -35,6 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -419,8 +420,10 @@ internal fun MobileProgressSlider(
             android.text.format.DateUtils.formatElapsedTime(progressToPosition(progress).coerceAtLeast(0) / 1_000),
             android.text.format.DateUtils.formatElapsedTime(durationMs.coerceAtLeast(0) / 1_000),
         )
+        val sliderState = remember(player) { SliderState(progress) }
+        sliderState.value = progress
         Slider(
-            value = progress,
+            state = sliderState,
             onValueChange = {
                 onScrub()
                 dragging = true

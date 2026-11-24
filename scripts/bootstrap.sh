@@ -28,7 +28,7 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-COMPILE_SDK_PLATFORM="platforms;android-37.0"
+COMPILE_SDK_PLATFORM="platforms;android-37.1"
 BUILD_TOOLS="build-tools;37.0.0"
 
 log "checking JDK"

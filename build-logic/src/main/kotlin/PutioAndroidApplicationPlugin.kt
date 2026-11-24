@@ -29,7 +29,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
 
         extensions.configure<ApplicationExtension> {
             namespace = "io.putdotio.android"
-            compileSdk = PutioAndroidSdk.COMPILE
+            PutioAndroidSdk.applyCompileSdk(this)
 
             defaultConfig {
                 minSdk = PutioAndroidSdk.MIN

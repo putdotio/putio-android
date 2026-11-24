@@ -31,8 +31,10 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -289,11 +291,13 @@ private fun SpeedTrack(speed: Float, speeds: List<Float>, enabled: Boolean, valu
     val inactive = MaterialTheme.colorScheme.surfaceContainerHighest
     val stop = MaterialTheme.colorScheme.outline
     val label = stringResource(R.string.mobile_playback_speed)
+    val range = 0f..last.toFloat()
+    val steps = last - 1
+    val sliderState = remember(steps, range) { SliderState(index.toFloat(), steps, range) }
+    sliderState.value = index.toFloat()
     Slider(
-        value = index.toFloat(),
+        state = sliderState,
         onValueChange = { onSpeed(speeds[it.toInt().coerceIn(0, last)]) },
-        valueRange = 0f..last.toFloat(),
-        steps = last - 1,
         enabled = enabled,
         modifier = Modifier.fillMaxWidth().padding(horizontal = SPEED_TRACK_INSET).semantics {
             contentDescription = label

@@ -402,6 +402,7 @@ class MobileShellTest {
         }
 
         // Five destinations scroll in the compact drawer.
+        compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
         compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_DRAWER_TAG)))
             .performScrollTo().performClick()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Show subtitles"))

@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "io.putdotio.android.baselineprofile.mobile"
-    compileSdk = PutioAndroidSdk.COMPILE
+    PutioAndroidSdk.applyCompileSdk(this)
 
     defaultConfig {
         minSdk = 28

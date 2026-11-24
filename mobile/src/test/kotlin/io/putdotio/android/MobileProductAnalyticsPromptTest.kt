@@ -89,6 +89,7 @@ class MobileProductAnalyticsPromptTest {
                 .reduce(config, AndroidAppConfigEvent.SaveSucceeded(config.savingId()))
                 .state
         }
+        compose.waitForIdle()
         compose.waitUntil(5_000) { dismissed.isNotEmpty() }
     }
 
