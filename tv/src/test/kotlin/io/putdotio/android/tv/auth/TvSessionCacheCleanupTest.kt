@@ -48,6 +48,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
@@ -59,8 +60,19 @@ class TvSessionCacheCleanupTest {
     private val scopes = mutableListOf<CoroutineScope>()
     private var installedLoader: ImageLoader? = null
 
+    @Before
+    fun waitForStartupViewerCacheClear() {
+        val clearThread = (context.applicationContext as? PutioApplication)?.viewerCacheClearThread ?: return
+        clearThread.join(TIMEOUT_MS)
+        assertFalse(clearThread.isAlive)
+    }
+
     @After
     fun tearDown() {
+        (context.applicationContext as? PutioApplication)?.viewerCacheClearThread?.let { clearThread ->
+            clearThread.join(TIMEOUT_MS)
+            assertFalse(clearThread.isAlive)
+        }
         runBlocking {
             scopes.forEach { it.cancel() }
             SingletonImageLoader.reset()

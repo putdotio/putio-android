@@ -13,6 +13,10 @@ import io.putdotio.android.files.FilesPdfDocument
 import kotlin.concurrent.thread
 
 class PutioApplication : Application(), SingletonImageLoader.Factory {
+    @Volatile
+    internal var viewerCacheClearThread: Thread? = null
+        private set
+
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
             .components {
@@ -34,6 +38,6 @@ class PutioApplication : Application(), SingletonImageLoader.Factory {
             ),
         )
         // A PDF copy a viewer left when the process died; restoring from Recents may never reopen it.
-        thread(name = "viewer-cache-clear") { FilesPdfDocument.clearCache(this) }
+        viewerCacheClearThread = thread(name = "viewer-cache-clear") { FilesPdfDocument.clearCache(this) }
     }
 }
