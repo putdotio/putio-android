@@ -20,6 +20,8 @@ public sealed interface HistoryEventKind {
     public data class File(
         val id: HistoryFileId?,
         val name: String?,
+        val sharedBy: String? = null,
+        val fileSizeBytes: Long? = null,
     ) : HistoryEventKind
 
     /** `transfer_completed`. */
@@ -27,6 +29,7 @@ public sealed interface HistoryEventKind {
         val transferId: HistoryTransferId?,
         val fileId: HistoryFileId?,
         val name: String?,
+        val transferSizeBytes: Long? = null,
     ) : HistoryEventKind
 
     /** An event with copy of its own: [subject] is the name it states, [fileId] the file it opens, if any. */
@@ -34,6 +37,7 @@ public sealed interface HistoryEventKind {
         val type: HistoryNoticeType,
         val subject: String,
         val fileId: HistoryFileId? = null,
+        val fileSizeBytes: Long? = null,
     ) : HistoryEventKind
 
     /** A type with no copy, or an event missing the field its copy names. */
@@ -49,6 +53,21 @@ public fun HistoryEventKind.navigableFileId(): HistoryFileId? =
         is HistoryEventKind.Notice -> fileId
         is HistoryEventKind.Other -> null
     }
+
+public fun HistoryEventKind.sizeBytes(): Long? =
+    when (this) {
+        is HistoryEventKind.File -> fileSizeBytes
+        is HistoryEventKind.Transfer -> transferSizeBytes
+        is HistoryEventKind.Notice -> when (type) {
+            HistoryNoticeType.Upload, HistoryNoticeType.RssFileDeleted -> fileSizeBytes
+            HistoryNoticeType.TransferError,
+            HistoryNoticeType.RssFilterPaused,
+            HistoryNoticeType.RssTransferError,
+            HistoryNoticeType.TransferCallbackError,
+            -> null
+        }
+        is HistoryEventKind.Other -> null
+    }?.takeIf { it >= 0L }
 
 /** The event types iOS gives copy, besides shared files and completed transfers. */
 public enum class HistoryNoticeType {

@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
@@ -19,9 +21,11 @@ import io.putdotio.android.R
 import io.putdotio.android.design.rememberRowText
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.formatFileSize
+import io.putdotio.android.history.HistoryEventKind
 import io.putdotio.android.history.HistoryFileId
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.navigableFileId
+import io.putdotio.android.history.sizeBytes
 import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.tv.TvDetailBody
 import io.putdotio.android.tv.TvDetailDivider
@@ -94,7 +98,7 @@ internal fun ColumnScope.TvHistoryDetail(
         title = found?.item?.name ?: item.title(),
         key = item.id,
         meta = detailMeta(item, stamp),
-        facts = detailFacts(lookup, fileText),
+        facts = detailFacts(item.kind, lookup, fileText),
         rows = when {
             found != null -> { firstRow ->
                 HistoryRows(found.item, fileText?.resume, fileId, firstRow, openFocus, actions)
@@ -176,10 +180,21 @@ private fun detailMeta(item: HistoryItem, stamp: TvHistoryStamp?): AnnotatedStri
 }
 
 @Composable
-private fun detailFacts(lookup: TvHistoryLookup?, text: TvHistoryFileText?): List<TvDetailFact> {
+private fun detailFacts(
+    kind: HistoryEventKind,
+    lookup: TvHistoryLookup?,
+    text: TvHistoryFileText?,
+): List<TvDetailFact> {
+    val sharedBy = (kind as? HistoryEventKind.File)?.sharedBy?.takeIf(String::isNotBlank)
+    val sharedByFact = sharedBy?.let { TvDetailFact(stringResource(R.string.tv_history_detail_shared_by), it) }
     val file = (lookup as? TvHistoryLookup.Found)?.file
     if (file == null) {
+        val eventSizeBytes = kind.sizeBytes()
+        val locale = LocalConfiguration.current.locales[0]
+        val eventSize = remember(eventSizeBytes, locale) { eventSizeBytes?.let { formatFileSize(it, locale) } }
         return listOfNotNull(
+            sharedByFact,
+            eventSize?.let { TvDetailFact(stringResource(R.string.tv_history_detail_size), it, mono = true) },
             TvDetailFact(
                 stringResource(R.string.tv_history_detail_file),
                 stringResource(R.string.tv_history_file_gone),
@@ -192,6 +207,7 @@ private fun detailFacts(lookup: TvHistoryLookup?, text: TvHistoryFileText?): Lis
         null -> null
     }
     return listOfNotNull(
+        sharedByFact,
         TvDetailFact(
             stringResource(R.string.tv_history_detail_size),
             text?.size.orEmpty(),

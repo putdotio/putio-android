@@ -552,6 +552,96 @@ class MobileSearchScreensTest {
         compose.onNodeWithText("Transfer completed · ", substring = true).assertIsDisplayed()
     }
 
+    @Test
+    fun eventsShowSharerAndSizeWhenPresent() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val kinds = listOf(
+                HistoryEventKind.File(
+                    HistoryFileId(1L),
+                    "shared.mkv",
+                    sharedBy = "alice",
+                    fileSizeBytes = 1_500_000_000L,
+                ),
+                HistoryEventKind.Transfer(
+                    null,
+                    HistoryFileId(2L),
+                    "movie.mkv",
+                    transferSizeBytes = 3_100_000_000L,
+                ),
+                HistoryEventKind.Notice(
+                    HistoryNoticeType.Upload,
+                    "clip.mp4",
+                    HistoryFileId(3L),
+                    fileSizeBytes = 42_000_000L,
+                ),
+                HistoryEventKind.Notice(HistoryNoticeType.RssFileDeleted, "old.mkv", fileSizeBytes = 850_000_000L),
+            )
+            val items = kinds.mapIndexed { index, kind ->
+                HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind)
+            }
+            setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+
+            listOf(
+                Triple("shared.mkv", "Shared by alice · ", "1.5 GB · "),
+                Triple("movie.mkv", "Transfer completed · ", "3.1 GB · "),
+                Triple("clip.mp4", "Uploaded · ", "42 MB · "),
+                Triple("old.mkv", "Deleted to free space · ", "850 MB · "),
+            ).forEach { (title, kind, size) ->
+                compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
+                compose.awaitText(size, substring = true)
+                compose.onNodeWithText(title).assertIsDisplayed()
+                compose.onNodeWithText(kind, substring = true, useUnmergedTree = true).assertIsDisplayed()
+                compose.onNodeWithText(size, substring = true, useUnmergedTree = true).assertIsDisplayed()
+            }
+            compose.onAllNodesWithText("Shared with you", substring = true, useUnmergedTree = true).assertCountEquals(0)
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun missingBlankAndNegativeSharerOrSizeOmitThoseSegments() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val kinds = listOf(
+                HistoryEventKind.File(HistoryFileId(1L), "shared.mkv", sharedBy = " ", fileSizeBytes = -1L),
+                HistoryEventKind.Transfer(null, HistoryFileId(2L), "transfer.mkv", transferSizeBytes = -100L),
+                HistoryEventKind.Notice(
+                    HistoryNoticeType.Upload,
+                    "upload.mp4",
+                    HistoryFileId(3L),
+                    fileSizeBytes = null,
+                ),
+                HistoryEventKind.Notice(HistoryNoticeType.RssFileDeleted, "rss.mkv", fileSizeBytes = -5L),
+            )
+            val items = kinds.mapIndexed { index, kind ->
+                HistoryItem(HistoryEventId(index + 1L), "2026-09-09T15:25:32", kind)
+            }
+            setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
+
+            listOf(
+                "shared.mkv" to "Shared with you · ",
+                "transfer.mkv" to "Transfer completed · ",
+                "upload.mp4" to "Uploaded · ",
+                "rss.mkv" to "Deleted to free space · ",
+            ).forEach { (title, kind) ->
+                compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
+                compose.awaitText(kind, substring = true)
+                compose.onNodeWithText(kind, substring = true, useUnmergedTree = true).assertIsDisplayed()
+            }
+            compose.onAllNodesWithText("Shared by", substring = true, useUnmergedTree = true).assertCountEquals(0)
+            listOf("GB", "MB", "kB", " B").forEach { unit ->
+                compose.onAllNodesWithText(unit, substring = true, useUnmergedTree = true).assertCountEquals(0)
+            }
+            compose.onAllNodesWithText(" · ", substring = true, useUnmergedTree = true).assertCountEquals(4)
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
     private fun setHistoryScreen(
         history: HistoryState,
         actions: MobileSearchHistoryActions = MobileSearchHistoryActions(),

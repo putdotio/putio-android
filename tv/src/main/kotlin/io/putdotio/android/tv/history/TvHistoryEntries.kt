@@ -8,8 +8,10 @@ import io.putdotio.android.R
 import io.putdotio.android.design.Built
 import io.putdotio.android.design.buildReusing
 import io.putdotio.android.design.rememberBuiltOffMain
+import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.navigableFileId
+import io.putdotio.android.history.sizeBytes
 import io.putdotio.android.tv.TvRowMeta
 import io.putdotio.android.tv.TvRowMetaPart
 import java.time.Clock
@@ -111,7 +113,8 @@ internal data class TvHistoryRowText(val meta: TvRowMeta, val label: String)
 private fun HistoryItem.rowText(time: String, title: String, resources: Resources): TvHistoryRowText {
     val meta = TvRowMeta(
         listOfNotNull(
-            kind.kindLabel()?.let { TvRowMetaPart(resources.getString(it), shrinks = true) },
+            kind.kindLabel(resources)?.let { TvRowMetaPart(it, shrinks = true) },
+            kind.sizeBytes()?.let { TvRowMetaPart(formatFileSize(it), mono = true) },
             TvRowMetaPart(time, mono = true),
         ),
     )

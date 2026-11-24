@@ -62,6 +62,7 @@ import io.putdotio.android.design.Built
 import io.putdotio.android.design.buildReusing
 import io.putdotio.android.design.rememberBuiltOffMain
 import io.putdotio.android.design.putioMono
+import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.files.mobileMessage
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
@@ -72,6 +73,8 @@ import io.putdotio.android.history.HistoryItem
 import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.navigableFileId
+import io.putdotio.android.history.sizeBytes
+import io.putdotio.android.monoArguments
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.neutralTextButtonColors
@@ -211,6 +214,8 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
     val fileId = item.kind.navigableFileId()
     val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
     val kind = text.kind
+    val size = text.size
+    val metadataTemplate = if (size == null) null else stringResource(R.string.mobile_history_metadata)
     MobileRow(
         leading = {
             Icon(
@@ -231,6 +236,9 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
+                }
+                if (size != null && metadataTemplate != null) {
+                    Text(monoArguments(metadataTemplate, mono, size, ""), maxLines = 1, softWrap = false)
                 }
                 Text(AnnotatedString(text.time, mono), maxLines = 1, softWrap = false)
             }
@@ -402,11 +410,12 @@ private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): S
         )
     }
 
-private data class HistoryRowText(val kind: String?, val time: String)
+private data class HistoryRowText(val kind: String?, val size: String?, val time: String)
 
 private fun HistoryItem.rowText(context: Context): HistoryRowText =
     HistoryRowText(
         kind = kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
+        size = kind.sizeBytes()?.let(::formatFileSize),
         time = timeLabel(context),
     )
 
@@ -427,7 +436,9 @@ private fun HistoryItem.title(context: Context): String =
 /** What happened, before the time; an event of a type with no copy gives its time alone. */
 private fun HistoryItem.kindLabel(context: Context): String? =
     when (val value = kind) {
-        is HistoryEventKind.File -> context.getString(R.string.mobile_history_kind_shared)
+        is HistoryEventKind.File -> value.sharedBy?.takeIf(String::isNotBlank)
+            ?.let { context.getString(R.string.mobile_history_shared_by, it) }
+            ?: context.getString(R.string.mobile_history_kind_shared)
         is HistoryEventKind.Transfer -> context.getString(R.string.mobile_history_kind_transfer_completed)
         is HistoryEventKind.Notice -> context.getString(
             when (value.type) {

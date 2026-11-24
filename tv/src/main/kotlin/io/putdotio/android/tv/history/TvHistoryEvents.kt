@@ -69,6 +69,14 @@ internal fun HistoryEventKind.kindLabel(): Int? =
         is HistoryEventKind.Other -> null
     }
 
+internal fun HistoryEventKind.kindLabel(resources: Resources): String? =
+    when (this) {
+        is HistoryEventKind.File -> sharedBy?.takeIf(String::isNotBlank)
+            ?.let { resources.getString(R.string.tv_history_shared_by, it) }
+            ?: resources.getString(R.string.tv_history_kind_shared)
+        else -> kindLabel()?.let(resources::getString)
+    }
+
 @DrawableRes
 internal fun HistoryEventKind.glyph(): Int =
     when (this) {
