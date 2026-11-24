@@ -83,9 +83,9 @@ script headers and `--help` own the harness.
 
 ## Setup
 
-The machine provides Node from `.node-version` and `python3`. Then run
-`./scripts/bootstrap.sh`; its header lists the other preconditions. Only live
-and authenticated lanes need the `devs-auto` profile.
+The machine provides Node from `.node-version`, pnpm from `package.json`,
+and `python3`. Then run `./scripts/bootstrap.sh`; its header lists the other
+preconditions. Only live and authenticated lanes need the `devs-auto` profile.
 
 ## Kotlin SDK
 
@@ -111,9 +111,9 @@ refreshes them; `verify` fails when their files differ from the lock.
 The script checks in [`verify`](build.gradle.kts) need `bash` 3.2+, `python3`,
 `node`, `shellcheck`, `ffprobe`, and `ffmpeg` with the `freezedetect` filter and `libx264`
 encoder on PATH.
-`markdownCheck` runs the locked tools from [package-lock.json](package-lock.json)
-via `node_modules` (`./scripts/bootstrap.sh` or `npm ci`);
-`npx --no oxfmt '**/*.md'` fixes its findings.
+`markdownCheck` runs the locked tools from [pnpm-lock.yaml](pnpm-lock.yaml)
+via `node_modules` (`./scripts/bootstrap.sh` or `pnpm install --frozen-lockfile`);
+`pnpm exec oxfmt '**/*.md'` fixes its findings.
 
 - Fix lint and detekt findings at the source; suppress only the narrowest
   declaration, with a comment naming the constraint. Every module runs detekt

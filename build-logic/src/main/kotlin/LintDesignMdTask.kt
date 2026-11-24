@@ -32,7 +32,7 @@ abstract class LintDesignMdTask @Inject constructor(private val exec: ExecOperat
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
-    abstract val packageLock: RegularFileProperty
+    abstract val pnpmLock: RegularFileProperty
 
     @get:Internal
     abstract val nodeModulesDirectory: DirectoryProperty
@@ -48,7 +48,7 @@ abstract class LintDesignMdTask @Inject constructor(private val exec: ExecOperat
         val executable = NodeTools.requireToolExecutable(
             nodeModulesDir = nodeModulesDirectory.get().asFile,
             packageJson = packageJson.get().asFile,
-            packageLock = packageLock.get().asFile,
+            pnpmLock = pnpmLock.get().asFile,
             packageName = "@google/design.md",
             binName = "designmd",
         )

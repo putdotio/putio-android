@@ -128,9 +128,8 @@ val checkShellScripts = tasks.register<Exec>("checkShellScripts") {
     commandLine(bash, "-c", "shellcheck -x -S warning scripts/*.sh")
 }
 
-// package.json and package-lock.json lock the Node tools installed by npm ci / bootstrap.sh.
 val nodePackageJson = layout.projectDirectory.file("package.json")
-val nodePackageLock = layout.projectDirectory.file("package-lock.json")
+val nodePnpmLock = layout.projectDirectory.file("pnpm-lock.yaml")
 val nodeModulesDir = layout.projectDirectory.dir("node_modules")
 
 val designMdFile = layout.projectDirectory.file("DESIGN.md")
@@ -156,7 +155,7 @@ val lintDesignMd = tasks.register<LintDesignMdTask>("lintDesignMd") {
     description = "Lint DESIGN.md against the design.md format; warnings fail too"
     designMd.set(designMdFile)
     packageJson.set(nodePackageJson)
-    packageLock.set(nodePackageLock)
+    pnpmLock.set(nodePnpmLock)
     nodeModulesDirectory.set(nodeModulesDir)
     val nodeVersionCommand = if (windows) listOf("cmd", "/c", "node", "--version") else listOf("node", "--version")
     nodeVersion.set(providers.exec { commandLine(nodeVersionCommand) }.standardOutput.asText.map { it.trim() })
@@ -189,7 +188,7 @@ val markdownCheck = tasks.register<CheckMarkdownTask>("markdownCheck") {
     dependsOn(checkDesignMdColors, lintDesignMd)
     repositoryRoot.set(layout.projectDirectory)
     packageJson.set(nodePackageJson)
-    packageLock.set(nodePackageLock)
+    pnpmLock.set(nodePnpmLock)
     nodeModulesDirectory.set(nodeModulesDir)
 }
 
