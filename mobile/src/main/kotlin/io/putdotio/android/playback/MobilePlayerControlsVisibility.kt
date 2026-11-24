@@ -21,7 +21,7 @@ internal fun Modifier.observePlayerControlInteraction(
                         .changes
                         .any { it.pressed }
                 if (isPressed && !wasPressed) onActivity()
-                onInteractionChanged(isPressed)
+                if (isPressed != wasPressed) onInteractionChanged(isPressed)
                 wasPressed = isPressed
             }
         }

@@ -1,3 +1,4 @@
+import com.android.build.api.dsl.CommonExtension
 import com.android.build.api.dsl.LibraryExtension
 import io.gitlab.arturbosch.detekt.extensions.DetektExtension
 import org.gradle.api.Plugin
@@ -12,8 +13,17 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidExtension
 /** Android SDK levels shared by the application and every library module. */
 object PutioAndroidSdk {
     const val COMPILE = 37
+    const val COMPILE_MINOR = 1
     const val MIN = 26
     const val TARGET = 37
+
+    fun applyCompileSdk(extension: CommonExtension) {
+        extension.compileSdk {
+            version = release(COMPILE) {
+                minorApiLevel = COMPILE_MINOR
+            }
+        }
+    }
 }
 
 /**
@@ -30,7 +40,7 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
         pluginManager.apply("io.gitlab.arturbosch.detekt")
 
         extensions.configure<LibraryExtension> {
-            compileSdk = PutioAndroidSdk.COMPILE
+            PutioAndroidSdk.applyCompileSdk(this)
             defaultConfig.minSdk = PutioAndroidSdk.MIN
             defaultConfig.testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
             lint {
