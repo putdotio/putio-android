@@ -79,12 +79,16 @@ internal fun FilesItem.toDocumentRow(userId: Long): DocumentRow =
     DocumentRow(
         documentId = PutioDocumentId(userId, id).value,
         displayName = name,
-        mimeType = if (isFolder) Document.MIME_TYPE_DIR else mimeTypeOf(name),
+        mimeType = if (isFolder) {
+            Document.MIME_TYPE_DIR
+        } else {
+            contentType?.trim()?.takeIf { it.isNotEmpty() } ?: mimeTypeOf(name)
+        },
         size = sizeBytes.takeUnless { isFolder },
         lastModified = parsePutioTimestamp(updatedAt ?: createdAt)?.toEpochMilli(),
     )
 
-/** By extension, as FileProvider types its files; the SDK does not carry the API's `content_type`. */
+/** Fallback MIME type by extension when put.io reports no `content_type`. */
 internal fun mimeTypeOf(name: String): String =
     name.substringAfterLast('.', "").lowercase().takeIf { it.isNotEmpty() }
         ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }

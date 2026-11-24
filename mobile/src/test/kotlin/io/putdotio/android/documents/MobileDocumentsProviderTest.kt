@@ -145,6 +145,30 @@ class MobileDocumentsProviderTest {
     }
 
     @Test
+    fun usesApiContentTypeOverExtensionGuessAndKeepsFolderMimeType() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        val items = listOf(
+            file(11L, "README", contentType = "text/plain"),
+            file(12L, "archive.txt", contentType = "  application/pdf  "),
+            file(13L, "Clip.MP4", contentType = null),
+            file(14L, "notes.txt", contentType = "   "),
+            folder(15L, "Movies", contentType = "application/x-directory"),
+        )
+        fixture.files.folders[ROOT] = PutioResult.Success(FilesPage(items, null))
+
+        fixture.children("$ALICE:0").close()
+        fixture.settle()
+
+        fixture.children("$ALICE:0").use { rows ->
+            assertEquals("text/plain", rows.row("$ALICE:11").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("application/pdf", rows.row("$ALICE:12").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("video/mp4", rows.row("$ALICE:13").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("text/plain", rows.row("$ALICE:14").string(Document.COLUMN_MIME_TYPE))
+            assertEquals(Document.MIME_TYPE_DIR, rows.row("$ALICE:15").string(Document.COLUMN_MIME_TYPE))
+        }
+    }
+
+    @Test
     fun aFailedPageIsReportedOnceThenAskedForAgainAndA401SignsOut() {
         fixture.auth.value = signedIn(ALICE, session = 1)
         fixture.files.folders[ROOT] = PutioResult.Failure(PutioFailure.ServerUnavailable(503, apiError(503)))
@@ -618,7 +642,7 @@ class MobileDocumentsProviderTest {
                 MobileAuthSessionId(session),
             )
 
-        fun file(id: Long, name: String, size: Long = 42L) = FilesItem(
+        fun file(id: Long, name: String, size: Long = 42L, contentType: String? = null) = FilesItem(
             id = FilesItemId(id),
             parentId = ROOT,
             name = name,
@@ -626,9 +650,11 @@ class MobileDocumentsProviderTest {
             sizeBytes = size,
             createdAt = "2026-08-25T14:39:02",
             updatedAt = "2026-09-30T15:41:33",
+            contentType = contentType,
         )
 
-        fun folder(id: Long, name: String) = file(id, name, size = 276_445_467L).copy(type = PutioFileType.FOLDER)
+        fun folder(id: Long, name: String, contentType: String? = null) =
+            file(id, name, size = 276_445_467L, contentType = contentType).copy(type = PutioFileType.FOLDER)
 
         fun apiError(status: Int) = PutioApiException(
             request = PutioRequestData("GET", "https://api.put.io/v2/files/list"),

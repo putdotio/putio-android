@@ -222,6 +222,7 @@ public fun PutioFile.toFilesItem(): FilesItem =
         folderType = folderType,
         screenshotUrl = screenshot?.takeIf(String::isNotBlank),
         updatedAt = updatedAt,
+        contentType = contentType?.takeIf(String::isNotBlank),
     )
 
 // Only media rows carry a position. Malformed server values drop the indicator instead of
