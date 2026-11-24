@@ -1,10 +1,15 @@
 package io.putdotio.android.files
 
+import android.content.Context
 import android.content.Intent
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.PutioResult
 import io.putdotio.android.R
+import io.putdotio.android.putioErrorBody
+import io.putdotio.android.putioRefusal
+import io.putdotio.android.toPutioFailure
 import io.putdotio.android.trash.TrashBulkSelection
 import io.putdotio.android.trash.TrashPage
 import io.putdotio.android.trash.TrashRepository
@@ -21,6 +26,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -90,6 +96,19 @@ class MobileFilesActionsControllerTest {
         assertEquals(1, rejected)
         assertEquals(1, notices.size)
         assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun aProseNotFoundActionFailureUsesTheAppsNotFoundCopy() = runTest {
+        val controller = controller()
+        val notices = mutableListOf<MobileFilesNotice>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { controller.notices.toList(notices) }
+        watched.result = PutioResult.Failure(putioRefusal(404, putioErrorBody(404, "File not found.")).toPutioFailure())
+        controller.setWatched(video, watched = true)
+        advanceUntilIdle()
+        val text = notices.single().text(ApplicationProvider.getApplicationContext<Context>())
+        assertEquals("Couldn’t mark “${video.name}” as watched. It may have been moved or deleted.", text)
+        assertFalse(text.contains("File not found."))
     }
 
     @Test

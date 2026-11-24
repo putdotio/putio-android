@@ -402,6 +402,16 @@ class MobileFilesScreenTest {
     }
 
     @Test
+    fun proseNotFoundFailureKeepsTheAppsNotFoundCopy() {
+        val state = browserState(
+            FilesContent.Failed(putioRefusal(404, putioErrorBody(404, "File not found.")).toPutioFailure()),
+        )
+        compose.setFilesContent(state = state, onEvent = {})
+        compose.onNodeWithText("It may have been moved or deleted.").assertIsDisplayed()
+        compose.onNodeWithText("File not found.").assertDoesNotExist()
+    }
+
+    @Test
     fun anEmptyFolderOffersToCreateAFolder() {
         var newFolderRequests = 0
         val state = browserState(FilesContent.Empty(FilesPaging.Complete))
