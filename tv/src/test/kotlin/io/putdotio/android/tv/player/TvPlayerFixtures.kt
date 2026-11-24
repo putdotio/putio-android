@@ -204,6 +204,16 @@ internal class FakePlayer : SimpleBasePlayer(Looper.getMainLooper()) {
         invalidateState()
     }
 
+    fun buffer() {
+        state = state.buildUpon().setPlaybackState(STATE_BUFFERING).build()
+        invalidateState()
+    }
+
+    fun ready() {
+        state = state.buildUpon().setPlaybackState(STATE_READY).build()
+        invalidateState()
+    }
+
     fun allow(command: Int) {
         state = state.buildUpon()
             .setAvailableCommands(state.availableCommands.buildUpon().add(command).build())

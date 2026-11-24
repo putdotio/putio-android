@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.media3.common.C
 import androidx.media3.common.ForwardingPlayer
+import androidx.media3.common.ForwardingSimpleBasePlayer
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -164,29 +165,15 @@ private class TvSessionPlayer(
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
-private class SkipCommandsPlayer(player: Player) : ForwardingPlayer(player) {
-    override fun getAvailableCommands(): Player.Commands = withSkipCommands(super.getAvailableCommands())
-
-    override fun isCommandAvailable(command: Int): Boolean =
-        TV_SKIP_COMMANDS.contains(command) || super.isCommandAvailable(command)
-
-    override fun addListener(listener: Player.Listener) = super.addListener(SkipCommandsListener(listener))
-
-    override fun removeListener(listener: Player.Listener) = super.removeListener(SkipCommandsListener(listener))
-}
-
-private class SkipCommandsListener(private val listener: Player.Listener) : Player.Listener by listener {
-    override fun onAvailableCommandsChanged(availableCommands: Player.Commands) =
-        listener.onAvailableCommandsChanged(withSkipCommands(availableCommands))
-
-    override fun equals(other: Any?): Boolean = other is SkipCommandsListener && other.listener == listener
-
-    override fun hashCode(): Int = listener.hashCode()
+private class SkipCommandsPlayer(player: Player) : ForwardingSimpleBasePlayer(player) {
+    override fun getState(): State = super.getState().let { state ->
+        state.buildUpon()
+            .setAvailableCommands(withSkipCommands(state.availableCommands))
+            .build()
+    }
 }
 
 internal val TV_SESSION_PLAYER_COMMANDS: Player.Commands = tvSessionPlayerCommands()
-
-private val TV_SKIP_COMMANDS: Player.Commands = withSkipCommands(Player.Commands.EMPTY)
 
 private val TV_QUEUE_SESSION_PLAYER_COMMANDS: Player.Commands = withSkipCommands(TV_SESSION_PLAYER_COMMANDS)
 
