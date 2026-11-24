@@ -89,6 +89,10 @@ internal class TvPlaybackReporting(
     override fun observe(player: Player): Closeable =
         if (closed) Closeable {} else PlaybackPositionObserver(player, scope, writer::offer)
 
+    internal fun markAuthenticationRejected() {
+        if (!closed && sessionCurrent()) mutableRejected.value = true
+    }
+
     override fun close() {
         closed = true
         current = null

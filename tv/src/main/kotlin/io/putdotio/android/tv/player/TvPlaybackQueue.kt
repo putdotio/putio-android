@@ -3,7 +3,6 @@ package io.putdotio.android.tv.player
 import android.content.Context
 import androidx.annotation.MainThread
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -14,6 +13,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackAnalyticsReporter
 import io.putdotio.android.playback.PlaybackContent
@@ -46,61 +46,56 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @MainThread
-@Suppress("LongParameterList") // Constructed once from TvPlaybackRoute, which owns each collaborator.
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+@Suppress("LongParameterList")
 internal class TvPlaybackQueue(
     private val context: Context,
     private val factory: TvPlayerFactory,
-    private val reporter: TvPlaybackReporter,
-    private val lifecycle: Lifecycle,
+    val reporter: TvPlaybackReporter,
     private val controller: PlaybackController,
     private val folder: TvFolderLookup,
-    private val analytics: PlaybackAnalyticsReporter,
+    private val defaultAnalytics: PlaybackAnalyticsReporter,
     private val onFailure: (PlaybackFailure, Long) -> Unit,
-) : RememberObserver {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val onQueueFinished: (() -> Unit)? = null,
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var started = false
     private var current by mutableStateOf<Queued?>(null)
+    private var loading: LoadingAudioPlayer? = null
     private var session: TvQueueSession? = null
     private var screen: Screen? = null
+    private var ui: UiBinding? = null
     private var advancedFrom: Player? = null
-    private val stopped = LifecycleEventObserver { _, event ->
-        if (event == Lifecycle.Event.ON_STOP) loadWhileStopped(controller.state.value)
+    private val lifecycleObserver = LifecycleEventObserver { _, event ->
+        when (event) {
+            Lifecycle.Event.ON_START, Lifecycle.Event.ON_STOP -> syncSession(controller.state.value)
+            else -> Unit
+        }
     }
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState != Player.STATE_ENDED) return
-            analytics.reachedEnd()
+            (ui?.analytics ?: defaultAnalytics).reachedEnd()
             advanceIfEnded()
         }
 
         override fun onPlayerError(error: PlaybackException) {
             val player = current?.player?.takeIf { it !== screen?.player } ?: return
-            onFailure(error.toPlaybackFailure(), player.currentPosition.coerceAtLeast(0L))
+            val handler = ui?.onFailure ?: onFailure
+            handler(error.toPlaybackFailure(), player.currentPosition.coerceAtLeast(0L))
         }
     }
 
+    val loadingPlayWhenReady: Boolean get() = loading?.playWhenReady ?: true
+
     val neighbours: StateFlow<PlaybackNeighbours?> = folder.neighbours
 
-    fun playing(source: PlaybackSource): Player? =
-        current?.takeIf { it.source == source && it.player.playerError == null }?.player
+    private val isForeground: Boolean
+        get() = ui?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true
 
-    fun take(source: PlaybackSource, target: PlaybackTarget, player: Player) {
-        val previous = current
-        player.addListener(listener)
-        val queued = Queued(source, target.fileId, player, reporter.observe(player))
-        current = queued
-        val published = tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = queued::setPlaying)
-        session?.swap(published) ?: run { session = factory.publishQueue(context, published) }
-        previous?.release()
-    }
-
-    fun attach(player: Player, skip: (Boolean) -> Unit, setPlaying: (Boolean) -> Unit): Closeable {
-        val attached = Screen(player, skip, setPlaying)
-        screen = attached
-        return Closeable { if (screen === attached) screen = null }
-    }
-
-    override fun onRemembered() {
-        lifecycle.addObserver(stopped)
+    fun start() {
+        if (started) return
+        started = true
         scope.launch {
             controller.state.map { it.target }.distinctUntilChangedBy { it.fileId }.collectLatest(folder::lookUp)
         }
@@ -109,22 +104,63 @@ internal class TvPlaybackQueue(
                 val held = current
                 val ready = playing.content is PlaybackContent.Ready
                 when {
-                    held == null -> Unit
                     playing.content is PlaybackContent.Failed -> drop()
                     ready && playing.target.mediaType != PlaybackMediaType.AUDIO -> drop()
-                    !ready && playing.target.fileId != held.fileId -> held.player.pause()
+                    held != null && !ready && playing.target.fileId != held.fileId -> held.player.pause()
                 }
-                loadWhileStopped(playing)
+                syncSession(playing)
             }
         }
         scope.launch { folder.neighbours.collect { advanceIfEnded() } }
+        if (ui != null) syncSession(controller.state.value)
     }
 
-    override fun onAbandoned() = onForgotten()
+    fun bindUi(
+        lifecycle: Lifecycle,
+        analytics: PlaybackAnalyticsReporter,
+        onFailure: (PlaybackFailure, Long) -> Unit,
+    ): Closeable {
+        ui?.detach()
+        val binding = UiBinding(lifecycle, analytics, onFailure)
+        ui = binding
+        lifecycle.addObserver(lifecycleObserver)
+        if (started) syncSession(controller.state.value)
+        return Closeable {
+            binding.detach()
+            if (ui === binding) ui = null
+        }
+    }
 
-    override fun onForgotten() {
+    fun playing(source: PlaybackSource): Player? =
+        current?.takeIf { it.source == source && it.player.playerError == null }?.player
+
+    fun take(source: PlaybackSource, target: PlaybackTarget, player: Player) {
+        val previous = current
+        val previousLoading = loading
+        loading = null
+        player.addListener(listener)
+        val queued = Queued(source, target.fileId, player, reporter.observe(player))
+        current = queued
+        val published = tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = queued::setPlaying)
+        val activeSession = session
+        when {
+            activeSession != null -> activeSession.swap(published)
+            isForeground -> session = factory.publishQueue(context, published)
+        }
+        previous?.release()
+        previousLoading?.release()
+    }
+
+    fun attach(player: Player, skip: (Boolean) -> Unit, setPlaying: (Boolean) -> Unit): Closeable {
+        val attached = Screen(player, skip, setPlaying)
+        screen = attached
+        return Closeable { if (screen === attached) screen = null }
+    }
+
+    fun close() {
         scope.cancel()
-        lifecycle.removeObserver(stopped)
+        ui?.detach()
+        ui = null
         screen = null
         drop()
     }
@@ -132,33 +168,75 @@ internal class TvPlaybackQueue(
     private fun drop() {
         session?.close()
         session = null
+        loading?.release()
+        loading = null
         current?.release()
         current = null
     }
 
-    private fun loadWhileStopped(playing: PlaybackState) {
-        val ready = playing.content as? PlaybackContent.Ready ?: return
-        val started = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-        if (started || playing.target.mediaType != PlaybackMediaType.AUDIO || current?.source == ready.source) return
-        val target = playing.target
-        val prepared = ready.source.preparePlayback(target.name, target.mediaType, playing.resumePositionMillis)
-        val player = factory.create(context, target.mediaType)
-        player.start(
-            prepared.mediaItem.leasedBy(reporter, target.fileId.value, ready.useStartFrom),
-            prepared.startPositionMillis,
-            playWhenReady = true,
-        )
-        take(ready.source, target, player)
+    private fun syncSession(playing: PlaybackState) {
+        if (playing.target.mediaType != PlaybackMediaType.AUDIO) return
+        when {
+            isForeground && session == null -> {
+                val held = current
+                if (held != null) {
+                    val published = tvSessionPlayer(
+                        held.player,
+                        onSkipRequested = ::skip,
+                        onPlayingRequested = held::setPlaying,
+                    )
+                    session = factory.publishQueue(context, published)
+                } else {
+                    val awaitingLoad = playing.content is PlaybackContent.Loading ||
+                        playing.content is PlaybackContent.AwaitingResume
+                    if (awaitingLoad && loading == null) {
+                        val placeholder = LoadingAudioPlayer(playing.target)
+                        loading = placeholder
+                        val published = tvSessionPlayer(
+                            placeholder,
+                            onSkipRequested = null,
+                            onPlayingRequested = { placeholder.playWhenReady = it },
+                        )
+                        session = factory.publishQueue(context, published)
+                    }
+                }
+            }
+            !isForeground && session != null -> {
+                val ready = playing.content as? PlaybackContent.Ready
+                if (ready != null && current?.source != ready.source) {
+                    val target = playing.target
+                    val prepared = ready.source.preparePlayback(
+                        target.name,
+                        target.mediaType,
+                        playing.resumePositionMillis,
+                    )
+                    val player = factory.create(context, target.mediaType)
+                    player.start(
+                        prepared.mediaItem.leasedBy(reporter, target.fileId.value, ready.useStartFrom),
+                        prepared.startPositionMillis,
+                        playWhenReady = loading?.playWhenReady ?: true,
+                    )
+                    take(ready.source, target, player)
+                }
+            }
+        }
     }
 
     private fun advanceIfEnded() {
         val playing = current ?: return
         val player = playing.player
-        val next = folder.of(playing.fileId)?.next
+        val neighbours = folder.of(playing.fileId) ?: return
         val ended = player.playbackState == Player.STATE_ENDED && player.playWhenReady
-        if (next != null && ended && advancedFrom !== player) {
-            advancedFrom = player
-            controller.dispatch(PlaybackEvent.NextChosen(next))
+        if (ended) {
+            val next = neighbours.next
+            if (next != null) {
+                if (advancedFrom !== player) {
+                    advancedFrom = player
+                    controller.dispatch(PlaybackEvent.NextChosen(next))
+                }
+            } else if (!isForeground) {
+                onQueueFinished?.invoke()
+            }
         }
     }
 
@@ -195,6 +273,14 @@ internal class TvPlaybackQueue(
         }
     }
 
+    private inner class UiBinding(
+        val lifecycle: Lifecycle,
+        val analytics: PlaybackAnalyticsReporter,
+        val onFailure: (PlaybackFailure, Long) -> Unit,
+    ) {
+        fun detach() = lifecycle.removeObserver(lifecycleObserver)
+    }
+
     private class Screen(val player: Player, val skip: (Boolean) -> Unit, val setPlaying: (Boolean) -> Unit)
 }
 
@@ -225,6 +311,10 @@ internal class TvFolderLookup(
 
 internal class TvHeldPlayer(val player: Player, val queue: TvPlaybackQueue?, private val adopted: Boolean) {
     fun playsAtStart(startsPlaying: Boolean): Boolean = if (adopted) player.playWhenReady else startsPlaying
+
+    fun configure(apply: () -> Unit) {
+        if (!adopted) apply()
+    }
 
     fun start(item: MediaItem, startPositionMillis: Long, playWhenReady: Boolean) {
         if (!adopted) player.start(item, startPositionMillis, playWhenReady)
@@ -259,6 +349,10 @@ internal fun rememberHeldPlayer(
         if (queued == null || queued === held.player) held else TvHeldPlayer(queued, queue, adopted = true)
     }
 }
+
+@androidx.annotation.OptIn(markerClass = [UnstableApi::class])
+internal fun TvPlaybackQueue?.startsPlaying(stoppedAtMillis: Long?): Boolean =
+    stoppedAtMillis == null && (this == null || loadingPlayWhenReady)
 
 private fun Player.start(item: MediaItem, startPositionMillis: Long, playWhenReady: Boolean) {
     setMediaItem(item, startPositionMillis)

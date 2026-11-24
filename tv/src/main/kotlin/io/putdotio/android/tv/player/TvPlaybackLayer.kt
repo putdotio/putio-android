@@ -3,6 +3,7 @@ package io.putdotio.android.tv.player
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -165,7 +166,7 @@ internal fun TvPlaybackRoute(
             onRefreshConversion = { controller.dispatch(PlaybackEvent.RefreshConversion) },
             onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
             playerFactory = playerFactory,
-            reporter = reporter,
+            reporter = queue.activeReporter(reporter),
             subtitleStartupPolicy = subtitleStartupPolicy,
             autoplayNextVideo = autoplayNextVideo,
             onPlaybackEnded = { controller.dispatch(PlaybackEvent.PlayerEnded) },
@@ -209,19 +210,31 @@ private fun rememberPlaybackQueue(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val currentOnSessionRejected by rememberUpdatedState(onSessionRejected)
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
-    return remember(backgrounds, controller, playerFactory, reporter, findUpNext, analytics, lifecycle) {
-        if (!backgrounds) return@remember null
+    val hosted = TvPlaybackService.audioHost.queueFor(controller)
+    val local = remember(backgrounds, controller, playerFactory, reporter, findUpNext, analytics, hosted) {
+        if (!backgrounds || hosted != null) return@remember null
         TvPlaybackQueue(
             context = context,
             factory = playerFactory,
             reporter = reporter,
-            lifecycle = lifecycle,
             controller = controller,
             folder = TvFolderLookup(controller.state, findUpNext) { currentOnSessionRejected() },
-            analytics = analytics,
+            defaultAnalytics = analytics,
             onFailure = { failure, positionMillis -> currentOnPlayerFailure(failure, positionMillis) },
         )
     }
+    DisposableEffect(local) {
+        local?.start()
+        onDispose { local?.close() }
+    }
+    val queue = hosted ?: local
+    DisposableEffect(queue, lifecycle, analytics) {
+        val binding = queue?.bindUi(lifecycle, analytics) { failure, positionMillis ->
+            currentOnPlayerFailure(failure, positionMillis)
+        }
+        onDispose { binding?.close() }
+    }
+    return queue
 }
 
 @Composable
@@ -237,6 +250,9 @@ private fun rememberNeighbours(
 }
 
 private val NO_QUEUE = MutableStateFlow<PlaybackNeighbours?>(null)
+
+private fun TvPlaybackQueue?.activeReporter(fallback: TvPlaybackReporter): TvPlaybackReporter =
+    this?.reporter ?: fallback
 
 private fun PlaybackController.showsPlayerFailure(failure: PlaybackFailure, positionMillis: Long): Boolean =
     dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) && state.value.content is PlaybackContent.Failed

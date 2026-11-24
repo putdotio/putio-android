@@ -438,7 +438,7 @@ private fun TvActiveReadyPlayer(
     val currentKeepsPlaying by rememberUpdatedState(keepsPlaying)
     val currentOnStoppedAtMillis by rememberUpdatedState(onStoppedAtMillis)
     val currentOnForegroundStopped by rememberUpdatedState(onForegroundStopped)
-    val startsPlaying = stoppedAtMillis == null
+    val startsPlaying = queue.startsPlaying(stoppedAtMillis)
     var released by remember(player) { mutableStateOf(false) }
     var releaseOwned by remember(player) { mutableStateOf({}) }
     var overlay by remember(player) { mutableStateOf(tvPlayerOverlay(nowPlaying, nowPlayingFocus.value)) }
@@ -599,14 +599,16 @@ private fun TvActiveReadyPlayer(
             }
         }
         (player as? ExoPlayer)?.addAnalyticsListener(loads)
-        player.trackSelectionParameters =
-            restoreSubtitleSelection(
-                defaults = defaultTrackSelection,
-                retained = options.subtitles,
-                startupPolicy = subtitleStartupPolicy,
-                remembered = subtitleMemory.remembered,
-            ).withAudioSelection(options.audio, emptyList())
-        player.setPlaybackSpeed(options.speed)
+        held.configure {
+            player.trackSelectionParameters =
+                restoreSubtitleSelection(
+                    defaults = defaultTrackSelection,
+                    retained = options.subtitles,
+                    startupPolicy = subtitleStartupPolicy,
+                    remembered = subtitleMemory.remembered,
+                ).withAudioSelection(options.audio, emptyList())
+            player.setPlaybackSpeed(options.speed)
+        }
         held.start(
             prepared.mediaItem.leasedBy(reporter, target.fileId.value, useStartFrom),
             prepared.startPositionMillis,

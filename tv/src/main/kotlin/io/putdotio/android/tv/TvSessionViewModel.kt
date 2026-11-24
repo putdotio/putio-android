@@ -1,5 +1,6 @@
 package io.putdotio.android.tv
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -72,7 +73,14 @@ import io.putdotio.android.trash.TrashRepository
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.android.tv.player.TvAudioMedia
+import io.putdotio.android.tv.player.TvAudioPlaybackHost
+import io.putdotio.android.tv.player.TvAudioSessionAttachments
+import io.putdotio.android.tv.player.TvAudioSessionCallbacks
+import io.putdotio.android.tv.player.TvAudioSessionIdentity
+import io.putdotio.android.tv.player.TvAudioStartRequest
 import io.putdotio.android.tv.player.TvPlaybackReporting
+import io.putdotio.android.tv.player.TvPlaybackService
 import io.putdotio.android.tv.watchnext.TvWatchNextPlayback
 import io.putdotio.android.tv.watchnext.TvWatchNextRecorder
 import io.putdotio.android.playback.PlaybackContent
@@ -139,12 +147,19 @@ internal enum class TvExternalOpen {
     REFUSED,
 }
 
+internal class TvSessionAudio(
+    val host: TvAudioPlaybackHost = TvAudioPlaybackHost(),
+    val key: TvSessionKey? = null,
+    val authState: StateFlow<TvAuthState>? = null,
+    val application: Context? = null,
+)
+
 /**
  * The controllers of one signed-in session. They survive navigation and configuration
  * changes together and are closed together when the session ends.
  */
 // One entry point per change the viewer makes to the signed-in session, which owns the state they share.
-@Suppress("TooManyFunctions")
+@Suppress("TooManyFunctions", "LongParameterList")
 internal class TvSession internal constructor(
     dependencies: TvSessionDependencies,
     historyEnabled: Boolean,
@@ -153,6 +168,7 @@ internal class TvSession internal constructor(
     private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
     /** The signed-in account, which product analytics identifies; null in tests. */
     accountId: Long? = null,
+    private val audio: TvSessionAudio = TvSessionAudio(),
 ) {
     private val recentSearches = dependencies.recentSearchStore(parentScope)
     val continueWatching = ContinueWatching(dependencies.continueWatchingStore(accountId ?: 0L))
@@ -174,6 +190,7 @@ internal class TvSession internal constructor(
     private val filesItemResolver = dependencies.filesItemResolver
     private val watchedRepository = dependencies.watchedRepository
     private val streamUrls = dependencies.streamUrls
+    private val writePlaybackPosition = dependencies.writePlaybackPosition
     private val sessionJob = SupervisorJob(parentScope.coroutineContext[Job])
     private val scope = CoroutineScope(parentScope.coroutineContext + sessionJob)
     private val historyOpenChannel = Channel<TvExternalOpen>(Channel.BUFFERED)
@@ -192,6 +209,7 @@ internal class TvSession internal constructor(
     private val playbackRepository = dependencies.playbackRepository { appConfig.state.value }
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
     private val mutablePlaybackInBackground = MutableStateFlow(false)
+    private var attachedAudio: PlaybackController? = null
     /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null
     private var durationLookup: Job? = null
@@ -313,6 +331,38 @@ internal class TvSession internal constructor(
         if (accountId != null) {
             scope.launch { settings.state.productAnalyticsAnswers().collect { ProductAnalytics.update(accountId, it) } }
         }
+        val audioKey = audio.key
+        if (audioKey != null) {
+            scope.launch { settings.state.collect(audio.host::updateSettings) }
+            val hosted = audio.host.reattach(
+                TvAudioSessionAttachments(
+                    sessionKey = audioKey,
+                    settings = settings.state,
+                    onSaved = positionSaved,
+                    onAuthenticationRejected = playbackReporting::markAuthenticationRejected,
+                ),
+            )
+            if (hosted != null) {
+                attachedAudio = hosted.controller
+                mutablePlayback.value = hosted.controller
+                mutablePlaybackInBackground.value = hosted.inBackground
+                playbackStart = hosted.startItem
+                playingFromHome = hosted.playingFromHome
+                watchNextPlayback.follow(hosted.controller)
+            }
+            scope.launch {
+                audio.host.active.collect { currentHosted ->
+                    val audioController = attachedAudio
+                    if (currentHosted == null && audioController != null) {
+                        attachedAudio = null
+                        if (mutablePlayback.value === audioController) {
+                            mutablePlayback.value = null
+                            mutablePlaybackInBackground.value = false
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun retryRecentSearches() = recentSearches.retry()
@@ -386,22 +436,46 @@ internal class TvSession internal constructor(
             item.screenshotUrl,
             method,
         )
-        val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
         playbackReporting.startPlayback()
         mutablePlaybackInBackground.value = false
-        mutablePlayback.getAndUpdate { controller }?.close()
         playbackStart = item
-        watchNextPlayback.follow(controller)
         continueWatchingFollow?.cancel()
-        continueWatchingFollow = scope.launch {
-            controller.state.map { it.target }.distinctUntilChanged().collect { target ->
-                if (target.mediaType == PlaybackMediaType.VIDEO) {
-                    continueWatching.opened(target.fileId, target.name, target.durationSeconds)
+        continueSaved?.cancel()
+        val authState = audio.authState
+        if (mediaType == PlaybackMediaType.AUDIO && audio.key != null && authState != null) {
+            val controller = audio.host.start(
+                TvAudioStartRequest(
+                    identity = TvAudioSessionIdentity(audio.key, authState, audio.application),
+                    media = TvAudioMedia(target, item, fromHome, start.answer),
+                    callbacks = TvAudioSessionCallbacks(
+                        playbackRepository = playbackRepository,
+                        settings = settings.state,
+                        writePlaybackPosition = writePlaybackPosition,
+                        onSaved = positionSaved,
+                        onAuthenticationRejected = playbackReporting::markAuthenticationRejected,
+                    ),
+                ),
+            )
+            attachedAudio = controller
+            mutablePlayback.getAndUpdate { controller }?.let { previous ->
+                if (previous !== controller) previous.close()
+            }
+            watchNextPlayback.follow(controller)
+        } else {
+            audio.host.stop()
+            attachedAudio = null
+            val controller = PlaybackController(target, playbackRepository, scope, analytics = true)
+            mutablePlayback.getAndUpdate { controller }?.close()
+            watchNextPlayback.follow(controller)
+            continueWatchingFollow = scope.launch {
+                controller.state.map { it.target }.distinctUntilChanged().collect { target ->
+                    if (target.mediaType == PlaybackMediaType.VIDEO) {
+                        continueWatching.opened(target.fileId, target.name, target.durationSeconds)
+                    }
                 }
             }
+            continueSaved = scope.launch { controller.answerResumePrompts(item.id, start.answer) }
         }
-        continueSaved?.cancel()
-        continueSaved = scope.launch { controller.answerResumePrompts(item.id, start.answer) }
     }
 
     /**
@@ -422,18 +496,22 @@ internal class TvSession internal constructor(
         } else {
             returnToShell(stopped)
         }
-        stopped.close()
+        attachedAudio = null
+        if (audio.host.owns(stopped)) audio.host.stop() else stopped.close()
     }
 
     fun backgroundPlayback() {
         val playing = mutablePlayback.value ?: return
         if (mutablePlaybackInBackground.value) return
         mutablePlaybackInBackground.value = true
+        if (audio.host.owns(playing)) audio.host.setBackground(true)
         returnToShell(playing, keepPlaying = true)
     }
 
     fun foregroundPlayback() {
-        if (mutablePlayback.value != null) mutablePlaybackInBackground.value = false
+        val playing = mutablePlayback.value ?: return
+        mutablePlaybackInBackground.value = false
+        if (audio.host.owns(playing)) audio.host.setBackground(false)
     }
 
     private fun returnToShell(playing: PlaybackController, keepPlaying: Boolean = false) {
@@ -487,8 +565,23 @@ internal class TvSession internal constructor(
     /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissHistoryOpenFailure() = historyOpener.dismissFailure()
 
+    internal fun closeOnSessionEnded() {
+        audio.host.stop()
+        close()
+    }
+
     internal fun close() {
-        stopPlayback()
+        audio.host.detachCallbacks(positionSaved)
+        val current = mutablePlayback.value
+        if (current != null && audio.host.owns(current)) {
+            durationLookup?.cancel()
+            continueSaved?.cancel()
+            watchNextPlayback.stopFollowing()
+            continueWatchingFollow?.cancel()
+            attachedAudio = null
+        } else {
+            stopPlayback()
+        }
         playbackReporting.close()
         scope.cancel()
         historyOpener.close()
@@ -516,12 +609,15 @@ internal data class TvSessionKey(
 internal class TvSessionViewModel(
     private val authState: StateFlow<TvAuthState>,
     private val buildContext: CoroutineContext = Dispatchers.Default,
+    private val application: Context? = null,
+    private val audioHost: TvAudioPlaybackHost = TvAudioPlaybackHost(),
 ) : ViewModel() {
     private val active = SessionScopedHolder<TvAuthState, TvSessionKey, TvSession>(
         authState = authState,
         keyOf = { it.sessionKey() },
         scope = viewModelScope,
         close = TvSession::close,
+        onSessionEnded = TvSession::closeOnSessionEnded,
     )
     private val mutablePrepared = MutableStateFlow<TvSessionKey?>(null)
     private var preparing: TvSessionKey? = null
@@ -564,6 +660,7 @@ internal class TvSessionViewModel(
             parentScope = viewModelScope,
             watchNext = dependencies.watchNext(key.userId, key.sessionId),
             accountId = key.userId,
+            audio = TvSessionAudio(audioHost, key, authState, application),
         )
 
     override fun onCleared() {
@@ -606,7 +703,12 @@ internal fun TvSession.removeFromContinueWatching(entry: ContinueWatchingEntry) 
 }
 
 internal fun tvSessionViewModelFactory(authState: StateFlow<TvAuthState>): ViewModelProvider.Factory =
-    viewModelFactory { initializer { TvSessionViewModel(authState) } }
+    viewModelFactory {
+        initializer {
+            val application = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+            TvSessionViewModel(authState, application = application, audioHost = TvPlaybackService.audioHost)
+        }
+    }
 
 internal class TvActionFailure {
     private val mutableFailure = MutableStateFlow<PutioFailure?>(null)
