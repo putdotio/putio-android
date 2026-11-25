@@ -245,6 +245,10 @@ class TvBackgroundAudioProofTest {
                 it.hasDumpsysPlaybackState("PLAYING", PlatformPlaybackState.STATE_PLAYING)
             }
             assertNotNull("Expected PLAYING(3) after activity destruction:\n$dump", afterDestroyLine)
+            val serviceComponent = "${context.packageName}/${TvPlaybackService::class.java.name}"
+            waitUntil(5_000L) {
+                shell("dumpsys activity services $serviceComponent").contains("isForeground=true")
+            }
             Log.i("TvBgAudioProof", "880_AFTER_DESTROY: $afterDestroyLine")
 
             val relaunched = ActivityScenario.launch(TvProofActivity::class.java)
@@ -365,8 +369,12 @@ class TvBackgroundAudioProofTest {
     private fun sessionBlock(dump: String, tag: String): String {
         val lines = dump.lines()
         val start = lines.indexOfLast { it.contains(tag) }
-        if (start < 0) return dump
-        return lines.drop(start).take(14).joinToString("\n")
+        if (start < 0) return ""
+        val headerIndent = lines[start].takeWhile { it == ' ' }.length
+        val tail = lines.drop(start + 1).takeWhile { line ->
+            line.isNotBlank() && line.takeWhile { it == ' ' }.length > headerIndent
+        }
+        return (listOf(lines[start]) + tail).joinToString("\n")
     }
 
     private fun shell(command: String): String {

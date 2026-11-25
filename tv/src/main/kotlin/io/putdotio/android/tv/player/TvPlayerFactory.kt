@@ -80,6 +80,7 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
         return object : TvQueueSession {
             override fun swap(player: Player) {
                 session.player = player
+                TvBackgroundSessions.refresh(session)
             }
 
             override fun close() = hosted.close()

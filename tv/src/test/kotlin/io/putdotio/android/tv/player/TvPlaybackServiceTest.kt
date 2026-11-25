@@ -31,6 +31,7 @@ import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.files.FilesItemResolver
 import io.putdotio.android.files.FilesPage
+import io.putdotio.android.files.FilesContent
 import io.putdotio.android.files.FilesPlaybackProgress
 import io.putdotio.android.files.FilesStreamUrlResult
 import io.putdotio.android.files.FilesStreamUrls
@@ -40,6 +41,7 @@ import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
 import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
@@ -68,20 +70,24 @@ import io.putdotio.android.tv.TvSession
 import io.putdotio.android.tv.TvSessionAudio
 import io.putdotio.android.tv.TvSessionDependencies
 import io.putdotio.android.tv.TvSessionKey
+import io.putdotio.android.tv.TvSessionViewModel
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.sdk.files.PutioFileType
+import java.util.concurrent.Executor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -335,15 +341,202 @@ class TvPlaybackServiceTest {
         }
     }
 
+    @Test
+    fun reusedServiceInstanceReattachesNewlyHostedSessionOnStartCommand() {
+        val sessionA = tvMediaSession(compose.activity, FakePlayer()).build()
+        val hostedA = TvBackgroundSessions.host(compose.activity, sessionA)
+        val serviceController = Robolectric.buildService(TvPlaybackService::class.java).create()
+        val service = serviceController.get()
+        var hostedB: java.io.Closeable? = null
+        try {
+            serviceController.startCommand(0, 0)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf(sessionA), service.sessions)
+
+            hostedA.close()
+            val sessionB = tvMediaSession(compose.activity, FakePlayer()).build()
+            hostedB = TvBackgroundSessions.host(compose.activity, sessionB)
+
+            serviceController.startCommand(0, 1)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertEquals(listOf(sessionB), service.sessions)
+            hostedB.close()
+            hostedB = null
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(service.sessions.isEmpty())
+            assertTrue(shadowOf(service).isStoppedBySelf)
+        } finally {
+            hostedB?.close()
+            serviceController.destroy()
+        }
+    }
+
+    @Test
+    fun pausingAfterTaskRemovedStopsSwappedPlayerAndService() {
+        val second = PlaybackTarget(FilesItemId(11), "02 Middle.mp3", PlaybackMediaType.AUDIO)
+        val third = PlaybackTarget(FilesItemId(12), "03 Closing.mp3", PlaybackMediaType.AUDIO)
+        startHostedAudio(second, third)
+        val player1 = FakePlayer().apply {
+            setMediaItem(MediaItem.Builder().setMediaId("11").build())
+            playWhenReady = true
+            ready()
+        }
+        val player2 = FakePlayer().apply {
+            setMediaItem(MediaItem.Builder().setMediaId("12").build())
+            playWhenReady = true
+            ready()
+        }
+        val queueSession = DefaultTvPlayerFactory.publishQueue(compose.activity, player1)
+        val serviceController = Robolectric.buildService(TvPlaybackService::class.java).create().startCommand(0, 0)
+        val service = serviceController.get()
+        try {
+            service.onTaskRemoved(null)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNotNull(TvPlaybackService.audioHost.active.value)
+            assertFalse(shadowOf(service).isStoppedBySelf)
+
+            queueSession.swap(player2)
+            shadowOf(Looper.getMainLooper()).idle()
+            player2.pause()
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertNull(TvPlaybackService.audioHost.active.value)
+            assertTrue(shadowOf(service).isStoppedBySelf)
+        } finally {
+            queueSession.close()
+            serviceController.destroy()
+        }
+    }
+
+    @Test
+    fun reattachingForegroundClearsTaskRemovedFlag() {
+        val second = PlaybackTarget(FilesItemId(11), "02 Middle.mp3", PlaybackMediaType.AUDIO)
+        val third = PlaybackTarget(FilesItemId(12), "03 Closing.mp3", PlaybackMediaType.AUDIO)
+        startHostedAudio(second, third)
+        val player = FakePlayer().apply {
+            setMediaItem(MediaItem.Builder().setMediaId("11").build())
+            playWhenReady = true
+            ready()
+        }
+        val queueSession = DefaultTvPlayerFactory.publishQueue(compose.activity, player)
+        val serviceController = Robolectric.buildService(TvPlaybackService::class.java).create().startCommand(0, 0)
+        val service = serviceController.get()
+        try {
+            service.onTaskRemoved(null)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            TvBackgroundSessions.markAppForeground()
+            player.pause()
+            shadowOf(Looper.getMainLooper()).idle()
+
+            assertNotNull(TvPlaybackService.audioHost.active.value)
+            assertFalse(shadowOf(service).isStoppedBySelf)
+        } finally {
+            queueSession.close()
+            serviceController.destroy()
+        }
+    }
+
+    @Test
+    fun headlessTerminalStateClearsHostedAudio() {
+        val second = PlaybackTarget(FilesItemId(11), "02 Middle.mp3", PlaybackMediaType.AUDIO)
+        val third = PlaybackTarget(FilesItemId(12), "03 Closing.mp3", PlaybackMediaType.AUDIO)
+        val players = mutableListOf<FakePlayer>()
+        val sessions = mutableListOf<MediaSession>()
+        TvPlaybackService.audioHost.playerFactory = singleSessionFactory(players, sessions) {}
+        val controller = startHostedAudio(second, third)
+        var mounted by mutableStateOf(true)
+        val owner = stoppableOwner()
+        compose.setTvContent {
+            if (mounted) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                    TvPlaybackRoute(
+                        controller = controller,
+                        onExit = {},
+                        onSessionRejected = {},
+                        playerFactory = TvPlaybackService.audioHost.playerFactory,
+                        onBackground = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(1, sessions.size)
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.waitForIdle()
+        compose.runOnIdle { mounted = false }
+        compose.waitForIdle()
+
+        compose.runOnIdle {
+            controller.dispatch(
+                PlaybackEvent.PlayerFailed(PlaybackFailure.MediaUnsupported(IllegalStateException()), 0L),
+            )
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertNull(TvPlaybackService.audioHost.active.value)
+        assertNull(TvBackgroundSessions.hosted)
+    }
+
+    @Test
+    fun discardedPrepareDoesNotWipeActiveSessionAudioCallbacks() {
+        val account = TvAccount(42L, "u", "u@example.com", historyEnabled = true)
+        val authState = MutableStateFlow<TvAuthState>(TvAuthState.SignedIn(account, TvAuthSessionId(1L)))
+        val song = FilesItem(
+            id = FilesItemId(9L),
+            parentId = FilesItemId(0L),
+            name = "song.mp3",
+            type = PutioFileType.AUDIO,
+            sizeBytes = 1L,
+            playback = FilesPlaybackProgress(0.0, 120.0),
+            createdAt = "2026-04-20T10:00:00Z",
+        )
+        val builds = ArrayDeque<Runnable>()
+        val viewModel = TvSessionViewModel(
+            authState = authState,
+            buildContext = Executor(builds::addLast).asCoroutineDispatcher(),
+            audioHost = TvPlaybackService.audioHost,
+        )
+        val deps = sessionDependenciesForAudioTest(
+            onAudioWrite = { PlaybackRepositoryResult.Success(Unit) },
+            onWatchedWrite = { PutioResult.Success(Unit) },
+            rootFiles = listOf(song),
+        )
+        viewModel.prepare(account, TvAuthSessionId(1L), deps)
+        val adopted = checkNotNull(viewModel.sessionFor(account, TvAuthSessionId(1L), deps))
+        shadowOf(Looper.getMainLooper()).idle()
+        adopted.play(song)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        while (builds.isNotEmpty()) builds.removeFirst().run()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val reporting = checkNotNull(TvPlaybackService.audioHost.active.value).reporting
+        val lease = checkNotNull(reporting.lease(song.id.value))
+        val player = FakePlayer().apply {
+            setMediaItem(MediaItem.Builder().setMediaId("9").build().withReportingLease(lease), 47_000L)
+            ready()
+        }
+        reporting.observe(player).close()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val content = adopted.files.state.value.stack.single().content as FilesContent.Ready
+        assertEquals(47.0, content.items.single().playback?.startFromSeconds)
+        adopted.closeOnSessionEnded()
+    }
+
     private fun sessionDependenciesForAudioTest(
         onAudioWrite: suspend () -> PlaybackRepositoryResult<Unit>,
         onWatchedWrite: suspend () -> PutioResult<Unit>,
+        rootFiles: List<FilesItem> = emptyList(),
     ): TvSessionDependencies {
         val songTarget = PlaybackTarget(FilesItemId(9L), "song.mp3", PlaybackMediaType.AUDIO, 120.0)
         return TvSessionDependencies(
             filesRepository = object : StubFilesRepository() {
                 override suspend fun loadFolder(folderId: FilesItemId) =
-                    PutioResult.Success(FilesPage(emptyList(), null))
+                    PutioResult.Success(FilesPage(rootFiles, null))
             },
             searchRepository = emptySearchRepository(),
             historyRepository = emptyHistoryRepository(),

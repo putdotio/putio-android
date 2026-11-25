@@ -456,7 +456,7 @@ class TvNowPlayingTest {
         compose.runOnIdle { players.last().end() }
         idleSession()
 
-        compose.runOnIdle { assertEquals(listOf(SECOND.fileId, THIRD.fileId), ended.distinct()) }
+        compose.runOnIdle { assertEquals(listOf(SECOND.fileId, THIRD.fileId), ended) }
     }
 
     @Test

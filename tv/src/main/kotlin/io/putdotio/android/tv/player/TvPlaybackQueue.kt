@@ -104,7 +104,10 @@ internal class TvPlaybackQueue(
                 val held = current
                 val ready = playing.content is PlaybackContent.Ready
                 when {
-                    playing.content is PlaybackContent.Failed -> drop()
+                    playing.content.isTerminalAudioState() -> {
+                        drop()
+                        if (ui == null) onQueueFinished?.invoke()
+                    }
                     ready && playing.target.mediaType != PlaybackMediaType.AUDIO -> drop()
                     held != null && !ready && playing.target.fileId != held.fileId -> held.player.pause()
                 }
@@ -359,3 +362,13 @@ private fun Player.start(item: MediaItem, startPositionMillis: Long, playWhenRea
     this.playWhenReady = playWhenReady
     prepare()
 }
+
+private fun PlaybackContent.isTerminalAudioState(): Boolean =
+    when (this) {
+        is PlaybackContent.Failed,
+        is PlaybackContent.Unsupported,
+        is PlaybackContent.Conversion,
+        PlaybackContent.Ended,
+        -> true
+        else -> false
+    }
