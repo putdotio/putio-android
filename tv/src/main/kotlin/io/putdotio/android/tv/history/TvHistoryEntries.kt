@@ -76,7 +76,7 @@ private suspend fun List<HistoryItem>.historyEntries(
     built: Map<HistoryItem, TvHistoryRowParts>,
 ): TvHistoryEntries {
     val untitled = resources.getString(R.string.tv_history_no_title)
-    val rows = buildReusing(built) { it.rowParts(zone, resources, untitled) }
+    val rows = buildReusing(built) { it.rowParts(zone, resources, untitled, locale) }
     val stamps = HashMap<Long, TvHistoryStamp>(size)
     val titles = ArrayList<String>(size)
     val days = rows.rows.groupConsecutiveBy { it.day }
@@ -94,10 +94,15 @@ private suspend fun List<HistoryItem>.historyEntries(
     return TvHistoryEntries(list, titles, stamps, rows.byItem)
 }
 
-private fun HistoryItem.rowParts(zone: ZoneId, resources: Resources, untitled: String): TvHistoryRowParts {
+private fun HistoryItem.rowParts(
+    zone: ZoneId,
+    resources: Resources,
+    untitled: String,
+    locale: Locale,
+): TvHistoryRowParts {
     val time = timeLabel(zone)
     val title = named() ?: untitled
-    return TvHistoryRowParts(this, day(zone), time, title, rowText(time, title, resources))
+    return TvHistoryRowParts(this, day(zone), time, title, rowText(time, title, resources, locale))
 }
 
 private fun <T, K> List<T>.groupConsecutiveBy(keyOf: (T) -> K): List<Pair<K, List<T>>> =
@@ -110,11 +115,16 @@ private fun <T, K> List<T>.groupConsecutiveBy(keyOf: (T) -> K): List<Pair<K, Lis
 
 internal data class TvHistoryRowText(val meta: TvRowMeta, val label: String)
 
-private fun HistoryItem.rowText(time: String, title: String, resources: Resources): TvHistoryRowText {
+private fun HistoryItem.rowText(
+    time: String,
+    title: String,
+    resources: Resources,
+    locale: Locale,
+): TvHistoryRowText {
     val meta = TvRowMeta(
         listOfNotNull(
             kind.kindLabel(resources)?.let { TvRowMetaPart(it, shrinks = true) },
-            kind.sizeBytes()?.let { TvRowMetaPart(formatFileSize(it), mono = true) },
+            kind.sizeBytes()?.let { TvRowMetaPart(formatFileSize(it, locale), mono = true) },
             TvRowMetaPart(time, mono = true),
         ),
     )

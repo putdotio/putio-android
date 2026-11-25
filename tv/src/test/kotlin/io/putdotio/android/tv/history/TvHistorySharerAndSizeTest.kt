@@ -1,6 +1,9 @@
 package io.putdotio.android.tv.history
 
+import android.content.res.Configuration
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
@@ -40,6 +43,7 @@ import io.putdotio.sdk.files.PutioFileType
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Locale
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -225,6 +229,48 @@ class TvHistorySharerAndSizeTest {
         }
         compose.onNode(hasText("Shared by")).assertDoesNotExist()
         compose.onNode(hasText("Size")).assertDoesNotExist()
+    }
+
+    @Test
+    fun rowSizeAndDetailRespectConfigurationLocale() {
+        val previous = Locale.getDefault()
+        Locale.setDefault(Locale.US)
+        try {
+            val entries = listOf(
+                HistoryItem(
+                    HistoryEventId(1),
+                    "2026-09-12T05:22:00",
+                    HistoryEventKind.File(
+                        HistoryFileId(1),
+                        "shared.mkv",
+                        sharedBy = "alice",
+                        fileSizeBytes = 1_500_000_000L,
+                    ),
+                ),
+            )
+            compose.setTvContent {
+                val config = Configuration(LocalConfiguration.current).apply { setLocale(Locale.GERMANY) }
+                CompositionLocalProvider(LocalConfiguration provides config) {
+                    TvHistoryScreen(
+                        state = historyState(HistoryContent.Ready(entries, HistoryPaging.Complete)),
+                        onEvent = { true },
+                        clock = clock,
+                        files = TvHistoryFiles(resolver(FilesItemId(1) to file(1, "shared.mkv", FilesItemId(0)))),
+                        itemActions = historyActions(),
+                    )
+                }
+            }
+
+            compose.onNodeWithContentDescription("Open shared.mkv").assert(hasText("1,5 GB"))
+            compose.waitUntil(5_000) {
+                compose.onAllNodes(hasText("Size") and hasText("3,1 GB")).fetchSemanticsNodes().isNotEmpty()
+            }
+            compose.onNode(hasText("Size") and hasText("3,1 GB")).assertIsDisplayed()
+            compose.onAllNodesWithText("1.5 GB", substring = true).assertCountEquals(0)
+            compose.onAllNodesWithText("3.1 GB", substring = true).assertCountEquals(0)
+        } finally {
+            Locale.setDefault(previous)
+        }
     }
 
     private fun show(

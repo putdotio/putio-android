@@ -135,6 +135,8 @@ class MobileSearchScreensLayoutTest {
             ),
         )
         compose.onNodeWithText("Shared by", substring = true, useUnmergedTree = true).assertIsDisplayed()
+        compose.onAllNodesWithText("Shared by alice.longname · ", substring = true, useUnmergedTree = true)
+            .assertCountEquals(0)
         val sizeLayouts = mutableListOf<TextLayoutResult>()
         compose.onNodeWithText("1.5 GB", substring = true, useUnmergedTree = true)
             .assertIsDisplayed()

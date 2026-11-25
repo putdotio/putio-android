@@ -7,6 +7,7 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.search.SearchTerm
 import java.io.InputStream
+import java.util.Locale
 
 /**
  * A document is one account's put.io file: `<userId>:<fileId>`, the root folder being file 0. The account in the id
@@ -82,18 +83,26 @@ internal fun FilesItem.toDocumentRow(userId: Long): DocumentRow =
         mimeType = if (isFolder) {
             Document.MIME_TYPE_DIR
         } else {
-            contentType?.trim()?.takeIf { it.isNotEmpty() } ?: mimeTypeOf(name)
+            mimeTypeOf(name, contentType)
         },
         size = sizeBytes.takeUnless { isFolder },
         lastModified = parsePutioTimestamp(updatedAt ?: createdAt)?.toEpochMilli(),
     )
 
-/** Fallback MIME type by extension when put.io reports no `content_type`. */
-internal fun mimeTypeOf(name: String): String =
-    name.substringAfterLast('.', "").lowercase().takeIf { it.isNotEmpty() }
-        ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+/** Fallback MIME type by extension when put.io reports no usable `content_type`. */
+internal fun mimeTypeOf(name: String, contentType: String? = null): String =
+    contentType?.normalizedFileMimeType()
+        ?: name.substringAfterLast('.', "").lowercase(Locale.ROOT).takeIf { it.isNotEmpty() }
+            ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
         ?: GENERIC_MIME_TYPE
 
+private fun String.normalizedFileMimeType(): String? {
+    val essence = substringBefore(';').trim().lowercase(Locale.ROOT)
+    if (essence == Document.MIME_TYPE_DIR || essence == GENERIC_MIME_TYPE) return null
+    return essence.takeIf(MIME_TYPE_ESSENCE::matches)
+}
+
+private val MIME_TYPE_ESSENCE = Regex("""[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+""")
 private const val GENERIC_MIME_TYPE = "application/octet-stream"
 
 /**

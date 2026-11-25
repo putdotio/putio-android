@@ -335,4 +335,42 @@ class PlaybackPositionWriterTest {
         assertEquals(1, maxConcurrent)
         writer.close()
     }
+
+    @Test
+    fun supersedingMultipleFilesDropsPendingWritesForAllBeforeAcquiringLock() = runTest {
+        val sent = mutableListOf<Pair<Long, Double>>()
+        val holdInFlight = CompletableDeferred<Unit>()
+        val inFlightStarted = CompletableDeferred<Unit>()
+        val writer = PlaybackPositionWriter(backgroundScope) { fileId, seconds ->
+            sent += fileId to seconds
+            if (fileId == 3L) {
+                inFlightStarted.complete(Unit)
+                holdInFlight.await()
+            }
+            PlaybackRepositoryResult.Success(Unit)
+        }
+        val lease1 = writer.register(1L) { true }
+        val lease2 = writer.register(2L) { true }
+        val lease3 = writer.register(3L) { true }
+
+        writer.offer(lease3, 30_000L)
+        runCurrent()
+        assertTrue(inFlightStarted.isCompleted)
+
+        writer.offer(lease1, 10_000L)
+        writer.offer(lease2, 20_000L)
+        val supersedeJob = backgroundScope.launch {
+            writer.supersede(listOf(1L, 2L)) { sent += 0L to 0.0 }
+        }
+        runCurrent()
+        assertEquals(listOf(3L to 30.0), sent)
+
+        holdInFlight.complete(Unit)
+        runCurrent()
+        supersedeJob.join()
+
+        assertEquals(listOf(3L to 30.0, 0L to 0.0), sent)
+        assertFalse(sent.any { it.first == 1L || it.first == 2L })
+        writer.close()
+    }
 }

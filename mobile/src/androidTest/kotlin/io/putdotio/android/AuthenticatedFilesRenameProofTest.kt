@@ -1,5 +1,6 @@
 package io.putdotio.android
 
+import android.content.Intent
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasAnyAncestor
@@ -10,15 +11,14 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextReplacement
+import androidx.core.net.toUri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.sdk.files.FilesListQuery
-import io.putdotio.sdk.files.FilesSearchQuery
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -31,8 +31,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
-import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
-import io.putdotio.android.search.MOBILE_SEARCH_RESULTS_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_CONFIRM_TAG
 
 /**
@@ -79,13 +77,6 @@ class AuthenticatedFilesRenameProofTest {
             val container = runtime.putioClient.files.get(fixture.containerId)
             check(container.id == fixture.containerId && container.name == fixture.containerName &&
                 container.fileType == PutioFileType.FOLDER)
-            val results = runtime.putioClient.files.search(FilesSearchQuery(fixture.containerName, perPage = 50))
-            check(results.cursor.isNullOrBlank() && results.files.size <= 50) {
-                "Container search exceeds bounded proof scope"
-            }
-            check(results.files.filter { it.name == fixture.containerName }.singleOrNull()?.id == fixture.containerId) {
-                "Container search is ambiguous"
-            }
             val children = runtime.putioClient.files.list(fixture.containerId, FilesListQuery(perPage = 50))
             check(children.cursor.isNullOrBlank() && children.files.size <= 50) {
                 "Fixture folder exceeds bounded proof scope"
@@ -115,14 +106,11 @@ class AuthenticatedFilesRenameProofTest {
     }
 
     private fun openContainer(fixture: RenameProofFixture) {
-        compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
-        waitFor(hasTestTag(MOBILE_SEARCH_FIELD_TAG))
-        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG)
-            .performTextReplacement(fixture.containerName)
-        compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).performImeAction()
-        waitFor(hasTestTag(MOBILE_SEARCH_RESULTS_TAG))
-        val container = waitForRow(MOBILE_SEARCH_RESULTS_TAG, fixture.containerName)
-        compose.onNode(container).performClick()
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.deliverIntentForTest(
+                Intent(Intent.ACTION_VIEW, "putio://files/${fixture.containerId}".toUri()),
+            )
+        }
         waitFor(hasTestTag(MOBILE_FILES_LIST_TAG))
     }
 

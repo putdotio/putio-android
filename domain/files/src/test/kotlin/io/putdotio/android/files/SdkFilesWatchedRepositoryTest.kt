@@ -55,6 +55,17 @@ class SdkFilesWatchedRepositoryTest {
     }
 
     @Test
+    fun clearPositionsDeduplicatesIds() = runBlocking {
+        val requests = mutableListOf<RecordedRequest>()
+        val repository = SdkFilesWatchedRepository(client(requests))
+
+        val result = repository.clearPositions(listOf(FilesItemId(7L), FilesItemId(8L), FilesItemId(7L)))
+
+        assertEquals(PutioResult.Success(Unit), result)
+        assertEquals("7,8", requests.single().formParams["file_ids"])
+    }
+
+    @Test
     fun clearPositionsClassifiesUnauthorizedAsAuthenticationRequired() = runBlocking {
         val requests = mutableListOf<RecordedRequest>()
         val repository = SdkFilesWatchedRepository(client(requests, status = 401, body = UNAUTHORIZED))

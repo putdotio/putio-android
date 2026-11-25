@@ -15,14 +15,15 @@ public fun PlaybackSource.playerSubtitles(): PlaybackSubtitles {
     } else {
         PlaybackSubtitles.Sidecar(
             tracks = added,
-            defaultKey = sidecar.defaultKey?.takeIf { key -> added.any { it.key == key } },
+            defaultKey = sidecar.defaultKey?.takeIf { key -> key.isNotBlank() && added.any { it.key == key } },
         )
     }
 }
 
 internal fun PlaybackSource.inFileSubtitleLanguage(): String? {
     val sidecar = subtitles as? PlaybackSubtitles.Sidecar
-    val defaultTrack = sidecar?.defaultKey?.let { key -> sidecar.tracks.firstOrNull { it.key == key } }
+    val defaultTrack = sidecar?.defaultKey?.takeIf(String::isNotBlank)
+        ?.let { key -> sidecar.tracks.firstOrNull { it.key == key } }
     return defaultTrack?.languageCode
         ?.takeIf { it.isNotBlank() && kind == PlaybackSourceKind.ORIGINAL && defaultTrack.source == SOURCE_MKV }
 }

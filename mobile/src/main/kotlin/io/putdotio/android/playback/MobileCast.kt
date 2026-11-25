@@ -598,24 +598,26 @@ private val CastRemoteStatus?.live: Boolean
 /**
  * The subtitle the receiver shows first, by the same rules as the local player: none when the
  * account hides subtitles or the viewer turned them off, the viewer's pick, else put.io's default
- * (the list's first) when the account selects one.
+ * (falling back to the list's first) when the account selects one.
  */
 internal fun castSubtitleKey(
     source: PlaybackSource,
     selection: SubtitleSelection?,
     policy: SubtitleStartupPolicy?,
 ): String? {
-    val keys = (source.subtitles as? PlaybackSubtitles.Sidecar)?.tracks.orEmpty().map { it.key }
+    val sidecar = source.subtitles as? PlaybackSubtitles.Sidecar
+    val keys = sidecar?.tracks.orEmpty().map { it.key }.filter(String::isNotBlank)
     if (keys.isEmpty() || policy?.showSubtitles == false) return null
+    val defaultKey = sidecar?.defaultKey?.takeIf { it in keys } ?: keys.first()
     return when (selection) {
         SubtitleSelection.Off -> null
         is SubtitleSelection.Track -> selection.identity.id?.let { id ->
             // Media3 may prefix a sidecar track's id with its source's index.
             keys.firstOrNull { key -> id == key || id.endsWith(":$key") }
         }
-        SubtitleSelection.Automatic -> keys.first()
+        SubtitleSelection.Automatic -> defaultKey
         // Unknown settings show none, as locally: the account may hide subtitles.
-        null -> keys.first().takeIf { policy?.autoSelectSubtitles == true }
+        null -> defaultKey.takeIf { policy?.autoSelectSubtitles == true }
     }
 }
 

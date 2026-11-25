@@ -43,6 +43,7 @@ import io.putdotio.android.tv.files.resumeLabel
 import io.putdotio.android.tv.files.resumePosition
 import io.putdotio.android.tv.files.shownResume
 import io.putdotio.android.tv.files.tvPrimaryAction
+import java.util.Locale
 import kotlinx.coroutines.delay
 
 @Composable
@@ -64,9 +65,9 @@ internal fun rememberTvHistoryLookup(
 
 private class TvHistoryFileText(val size: String, val resume: AnnotatedString?)
 
-private fun TvHistoryFile.text(resources: Resources): TvHistoryFileText =
+private fun TvHistoryFile.text(resources: Resources, locale: Locale): TvHistoryFileText =
     TvHistoryFileText(
-        size = formatFileSize(sizeBytes),
+        size = formatFileSize(sizeBytes, locale),
         resume = item.resumePosition(resumePlayback = true)?.let { resumeLabel(resources, it) },
     )
 
@@ -81,12 +82,14 @@ internal fun ColumnScope.TvHistoryDetail(
     val fileId = item.kind.navigableFileId()
     val found = (lookup as? TvHistoryLookup.Found)?.file
     val resources = LocalResources.current
+    val locale = LocalConfiguration.current.locales[0]
     val fileText = rememberRowText<TvHistoryFile, TvHistoryFileText?>(
         listOfNotNull(found),
         resources,
+        locale,
         key = { it.item.id },
         placeholder = null,
-    ) { it.text(resources) }.let { text -> found?.let { text[it] } }
+    ) { it.text(resources, locale) }.let { text -> found?.let { text[it] } }
     TvDetailBody(
         tile = {
             when {

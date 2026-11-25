@@ -67,8 +67,8 @@ internal class MobileFilesActionSources(
     val watched: FilesWatchedRepository,
     val streamUrls: FilesStreamUrls,
     val trash: TrashRepository,
-    /** Orders a watched write after the positions playback already took for the file. */
-    val positionWrites: suspend (FilesItemId, suspend () -> PutioResult<Unit>) -> PutioResult<Unit> =
+    /** Orders a watched write after the positions playback already took for those files. */
+    val positionWrites: suspend (List<FilesItemId>, suspend () -> PutioResult<Unit>) -> PutioResult<Unit> =
         { _, write -> write() },
 )
 
@@ -157,10 +157,7 @@ internal class MobileFilesActionsController(
         val write = scope.async(start = CoroutineStart.LAZY) {
             previous.forEach { it.join() }
             val result = watchedPermits.withPermit {
-                orderedIds.dropLast(1).forEach { id ->
-                    sources.positionWrites(id) { PutioResult.Success(Unit) }
-                }
-                sources.positionWrites(orderedIds.last()) {
+                sources.positionWrites(orderedIds) {
                     sources.watched.clearPositions(ids)
                 }
             }
@@ -196,7 +193,7 @@ internal class MobileFilesActionsController(
         val write = scope.async(start = CoroutineStart.LAZY) {
             previous?.join()
             val result = watchedPermits.withPermit {
-                sources.positionWrites(item.id) {
+                sources.positionWrites(listOf(item.id)) {
                     if (watched) {
                         sources.watched.setPosition(item.id, seconds)
                     } else {

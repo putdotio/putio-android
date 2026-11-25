@@ -35,6 +35,7 @@ import io.putdotio.android.auth.MediaDownloadToken
 import io.putdotio.android.auth.MobileAuthState
 import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.android.files.FilesItemId
+import io.putdotio.android.playback.SOURCE_MKV
 import io.putdotio.sdk.account.AccountDownloadToken
 import io.putdotio.sdk.errors.PutioException
 import io.putdotio.sdk.files.FilesApi
@@ -229,8 +230,14 @@ internal class MobileDownloadCache private constructor(context: Context) {
 
     /** Blocking index and cache read; see [DownloadIndex.offlineRequest]. Only subtitle files on disk are kept. */
     fun offlineRequest(userId: Long, fileId: FilesItemId): OfflineRequest? =
-        downloadManager.downloadIndex.offlineRequest(userId, fileId)
-            ?.let { request -> request.copy(subtitles = request.subtitles.filter { holdsSubtitle(userId, it) }) }
+        downloadManager.downloadIndex.offlineRequest(userId, fileId)?.let { request ->
+            val isOriginal = isOriginalDownloadUri(request.url.toUri())
+            request.copy(
+                subtitles = request.subtitles.filter {
+                    (isOriginal && it.source == SOURCE_MKV) || holdsSubtitle(userId, it)
+                },
+            )
+        }
 
     private val replacingIds: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
@@ -363,9 +370,10 @@ internal class UserScopedDownloaderFactory(
         val userId = requireNotNull(request.ownerUserId()) { "Download request without an owner" }
         val cache = cacheFactory(userId)
         val download = DefaultDownloaderFactory(cache, executor).createDownloader(request)
-        val subtitles = request.data.toDownloadRequestData().subtitles.map { subtitle ->
-            ProgressiveDownloader(MediaItem.fromUri(subtitle.url), cache, executor)
-        }
+        val isOriginal = isOriginalDownloadUri(request.uri)
+        val subtitles = request.data.toDownloadRequestData().subtitles
+            .filterNot { isOriginal && it.source == SOURCE_MKV }
+            .map { subtitle -> ProgressiveDownloader(MediaItem.fromUri(subtitle.url), cache, executor) }
         val downloader = if (subtitles.isEmpty()) download else SubtitledDownloader(download, subtitles)
         return AfterTokenCleanupDownloader(downloader, storedTokensCleared)
     }

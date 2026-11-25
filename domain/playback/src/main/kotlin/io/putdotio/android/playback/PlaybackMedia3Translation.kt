@@ -41,17 +41,21 @@ public fun PlaybackSource.toMediaItem(
     offline: Boolean = false,
     artist: String? = null,
 ): MediaItem {
-    val defaultKey = (subtitles as? PlaybackSubtitles.Sidecar)?.defaultKey
+    val playerSubtitles = playerSubtitles()
+    val defaultKey = (playerSubtitles as? PlaybackSubtitles.Sidecar)?.defaultKey?.takeIf(String::isNotBlank)
+    var defaultMarked = false
     val subtitleConfigurations =
-        playerSubtitles().sidecarTracks()
+        playerSubtitles.sidecarTracks()
             .mapNotNull { subtitle ->
                 val mimeType = subtitle.toSubtitleMimeType() ?: return@mapNotNull null
+                val markDefault = defaultKey != null && !defaultMarked && subtitle.key == defaultKey
+                if (markDefault) defaultMarked = true
                 MediaItem.SubtitleConfiguration.Builder(subtitle.url.value.toUri())
                     .setId(subtitle.key)
                     .setLabel(subtitle.name)
                     .setLanguage(subtitle.languageCode)
                     .setMimeType(mimeType)
-                    .setSelectionFlags(if (subtitle.key == defaultKey) C.SELECTION_FLAG_DEFAULT else 0)
+                    .setSelectionFlags(if (markDefault) C.SELECTION_FLAG_DEFAULT else 0)
                     .build()
             }
 

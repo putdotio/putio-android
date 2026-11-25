@@ -1,5 +1,6 @@
 package io.putdotio.android.downloads
 
+import android.net.Uri
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.DirectPlayDownload
 import io.putdotio.android.settings.StreamingMethod
@@ -102,6 +103,11 @@ internal fun ByteArray.toDownloadRequestData(): DownloadRequestData {
     } else {
         DownloadRequestData(json.optString("name"), json.optJSONArray("subtitles").toDownloadSubtitles())
     }
+}
+
+internal fun isOriginalDownloadUri(uri: Uri): Boolean {
+    val path = uri.encodedPath.orEmpty()
+    return path.endsWith("/stream") && !path.endsWith("/mp4/stream")
 }
 
 private const val API_HOST = "api.put.io"

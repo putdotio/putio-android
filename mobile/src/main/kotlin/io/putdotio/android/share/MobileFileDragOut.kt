@@ -67,7 +67,13 @@ internal object MobileFileDrags {
 
     fun begin(session: MobileSessionKey, item: FilesItem): String =
         UUID.randomUUID().toString().also { key ->
-            val drag = Drag(session, item.id, item.name.sanitizedFileName(), item.sizeBytes, mimeTypeOf(item.name))
+            val drag = Drag(
+                session,
+                item.id,
+                item.name.sanitizedFileName(),
+                item.sizeBytes,
+                mimeTypeOf(item.name, item.contentType),
+            )
             val evicted = mutableListOf<Drag>()
             synchronized(lock) {
                 drags[key] = drag
@@ -134,7 +140,12 @@ internal class MobileFileDragOut(private val context: Context, private val sessi
     fun start(view: View, item: FilesItem, shadow: View.DragShadowBuilder): Boolean {
         if (item.isFolder || item.id.value <= 0L) return false
         val key = MobileFileDrags.begin(session, item)
-        val clip = mobileFileDragClip(mobileDragAuthority(context), key, item.name, mimeTypeOf(item.name))
+        val clip = mobileFileDragClip(
+            mobileDragAuthority(context),
+            key,
+            item.name,
+            mimeTypeOf(item.name, item.contentType),
+        )
         val started = view.startDragAndDrop(clip, shadow, MobileFileDrag(key, item.id), MOBILE_FILE_DRAG_FLAGS)
         if (!started) MobileFileDrags.forget(key)
         return started
