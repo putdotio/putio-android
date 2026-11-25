@@ -40,6 +40,7 @@ import io.putdotio.android.files.StubFilesRepository
 import io.putdotio.android.history.HistoryEventId
 import io.putdotio.android.history.HistoryPage
 import io.putdotio.android.history.HistoryRepository
+import io.putdotio.android.playback.PlaybackContent
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
@@ -609,7 +610,112 @@ class TvPlaybackServiceTest {
         override fun close() = Unit
     }
 
-    private fun startHostedAudio(first: PlaybackTarget, second: PlaybackTarget) =
+    @Test
+    fun trackBoundaryWithSuspendedResolutionSurvivesTaskRemoved() {
+        val second = PlaybackTarget(FilesItemId(11), "02 Middle.mp3", PlaybackMediaType.AUDIO)
+        val third = PlaybackTarget(FilesItemId(12), "03 Closing.mp3", PlaybackMediaType.AUDIO)
+        val nextGate = CompletableDeferred<Unit>()
+        val players = mutableListOf<FakePlayer>()
+        TvPlaybackService.audioHost.playerFactory = hostedSessionFactory(players)
+        val controller = startHostedAudio(second, third, suspendedQueueRepository(second, third, nextGate))
+        var mounted by mutableStateOf(true)
+        val owner = stoppableOwner()
+        compose.setTvContent {
+            if (mounted) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                    TvPlaybackRoute(
+                        controller = controller,
+                        onExit = {},
+                        onSessionRejected = {},
+                        playerFactory = TvPlaybackService.audioHost.playerFactory,
+                        onBackground = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(1, players.size)
+        val serviceController = Robolectric.buildService(TvPlaybackService::class.java).create().startCommand(0, 0)
+        val service = serviceController.get()
+        try {
+            compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+            compose.waitForIdle()
+            compose.runOnIdle { mounted = false }
+            compose.waitForIdle()
+            service.onTaskRemoved(null)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNotNull(TvPlaybackService.audioHost.active.value)
+            assertFalse(shadowOf(service).isStoppedBySelf)
+
+            players.single().end()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNotNull(TvPlaybackService.audioHost.active.value)
+            assertFalse(shadowOf(service).isStoppedBySelf)
+            assertEquals(third, controller.state.value.target)
+            assertTrue(controller.state.value.content is PlaybackContent.Loading)
+
+            nextGate.complete(Unit)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, players.size)
+            assertTrue(players[1].playWhenReady)
+            assertNotNull(TvPlaybackService.audioHost.active.value)
+            assertFalse(shadowOf(service).isStoppedBySelf)
+
+            players[1].pause()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNull(TvPlaybackService.audioHost.active.value)
+            assertTrue(shadowOf(service).isStoppedBySelf)
+        } finally {
+            serviceController.destroy()
+        }
+    }
+
+    @Test
+    fun exhaustedQueueAfterTaskRemovedStopsService() {
+        val second = PlaybackTarget(FilesItemId(11), "02 Middle.mp3", PlaybackMediaType.AUDIO)
+        val players = mutableListOf<FakePlayer>()
+        TvPlaybackService.audioHost.playerFactory = hostedSessionFactory(players)
+        val controller = startHostedAudio(second, second, queueRepository(second, null))
+        var mounted by mutableStateOf(true)
+        val owner = stoppableOwner()
+        compose.setTvContent {
+            if (mounted) {
+                CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                    TvPlaybackRoute(
+                        controller = controller,
+                        onExit = {},
+                        onSessionRejected = {},
+                        playerFactory = TvPlaybackService.audioHost.playerFactory,
+                        onBackground = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        val serviceController = Robolectric.buildService(TvPlaybackService::class.java).create().startCommand(0, 0)
+        val service = serviceController.get()
+        try {
+            compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+            compose.waitForIdle()
+            compose.runOnIdle { mounted = false }
+            compose.waitForIdle()
+            service.onTaskRemoved(null)
+            shadowOf(Looper.getMainLooper()).idle()
+
+            players.single().end()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNull(TvPlaybackService.audioHost.active.value)
+            assertTrue(shadowOf(service).isStoppedBySelf)
+        } finally {
+            serviceController.destroy()
+        }
+    }
+
+    private fun startHostedAudio(
+        first: PlaybackTarget,
+        second: PlaybackTarget,
+        playbackRepository: PlaybackRepository = queueRepository(first, second),
+    ) =
         TvPlaybackService.audioHost.start(
             TvAudioStartRequest(
                 identity = TvAudioSessionIdentity(
@@ -636,7 +742,7 @@ class TvPlaybackServiceTest {
                     startAnswer = PlaybackEvent.Resume,
                 ),
                 callbacks = TvAudioSessionCallbacks(
-                    playbackRepository = queueRepository(first, second),
+                    playbackRepository = playbackRepository,
                     settings = MutableStateFlow(AccountSettingsReducer.start().state),
                     writePlaybackPosition = { _, _ -> PlaybackRepositoryResult.Success(Unit) },
                     onSaved = { _, _ -> },
@@ -644,6 +750,14 @@ class TvPlaybackServiceTest {
                 ),
             ),
         )
+
+    private fun hostedSessionFactory(players: MutableList<FakePlayer>) = object : TvPlayerFactory {
+        override fun create(context: Context, mediaType: PlaybackMediaType): Player =
+            FakePlayer().also { players += it }
+
+        override fun publishQueue(context: Context, player: Player): TvQueueSession =
+            DefaultTvPlayerFactory.publishQueue(context, player)
+    }
 
     private fun singleSessionFactory(
         players: MutableList<FakePlayer>,
@@ -667,7 +781,28 @@ class TvPlaybackServiceTest {
         }
     }
 
-    private fun queueRepository(first: PlaybackTarget, second: PlaybackTarget) = object : PlaybackRepository {
+    private fun suspendedQueueRepository(
+        first: PlaybackTarget,
+        second: PlaybackTarget,
+        gate: CompletableDeferred<Unit>,
+    ) = object : PlaybackRepository {
+        override suspend fun resolve(
+            target: PlaybackTarget,
+            convertedOnly: Boolean,
+        ): PlaybackRepositoryResult<PlaybackResolution> {
+            if (target.fileId == second.fileId) gate.await()
+            return PlaybackRepositoryResult.Success(
+                PlaybackResolution.Ready(source(fileId = target.fileId.value), false),
+            )
+        }
+
+        override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
+
+        override suspend fun findNeighbours(target: PlaybackTarget) =
+            queueRepository(first, second).findNeighbours(target)
+    }
+
+    private fun queueRepository(first: PlaybackTarget, second: PlaybackTarget?) = object : PlaybackRepository {
         override suspend fun resolve(target: PlaybackTarget, convertedOnly: Boolean) =
             PlaybackRepositoryResult.Success(PlaybackResolution.Ready(source(fileId = target.fileId.value), false))
 
@@ -675,7 +810,7 @@ class TvPlaybackServiceTest {
 
         override suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> {
             val next = if (target.fileId == first.fileId) second else null
-            val previous = if (target.fileId == second.fileId) first else null
+            val previous = if (second != null && target.fileId == second.fileId) first else null
             return PlaybackRepositoryResult.Success(PlaybackNeighbours(previous, next, "Mixtapes"))
         }
     }

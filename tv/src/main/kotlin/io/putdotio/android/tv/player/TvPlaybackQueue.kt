@@ -90,6 +90,17 @@ internal class TvPlaybackQueue(
 
     val neighbours: StateFlow<PlaybackNeighbours?> = folder.neighbours
 
+    val hasPendingTransition: Boolean
+        get() {
+            val held = current ?: return false
+            val content = controller.state.value.content
+            val awaitingNext = content is PlaybackContent.Loading ||
+                (content is PlaybackContent.Ready && content.source != held.source)
+            val ended = held.player.playbackState == Player.STATE_ENDED && held.player.playWhenReady
+            val awaitingAutoAdvance = ended && folder.of(held.fileId)?.let { it.next != null } != false
+            return awaitingNext || awaitingAutoAdvance
+        }
+
     private val isForeground: Boolean
         get() = ui?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED) == true
 

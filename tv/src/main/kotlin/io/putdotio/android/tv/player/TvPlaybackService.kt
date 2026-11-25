@@ -20,7 +20,7 @@ internal class TvPlaybackService : MediaSessionService() {
     private val clearTaskRemoved: () -> Unit = { taskRemoved = false }
     private val playerListener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
-            if (taskRemoved && tvPlaybackStopsWithTask(player)) {
+            if (taskRemoved && shouldStopForRemovedTask(player)) {
                 audioHost.stop()
                 stopSelf()
             }
@@ -72,7 +72,7 @@ internal class TvPlaybackService : MediaSessionService() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         taskRemoved = true
-        if (tvPlaybackStopsWithTask(TvBackgroundSessions.hosted?.player)) {
+        if (shouldStopForRemovedTask(TvBackgroundSessions.hosted?.player)) {
             audioHost.stop()
             stopSelf()
         }
@@ -106,6 +106,9 @@ internal class TvPlaybackService : MediaSessionService() {
         observedPlayer = player
         player?.addListener(playerListener)
     }
+
+    private fun shouldStopForRemovedTask(player: Player?): Boolean =
+        tvPlaybackStopsWithTask(player) && audioHost.active.value?.queue?.hasPendingTransition != true
 }
 
 internal object TvBackgroundSessions {
