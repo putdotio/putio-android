@@ -71,10 +71,10 @@ do_create() {
     log "AVD ${NAME} already exists (${image})"
     return 0
   fi
-  create_out="$(echo "no" | "${AVDMANAGER}" create avd \
+  create_out="$("${AVDMANAGER}" create avd \
     --name "${NAME}" \
     --package "${image}" \
-    --device "$(device_for "${PROFILE}")" 2>&1)" || \
+    --device "$(device_for "${PROFILE}")" <<<"no" 2>&1)" || \
     die "could not create AVD ${NAME}: ${create_out}"
   require_matching_avd_image
   log "created AVD ${NAME} (${image})"

@@ -258,7 +258,13 @@ chmod +x \
   "${fake_sdk}/emulator/emulator"
 
 fail() {
-  echo "emulator contract test failed: $*" >&2
+  local message="${1:-}"
+  local log_file="${2:-}"
+  echo "emulator contract test failed: ${message}" >&2
+  if [[ -n "${log_file}" && -s "${log_file}" ]]; then
+    echo "--- ${log_file} ---" >&2
+    cat "${log_file}" >&2
+  fi
   exit 1
 }
 
@@ -306,13 +312,14 @@ printf '0\n' > "${state}/running"
 : > "${state}/adb-calls"
 printf '%s\n' "${non_play_image}" > "${state}/create-image-override"
 if "${REPO_ROOT}/scripts/emulator.sh" create phone >"${tmpdir}/wrong-create.log" 2>&1; then
-  fail "successful create with a wrong registration passed validation"
+  fail "successful create with a wrong registration passed validation" "${tmpdir}/wrong-create.log"
 fi
 [[ "$(avd_image_for_name "${PHONE_AVD}")" == "${non_play_image}" ]] || \
-  fail "post-create validation mutated the wrong registration"
+  fail "post-create validation mutated the wrong registration" "${tmpdir}/wrong-create.log"
 [[ "$(wc -l < "${state}/avd-operations" | tr -d ' ')" == "1" ]] || \
-  fail "post-create validation performed an unexpected AVD mutation"
-grep -Fq "${phone_recovery}" "${tmpdir}/wrong-create.log" || fail "post-create validation omitted its recovery command"
+  fail "post-create validation performed an unexpected AVD mutation" "${tmpdir}/wrong-create.log"
+grep -Fq "${phone_recovery}" "${tmpdir}/wrong-create.log" || \
+  fail "post-create validation omitted its recovery command" "${tmpdir}/wrong-create.log"
 rm "${state}/create-image-override"
 
 rm -rf "${state}/avds"
@@ -328,32 +335,32 @@ grep -Fxq "create:${PHONE_AVD}:${target_image}" "${state}/avd-operations" || \
 reset_avd "${PHONE_AVD}" "${legacy_image}" 0
 mismatch_out="${tmpdir}/mismatch.log"
 if "${REPO_ROOT}/scripts/emulator.sh" create phone >"${mismatch_out}" 2>&1; then
-  fail "mismatched canonical AVD was replaced"
+  fail "mismatched canonical AVD was replaced" "${mismatch_out}"
 fi
 [[ "$(avd_image_for_name "${PHONE_AVD}")" == "${legacy_image}" ]] || \
-  fail "mismatched AVD refusal changed its image"
-[[ ! -s "${state}/avd-operations" ]] || fail "mismatched AVD refusal mutated state"
-grep -Fq "${phone_recovery}" "${mismatch_out}" || fail "mismatched AVD refusal omitted its recovery command"
+  fail "mismatched AVD refusal changed its image" "${mismatch_out}"
+[[ ! -s "${state}/avd-operations" ]] || fail "mismatched AVD refusal mutated state" "${mismatch_out}"
+grep -Fq "${phone_recovery}" "${mismatch_out}" || fail "mismatched AVD refusal omitted its recovery command" "${mismatch_out}"
 
 reset_avd "${PHONE_AVD}" "${target_image}" 0
 rm "${state}/avds/${PHONE_AVD}/config.ini"
 if "${REPO_ROOT}/scripts/emulator.sh" create phone >"${mismatch_out}" 2>&1; then
-  fail "AVD with unreadable image metadata passed provisioning"
+  fail "AVD with unreadable image metadata passed provisioning" "${mismatch_out}"
 fi
-grep -Fq "${phone_recovery}" "${mismatch_out}" || fail "unknown AVD image omitted its recovery command"
+grep -Fq "${phone_recovery}" "${mismatch_out}" || fail "unknown AVD image omitted its recovery command" "${mismatch_out}"
 [[ ! -e "${state}/avds/${PHONE_AVD}/config.ini" ]] || \
-  fail "unknown AVD image metadata was replaced"
-[[ ! -s "${state}/avd-operations" ]] || fail "unknown AVD image refusal mutated state"
+  fail "unknown AVD image metadata was replaced" "${mismatch_out}"
+[[ ! -s "${state}/avd-operations" ]] || fail "unknown AVD image refusal mutated state" "${mismatch_out}"
 
 reset_avd "${PHONE_AVD}" "${target_image}" 0
 printf 'image.sysdir.1=%s/\n' "$(tr ';' '/' <<<"${non_play_image}")" >> \
   "${state}/avds/${PHONE_AVD}/config.ini"
 if "${REPO_ROOT}/scripts/emulator.sh" create phone >"${mismatch_out}" 2>&1; then
-  fail "AVD with duplicate image metadata passed provisioning"
+  fail "AVD with duplicate image metadata passed provisioning" "${mismatch_out}"
 fi
 [[ "$(grep -c '^image\.sysdir\.1=' "${state}/avds/${PHONE_AVD}/config.ini")" == "2" ]] || \
-  fail "duplicate AVD image metadata was replaced"
-[[ ! -s "${state}/avd-operations" ]] || fail "duplicate AVD image refusal mutated state"
+  fail "duplicate AVD image metadata was replaced" "${mismatch_out}"
+[[ ! -s "${state}/avd-operations" ]] || fail "duplicate AVD image refusal mutated state" "${mismatch_out}"
 
 reset_avd "${PHONE_AVD}" "${target_image}" 0
 "${REPO_ROOT}/scripts/emulator.sh" create phone >/dev/null 2>&1 || \
@@ -366,13 +373,13 @@ custom_avd="putio-phone-recovery-test"
 reset_avd "${custom_avd}" "${non_play_image}" 0
 custom_out="${tmpdir}/custom-mismatch.log"
 if "${REPO_ROOT}/scripts/emulator.sh" create phone --name "${custom_avd}" >"${custom_out}" 2>&1; then
-  fail "mismatched custom AVD passed provisioning"
+  fail "mismatched custom AVD passed provisioning" "${custom_out}"
 fi
 [[ "$(avd_image_for_name "${custom_avd}")" == "${non_play_image}" ]] || \
-  fail "custom AVD mismatch changed its registration"
-[[ ! -s "${state}/avd-operations" ]] || fail "custom AVD mismatch mutated state"
+  fail "custom AVD mismatch changed its registration" "${custom_out}"
+[[ ! -s "${state}/avd-operations" ]] || fail "custom AVD mismatch mutated state" "${custom_out}"
 grep -Fq "explicitly run scripts/emulator.sh stop phone --name ${custom_avd}, then scripts/emulator.sh delete phone --name ${custom_avd}, then scripts/emulator.sh create phone --name ${custom_avd}" \
-  "${custom_out}" || fail "custom AVD mismatch targeted the wrong recovery AVD"
+  "${custom_out}" || fail "custom AVD mismatch targeted the wrong recovery AVD" "${custom_out}"
 
 reset_avd "${custom_avd}" "${target_image}" 1
 "${REPO_ROOT}/scripts/emulator.sh" stop phone --name "${custom_avd}" >/dev/null 2>&1 || \
@@ -397,11 +404,11 @@ for running in 0 1; do
   reset_runtime
   printf '1\n' > "${state}/api-query-failures"
   "${REPO_ROOT}/scripts/emulator.sh" boot phone --headless >"${tmpdir}/api-retry.log" 2>&1 || \
-    fail "API read did not recover (preexisting=${running})"
+    fail "API read did not recover (preexisting=${running})" "${tmpdir}/api-retry.log"
   [[ "$(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls")" == "2" ]] || \
-    fail "API recovery did not retry exactly once"
-  [[ "$(<"${state}/running")" == "1" ]] || fail "API recovery stopped the emulator"
-  grep -q " emu kill" "${state}/adb-calls" && fail "API recovery killed the emulator"
+    fail "API recovery did not retry exactly once" "${tmpdir}/api-retry.log"
+  [[ "$(<"${state}/running")" == "1" ]] || fail "API recovery stopped the emulator" "${tmpdir}/api-retry.log"
+  grep -q " emu kill" "${state}/adb-calls" && fail "API recovery killed the emulator" "${tmpdir}/api-retry.log"
   "${REPO_ROOT}/scripts/emulator.sh" stop phone >/dev/null 2>&1
   [[ ! -f "${state}/emulator-pid" ]] || fail "fake emulator did not finish stopping"
 done
@@ -421,26 +428,26 @@ retry_interrupted="$(date +%s)"
 kill -TERM "${retry_pid}" 2>/dev/null || true
 retry_code=0
 wait "${retry_pid}" || retry_code=$?
-[[ "${retry_started}" != "0" ]] || fail "cancellation never reached API retry"
-[[ "${retry_code}" == "143" ]] || fail "API retry cancellation returned ${retry_code}"
-(( $(date +%s) - retry_interrupted <= 5 )) || fail "API retry cancellation did not return promptly"
-[[ "$(<"${state}/running")" == "1" ]] || fail "API retry cancellation stopped reused state"
-grep -q " emu kill" "${state}/adb-calls" && fail "API retry cancellation killed reused state"
+[[ "${retry_started}" != "0" ]] || fail "cancellation never reached API retry" "${tmpdir}/api-interrupt.log"
+[[ "${retry_code}" == "143" ]] || fail "API retry cancellation returned ${retry_code}" "${tmpdir}/api-interrupt.log"
+(( $(date +%s) - retry_interrupted <= 5 )) || fail "API retry cancellation did not return promptly" "${tmpdir}/api-interrupt.log"
+[[ "$(<"${state}/running")" == "1" ]] || fail "API retry cancellation stopped reused state" "${tmpdir}/api-interrupt.log"
+grep -q " emu kill" "${state}/adb-calls" && fail "API retry cancellation killed reused state" "${tmpdir}/api-interrupt.log"
 
 runtime_out="${tmpdir}/runtime-readiness.log"
 reset_runtime
 printf '0\n' > "${state}/api-query-succeeds"
 api_started="$(date +%s)"
 if (prepare_device emulator-5554 phone "${PHONE_AVD}" "$(( api_started + 3 ))") >"${runtime_out}" 2>&1; then
-  fail "permanent API transport failure passed readiness"
+  fail "permanent API transport failure passed readiness" "${runtime_out}"
 fi
 api_elapsed=$(( $(date +%s) - api_started ))
-(( api_elapsed >= 3 && api_elapsed <= 5 )) || fail "API retry did not honor its existing deadline (${api_elapsed}s)"
+(( api_elapsed >= 3 && api_elapsed <= 5 )) || fail "API retry did not honor its existing deadline (${api_elapsed}s)" "${runtime_out}"
 # Setup can consume the remaining budget before a second read is allowed.
 # The fresh/reuse cases above separately require the successful retry.
-(( $(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls") >= 1 )) || fail "API transport failure was not attempted"
-grep -q "before the boot deadline" "${runtime_out}" || fail "API exhaustion omitted its deadline diagnostic"
-grep -q "pm path" "${state}/adb-calls" && fail "API exhaustion reached Chrome preparation"
+(( $(grep -c 'getprop ro.build.version.sdk$' "${state}/adb-calls") >= 1 )) || fail "API transport failure was not attempted" "${runtime_out}"
+grep -q "before the boot deadline" "${runtime_out}" || fail "API exhaustion omitted its deadline diagnostic" "${runtime_out}"
+grep -q "pm path" "${state}/adb-calls" && fail "API exhaustion reached Chrome preparation" "${runtime_out}"
 
 # Each refusal stops prepare_device before the step it guards. Arguments: label,
 # query forced to fail, adb call that must not happen, 1 when the serial
@@ -451,13 +458,13 @@ expect_readiness_refusal() {
   reset_runtime "$@"
   [[ -z "${failing_query}" ]] || printf '0\n' > "${state}/${failing_query}"
   if (prepare_device emulator-5554 phone) >"${runtime_out}" 2>&1; then
-    fail "${label} passed readiness"
+    fail "${label} passed readiness" "${runtime_out}"
   fi
   if [[ -n "${not_reached}" ]] && grep -q -- "${not_reached}" "${state}/adb-calls"; then
-    fail "${label} reached ${not_reached}"
+    fail "${label} reached ${not_reached}" "${runtime_out}"
   fi
   if [[ "${recovery}" == "1" ]] && ! grep -Fq "${serial_recovery}" "${runtime_out}"; then
-    fail "${label} omitted its recovery command"
+    fail "${label} omitted its recovery command" "${runtime_out}"
   fi
 }
 expect_readiness_refusal "failed API query" api-query-succeeds "" 1
@@ -473,8 +480,8 @@ expect_readiness_refusal "wrong Auth Tab provider" "" " install " 0 37 1 1 com.a
 reset_runtime
 printf '0\n' > "${state}/version-query-succeeds"
 prepare_device emulator-5554 phone >"${runtime_out}" 2>&1 || \
-  fail "failed Chrome version query rejected a ready runtime"
-grep -Fq "Chrome unknown" "${runtime_out}" || fail "failed Chrome version query was not logged as unknown"
+  fail "failed Chrome version query rejected a ready runtime" "${runtime_out}"
+grep -Fq "Chrome unknown" "${runtime_out}" || fail "failed Chrome version query was not logged as unknown" "${runtime_out}"
 
 reset_runtime 36
 if (prepare_device emulator-5554 phone "${PHONE_AVD}" "$(( $(date +%s) + 30 ))") >/dev/null 2>&1; then
@@ -502,10 +509,10 @@ fake_apk="${tmpdir}/app.apk"
 : > "${fake_apk}"
 : > "${state}/adb-calls"
 if PUTIO_PROVE_APK="${fake_apk}" "${REPO_ROOT}/scripts/prove.sh" mobile --skip-build >"${prove_out}" 2>&1; then
-  fail "prove.sh still accepted mobile flavor"
+  fail "prove.sh still accepted mobile flavor" "${prove_out}"
 fi
-grep -Fq "verifyCiPhoneLaunchProof" "${prove_out}" || fail "mobile refusal omitted GMD replacement command"
-[[ ! -s "${state}/adb-calls" ]] || fail "mobile refusal touched adb"
+grep -Fq "verifyCiPhoneLaunchProof" "${prove_out}" || fail "mobile refusal omitted GMD replacement command" "${prove_out}"
+[[ ! -s "${state}/adb-calls" ]] || fail "mobile refusal touched adb" "${prove_out}"
 
 # Exercise the TV launch-proof script through its Gradle boundary without
 # starting a device or reaching screenshot capture.
@@ -528,12 +535,12 @@ chmod +x "${proof_repo}/gradlew"
 reset_avd "${TV_AVD}" "${tv_target_image}" 1
 reset_runtime
 if PUTIO_PROVE_APK="${fake_apk}" "${proof_repo}/scripts/prove.sh" tv --skip-build >"${prove_out}" 2>&1; then
-  fail "tv launch proof ignored its failed instrumentation gate"
+  fail "tv launch proof ignored its failed instrumentation gate" "${prove_out}"
 fi
-[[ -f "${state}/proof-selection" ]] || fail "tv launch proof did not select only LaunchSmokeTest"
-[[ "$(wc -l < "${state}/proof-selection" | tr -d ' ')" == "1" ]] || fail "non-render failure retried instrumentation"
-[[ "$(<"${state}/running")" == "1" ]] || fail "tv launch-proof failure stopped a reused emulator"
-grep -q '^PROOF FAIL tv$' "${prove_out}" || fail "tv launch-proof failure omitted its failure marker"
+[[ -f "${state}/proof-selection" ]] || fail "tv launch proof did not select only LaunchSmokeTest" "${prove_out}"
+[[ "$(wc -l < "${state}/proof-selection" | tr -d ' ')" == "1" ]] || fail "non-render failure retried instrumentation" "${prove_out}"
+[[ "$(<"${state}/running")" == "1" ]] || fail "tv launch-proof failure stopped a reused emulator" "${prove_out}"
+grep -q '^PROOF FAIL tv$' "${prove_out}" || fail "tv launch-proof failure omitted its failure marker" "${prove_out}"
 
 # A readiness failure after this invocation starts an emulator must stop that
 # exact process. prove.sh tv must also delete an ephemeral registration it created.
@@ -547,37 +554,37 @@ fi
 reset_avd "${TV_AVD}" "${tv_target_image}" 0
 reset_runtime
 if PUTIO_PROVE_FAIL_AT=after-boot PUTIO_PROVE_APK="${fake_apk}" "${REPO_ROOT}/scripts/prove.sh" tv --skip-build --ephemeral >"${prove_out}" 2>&1; then
-  fail "ephemeral tv proof accepted injected failure"
+  fail "ephemeral tv proof accepted injected failure" "${prove_out}"
 fi
-grep -qx 'INJECTED_FAILURE after-boot' "${prove_out}" || fail "ephemeral tv proof omitted injected failure"
-grep -q '^PROOF FAIL tv$' "${prove_out}" || fail "ephemeral tv proof omitted its failure marker"
-[[ "$(<"${state}/running")" == "0" ]] || fail "ephemeral tv failure leaked its emulator"
+grep -qx 'INJECTED_FAILURE after-boot' "${prove_out}" || fail "ephemeral tv proof omitted injected failure" "${prove_out}"
+grep -q '^PROOF FAIL tv$' "${prove_out}" || fail "ephemeral tv proof omitted its failure marker" "${prove_out}"
+[[ "$(<"${state}/running")" == "0" ]] || fail "ephemeral tv failure leaked its emulator" "${prove_out}"
 if find "${state}/avds" -mindepth 1 -maxdepth 1 -type d -name 'putio-tv-eph-*' | grep -q .; then
-  fail "ephemeral tv failure leaked its AVD registration"
+  fail "ephemeral tv failure leaked its AVD registration" "${prove_out}"
 fi
 
 # Bootstrap provisioning: a refused phone AVD must not block the TV AVD.
 reset_avd "${PHONE_AVD}" "${legacy_image}" 0
 provision_out="${tmpdir}/provision.log"
 if (provision_avds) >"${provision_out}" 2>&1; then
-  fail "provisioning passed with a mismatched phone AVD"
+  fail "provisioning passed with a mismatched phone AVD" "${provision_out}"
 fi
 [[ "$(avd_image_for_name "${TV_AVD}")" == "${tv_target_image}" ]] || \
-  fail "a mismatched phone AVD blocked TV AVD creation"
+  fail "a mismatched phone AVD blocked TV AVD creation" "${provision_out}"
 [[ "$(avd_image_for_name "${PHONE_AVD}")" == "${legacy_image}" ]] || \
-  fail "provisioning replaced a mismatched phone AVD"
+  fail "provisioning replaced a mismatched phone AVD" "${provision_out}"
 [[ "$(<"${state}/avd-operations")" == "create:${TV_AVD}:${tv_target_image}" ]] || \
-  fail "provisioning performed unexpected AVD operations"
-grep -Fq "${phone_recovery}" "${provision_out}" || fail "provisioning omitted the phone recovery command"
+  fail "provisioning performed unexpected AVD operations" "${provision_out}"
+grep -Fq "${phone_recovery}" "${provision_out}" || fail "provisioning omitted the phone recovery command" "${provision_out}"
 grep -Fq "AVD provisioning failed for: phone" "${provision_out}" || \
-  fail "provisioning did not name the refused profile"
+  fail "provisioning did not name the refused profile" "${provision_out}"
 
 : > "${state}/avd-operations"
 "${REPO_ROOT}/scripts/emulator.sh" delete phone >/dev/null 2>&1 || fail "could not delete the mismatched phone AVD"
 : > "${state}/avd-operations"
-(provision_avds) >"${provision_out}" 2>&1 || fail "provisioning failed after the phone AVD was recovered"
+(provision_avds) >"${provision_out}" 2>&1 || fail "provisioning failed after the phone AVD was recovered" "${provision_out}"
 [[ "$(<"${state}/avd-operations")" == "create:${PHONE_AVD}:${target_image}" ]] || \
-  fail "recovered provisioning touched the existing TV AVD"
+  fail "recovered provisioning touched the existing TV AVD" "${provision_out}"
 
 # Google TV is opt-in: default provisioning never creates it, and its recovery
 # commands point at the opt-in bootstrap.
@@ -585,42 +592,42 @@ google_tv_target_image="system-images;android-36;google-tv;$(sdk_arch)"
 reset_avd "${PHONE_AVD}" "${target_image}" 0
 google_tv_out="${tmpdir}/google-tv.log"
 if "${REPO_ROOT}/scripts/emulator.sh" create google-tv >"${google_tv_out}" 2>&1; then
-  fail "Google TV AVD was created without its system image"
+  fail "Google TV AVD was created without its system image" "${google_tv_out}"
 fi
 grep -Fq "system image ${google_tv_target_image} not installed; run scripts/bootstrap.sh --google-tv" \
-  "${google_tv_out}" || fail "missing Google TV image omitted the opt-in bootstrap command"
-[[ ! -s "${state}/avd-operations" ]] || fail "missing Google TV image mutated state"
+  "${google_tv_out}" || fail "missing Google TV image omitted the opt-in bootstrap command" "${google_tv_out}"
+[[ ! -s "${state}/avd-operations" ]] || fail "missing Google TV image mutated state" "${google_tv_out}"
 
 mkdir -p "${fake_sdk}/$(tr ';' '/' <<<"${google_tv_target_image}")"
-(provision_avds) >"${provision_out}" 2>&1 || fail "default provisioning failed"
+(provision_avds) >"${provision_out}" 2>&1 || fail "default provisioning failed" "${provision_out}"
 [[ "$(<"${state}/avd-operations")" == "create:${TV_AVD}:${tv_target_image}" ]] || \
-  fail "default provisioning did not keep to the phone and TV AVDs"
+  fail "default provisioning did not keep to the phone and TV AVDs" "${provision_out}"
 
 : > "${state}/avd-operations"
 (provision_avds phone tv google-tv) >"${provision_out}" 2>&1 || \
-  fail "opt-in provisioning failed"
+  fail "opt-in provisioning failed" "${provision_out}"
 [[ "$(<"${state}/avd-operations")" == "create:${GOOGLE_TV_AVD}:${google_tv_target_image}" ]] || \
-  fail "opt-in provisioning did not create only the Google TV AVD"
+  fail "opt-in provisioning did not create only the Google TV AVD" "${provision_out}"
 [[ "$(avd_image_for_name "${GOOGLE_TV_AVD}")" == "${google_tv_target_image}" ]] || \
-  fail "Google TV AVD did not use the pinned Google TV image"
+  fail "Google TV AVD did not use the pinned Google TV image" "${provision_out}"
 
 reset_avd "${GOOGLE_TV_AVD}" "${tv_target_image}" 0
 if "${REPO_ROOT}/scripts/emulator.sh" create google-tv >"${google_tv_out}" 2>&1; then
-  fail "mismatched Google TV AVD was replaced"
+  fail "mismatched Google TV AVD was replaced" "${google_tv_out}"
 fi
 grep -Fq "explicitly run scripts/emulator.sh stop google-tv, then scripts/emulator.sh delete google-tv, then scripts/bootstrap.sh --google-tv" \
-  "${google_tv_out}" || fail "mismatched Google TV AVD omitted its opt-in recovery command"
-[[ ! -s "${state}/avd-operations" ]] || fail "mismatched Google TV AVD refusal mutated state"
+  "${google_tv_out}" || fail "mismatched Google TV AVD omitted its opt-in recovery command" "${google_tv_out}"
+[[ ! -s "${state}/avd-operations" ]] || fail "mismatched Google TV AVD refusal mutated state" "${google_tv_out}"
 
 reset_avd "${GOOGLE_TV_AVD}" "${google_tv_target_image}" 0
 reset_runtime
 google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulator.sh" boot google-tv --headless 2>"${google_tv_out}")" || \
-  fail "Google TV AVD did not boot"
-[[ "${google_tv_serial}" == "emulator-5554" ]] || fail "Google TV boot printed '${google_tv_serial}'"
-[[ "$(<"${state}/name")" == "${GOOGLE_TV_AVD}" ]] || fail "Google TV boot started the wrong AVD"
-[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator was running"
+  fail "Google TV AVD did not boot" "${google_tv_out}"
+[[ "${google_tv_serial}" == "emulator-5554" ]] || fail "Google TV boot printed '${google_tv_serial}'" "${google_tv_out}"
+[[ "$(<"${state}/name")" == "${GOOGLE_TV_AVD}" ]] || fail "Google TV boot started the wrong AVD" "${google_tv_out}"
+[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator was running" "${google_tv_out}"
 if grep -Eq 'ro\.build\.version\.sdk|com\.android\.chrome' "${state}/adb-calls"; then
-  fail "Google TV boot ran phone readiness checks"
+  fail "Google TV boot ran phone readiness checks" "${google_tv_out}"
 fi
 "${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
 [[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop left its emulator running"
@@ -629,10 +636,10 @@ fi
 [[ ! -f "${state}/emulator-pid" ]] || fail "fake Google TV emulator did not finish stopping"
 printf '5554\n' > "${state}/listening-ports"
 google_tv_serial="$(PUTIO_EMULATOR_BOOT_TIMEOUT=10 "${REPO_ROOT}/scripts/emulator.sh" boot google-tv --headless 2>"${google_tv_out}")" || \
-  fail "Google TV AVD did not boot beside a busy console port"
+  fail "Google TV AVD did not boot beside a busy console port" "${google_tv_out}"
 [[ "${google_tv_serial}" == "emulator-5556" && "$(<"${state}/port")" == "5556" ]] || \
-  fail "busy console port 5554 was not skipped (printed '${google_tv_serial}')"
-[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator on port 5556 was running"
+  fail "busy console port 5554 was not skipped (printed '${google_tv_serial}')" "${google_tv_out}"
+[[ "$(<"${state}/running")" == "1" ]] || fail "Google TV boot returned before its emulator on port 5556 was running" "${google_tv_out}"
 "${REPO_ROOT}/scripts/emulator.sh" stop google-tv >/dev/null 2>&1 || fail "could not stop the Google TV emulator"
 [[ "$(<"${state}/running")" == "0" ]] || fail "Google TV stop missed the emulator on port 5556"
 
