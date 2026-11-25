@@ -90,7 +90,7 @@ internal fun FilesItem.toDocumentRow(userId: Long): DocumentRow =
     )
 
 /** Fallback MIME type by extension when put.io reports no usable `content_type`. */
-internal fun mimeTypeOf(name: String, contentType: String? = null): String =
+internal fun mimeTypeOf(name: String, contentType: String?): String =
     contentType?.normalizedFileMimeType()
         ?: name.substringAfterLast('.', "").lowercase(Locale.ROOT).takeIf { it.isNotEmpty() }
             ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }

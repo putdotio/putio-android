@@ -35,7 +35,7 @@ internal class MobileFileOpener(private val userId: Long) {
     fun openWithAnotherApp(context: Context, item: FilesItem) {
         val uri = documentUri(context, item)
         val view = Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uri, mimeTypeOf(item.name))
+            .setDataAndType(uri, mimeTypeOf(item.name, item.contentType))
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         view.clipData = ClipData.newRawUri(null, uri)
         val chooser = Intent.createChooser(view, null)
