@@ -55,12 +55,21 @@ public class PlaybackPositionWriter(
      * writer took for the file before the call are dropped unless already sent, and one already
      * sent finishes before [block] starts.
      */
-    public suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T {
-        leases.values.filter { it.fileId == fileId }.forEach {
-            it.generation++
-            it.delivery = Delivery.Unsent
+    public suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T = supersede(listOf(fileId), block)
+
+    /**
+     * Runs [block], another write for [fileIds], after invalidating all pending leases for those
+     * files atomically and waiting for any in-flight write to finish.
+     */
+    public suspend fun <T> supersede(fileIds: Iterable<Long>, block: suspend () -> T): T {
+        val targets = fileIds.toSet()
+        if (targets.isNotEmpty()) {
+            leases.values.filter { it.fileId in targets }.forEach {
+                it.generation++
+                it.delivery = Delivery.Unsent
+            }
+            if (pending?.allowed() == false) pending = null
         }
-        if (pending?.allowed() == false) pending = null
         return requests.withLock { block() }
     }
 
@@ -70,7 +79,7 @@ public class PlaybackPositionWriter(
         if (lease.delivery.covers(positionMillis)) return
         // One in-flight request and one latest snapshot bound memory during slow requests
         // and rapid file switches. Intermediate queued exit positions may be superseded.
-        pending?.let { settle(it, Delivery.Unsent) }
+        pending?.let { leases[it.token]?.settle(it.generation, it.attempt, Delivery.Unsent) }
         val snapshot = Snapshot(token, lease.fileId, positionMillis, lease.generation, ++attempts)
         lease.delivery = Delivery.Sending(positionMillis, snapshot.attempt)
         pending = snapshot
@@ -93,14 +102,10 @@ public class PlaybackPositionWriter(
         mutableFailure.value = null
     }
 
-    private fun settle(snapshot: Snapshot, delivery: Delivery) {
-        val lease = leases[snapshot.token]?.takeIf { it.generation == snapshot.generation } ?: return
-        if ((lease.delivery as? Delivery.Sending)?.attempt == snapshot.attempt) lease.delivery = delivery
-    }
-
     private fun finish(snapshot: Snapshot, failure: PlaybackFailure?) {
         if (!snapshot.allowed()) return
-        settle(snapshot, if (failure == null) Delivery.Saved(snapshot.positionMillis) else Delivery.Unsent)
+        val next = if (failure == null) Delivery.Saved(snapshot.positionMillis) else Delivery.Unsent
+        leases[snapshot.token]?.settle(snapshot.generation, snapshot.attempt, next)
         mutableFailure.value = failure
     }
 
@@ -151,7 +156,13 @@ public class PlaybackPositionWriter(
         val authorized: () -> Boolean,
         var delivery: Delivery = Delivery.Unsent,
         var generation: Int = 0,
-    )
+    ) {
+        fun settle(snapshotGeneration: Int, attempt: Long, next: Delivery) {
+            if (generation == snapshotGeneration && (delivery as? Delivery.Sending)?.attempt == attempt) {
+                delivery = next
+            }
+        }
+    }
 
     private sealed interface Delivery {
         fun covers(positionMillis: Long): Boolean = false

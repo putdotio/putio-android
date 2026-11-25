@@ -102,6 +102,26 @@ class PlaybackSubtitleDefaultKeyTest {
         assertEquals(listOf(0, C.SELECTION_FLAG_DEFAULT), configs.map { it.selectionFlags })
     }
 
+    @Test
+    fun blankDefaultKeyMarksNothingAndDuplicateKeyMarksOnlyFirst() {
+        val blankItem = source(
+            PlaybackSourceKind.MP4,
+            PlaybackSubtitles.Sidecar(listOf(subtitle("", "opensubtitles", "eng")), defaultKey = ""),
+        ).toMediaItem("episode.mp4")
+        val blankConfigs = requireNotNull(blankItem.localConfiguration).subtitleConfigurations
+        assertEquals(listOf(0), blankConfigs.map { it.selectionFlags })
+
+        val duplicateItem = source(
+            PlaybackSourceKind.MP4,
+            PlaybackSubtitles.Sidecar(
+                listOf(subtitle("dup", "opensubtitles", "eng"), subtitle("dup", "folder", "tur")),
+                defaultKey = "dup",
+            ),
+        ).toMediaItem("episode.mp4")
+        val duplicateConfigs = requireNotNull(duplicateItem.localConfiguration).subtitleConfigurations
+        assertEquals(listOf(C.SELECTION_FLAG_DEFAULT, 0), duplicateConfigs.map { it.selectionFlags })
+    }
+
     private fun source(kind: PlaybackSourceKind, subtitles: PlaybackSubtitles) =
         PlaybackSource(
             fileId = 42L,

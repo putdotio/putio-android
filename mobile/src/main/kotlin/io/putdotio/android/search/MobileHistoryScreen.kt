@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,12 +75,12 @@ import io.putdotio.android.history.HistoryPaging
 import io.putdotio.android.history.HistoryState
 import io.putdotio.android.history.navigableFileId
 import io.putdotio.android.history.sizeBytes
-import io.putdotio.android.monoArguments
 import io.putdotio.android.parsePutioTimestamp
 import io.putdotio.android.settings.HistoryOpen
 import io.putdotio.android.neutralTextButtonColors
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 import kotlinx.coroutines.delay
 import io.putdotio.android.MobileIconButton
 
@@ -215,7 +216,6 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
     val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
     val kind = text.kind
     val size = text.size
-    val metadataTemplate = if (size == null) null else stringResource(R.string.mobile_history_metadata)
     MobileRow(
         leading = {
             Icon(
@@ -227,7 +227,7 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
         },
         headline = { MobileMiddleCutText(item.title(LocalContext.current)) },
         meta = {
-            // The kind gives way at large font sizes; the time always shows.
+            // The kind gives way at large font sizes; separators and time always show.
             Row {
                 kind?.let {
                     Text(
@@ -236,9 +236,11 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
+                    HistoryMetaSeparator()
                 }
-                if (size != null && metadataTemplate != null) {
-                    Text(monoArguments(metadataTemplate, mono, size, ""), maxLines = 1, softWrap = false)
+                if (size != null) {
+                    Text(AnnotatedString(size, mono), maxLines = 1, softWrap = false)
+                    HistoryMetaSeparator()
                 }
                 Text(AnnotatedString(text.time, mono), maxLines = 1, softWrap = false)
             }
@@ -249,6 +251,16 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
         ) {
             onEvent(HistoryEvent.OpenFile(fileId))
         },
+    )
+}
+
+@Composable
+private fun HistoryMetaSeparator() {
+    Text(
+        HISTORY_META_SEPARATOR,
+        maxLines = 1,
+        softWrap = false,
+        modifier = Modifier.clearAndSetSemantics {},
     )
 }
 
@@ -370,10 +382,11 @@ private fun rememberHistoryDays(
 ): Built<List<HistoryItem>, HistoryDays>? {
     val context = LocalContext.current.applicationContext
     val locales = LocalConfiguration.current.locales
+    val locale = locales[0]
     val hours24 = DateFormat.is24HourFormat(context)
     val zone = ZoneId.systemDefault()
     return rememberBuiltOffMain(items, today, zone, context, locales, hours24) { next, previous ->
-        next.historyDays(context, today, zone, previous?.rows.orEmpty())
+        next.historyDays(context, today, zone, locale, previous?.rows.orEmpty())
     }
 }
 
@@ -381,9 +394,10 @@ private suspend fun List<HistoryItem>.historyDays(
     context: Context,
     today: LocalDate,
     zone: ZoneId,
+    locale: Locale,
     built: Map<HistoryItem, HistoryRow>,
 ): HistoryDays {
-    val rows = buildReusing(built) { HistoryRow(it, it.day(zone), it.rowText(context)) }
+    val rows = buildReusing(built) { HistoryRow(it, it.day(zone), it.rowText(context, locale)) }
     val days = rows.rows.groupBy { it.day }.map { (day, events) ->
         when (day) {
             is HistoryDayKey.Date -> HistoryDay("date-${day.date}", day.date.label(context, today, zone), events)
@@ -412,10 +426,10 @@ private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): S
 
 private data class HistoryRowText(val kind: String?, val size: String?, val time: String)
 
-private fun HistoryItem.rowText(context: Context): HistoryRowText =
+private fun HistoryItem.rowText(context: Context, locale: Locale): HistoryRowText =
     HistoryRowText(
-        kind = kindLabel(context)?.let { context.getString(R.string.mobile_history_metadata, it, "") },
-        size = kind.sizeBytes()?.let(::formatFileSize),
+        kind = kindLabel(context),
+        size = kind.sizeBytes()?.let { formatFileSize(it, locale) },
         time = timeLabel(context),
     )
 
@@ -471,6 +485,7 @@ private fun HistoryEventKind.glyph(): Int =
         is HistoryEventKind.Other -> R.drawable.ic_ph_clock_counter_clockwise
     }
 
+private const val HISTORY_META_SEPARATOR = " · "
 private val HISTORY_GLYPH_SIZE = 24.dp
 /** Past midnight before the date is read again, so the new day has begun. */
 private const val MIDNIGHT_SLACK_MILLIS = 1_000L

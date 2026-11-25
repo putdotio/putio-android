@@ -142,12 +142,19 @@ internal fun DownloadEntry.decidedBy(directPlay: DirectPlayDownload?): DownloadE
             status = DownloadStatus.Failed(DownloadFailureReason.UNAVAILABLE, 0L),
             directPlayUnanswered = false,
         )
-        else -> copy(
-            artifact = artifact,
-            subtitles = directPlay.subtitles.mapNotNull {
-                it.toDownloadSubtitle(isDefault = it.key == directPlay.defaultSubtitleKey)
-            },
-            directPlayUnanswered = false,
-        )
+        else -> {
+            val defaultKey = directPlay.defaultSubtitleKey?.takeIf(String::isNotBlank)
+            var defaultMarked = false
+            copy(
+                artifact = artifact,
+                subtitles = directPlay.subtitles.mapNotNull { subtitle ->
+                    val markDefault = defaultKey != null && !defaultMarked && subtitle.key == defaultKey
+                    subtitle.toDownloadSubtitle(isDefault = markDefault)?.also {
+                        if (markDefault) defaultMarked = true
+                    }
+                },
+                directPlayUnanswered = false,
+            )
+        }
     }
 }

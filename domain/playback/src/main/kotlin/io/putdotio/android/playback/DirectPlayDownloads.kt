@@ -69,7 +69,9 @@ public class DirectPlayDownloads internal constructor(
                 if (includeSubtitles && source != DirectPlayDownloadSource.Unavailable) {
                     val found = withTimeoutOrNull(SUBTITLES_TIMEOUT) { subtitles(fileId.value) }
                     val subtitles = found?.subtitles.orEmpty()
-                    val defaultSubtitleKey = found?.defaultKey?.takeIf { key -> subtitles.any { it.key == key } }
+                    val defaultSubtitleKey = found?.defaultKey?.takeIf { key ->
+                        key.isNotBlank() && subtitles.any { it.key == key }
+                    }
                     answer = DirectPlayDownload(source, subtitles, defaultSubtitleKey)
                 }
             }

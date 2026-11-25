@@ -1,10 +1,12 @@
 package io.putdotio.android
 
+import android.content.res.Configuration
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
@@ -53,6 +55,7 @@ import io.putdotio.android.search.SearchTotal
 import io.putdotio.android.search.searchState
 import io.putdotio.sdk.files.PutioFileType
 import java.time.LocalDate
+import java.util.Locale
 import java.util.TimeZone
 import kotlinx.coroutines.test.StandardTestDispatcher
 import org.junit.Assert.assertEquals
@@ -516,22 +519,22 @@ class MobileSearchScreensTest {
             setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
             listOf(
-                "Harbor film.mp4" to "Uploaded · ",
-                "Sample transfer" to "Transfer failed · ",
-                "Old episode.mkv" to "Deleted to free space · ",
-                "Sample feed" to "RSS filter paused · ",
-                "Feed item" to "RSS transfer failed · ",
-                "Callback transfer" to "Callback failed · ",
+                "Harbor film.mp4" to "Uploaded",
+                "Sample transfer" to "Transfer failed",
+                "Old episode.mkv" to "Deleted to free space",
+                "Sample feed" to "RSS filter paused",
+                "Feed item" to "RSS transfer failed",
+                "Callback transfer" to "Callback failed",
             ).forEach { (title, kind) ->
                 compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
                 compose.awaitText(kind, substring = true)
                 compose.onNodeWithText(title).assertIsDisplayed()
-                compose.onNodeWithText(kind, substring = true).assertIsDisplayed()
+                compose.onNodeWithText(kind).assertIsDisplayed()
             }
             // A type with no copy names nothing and gives its time alone.
             compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText("No title"))
             compose.onNodeWithText("No title").assertIsDisplayed()
-            compose.onAllNodesWithText(" · ", substring = true).assertCountEquals(6)
+            compose.onAllNodesWithText(" · ", substring = true, useUnmergedTree = true).assertCountEquals(0)
             compose.onAllNodesWithText("zip_created", substring = true).assertCountEquals(0)
             compose.onAllNodesWithText("Activity", substring = true).assertCountEquals(0)
         } finally {
@@ -548,8 +551,8 @@ class MobileSearchScreensTest {
         setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
         compose.onAllNodesWithText("No title").assertCountEquals(2)
-        compose.onNodeWithText("Shared with you · ", substring = true).assertIsDisplayed()
-        compose.onNodeWithText("Transfer completed · ", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Shared with you").assertIsDisplayed()
+        compose.onNodeWithText("Transfer completed").assertIsDisplayed()
     }
 
     @Test
@@ -584,16 +587,16 @@ class MobileSearchScreensTest {
             setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
             listOf(
-                Triple("shared.mkv", "Shared by alice · ", "1.5 GB · "),
-                Triple("movie.mkv", "Transfer completed · ", "3.1 GB · "),
-                Triple("clip.mp4", "Uploaded · ", "42 MB · "),
-                Triple("old.mkv", "Deleted to free space · ", "850 MB · "),
+                Triple("shared.mkv", "Shared by alice", "1.5 GB"),
+                Triple("movie.mkv", "Transfer completed", "3.1 GB"),
+                Triple("clip.mp4", "Uploaded", "42 MB"),
+                Triple("old.mkv", "Deleted to free space", "850 MB"),
             ).forEach { (title, kind, size) ->
                 compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
                 compose.awaitText(size, substring = true)
                 compose.onNodeWithText(title).assertIsDisplayed()
-                compose.onNodeWithText(kind, substring = true, useUnmergedTree = true).assertIsDisplayed()
-                compose.onNodeWithText(size, substring = true, useUnmergedTree = true).assertIsDisplayed()
+                compose.onNodeWithText(kind, useUnmergedTree = true).assertIsDisplayed()
+                compose.onNodeWithText(size, useUnmergedTree = true).assertIsDisplayed()
             }
             compose.onAllNodesWithText("Shared with you", substring = true, useUnmergedTree = true).assertCountEquals(0)
         } finally {
@@ -623,22 +626,52 @@ class MobileSearchScreensTest {
             setHistoryScreen(history = historyState(HistoryContent.Ready(items, HistoryPaging.Complete)))
 
             listOf(
-                "shared.mkv" to "Shared with you · ",
-                "transfer.mkv" to "Transfer completed · ",
-                "upload.mp4" to "Uploaded · ",
-                "rss.mkv" to "Deleted to free space · ",
+                "shared.mkv" to "Shared with you",
+                "transfer.mkv" to "Transfer completed",
+                "upload.mp4" to "Uploaded",
+                "rss.mkv" to "Deleted to free space",
             ).forEach { (title, kind) ->
                 compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText(title))
                 compose.awaitText(kind, substring = true)
-                compose.onNodeWithText(kind, substring = true, useUnmergedTree = true).assertIsDisplayed()
+                compose.onNodeWithText(kind, useUnmergedTree = true).assertIsDisplayed()
             }
             compose.onAllNodesWithText("Shared by", substring = true, useUnmergedTree = true).assertCountEquals(0)
             listOf("GB", "MB", "kB", " B").forEach { unit ->
                 compose.onAllNodesWithText(unit, substring = true, useUnmergedTree = true).assertCountEquals(0)
             }
-            compose.onAllNodesWithText(" · ", substring = true, useUnmergedTree = true).assertCountEquals(4)
+            compose.onAllNodesWithText(" · ", substring = true, useUnmergedTree = true).assertCountEquals(0)
         } finally {
             TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun historyRowSizesFollowConfigurationLocale() {
+        val previous = Locale.getDefault()
+        val previousZone = TimeZone.getDefault()
+        Locale.setDefault(Locale.US)
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val item = HistoryItem(
+                HistoryEventId(1L),
+                "2026-09-09T15:25:32",
+                HistoryEventKind.File(HistoryFileId(1L), "shared.mkv", fileSizeBytes = 1_500_000_000L),
+            )
+            val history = historyState(HistoryContent.Ready(listOf(item), HistoryPaging.Complete))
+            compose.setBuiltContent {
+                val config = Configuration(LocalConfiguration.current).apply { setLocale(Locale.GERMANY) }
+                CompositionLocalProvider(LocalConfiguration provides config) {
+                    PutioTheme {
+                        MobileHistoryScreen(historyState = history, onHistoryEvent = {}, today = TODAY)
+                    }
+                }
+            }
+            compose.awaitText("1,5 GB", substring = true)
+            compose.onNodeWithText("1,5 GB", useUnmergedTree = true).assertIsDisplayed()
+            compose.onAllNodesWithText("1.5 GB", substring = true, useUnmergedTree = true).assertCountEquals(0)
+        } finally {
+            Locale.setDefault(previous)
+            TimeZone.setDefault(previousZone)
         }
     }
 

@@ -461,6 +461,16 @@ class MobileCastControllerTest {
     }
 
     @Test
+    fun theReceiverHonorsSidecarDefaultKeyAndIgnoresBlankKeys() {
+        val withDefault = source(listOf("first", "second"), defaultKey = "second")
+        assertEquals("second", castSubtitleKey(withDefault, null, Shown))
+        assertEquals("second", castSubtitleKey(withDefault, SubtitleSelection.Automatic, Shown))
+
+        val blankKey = source(listOf("", "second"), defaultKey = "")
+        assertNull(castSubtitleKey(blankKey, SubtitleSelection.Track(identity("0:")), Shown))
+    }
+
+    @Test
     fun anHlsStreamShowsThePlaylistSubtitleTheLocalPlayerWould() {
         val hls = PlaybackSource(
             fileId = 42L,
@@ -504,14 +514,14 @@ class MobileCastControllerTest {
         assertNull(playlistSubtitleTrack(emptyList(), PlaybackCastPlaylistSubtitle(null)))
     }
 
-    private fun source(keys: List<String>) =
+    private fun source(keys: List<String>, defaultKey: String? = null) =
         PlaybackSource(
             fileId = 42L,
             kind = PlaybackSourceKind.MP4,
             url = PutioCredentialUrl.of("https://api.put.io/v2/files/42/mp4/download"),
             startFromSeconds = 0.0,
             subtitles = PlaybackSubtitles.Sidecar(
-                keys.map {
+                tracks = keys.map {
                     PlaybackSubtitle(
                         format = "srt",
                         key = it,
@@ -522,6 +532,7 @@ class MobileCastControllerTest {
                         url = PutioCredentialUrl.of("https://api.put.io/v2/files/42/subtitles/$it"),
                     )
                 },
+                defaultKey = defaultKey,
             ),
         )
 

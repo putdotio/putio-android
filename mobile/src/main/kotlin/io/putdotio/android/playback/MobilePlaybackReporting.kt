@@ -122,6 +122,9 @@ internal class MobilePlaybackReporting(
     /** Runs [block], another write of [fileId]'s position, after every position playback took for it. */
     suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T = writer.supersede(fileId, block)
 
+    /** Runs [block] for [fileIds] after every position playback took for them. */
+    suspend fun <T> supersede(fileIds: Iterable<Long>, block: suspend () -> T): T = writer.supersede(fileIds, block)
+
     fun observe(player: Player): PlaybackPositionObserver =
         PlaybackPositionObserver(player, scope, writer::offer)
 

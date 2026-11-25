@@ -200,6 +200,15 @@ class DirectPlayDownloadsTest {
         assertEquals(DirectPlayDownload(Original), answer.await())
     }
 
+    @Test
+    fun blankSubtitleDefaultKeyDropsToNull() = runBlocking {
+        val video = file(H264_MKV, captured("h264-high-aac.mkv"))
+        val listed = listOf(ENGLISH.copy(key = ""))
+
+        val downloads = downloads(OriginalVideoPolicy.Check, subtitles = listed, defaultSubtitleKey = "")
+        assertEquals(DirectPlayDownload(Original, listed, defaultSubtitleKey = null), downloads.resolve(video, true))
+    }
+
     private suspend fun DirectPlayDownloads.source(fileId: FilesItemId): DirectPlayDownloadSource? =
         resolve(fileId, includeSubtitles = false)?.source
 

@@ -36,7 +36,7 @@ public class SdkFilesWatchedRepository(
         if (itemIds.isEmpty()) return PutioResult.Success(Unit)
         return putioRequest {
             client.files.setWatchStatus(
-                FilesWatchStatusInput(watched = false, ids = itemIds.map(FilesItemId::value)),
+                FilesWatchStatusInput(watched = false, ids = itemIds.map(FilesItemId::value).distinct()),
             )
         }
     }

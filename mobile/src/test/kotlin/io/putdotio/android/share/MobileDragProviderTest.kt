@@ -173,6 +173,26 @@ class MobileDragProviderTest {
         }
     }
 
+    @Test
+    fun beginUsesNormalizedApiContentTypeAndFallsBackForOctetStream() {
+        val readme = FilesItem(
+            FilesItemId(10L),
+            FilesItemId(0L),
+            "README",
+            PutioFileType.TEXT,
+            100L,
+            "2026-10-04",
+            contentType = "text/plain; charset=utf-8",
+        )
+        val posterWithOctet = POSTER.copy(contentType = "application/octet-stream")
+
+        val readmeKey = MobileFileDrags.begin(SESSION, readme)
+        val posterKey = MobileFileDrags.begin(SESSION, posterWithOctet)
+
+        assertEquals("text/plain", MobileFileDrags[readmeKey]?.mimeType)
+        assertEquals("image/jpeg", MobileFileDrags[posterKey]?.mimeType)
+    }
+
     /** put.io's download endpoint answering a range from the request's offset. */
     private fun ranged(request: Request): Response {
         requests += request

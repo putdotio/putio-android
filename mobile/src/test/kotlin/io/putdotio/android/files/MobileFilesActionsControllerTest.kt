@@ -385,10 +385,10 @@ class MobileFilesActionsControllerTest {
     @Test
     fun bulkUnwatchedSupersedesEveryItemWithoutDeadlockingOnASharedPositionLock() = runTest {
         val lock = Mutex()
-        val superseded = mutableListOf<FilesItemId>()
+        val superseded = mutableListOf<List<FilesItemId>>()
         val controller = controller(
-            positionWrites = { id, write ->
-                superseded += id
+            positionWrites = { ids, write ->
+                superseded += ids
                 lock.withLock { write() }
             },
         )
@@ -397,7 +397,7 @@ class MobileFilesActionsControllerTest {
         controller.setWatched(listOf(videoB, video), watched = false)
         advanceUntilIdle()
 
-        assertEquals(listOf(video.id, videoB.id), superseded)
+        assertEquals(listOf(listOf(video.id, videoB.id)), superseded)
         assertEquals(listOf(listOf(videoB.id, video.id)), watched.clearedBulk)
     }
 
@@ -489,7 +489,7 @@ class MobileFilesActionsControllerTest {
 
     private fun TestScope.controller(
         scope: CoroutineScope = this,
-        positionWrites: suspend (FilesItemId, suspend () -> PutioResult<Unit>) -> PutioResult<Unit> =
+        positionWrites: suspend (List<FilesItemId>, suspend () -> PutioResult<Unit>) -> PutioResult<Unit> =
             { _, write -> write() },
     ) = MobileFilesActionsController(
         scope = scope,

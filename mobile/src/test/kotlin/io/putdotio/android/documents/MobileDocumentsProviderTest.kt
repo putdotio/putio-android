@@ -169,6 +169,32 @@ class MobileDocumentsProviderTest {
     }
 
     @Test
+    fun normalizesApiContentTypeAndFallsBackForUnsafeOrGenericValues() {
+        fixture.auth.value = signedIn(ALICE, session = 1)
+        val items = listOf(
+            file(21L, "README", contentType = "text/plain; charset=utf-8"),
+            file(22L, "photo", contentType = "IMAGE/JPEG"),
+            file(23L, "Clip.MP4", contentType = "application/octet-stream"),
+            file(24L, "notes.txt", contentType = "image/*"),
+            file(25L, "script.txt", contentType = Document.MIME_TYPE_DIR),
+            file(26L, "blob", contentType = "application/octet-stream"),
+        )
+        fixture.files.folders[ROOT] = PutioResult.Success(FilesPage(items, null))
+
+        fixture.children("$ALICE:0").close()
+        fixture.settle()
+
+        fixture.children("$ALICE:0").use { rows ->
+            assertEquals("text/plain", rows.row("$ALICE:21").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("image/jpeg", rows.row("$ALICE:22").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("video/mp4", rows.row("$ALICE:23").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("text/plain", rows.row("$ALICE:24").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("text/plain", rows.row("$ALICE:25").string(Document.COLUMN_MIME_TYPE))
+            assertEquals("application/octet-stream", rows.row("$ALICE:26").string(Document.COLUMN_MIME_TYPE))
+        }
+    }
+
+    @Test
     fun aFailedPageIsReportedOnceThenAskedForAgainAndA401SignsOut() {
         fixture.auth.value = signedIn(ALICE, session = 1)
         fixture.files.folders[ROOT] = PutioResult.Failure(PutioFailure.ServerUnavailable(503, apiError(503)))
