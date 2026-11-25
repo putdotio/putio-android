@@ -179,6 +179,16 @@ file, then `adb push`. Creating it with `adb shell mkdir` leaves it unreadable
 to the app. Require `OK (n tests)`. Most lanes fake the API: report them as
 synthetic proof.
 
+`MobileTalkBackProofTest`, `MobileTalkBackChoicesProofTest`, and
+`MobileTalkBackSessionProofTest` wait on host TalkBack gestures because TalkBack
+touch exploration intercepts standard synthetic input; drive them with
+[`scripts/talkback-input.py`](../../../scripts/talkback-input.py)
+(`--action swipe-right|swipe-left|double-tap`):
+
+```bash
+python3 -B scripts/talkback-input.py --serial "$SERIAL" --action swipe-right --width <w> --height <h> --rotation <0..3>
+```
+
 ## Evidence
 
 ```bash
