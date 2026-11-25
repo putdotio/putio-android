@@ -54,7 +54,7 @@ jobs:
   release:
     name: Release to production
     needs: ref
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     environment: release
     permissions:
@@ -100,7 +100,7 @@ jobs:
             exit 1
           fi
           echo "- Promoting \`$tagged\`" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: '21'

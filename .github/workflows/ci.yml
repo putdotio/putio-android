@@ -20,7 +20,7 @@ concurrency:
 jobs:
   changes:
     name: Detect changes
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -65,7 +65,7 @@ jobs:
     name: Docs
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.docs-only == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     env:
       TASKS: verifyDocs
@@ -83,7 +83,7 @@ jobs:
           sudo apt-get install --yes --no-install-recommends ffmpeg shellcheck
 
       - name: Set up Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: '21'
@@ -146,7 +146,7 @@ jobs:
     name: Mobile
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 40
     env:
       TASKS: verifyMobile :mobile:assembleProductionDebug :mobile:assembleNightlyDebug
@@ -157,7 +157,7 @@ jobs:
     name: TV, docs and scripts
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 40
     env:
       TASKS: verifyTv verifyDocs verifyScripts :tv:assembleProductionDebug :tv:assembleNightlyDebug
@@ -170,7 +170,7 @@ jobs:
     name: Release and libraries
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.code == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 40
     env:
       TASKS: verifyRelease verifyLibraries
