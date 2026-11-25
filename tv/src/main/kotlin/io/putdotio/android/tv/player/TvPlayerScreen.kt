@@ -499,7 +499,7 @@ private fun TvActiveReadyPlayer(
             override fun onPlaybackStateChanged(value: Int) {
                 playbackState = value
                 if (value == Player.STATE_ENDED) {
-                    currentAnalytics.reachedEnd()
+                    if (held.queue == null) currentAnalytics.reachedEnd()
                     apply(overlay.ended(autoplayNext = currentAutoplayNextVideo, lookup = currentUpNext))
                 }
             }

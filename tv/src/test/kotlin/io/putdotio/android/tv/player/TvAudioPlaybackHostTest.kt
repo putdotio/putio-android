@@ -5,9 +5,11 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import io.putdotio.android.PutioFailure
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.playback.PlaybackEvent
+import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
@@ -25,6 +27,7 @@ import io.putdotio.android.tv.TvSessionKey
 import io.putdotio.android.tv.auth.TvAccount
 import io.putdotio.android.tv.auth.TvAuthSessionId
 import io.putdotio.android.tv.auth.TvAuthState
+import io.putdotio.sdk.errors.PutioConfigurationException
 import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -122,18 +125,85 @@ class TvAudioPlaybackHostTest {
         assertEquals(0, harness.writeCalls)
         assertTrue(harness.saved.isEmpty())
     }
+
+    @Test
+    fun reattachingWithLoadingSettingsDoesNotCancelInFlightPositionWrite() {
+        val harness = startAudioHarness()
+        val key = TvSessionKey(42L, TvAuthSessionId(1L))
+        TvPlaybackService.audioHost.detachCallbacks(harness.savedCallback)
+
+        harness.player.pause()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(harness.writeStarted.isCompleted)
+
+        val loading = AccountSettingsReducer.start().state
+        TvPlaybackService.audioHost.reattach(
+            TvAudioSessionAttachments(
+                sessionKey = key,
+                settings = MutableStateFlow(loading),
+                onSaved = harness.savedCallback,
+                onAuthenticationRejected = {},
+            ),
+        )
+        TvPlaybackService.audioHost.updateSettings(key, loading)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertFalse(harness.writeCancelled.isCompleted)
+
+        harness.releaseWrite.complete(Unit)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(listOf(9L to 47.0), harness.completedWrites)
+        assertEquals(listOf(9L to 47.0), harness.saved)
+    }
+
+    @Test
+    fun detached401StopsAudioAndSubsequentWritesAndNotifiesOnReattach() {
+        val rejected = PutioFailure.AuthenticationRequired(PutioConfigurationException("401"))
+        val harness = startAudioHarness(
+            writeResult = { PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(rejected)) },
+        )
+        harness.releaseWrite.complete(Unit)
+        TvPlaybackService.audioHost.detachCallbacks(harness.savedCallback)
+
+        harness.player.pause()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertNull(TvPlaybackService.audioHost.active.value)
+        assertEquals(1, harness.writeCalls)
+
+        harness.player.seekTo(60_000L)
+        harness.player.play()
+        harness.player.pause()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(1, harness.writeCalls)
+
+        var reattachRejected = 0
+        TvPlaybackService.audioHost.reattach(
+            TvAudioSessionAttachments(
+                sessionKey = TvSessionKey(42L, TvAuthSessionId(1L)),
+                settings = MutableStateFlow(resumeEnabledSettings()),
+                onSaved = harness.savedCallback,
+                onAuthenticationRejected = { reattachRejected += 1 },
+            ),
+        )
+        assertEquals(1, reattachRejected)
+    }
 }
 
 private class AudioHostHarness(
     val authState: MutableStateFlow<TvAuthState>,
+    val saved: MutableList<Pair<Long, Double>>,
+    val savedCallback: (Long, Double) -> Unit,
     private val onOrder: (String) -> Unit,
+    private val writeResult: () -> PlaybackRepositoryResult<Unit>,
 ) {
     val writeStarted = CompletableDeferred<Unit>()
     val releaseWrite = CompletableDeferred<Unit>()
     val writeCancelled = CompletableDeferred<Unit>()
     val completedWrites = mutableListOf<Pair<Long, Double>>()
-    val saved = mutableListOf<Pair<Long, Double>>()
     var writeCalls: Int = 0
+    lateinit var player: FakePlayer
 
     suspend fun recordWrite(fileId: Long, seconds: Double): PlaybackRepositoryResult<Unit> {
         writeCalls += 1
@@ -146,18 +216,24 @@ private class AudioHostHarness(
             throw cancelled
         }
         onOrder("audio-end")
-        completedWrites += fileId to seconds
-        return PlaybackRepositoryResult.Success(Unit)
+        val result = writeResult()
+        if (result is PlaybackRepositoryResult.Success) completedWrites += fileId to seconds
+        return result
     }
 }
 
 @UnstableApi
-private fun startAudioHarness(onOrder: (String) -> Unit = {}): AudioHostHarness {
+private fun startAudioHarness(
+    onOrder: (String) -> Unit = {},
+    writeResult: () -> PlaybackRepositoryResult<Unit> = { PlaybackRepositoryResult.Success(Unit) },
+): AudioHostHarness {
     val songTarget = PlaybackTarget(FilesItemId(9L), "01 Song.mp3", PlaybackMediaType.AUDIO, 120.0)
     val authState = MutableStateFlow<TvAuthState>(
         TvAuthState.SignedIn(TvAccount(42L, "u", "u@example.com", historyEnabled = true), TvAuthSessionId(1L)),
     )
-    val harness = AudioHostHarness(authState, onOrder)
+    val saved = mutableListOf<Pair<Long, Double>>()
+    val savedCallback: (Long, Double) -> Unit = { fileId, seconds -> saved += fileId to seconds }
+    val harness = AudioHostHarness(authState, saved, savedCallback, onOrder, writeResult)
     TvPlaybackService.audioHost.start(
         TvAudioStartRequest(
             identity = TvAudioSessionIdentity(
@@ -182,7 +258,7 @@ private fun startAudioHarness(onOrder: (String) -> Unit = {}): AudioHostHarness 
                 playbackRepository = singleSongRepository(),
                 settings = MutableStateFlow(resumeEnabledSettings()),
                 writePlaybackPosition = harness::recordWrite,
-                onSaved = { fileId, seconds -> harness.saved += fileId to seconds },
+                onSaved = savedCallback,
                 onAuthenticationRejected = {},
             ),
         ),
@@ -195,6 +271,7 @@ private fun startAudioHarness(onOrder: (String) -> Unit = {}): AudioHostHarness 
         playWhenReady = true
         ready()
     }
+    harness.player = player
     checkNotNull(hosted.queue).take(source(fileId = 9L), songTarget, player)
     shadowOf(Looper.getMainLooper()).idle()
     return harness

@@ -79,6 +79,7 @@ import io.putdotio.android.tv.player.TvAudioSessionAttachments
 import io.putdotio.android.tv.player.TvAudioSessionCallbacks
 import io.putdotio.android.tv.player.TvAudioSessionIdentity
 import io.putdotio.android.tv.player.TvAudioStartRequest
+import io.putdotio.android.tv.player.TvBackgroundSessions
 import io.putdotio.android.tv.player.TvPlaybackReporting
 import io.putdotio.android.tv.player.TvPlaybackService
 import io.putdotio.android.tv.watchnext.TvWatchNextPlayback
@@ -152,6 +153,7 @@ internal class TvSessionAudio(
     val key: TvSessionKey? = null,
     val authState: StateFlow<TvAuthState>? = null,
     val application: Context? = null,
+    val attachOnInit: Boolean = true,
 )
 
 /**
@@ -331,34 +333,41 @@ internal class TvSession internal constructor(
         if (accountId != null) {
             scope.launch { settings.state.productAnalyticsAnswers().collect { ProductAnalytics.update(accountId, it) } }
         }
-        val audioKey = audio.key
-        if (audioKey != null) {
-            scope.launch { settings.state.collect(audio.host::updateSettings) }
-            val hosted = audio.host.reattach(
-                TvAudioSessionAttachments(
-                    sessionKey = audioKey,
-                    settings = settings.state,
-                    onSaved = positionSaved,
-                    onAuthenticationRejected = playbackReporting::markAuthenticationRejected,
-                ),
-            )
-            if (hosted != null) {
-                attachedAudio = hosted.controller
-                mutablePlayback.value = hosted.controller
-                mutablePlaybackInBackground.value = hosted.inBackground
-                playbackStart = hosted.startItem
-                playingFromHome = hosted.playingFromHome
-                watchNextPlayback.follow(hosted.controller)
-            }
-            scope.launch {
-                audio.host.active.collect { currentHosted ->
-                    val audioController = attachedAudio
-                    if (currentHosted == null && audioController != null) {
-                        attachedAudio = null
-                        if (mutablePlayback.value === audioController) {
-                            mutablePlayback.value = null
-                            mutablePlaybackInBackground.value = false
-                        }
+        if (audio.attachOnInit) attachAudioHost()
+    }
+
+    private var audioHostAttached = false
+
+    internal fun attachAudioHost() {
+        if (audioHostAttached) return
+        audioHostAttached = true
+        val audioKey = audio.key ?: return
+        TvBackgroundSessions.markAppForeground()
+        scope.launch { settings.state.collect { audio.host.updateSettings(audioKey, it) } }
+        val hosted = audio.host.reattach(
+            TvAudioSessionAttachments(
+                sessionKey = audioKey,
+                settings = settings.state,
+                onSaved = positionSaved,
+                onAuthenticationRejected = playbackReporting::markAuthenticationRejected,
+            ),
+        )
+        if (hosted != null) {
+            attachedAudio = hosted.controller
+            mutablePlayback.value = hosted.controller
+            mutablePlaybackInBackground.value = hosted.inBackground
+            playbackStart = hosted.startItem
+            playingFromHome = hosted.playingFromHome
+            watchNextPlayback.follow(hosted.controller)
+        }
+        scope.launch {
+            audio.host.active.collect { currentHosted ->
+                val audioController = attachedAudio
+                if (currentHosted == null && audioController != null) {
+                    attachedAudio = null
+                    if (mutablePlayback.value === audioController) {
+                        mutablePlayback.value = null
+                        mutablePlaybackInBackground.value = false
                     }
                 }
             }
@@ -640,7 +649,7 @@ internal class TvSessionViewModel(
             val session = withContext(buildContext) { newSession(account, key, dependencies) }
             var adopted = false
             val held = active.valueFor(key) { session.also { adopted = true } }
-            if (!adopted) session.close()
+            if (adopted) session.attachAudioHost() else session.close()
             if (held != null) mutablePrepared.value = key
         }
     }
@@ -651,7 +660,10 @@ internal class TvSessionViewModel(
         dependencies: TvSessionDependencies,
     ): TvSession? {
         val key = TvSessionKey(account.userId, sessionId)
-        return active.valueFor(key) { newSession(account, key, dependencies) }
+        var created = false
+        val held = active.valueFor(key) { newSession(account, key, dependencies).also { created = true } }
+        if (created) held?.attachAudioHost()
+        return held
     }
 
     private fun newSession(account: TvAccount, key: TvSessionKey, dependencies: TvSessionDependencies) =
@@ -662,7 +674,7 @@ internal class TvSessionViewModel(
             parentScope = viewModelScope,
             watchNext = dependencies.watchNext(key.userId, key.sessionId),
             accountId = key.userId,
-            audio = TvSessionAudio(audioHost, key, authState, application),
+            audio = TvSessionAudio(audioHost, key, authState, application, attachOnInit = false),
         )
 
     override fun onCleared() {

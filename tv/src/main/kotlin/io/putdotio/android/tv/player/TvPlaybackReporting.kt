@@ -55,7 +55,7 @@ internal class TvPlaybackReporting(
     /** A write was refused for the session's credential. Sticky: the session is over. */
     val authenticationRejected: StateFlow<Boolean> = mutableRejected.asStateFlow()
 
-    private val writer = PlaybackPositionWriter(scope) { fileId, seconds ->
+    private val writer: PlaybackPositionWriter = PlaybackPositionWriter(scope) { fileId, seconds ->
         write(fileId, seconds).also { result ->
             when {
                 closed -> Unit
@@ -63,7 +63,10 @@ internal class TvPlaybackReporting(
                 // A verdict that lands after another session took over is not this session's.
                 (result as? PlaybackRepositoryResult.Failure)?.failure?.putioFailure is
                     PutioFailure.AuthenticationRequired ->
-                    if (sessionCurrent()) mutableRejected.value = true
+                    if (sessionCurrent()) {
+                        mutableRejected.value = true
+                        writer.reconcile()
+                    }
             }
         }
     }
@@ -90,7 +93,10 @@ internal class TvPlaybackReporting(
         if (closed) Closeable {} else PlaybackPositionObserver(player, scope, writer::offer)
 
     internal fun markAuthenticationRejected() {
-        if (!closed && sessionCurrent()) mutableRejected.value = true
+        if (!closed && sessionCurrent()) {
+            mutableRejected.value = true
+            writer.reconcile()
+        }
     }
 
     override fun close() {
@@ -100,8 +106,10 @@ internal class TvPlaybackReporting(
         writer.close()
     }
 
-    private fun authorized(): Boolean =
-        !closed && sessionCurrent() && settings.value.confirmedResumePlayback() == true
+    private fun authorized(): Boolean {
+        if (closed || mutableRejected.value) return false
+        return sessionCurrent() && settings.value.confirmedResumePlayback() == true
+    }
 
     private data class Lease(val fileId: Long, val token: String)
 }

@@ -26,6 +26,7 @@ import io.putdotio.android.playback.PlaybackController
 import io.putdotio.android.playback.PlaybackEvent
 import io.putdotio.android.playback.PlaybackFailure
 import io.putdotio.android.playback.PlaybackFindNeighbours
+import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackNeighbours
 import io.putdotio.android.playback.PlaybackNextResult
 import io.putdotio.android.playback.PlaybackPlatform
@@ -119,6 +120,7 @@ internal fun TvPlaybackRoute(
     }
     val queue = rememberPlaybackQueue(
         backgrounds = onBackground != null,
+        mediaType = state.target.mediaType,
         controller = controller,
         playerFactory = playerFactory,
         reporter = reporter,
@@ -198,6 +200,7 @@ private const val SHELL_STATE_KEY = "tv-shell"
 @Composable
 private fun rememberPlaybackQueue(
     backgrounds: Boolean,
+    mediaType: PlaybackMediaType,
     controller: PlaybackController,
     playerFactory: TvPlayerFactory,
     reporter: TvPlaybackReporter,
@@ -211,8 +214,8 @@ private fun rememberPlaybackQueue(
     val currentOnSessionRejected by rememberUpdatedState(onSessionRejected)
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
     val hosted = TvPlaybackService.audioHost.queueFor(controller)
-    val local = remember(backgrounds, controller, playerFactory, reporter, findUpNext, analytics, hosted) {
-        if (!backgrounds || hosted != null) return@remember null
+    val local = remember(backgrounds, mediaType, controller, playerFactory, reporter, findUpNext, analytics, hosted) {
+        if (!backgrounds || mediaType != PlaybackMediaType.AUDIO || hosted != null) return@remember null
         TvPlaybackQueue(
             context = context,
             factory = playerFactory,
