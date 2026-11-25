@@ -14,23 +14,35 @@ internal object NodeTools {
             ?: throw GradleException("package.json must pin $packageName in devDependencies")
     }
 
-    fun lockfileVersion(pnpmLock: File, packageName: String): String {
+    internal data class LockedPackage(val specifier: String?, val version: String)
+
+    fun lockfileVersion(pnpmLock: File, packageName: String): String =
+        lockfileEntry(pnpmLock, packageName).version
+
+    internal fun lockfileEntry(pnpmLock: File, packageName: String): LockedPackage {
         if (!pnpmLock.isFile) throw GradleException("pnpm-lock.yaml is missing at ${pnpmLock.path}")
         var inImporters = false
         var inRootImporter = false
         var inDevDependencies = false
         var inTargetPackage = false
+        var specifier: String? = null
+        var version: String? = null
         for (rawLine in pnpmLock.readLines()) {
             val trimmed = rawLine.trim()
             if (trimmed == "---" || trimmed == "...") {
+                if (version != null) return LockedPackage(specifier, version)
                 inImporters = false
                 inRootImporter = false
                 inDevDependencies = false
                 inTargetPackage = false
+                specifier = null
                 continue
             }
             if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
             val indent = rawLine.indexOfFirst { it != ' ' }.let { if (it < 0) rawLine.length else it }
+            if (indent <= 6 && version != null) {
+                return LockedPackage(specifier, version)
+            }
             when {
                 indent == 0 -> {
                     inImporters = trimmed == "importers:"
@@ -39,7 +51,8 @@ internal object NodeTools {
                     inTargetPackage = false
                 }
                 indent == 2 && inImporters -> {
-                    inRootImporter = trimmed == ".:"
+                    inRootImporter = trimmed.endsWith(":") &&
+                        trimmed.substringBefore(':').trim().unquoteYaml() == "."
                     inDevDependencies = false
                     inTargetPackage = false
                 }
@@ -50,17 +63,28 @@ internal object NodeTools {
                 indent == 6 && inDevDependencies -> {
                     val key = trimmed.substringBefore(':').trim().unquoteYaml()
                     inTargetPackage = trimmed.endsWith(":") && key == packageName
+                    if (inTargetPackage) {
+                        specifier = null
+                        version = null
+                    }
+                }
+                indent > 6 && inTargetPackage && trimmed.startsWith("specifier:") -> {
+                    specifier = trimmed.removePrefix("specifier:")
+                        .trim()
+                        .unquoteYaml()
+                        .takeIf { it.isNotEmpty() }
                 }
                 indent > 6 && inTargetPackage && trimmed.startsWith("version:") -> {
-                    val version = trimmed.removePrefix("version:")
+                    version = trimmed.removePrefix("version:")
                         .trim()
                         .unquoteYaml()
                         .substringBefore('(')
                         .trim()
-                    if (version.isNotEmpty()) return version
+                        .takeIf { it.isNotEmpty() }
                 }
             }
         }
+        version?.let { return LockedPackage(specifier, it) }
         throw GradleException(
             "pnpm-lock.yaml is missing devDependencies.$packageName; " +
                 "update pnpm-lock.yaml and run pnpm install --frozen-lockfile",
@@ -76,20 +100,32 @@ internal object NodeTools {
         isWindows: Boolean = HostBash.isWindows,
     ): File {
         val expected = pinnedVersion(packageJson, packageName)
-        val locked = lockfileVersion(pnpmLock, packageName)
-        if (locked != expected) {
+        val locked = lockfileEntry(pnpmLock, packageName)
+        if (locked.specifier != null && locked.specifier != expected) {
             throw GradleException(
-                "pnpm-lock.yaml has $packageName $locked, expected $expected from package.json; " +
+                "pnpm-lock.yaml has $packageName specifier ${locked.specifier}, expected $expected from package.json; " +
+                    "update pnpm-lock.yaml and run pnpm install --frozen-lockfile",
+            )
+        }
+        if (locked.version != expected) {
+            throw GradleException(
+                "pnpm-lock.yaml has $packageName ${locked.version}, expected $expected from package.json; " +
                     "update pnpm-lock.yaml and run pnpm install --frozen-lockfile",
             )
         }
         val modulesStamp = nodeModulesDir.resolve(".modules.yaml")
         val installed = installedVersion(nodeModulesDir.resolve("$packageName/package.json"))
-        val executable = nodeModulesDir.resolve(".bin/${if (isWindows) "$binName.cmd" else binName}")
-        if (!modulesStamp.isFile || installed != expected || !executable.isFile) {
+        if (!modulesStamp.isFile || installed != expected) {
             val found = if (modulesStamp.isFile) installed ?: "none" else "none"
             throw GradleException(
                 "$packageName $expected is not installed in node_modules (found $found); " +
+                    "run pnpm install --frozen-lockfile",
+            )
+        }
+        val executable = nodeModulesDir.resolve(".bin/${if (isWindows) "$binName.cmd" else binName}")
+        if (!executable.isFile || (!isWindows && !executable.canExecute())) {
+            throw GradleException(
+                "$packageName $expected executable $binName is missing or not executable in node_modules/.bin; " +
                     "run pnpm install --frozen-lockfile",
             )
         }

@@ -51,7 +51,8 @@ mkdir -p "${REPO_ROOT}/.evidence/logs"
 tmpdir="$(mktemp -d "${REPO_ROOT}/.evidence/logs/lifecycle.XXXXXX")"
 PRE_SERIAL=""
 cleanup_suite() {
-  local exit_code=$?
+  local exit_code="${1:-$?}"
+  trap - EXIT INT TERM
   # The suite must honor the contract it proves: stop the case-4 emulator it
   # booted even when an assertion fails mid-case.
   if [[ -n "${PRE_SERIAL}" ]] && "${ADB}" devices | awk '{print $1}' | grep -qx "${PRE_SERIAL}"; then
@@ -64,6 +65,8 @@ cleanup_suite() {
   fi
 }
 trap cleanup_suite EXIT
+trap 'cleanup_suite 130; exit 130' INT
+trap 'cleanup_suite 143; exit 143' TERM
 
 # --- case 0: normal completion stops the owned emulator, keeps the AVD
 log "case 0: successful proof tears down its own emulator"

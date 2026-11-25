@@ -44,8 +44,16 @@ class TalkBackInputTest(unittest.TestCase):
         points = gesture_points("swipe-right", 1080, 2400)
         with self.assertRaises(TimeoutError):
             bridge["emit_gesture"](send, points, pause=lambda _delay: None)
-        self.assertEqual(0, send.call_args.args[-1])
+        self.assertEqual((points[0][0], points[0][1], 0), send.call_args.args)
         self.assertEqual(2, send.call_count)
+
+    def test_mid_swipe_failure_releases_at_last_pressed_point(self):
+        send = Mock(side_effect=[None, None, TimeoutError("Interrupted mid-swipe"), None])
+        points = gesture_points("swipe-right", 1080, 2400)
+        with self.assertRaises(TimeoutError):
+            bridge["emit_gesture"](send, points, pause=lambda _delay: None)
+        self.assertEqual((points[2][0], points[2][1], 0), send.call_args.args)
+        self.assertEqual(4, send.call_count)
 
     def test_gestures_stay_inside_portrait_and_landscape_display_and_release(self):
         for width, height in ((1080, 2400), (2400, 1080)):
