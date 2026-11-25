@@ -218,7 +218,6 @@ internal object AnalyticsAllowlist {
         "\$lib_version" to { it is String && VERSION.matches(it) },
         "\$session_id" to { it is String && UUID.matches(it) },
         "\$is_identified" to { it is Boolean },
-        "\$process_person_profile" to { it is Boolean },
         "\$geoip_disable" to { it == true },
     )
 

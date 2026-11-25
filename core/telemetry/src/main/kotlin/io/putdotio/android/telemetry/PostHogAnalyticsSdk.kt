@@ -3,6 +3,7 @@ package io.putdotio.android.telemetry
 import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
+import com.posthog.FeatureFlagResult
 import com.posthog.PersonProfiles
 import com.posthog.PostHog
 import com.posthog.PostHogBootstrapConfig
@@ -12,6 +13,7 @@ import com.posthog.PostHogInterface
 import com.posthog.internal.PostHogApi
 import com.posthog.internal.PostHogApiEndpoint
 import com.posthog.internal.PostHogApiError
+import com.posthog.internal.PostHogFeatureFlagsInterface
 import com.posthog.internal.PostHogMemoryPreferences
 import com.posthog.internal.PostHogQueueInterface
 import java.io.File
@@ -57,6 +59,7 @@ internal class PostHogAnalyticsSdk(
     private fun config(accountId: Long, closed: AtomicBoolean) = PostHogConfig(
         projectToken = configuration.token,
         host = HOST,
+        remoteConfigProvider = { _, _, _, _, _, _ -> NoOpFeatureFlags },
         queueProvider = { config, api, endpoint, _, executor -> MemoryQueue(config, api, endpoint, executor, closed) },
     ).apply {
         sdkName = "posthog-android"
@@ -65,7 +68,6 @@ internal class PostHogAnalyticsSdk(
         bootstrap = PostHogBootstrapConfig(distinctId = accountId.toString(), isIdentifiedId = true)
         personProfiles = PersonProfiles.IDENTIFIED_ONLY
         setDefaultPersonProperties = false
-        remoteConfig = false
         preloadFeatureFlags = false
         sendFeatureFlagEvent = false
         sessionReplay = false
@@ -198,4 +200,37 @@ private class MemoryQueue(
         const val MAX_DOUBLINGS = 6
         const val MAX_RETRY_SECONDS = 30 * 60L
     }
+}
+
+private object NoOpFeatureFlags : PostHogFeatureFlagsInterface {
+    override fun getFeatureFlagResult(
+        key: String,
+        distinctId: String?,
+        groups: Map<String, String>?,
+        personProperties: Map<String, Any?>?,
+        groupProperties: Map<String, Map<String, Any?>>?,
+    ): FeatureFlagResult? = null
+
+    override fun getFeatureFlags(
+        distinctId: String?,
+        groups: Map<String, String>?,
+        personProperties: Map<String, Any?>?,
+        groupProperties: Map<String, Map<String, Any?>>?,
+    ): Map<String, Any>? = null
+
+    override fun clear() = Unit
+
+    override fun getRequestId(
+        distinctId: String?,
+        groups: Map<String, String>?,
+        personProperties: Map<String, Any?>?,
+        groupProperties: Map<String, Map<String, Any?>>?,
+    ): String? = null
+
+    override fun getEvaluatedAt(
+        distinctId: String?,
+        groups: Map<String, String>?,
+        personProperties: Map<String, Any?>?,
+        groupProperties: Map<String, Map<String, Any?>>?,
+    ): Long? = null
 }
