@@ -33,9 +33,22 @@
 # Injection prints INJECTED_FAILURE <stage> before failing.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-require_sdk_root
 
 FLAVOR="${1:-}"; shift || { print_usage "${BASH_SOURCE[0]}"; exit 64; }
+case "${FLAVOR}" in
+  mobile)
+    die "mobile launch proof moved to Gradle Managed Device: ./gradlew :mobile:verifyCiPhoneLaunchProof -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader"
+    ;;
+  tv)
+    PROFILE="tv"
+    APP_ID="io.put.putio.debug"
+    GRADLE_TASK=":tv:assembleProductionDebug"
+    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/tv/build/outputs/apk/production/debug/tv-production-debug.apk}"
+    ;;
+  *) die "unknown flavor '${FLAVOR}' (expected tv)" ;;
+esac
+
+require_sdk_root
 
 RECORD=0
 RECORD_SECONDS=10
@@ -73,18 +86,6 @@ BOOT_STATE=""
 BOOT_PID=""
 PROOF_OK=0
 
-case "${FLAVOR}" in
-  mobile)
-    die "mobile launch proof moved to Gradle Managed Device: ./gradlew :mobile:verifyCiPhoneLaunchProof -Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader"
-    ;;
-  tv)
-    PROFILE="tv"
-    APP_ID="io.put.putio.debug"
-    GRADLE_TASK=":tv:assembleProductionDebug"
-    APK="${PUTIO_PROVE_APK:-${REPO_ROOT}/tv/build/outputs/apk/production/debug/tv-production-debug.apk}"
-    ;;
-  *) die "unknown flavor '${FLAVOR}' (expected tv)" ;;
-esac
 COMPONENT="${APP_ID}/io.putdotio.android.MainActivity"
 
 AVD_NAME="$(avd_name_for "${PROFILE}")"

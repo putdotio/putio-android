@@ -53,18 +53,18 @@ def gesture_points(action, width, height):
 
 
 def emit_gesture(send, points, pause=time.sleep):
-    pressed = False
+    pressed_at = None
     try:
         for x, y, button, delay in points:
             if button == 1:
-                pressed = True
+                pressed_at = (x, y)
             send(x, y, button)
-            pressed = button == 1
+            if button == 0:
+                pressed_at = None
             pause(delay)
     finally:
-        if pressed:
-            x, y, _, _ = points[-1]
-            send(x, y, 0)
+        if pressed_at is not None:
+            send(*pressed_at, 0)
 
 
 def interrupted(_signal, _frame):

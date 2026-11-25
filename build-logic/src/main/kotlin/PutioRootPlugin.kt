@@ -9,6 +9,9 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.kotlin.dsl.register
 
+internal const val OKHTTP_CLIENT_PATTERN: String =
+    """\bOkHttpClient\s*(?:\(|\.\s*Builder\b)|\bokhttp3\.OkHttpClient\.Builder\b|::\s*OkHttpClient\b|\bOkHttpClient\s*::\s*Builder\b|\bimport\s+okhttp3\.OkHttpClient(?:\.\*|\s+as\b)"""
+
 /**
  * Root build conventions: verification tasks (`verify`, `verifyDocs`, `verifyScripts`,
  * `verifyLibraries`, `verifyMobile`, `verifyTv`, `verifyRelease`), design/icon sync tasks, and
@@ -19,40 +22,42 @@ class PutioRootPlugin : Plugin<Project> {
         require(target == target.rootProject) { "putio.root must be applied to the root project" }
         with(target) {
             val windows = HostBash.isWindows
-            val bash: String = HostBash.path
 
-            val scriptCheckTools = providers.exec {
-                commandLine(
-                    bash, "-c",
-                    "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done; shellcheck --version 2>&1 | awk '/^version:/ { print \"shellcheck \" \$2; exit }'",
-                )
-                isIgnoreExitValue = true
-            }.standardOutput.asText
+            val scriptCheckTools = provider { HostBash.path }.flatMap { bash ->
+                providers.exec {
+                    commandLine(
+                        bash, "-c",
+                        "for tool in bash python3 ffmpeg ffprobe; do \"\$tool\" --version 2>&1 | head -1; done; shellcheck --version 2>&1 | awk '/^version:/ { print \"shellcheck \" \$2; exit }'",
+                    )
+                    isIgnoreExitValue = true
+                }.standardOutput.asText
+            }
 
             val scripts = fileTree("scripts") { exclude("**/__pycache__/**") }
+            val skillScripts = fileTree(".agents/skills/verify-putio-android/scripts") { include("*.sh") }
 
             val testEvidence = tasks.register<Exec>("testEvidence") {
                 description = "Run evidence harness regression tests"
                 cacheableCheck(scripts, scriptCheckTools, windows)
-                commandLine(bash, "scripts/test-evidence.sh")
+                commandLine(HostBash.path, "scripts/test-evidence.sh")
             }
 
             val testEmulatorHarness = tasks.register<Exec>("testEmulatorHarness") {
                 description = "Run emulator provisioning and readiness contract tests"
                 cacheableCheck(scripts, scriptCheckTools, windows)
-                commandLine(bash, "scripts/test-emulator.sh")
+                commandLine(HostBash.path, "scripts/test-emulator.sh")
             }
 
             val testSignInHarness = tasks.register<Exec>("testSignInHarness") {
                 description = "Run the devs-auto device-code sign-in script's contract tests"
                 cacheableCheck(scripts, scriptCheckTools, windows)
-                commandLine(bash, "scripts/test-sign-in.sh")
+                commandLine(HostBash.path, "scripts/test-sign-in.sh")
             }
 
             val testBaselineProfileHarness = tasks.register<Exec>("testBaselineProfileHarness") {
                 description = "Run the TV baseline profile script's contract tests"
                 cacheableCheck(scripts, scriptCheckTools, windows)
-                commandLine(bash, "scripts/test-baseline-profile.sh")
+                commandLine(HostBash.path, "scripts/test-baseline-profile.sh")
             }
 
             val phosphorLock = layout.projectDirectory.file("design/phosphor-icons.lock.json")
@@ -113,9 +118,13 @@ class PutioRootPlugin : Plugin<Project> {
             }
 
             val checkShellScripts = tasks.register<Exec>("checkShellScripts") {
-                description = "Lint every shell script in scripts/ with shellcheck"
-                cacheableCheck(scripts, scriptCheckTools, windows)
-                commandLine(bash, "-c", "shellcheck -x -S warning scripts/*.sh")
+                description = "Lint every first-party shell script with shellcheck"
+                cacheableCheck(scripts, scriptCheckTools, windows, skillScripts)
+                commandLine(
+                    HostBash.path,
+                    "-c",
+                    "shellcheck -x -S warning scripts/*.sh .agents/skills/verify-putio-android/scripts/*.sh",
+                )
             }
 
             val nodePackageJson = layout.projectDirectory.file("package.json")
@@ -192,9 +201,14 @@ class PutioRootPlugin : Plugin<Project> {
                 description = "Forbid direct OkHttpClient construction outside core/common"
                 sources.from(
                     subprojects.filter { it.path != ":core:common" }
-                        .map { project -> fileTree(project.projectDir.resolve("src/main")) { include("**/*.kt") } },
+                        .map { project ->
+                            fileTree(project.projectDir.resolve("src")) {
+                                include("**/*.kt")
+                                exclude("test/**", "test*/**", "androidTest/**", "androidTest*/**", "testFixtures/**", "testFixtures*/**")
+                            }
+                        },
                 )
-                pattern.set("""\bOkHttpClient\s*(?:\(|\.\s*Builder\b|::)|\bokhttp3\.OkHttpClient\.Builder\b""")
+                pattern.set(OKHTTP_CLIENT_PATTERN)
                 reason.set("Derive HTTP clients from PutioHttpClient.newBuilder() instead of constructing OkHttpClient directly.")
                 repositoryRoot.set(layout.projectDirectory)
                 stamp.set(layout.buildDirectory.file("verification/checkOkHttpClient.stamp"))
@@ -224,15 +238,17 @@ class PutioRootPlugin : Plugin<Project> {
                 testTalkBackInput,
             )
 
-            val verifyLibraries = verifyLane(
-                "verifyLibraries",
-                "Check the shared libraries and the build logic",
-                subprojects.filter { it.buildFile.isFile && it.path !in appProjects }.map { "${it.path}:check" },
-                ":domain:auth:assembleDebugAndroidTest",
-                ":domain:transfers:assembleDebugAndroidTest",
-                checkOkHttpClient,
-                gradle.includedBuild("build-logic").task(":test"),
-            )
+            val verifyLibraries = tasks.register("verifyLibraries") {
+                group = "verification"
+                description = "Check the shared libraries and the build logic"
+                dependsOn(
+                    subprojects.filter { it.buildFile.isFile && it.path !in appProjects }.map { "${it.path}:check" },
+                    ":domain:auth:assembleDebugAndroidTest",
+                    ":domain:transfers:assembleDebugAndroidTest",
+                    checkOkHttpClient,
+                    gradle.includedBuild("build-logic").task(":test"),
+                )
+            }
 
             val verifyMobile = verifyLane(
                 "verifyMobile",

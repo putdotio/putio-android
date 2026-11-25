@@ -186,11 +186,11 @@ if [[ "${1:-} ${2:-}" == "list avd" ]]; then
   shopt -s nullglob
   entries=("${avds}"/*)
   if [[ "${3:-}" == "-c" ]]; then
-    for entry in "${entries[@]}"; do
+    for entry in ${entries[@]+"${entries[@]}"}; do
       [[ -f "${entry}/config.ini" ]] && basename "${entry}"
     done
   else
-    for entry in "${entries[@]}"; do
+    for entry in ${entries[@]+"${entries[@]}"}; do
       printf '    Name: %s\n    Path: %s\n' "$(basename "${entry}")" "${entry}"
     done
   fi
@@ -505,7 +505,7 @@ if PUTIO_PROVE_APK="${fake_apk}" "${REPO_ROOT}/scripts/prove.sh" mobile --skip-b
   fail "prove.sh still accepted mobile flavor"
 fi
 grep -Fq "verifyCiPhoneLaunchProof" "${prove_out}" || fail "mobile refusal omitted GMD replacement command"
-grep -q " install " "${state}/adb-calls" && fail "mobile refusal attempted app install"
+[[ ! -s "${state}/adb-calls" ]] || fail "mobile refusal touched adb"
 
 # Exercise the TV launch-proof script through its Gradle boundary without
 # starting a device or reaching screenshot capture.

@@ -36,9 +36,13 @@ abstract class CheckForbiddenSourceTask : DefaultTask() {
         val regex = Regex(pattern.get())
         val root = repositoryRoot.get().asFile
         val hits = sources.files.sorted().flatMap { file ->
-            file.readLines().mapIndexedNotNull { index, line ->
-                "${file.relativeTo(root).invariantSeparatorsPath}:${index + 1}".takeIf { regex.containsMatchIn(line) }
-            }
+            val text = file.readText()
+            val relativePath = file.relativeTo(root).invariantSeparatorsPath
+            regex.findAll(text)
+                .map { match -> 1 + text.substring(0, match.range.first).count { it == '\n' } }
+                .distinct()
+                .map { line -> "$relativePath:$line" }
+                .toList()
         }
         if (hits.isNotEmpty()) throw GradleException("${reason.get()}\n${hits.joinToString("\n")}")
         stamp.get().asFile.writeText("passed\n")

@@ -26,8 +26,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      docs-only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.code != 'true' && steps.filter.outputs.design != 'true' && steps.filter.outputs.markdown == 'true' }}
-      code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.design == 'true' }}
+      docs-only: ${{ github.event_name == 'pull_request' && steps.filter.outputs.code != 'true' && steps.filter.outputs.design != 'true' && steps.filter.outputs.skill-scripts != 'true' && steps.filter.outputs.markdown == 'true' }}
+      code: ${{ github.event_name != 'pull_request' || steps.filter.outputs.code == 'true' || steps.filter.outputs.design == 'true' || steps.filter.outputs.skill-scripts == 'true' }}
     steps:
       - name: Classify changed paths
         id: filter
@@ -44,6 +44,8 @@ jobs:
               - '!{LICENSE,NOTICE,renovate.json,skills-lock.json,.worktreeinclude}'
             design:
               - 'DESIGN.md'
+            skill-scripts:
+              - '.agents/skills/verify-putio-android/scripts/**'
             markdown:
               - '{*.md,**/*.md,skills-lock.json,.agents/**,.claude/**}'
 

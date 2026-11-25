@@ -147,7 +147,40 @@ class NodeToolsTest {
                 isWindows = false,
             )
         }
-        assertTrue(error.message.orEmpty().contains("@google/design.md 0.4.0 is not installed in node_modules"))
+        assertTrue(error.message.orEmpty().contains("executable designmd is missing or not executable in node_modules/.bin"))
+        assertTrue(error.message.orEmpty().contains("run pnpm install --frozen-lockfile"))
+    }
+
+    @Test
+    fun rejectsNonExecutablePosixBin() {
+        val root = createFixture(binExecutable = false)
+        val error = assertThrows(GradleException::class.java) {
+            NodeTools.requireToolExecutable(
+                nodeModulesDir = root.resolve("node_modules"),
+                packageJson = root.resolve("package.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
+                packageName = "oxfmt",
+                binName = "oxfmt",
+                isWindows = false,
+            )
+        }
+        assertTrue(error.message.orEmpty().contains("executable oxfmt is missing or not executable in node_modules/.bin"))
+    }
+
+    @Test
+    fun rejectsLockfileSpecifierMismatchAgainstPackageJson() {
+        val root = createFixture(lockedOxfmtSpecifier = "^0.79.0")
+        val error = assertThrows(GradleException::class.java) {
+            NodeTools.requireToolExecutable(
+                nodeModulesDir = root.resolve("node_modules"),
+                packageJson = root.resolve("package.json"),
+                pnpmLock = root.resolve("pnpm-lock.yaml"),
+                packageName = "oxfmt",
+                binName = "oxfmt",
+                isWindows = false,
+            )
+        }
+        assertTrue(error.message.orEmpty().contains("pnpm-lock.yaml has oxfmt specifier ^0.79.0, expected 0.79.0"))
     }
 
     private fun createFixture(
@@ -155,8 +188,10 @@ class NodeToolsTest {
         createNodeModules: Boolean = true,
         createModulesStamp: Boolean = true,
         createBinFiles: Boolean = true,
+        binExecutable: Boolean = true,
         includeOxfmtInPackageJson: Boolean = true,
         lockedDesignMdVersion: String = "0.4.0",
+        lockedOxfmtSpecifier: String = "0.79.0",
         lockedOxfmtVersion: String = "0.79.0",
         installedOxfmtVersion: String = "0.79.0",
     ): File {
@@ -206,7 +241,7 @@ class NodeToolsTest {
                     specifier: 0.4.0
                     version: $lockedDesignMdVersion
                   oxfmt:
-                    specifier: 0.79.0
+                    specifier: $lockedOxfmtSpecifier
                     version: $lockedOxfmtVersion
             """.trimIndent(),
         )
@@ -222,8 +257,14 @@ class NodeToolsTest {
             if (createBinFiles) {
                 val bin = nodeModules.resolve(".bin").apply { mkdirs() }
                 val suffix = if (windows) ".cmd" else ""
-                bin.resolve("designmd$suffix").writeText("bin")
-                bin.resolve("oxfmt$suffix").writeText("bin")
+                bin.resolve("designmd$suffix").apply {
+                    writeText("bin")
+                    if (!windows) setExecutable(binExecutable)
+                }
+                bin.resolve("oxfmt$suffix").apply {
+                    writeText("bin")
+                    if (!windows) setExecutable(binExecutable)
+                }
             }
         }
         return root

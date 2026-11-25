@@ -93,7 +93,7 @@ jobs:
       # Keep the OAuth regression explicit and retain each run's result files.
       - name: Run stale OAuth callback regression
         id: oauth-smoke
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.launch-smoke.outcome != 'skipped' }}
         working-directory: putio-android
         run: >-
           ./gradlew --stacktrace :mobile:verifyCiPhoneOAuthProof

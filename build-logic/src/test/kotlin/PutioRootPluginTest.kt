@@ -19,4 +19,27 @@ class PutioRootPluginTest {
             cause?.message?.contains("putio.root must be applied to the root project") == true,
         )
     }
+
+    @Test
+    fun registersExpectedLanesAndGuardrailsOnRootProject() {
+        val root = ProjectBuilder.builder().withName("root").build()
+        root.pluginManager.apply("putio.root")
+
+        val expected = listOf(
+            "verify",
+            "verifyDocs",
+            "verifyScripts",
+            "verifyLibraries",
+            "verifyMobile",
+            "verifyTv",
+            "verifyRelease",
+            "markdownCheck",
+            "lintDesignMd",
+            "checkOkHttpClient",
+            "checkShellScripts",
+        )
+        for (name in expected) {
+            assertTrue("Missing registered task $name", name in root.tasks.names)
+        }
+    }
 }

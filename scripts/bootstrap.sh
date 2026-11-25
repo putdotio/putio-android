@@ -5,6 +5,7 @@
 #   - macOS or Linux with a JDK 21 on PATH (this repo pins `.java-version` 21;
 #     `mise install` or Homebrew temurin@21 both work)
 #   - Node and pnpm on PATH (this repo pins `.node-version` and `packageManager` in `package.json`)
+#   - Python 3 on PATH (used by TalkBack input, Data safety, and harness checks)
 #   - Homebrew on macOS if the Android cmdline-tools are not yet installed
 #   - Network access for several GB of SDK packages on first run
 #
@@ -40,6 +41,9 @@ JAVA_MAJOR="$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+).*/\1/')"
 log "checking Node and pnpm"
 command -v node >/dev/null 2>&1 || die "no node on PATH; install Node from .node-version"
 command -v pnpm >/dev/null 2>&1 || die "no pnpm on PATH; install pnpm from package.json"
+
+log "checking Python 3"
+command -v python3 >/dev/null 2>&1 || die "no python3 on PATH; install Python 3"
 
 if ! SDK_ROOT="$(resolve_sdk_root)"; then
   log "no Android SDK root found; installing cmdline-tools via Homebrew"
