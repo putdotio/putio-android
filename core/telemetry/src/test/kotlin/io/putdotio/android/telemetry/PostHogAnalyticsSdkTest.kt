@@ -58,7 +58,7 @@ class PostHogAnalyticsSdkTest {
         val listed = setOf(
             "screen", "app", "runtime", "runtime_version", "device_class", "auth_state", "environment",
             "release_channel", "app_version", "\$lib", "\$lib_version", "\$session_id", "\$is_identified",
-            "\$process_person_profile", "\$geoip_disable",
+            "\$geoip_disable",
         )
         assertEquals(emptySet<String>(), keys - listed)
         assertEquals("files", properties.getString("screen"))
