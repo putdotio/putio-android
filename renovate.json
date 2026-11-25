@@ -19,6 +19,19 @@
         "io.github.peerless2012:**"
       ],
       "groupName": "Media3, media3-ffmpeg-decoder and ass-media"
+    },
+    {
+      "description": "Detekt 1.23.8 embeds a Kotlin compiler whose JavaVersion.parse crashes on JDK 25; hold CI on JDK 21 until Detekt 2.0 stabilizes.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "java-jdk"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false
     }
   ]
 }
