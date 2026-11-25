@@ -40,7 +40,7 @@ jobs:
 
   inputs:
     name: Validate inputs
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
     outputs:
@@ -61,7 +61,7 @@ jobs:
   notes:
     name: Write release notes
     needs: [ref, inputs]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -93,7 +93,7 @@ jobs:
   upload:
     name: Upload to the internal track
     needs: [ref, inputs, notes]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 60
     environment: release
     permissions:
@@ -103,7 +103,7 @@ jobs:
         with:
           ref: ${{ needs.ref.outputs.sha }}
           persist-credentials: false
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: '21'
@@ -160,7 +160,7 @@ jobs:
     name: Tag the uploaded commit
     if: ${{ !inputs.dry_run }}
     needs: [ref, inputs, upload]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     environment: release
     permissions: {}
