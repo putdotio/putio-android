@@ -63,9 +63,10 @@ public data class PlaybackCastReceiverLoad(
  * a video's Standard HLS stream, whose filter it can carry, goes this way.
  */
 internal fun PlaybackSource.toReceiverLoad(target: PlaybackTarget, downloadToken: String): PlaybackCastReceiverLoad? {
-    if (kind != PlaybackSourceKind.HLS || target.mediaType != PlaybackMediaType.VIDEO) return null
-    val query = url.value.queryValues() ?: return null
-    if (query.containsKey(ORIGINAL_QUERY)) return null
+    val query = url.value.queryValues()
+        ?.takeIf { kind == PlaybackSourceKind.HLS && target.mediaType == PlaybackMediaType.VIDEO }
+        ?.takeUnless { it.containsKey(ORIGINAL_QUERY) }
+        ?: return null
     return PlaybackCastReceiverLoad(
         fileId = fileId,
         token = downloadToken,
@@ -77,11 +78,12 @@ internal fun PlaybackSource.toReceiverLoad(target: PlaybackTarget, downloadToken
 }
 
 private fun PutioMediaInfo.trimmed(): PutioMediaInfo? {
-    val all = streams ?: return null
-    val format = format ?: return null
+    val all = streams
+    val known = format
+    if (all == null || known == null) return null
     return PutioMediaInfo(
         mimeType = mimeType,
-        format = format,
+        format = known,
         streams = all.sortedBy { STREAM_PRIORITY[it.codecType] ?: STREAM_PRIORITY.size },
         playbackIssues = playbackIssues.orEmpty(),
     )

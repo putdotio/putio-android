@@ -152,11 +152,6 @@ internal object MobileCast {
         )
     }
 
-    /** The signed-in account's receiver choice; the next Cast session launches it. */
-    fun useReceiver(context: Context, putio: Boolean) {
-        (controller(context)?.gateway as? GmsCastGateway)?.useReceiver(putio)
-    }
-
     /**
      * The signed-in [session] left: the receiver plays with the account's download token, so the
      * Cast session ends with it, a session the Cast SDK resumes for a fresh process included.
@@ -524,9 +519,8 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     private var castContext: CastContextHandle? = null
     private val signOut = CastSignOutEnd { castContext?.endCurrentSession(true) }
     private val startedOwners: MutableSet<LifecycleOwner> = Collections.newSetFromMap(IdentityHashMap())
-    private var receiver: CastReceiverSelection? = null
-    private var wantedReceiver: String? = null
-    private var messagingSession: CastSession? = null
+    val receivers = CastReceiverSwitch(context, routes::reselect)
+    private val messages = PutioReceiverMessages(remote::receiverReported)
 
     /**
      * Loads Cast off the main thread and binds it once it answers. Play services runs Cast in its own
@@ -553,9 +547,8 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     @VisibleForTesting
     internal fun bind(cast: CastContextHandle) {
         castContext = cast
-        receiver = CastReceiverSelection(cast.receiverApplicationId)
         routes.selector = cast.mergedSelector
-        wantedReceiver?.let(::want)
+        receivers.bind(cast)
         cast.addCastStateListener { updateAvailability() }
         cast.addSessionManagerListener(sessions)
         cast.addSessionTransferCallback(transfers)
@@ -611,7 +604,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
 
         override fun onSessionStartFailed(session: CastSession, error: Int) {
             updateAvailability()
-            applyWaitingReceiver()
+            receivers.sessionGone()
         }
 
         // The receiver's last position, read while the session still answers.
@@ -620,7 +613,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         override fun onSessionEnded(session: CastSession, error: Int) {
             signOut.sessionEnded()
             detach()
-            applyWaitingReceiver()
+            receivers.sessionGone()
         }
 
         override fun onSessionResuming(session: CastSession, sessionId: String) {
@@ -635,7 +628,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         override fun onSessionResumeFailed(session: CastSession, error: Int) {
             signOut.sessionEnded()
             detach()
-            applyWaitingReceiver()
+            receivers.sessionGone()
         }
 
         override fun onSessionSuspended(session: CastSession, reason: Int) = remote.publish()
@@ -644,63 +637,14 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     private fun attach(session: CastSession) {
         val putio = session.applicationMetadata?.applicationId == PUTIO_RECEIVER_APPLICATION_ID
         remote.attach(session.remoteMediaClient, putio)
-        listen(session.takeIf { putio })
+        messages.listen(session.takeIf { putio })
         updateAvailability()
     }
 
     private fun detach() {
-        listen(null)
+        messages.listen(null)
         remote.detach()
         updateAvailability()
-    }
-
-    /**
-     * Uses the put.io receiver for the next session, or Google's when [putio] is false. A session
-     * live now keeps its receiver; the choice applies once it ends.
-     */
-    fun useReceiver(putio: Boolean) {
-        CastReceiverStore.save(context, putio)
-        want(receiverApplicationId(putio))
-    }
-
-    private fun want(applicationId: String) {
-        wantedReceiver = applicationId
-        val cast = castContext ?: return
-        val live = cast.castState == CastState.CONNECTING || cast.castState == CastState.CONNECTED
-        receiver?.want(applicationId, live)?.let(::applyReceiver)
-    }
-
-    private fun applyWaitingReceiver() {
-        receiver?.sessionGone()?.let(::applyReceiver)
-    }
-
-    // A Cast context that refuses the switch keeps the receiver it has.
-    @Suppress("SwallowedException")
-    private fun applyReceiver(applicationId: String) {
-        val cast = castContext ?: return
-        try {
-            cast.setReceiverApplicationId(applicationId)
-            routes.reselect(cast.mergedSelector)
-        } catch (_: RuntimeException) {
-            updateAvailability()
-        }
-    }
-
-    /**
-     * Hears the put.io receiver's own word on its load, from the session that carries it. A session
-     * that went away mid-call has nothing more to say, so a failed call is dropped.
-     */
-    private fun listen(session: CastSession?) {
-        messagingSession?.let { previous -> runCatching { previous.removeMessageReceivedCallbacks(PUTIO_CAST_NAMESPACE) } }
-        messagingSession = null
-        session ?: return
-        runCatching {
-            session.setMessageReceivedCallbacks(PUTIO_CAST_NAMESPACE) { _, _, message ->
-                if (messagingSession === session) parsePutioReceiverStatus(message)?.let(remote::receiverReported)
-            }
-            messagingSession = session
-            session.sendMessage(PUTIO_CAST_NAMESPACE, PUTIO_GET_STATUS_MESSAGE)
-        }
     }
 
     /** Ends the session, or, before Cast has resumed one, the session it resumes next. */
@@ -848,6 +792,8 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
 }
 
 /** The session's media client: what the receiver plays, and the commands that drive it. */
+// One function per RemoteMediaClient command or callback the app uses.
+@Suppress("TooManyFunctions")
 internal class GmsCastRemote : CastRemote {
     private val mutableStatus = MutableStateFlow<CastRemoteStatus?>(null)
     override val status: StateFlow<CastRemoteStatus?> = mutableStatus
@@ -1103,10 +1049,6 @@ internal val CAST_PLAYBACK_SPEEDS: List<Float> = PLAYBACK_SPEEDS.filter {
     it.toDouble() in MediaLoadRequestData.PLAYBACK_RATE_MIN..MediaLoadRequestData.PLAYBACK_RATE_MAX
 }
 
-/** Cast takes 0.5x to 2x; a local speed outside that hands over at the nearest end. */
-private fun Float.castRate(): Double =
-    toDouble().coerceIn(MediaLoadRequestData.PLAYBACK_RATE_MIN, MediaLoadRequestData.PLAYBACK_RATE_MAX)
-
 private fun MediaStatus.castRemoteState(): CastRemoteState =
     when (playerState) {
         MediaStatus.PLAYER_STATE_PLAYING -> CastRemoteState.Playing
@@ -1119,79 +1061,6 @@ private fun MediaStatus.castRemoteState(): CastRemoteState =
         }
         else -> CastRemoteState.Idle
     }
-
-private fun PlaybackCastMedia.failedAt(startMillis: Long): CastRemoteStatus =
-    CastRemoteStatus(
-        fileId = fileId,
-        state = CastRemoteState.Failed,
-        positionMillis = startMillis,
-        durationMillis = durationMillis,
-        sampledAtMillis = SystemClock.elapsedRealtime(),
-        title = title,
-        audio = mediaType == PlaybackMediaType.AUDIO,
-    )
-
-/**
- * The LOAD for this media. The put.io receiver gets [PlaybackCastMedia.receiverLoad] and picks the
- * stream itself, so the token-bearing URL stays here; any other receiver plays [PlaybackCastMedia.url].
- */
-@VisibleForTesting
-internal fun PlaybackCastMedia.loadRequest(
-    startMillis: Long,
-    autoplay: Boolean,
-    speed: Float,
-    putioReceiver: Boolean,
-): MediaLoadRequestData {
-    val receiverLoad = receiverLoad?.takeIf { putioReceiver }
-    return MediaLoadRequestData.Builder()
-        .setMediaInfo(toMediaInfo(sendsUrl = receiverLoad == null))
-        .setAutoplay(autoplay)
-        .setCurrentTime(startMillis)
-        .setPlaybackRate(speed.castRate())
-        .setActiveTrackIds(activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
-        .apply { receiverLoad?.let { setCustomData(JSONObject(it.customData(startMillis))) } }
-        .build()
-}
-
-/**
- * The put.io file this media belongs to; null for media another sender sent. The put.io receiver
- * names it in the content id as well.
- */
-private fun MediaInfo.putioFileId(putioReceiver: Boolean): Long? =
-    customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
-        ?: contentId?.toLongOrNull()?.takeIf { putioReceiver && it > 0L }
-
-/** The Cast form of [PlaybackCastMedia], tagged with its file id. */
-private fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean = true): MediaInfo {
-    val kind = if (mediaType == PlaybackMediaType.AUDIO) {
-        MediaMetadata.MEDIA_TYPE_MUSIC_TRACK
-    } else {
-        MediaMetadata.MEDIA_TYPE_MOVIE
-    }
-    val metadata = MediaMetadata(kind).apply {
-        putString(MediaMetadata.KEY_TITLE, title)
-        posterUrl?.let { addImage(WebImage(it.toUri())) }
-    }
-    return MediaInfo.Builder(fileId.toString())
-        .apply { if (sendsUrl) setContentUrl(url) }
-        .setContentType(contentType)
-        .setStreamType(if (buffered) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_NONE)
-        .setMetadata(metadata)
-        .setMediaTracks(
-            subtitles.map { subtitle ->
-                MediaTrack.Builder(subtitle.id, MediaTrack.TYPE_TEXT)
-                    .setContentId(subtitle.url)
-                    .setContentType(WEBVTT_CONTENT_TYPE)
-                    .setSubtype(MediaTrack.SUBTYPE_SUBTITLES)
-                    .setName(subtitle.name)
-                    .setLanguage(subtitle.languageCode)
-                    .build()
-            },
-        )
-        .setCustomData(JSONObject().put(FILE_ID_KEY, fileId))
-        .apply { durationMillis?.let(::setStreamDuration) }
-        .build()
-}
 
 /**
  * Turns on the playlist subtitle a load asked for, once the receiver lists the text tracks of that
@@ -1210,7 +1079,4 @@ private fun RemoteMediaClient.showPlaylistSubtitle(
     return null
 }
 
-/** Ties the receiver's media to the put.io file; another sender's media carries none. */
-private const val FILE_ID_KEY = "putioFileId"
-private const val WEBVTT_CONTENT_TYPE = "text/vtt"
 private const val PROGRESS_INTERVAL_MILLIS = 1_000L

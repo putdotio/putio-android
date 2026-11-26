@@ -25,13 +25,19 @@ class PlaybackCastReceiverLoadTest {
         val load = hls("max_subtitle_count=0&subtitle_languages=eng,tur&subtitle_key=all")
 
         assertEquals(
-            PlaybackCastReceiverLoad(fileId = 42L, token = DOWNLOAD, maxSubtitleCount = 0, subtitleLanguages = listOf("eng", "tur")),
+            PlaybackCastReceiverLoad(
+                fileId = 42L,
+                token = DOWNLOAD,
+                maxSubtitleCount = 0,
+                subtitleLanguages = listOf("eng", "tur"),
+            ),
             load,
         )
         val data = load!!.json(positionMillis = 90_500L)
         assertEquals(
             Json.parseToJsonElement(
-                """{"fileId":42,"method":"hls","position":90.5,"token":"$DOWNLOAD","maxSubtitleCount":0,"subtitleLanguages":["eng","tur"]}""",
+                """{"fileId":42,"method":"hls","position":90.5,"token":"$DOWNLOAD",""" +
+                    """"maxSubtitleCount":0,"subtitleLanguages":["eng","tur"]}""",
             ),
             data,
         )
@@ -52,7 +58,8 @@ class PlaybackCastReceiverLoadTest {
     fun onlyStandardHlsVideoGoesToThePutioReceiver() {
         assertNull(hls("original=1"))
         assertNull(hls("", target = Video.copy(mediaType = PlaybackMediaType.AUDIO)))
-        assertNull(source(PlaybackSourceKind.MP4, "https://api.put.io/v2/files/42/mp4/download").toReceiverLoad(Video, DOWNLOAD))
+        val mp4 = source(PlaybackSourceKind.MP4, "https://api.put.io/v2/files/42/mp4/download")
+        assertNull(mp4.toReceiverLoad(Video, DOWNLOAD))
     }
 
     @Test
@@ -98,7 +105,8 @@ class PlaybackCastReceiverLoadTest {
         Json.parseToJsonElement(customData(positionMillis)).jsonObject
 
     private fun hls(query: String, target: PlaybackTarget = Video) =
-        source(PlaybackSourceKind.HLS, "https://api.put.io/v2/files/42/hls/media.m3u8?$query").toReceiverLoad(target, DOWNLOAD)
+        source(PlaybackSourceKind.HLS, "https://api.put.io/v2/files/42/hls/media.m3u8?$query")
+            .toReceiverLoad(target, DOWNLOAD)
 
     private fun source(kind: PlaybackSourceKind, url: String) =
         PlaybackSource(

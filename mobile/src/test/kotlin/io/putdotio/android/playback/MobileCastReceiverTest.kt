@@ -28,7 +28,8 @@ class MobileCastReceiverTest {
         val selection = CastReceiverSelection(DEFAULT)
 
         assertNull(selection.want(DEFAULT, sessionLive = false))
-        assertEquals(PUTIO_RECEIVER_APPLICATION_ID, selection.want(PUTIO_RECEIVER_APPLICATION_ID, sessionLive = false))
+        val applied = selection.want(PUTIO_RECEIVER_APPLICATION_ID, sessionLive = false)
+        assertEquals(PUTIO_RECEIVER_APPLICATION_ID, applied)
         assertNull(selection.want(DEFAULT, sessionLive = true))
         assertNull(selection.want(PUTIO_RECEIVER_APPLICATION_ID, sessionLive = true))
         assertNull(selection.sessionGone())
@@ -36,14 +37,14 @@ class MobileCastReceiverTest {
 
     @Test
     fun withoutTheSwitchTheLoadIsTheDefaultReceiversPlainLoad() {
-        val request = Media.loadRequest(startMillis = 12_000L, autoplay = true, speed = 1f, putioReceiver = false).toJson()
+        val request = Media.loadRequest(12_000L, autoplay = true, speed = 1f, putioReceiver = false).toJson()
 
         assertEquals(PLAIN_LOAD, request.toString())
     }
 
     @Test
     fun thePutioReceiverGetsTheContractAndNoTokenBearingUrl() {
-        val request = Media.loadRequest(startMillis = 12_000L, autoplay = true, speed = 1f, putioReceiver = true).toJson()
+        val request = Media.loadRequest(12_000L, autoplay = true, speed = 1f, putioReceiver = true).toJson()
         val media = request.getJSONObject("media")
         val customData = request.getJSONObject("customData")
 
@@ -68,7 +69,10 @@ class MobileCastReceiverTest {
 
     @Test
     fun receiverStatusMessagesParse() {
-        assertEquals(PutioReceiverState.Idle, parsePutioReceiverStatus("""{"type":"STATUS","state":{"status":"idle"}}"""))
+        assertEquals(
+            PutioReceiverState.Idle,
+            parsePutioReceiverStatus("""{"type":"STATUS","state":{"status":"idle"}}"""),
+        )
         assertEquals(
             PutioReceiverState.Loaded(42L),
             parsePutioReceiverStatus("""{"type":"STATUS","state":{"status":"loaded","fileId":42}}"""),
@@ -76,7 +80,8 @@ class MobileCastReceiverTest {
         assertEquals(
             PutioReceiverState.Failed(null, "invalid_custom_data"),
             parsePutioReceiverStatus(
-                """{"type":"STATUS","state":{"status":"failed","fileId":null,"reason":"invalid_custom_data","detailedErrorCode":null}}""",
+                """{"type":"STATUS","state":{"status":"failed","fileId":null,""" +
+                    """"reason":"invalid_custom_data","detailedErrorCode":null}}""",
             ),
         )
         assertNull(parsePutioReceiverStatus("""{"type":"GET_STATUS"}"""))
@@ -117,7 +122,8 @@ class MobileCastReceiverTest {
 
         const val PLAIN_LOAD =
             """{"media":{"contentId":"42","contentUrl":"https:\/\/api.put.io\/v2\/files\/42\/hls\/media.m3u8?""" +
-                """subtitle_key=all&oauth_token=download-token","streamType":"NONE","contentType":"application\/x-mpegURL",""" +
+                """subtitle_key=all&oauth_token=download-token","streamType":"NONE",""" +
+                """"contentType":"application\/x-mpegURL",""" +
                 """"metadata":{"metadataType":1,"title":"episode.mkv"},"duration":60,"tracks":[],""" +
                 """"customData":{"putioFileId":42}},"autoplay":true,"currentTime":12,"playbackRate":1,""" +
                 """"activeTrackIds":[],"requestId":0}"""

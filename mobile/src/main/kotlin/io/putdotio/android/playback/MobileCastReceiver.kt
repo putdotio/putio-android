@@ -1,7 +1,11 @@
 package io.putdotio.android.playback
 
 import android.content.Context
+import androidx.core.content.edit
+import androidx.mediarouter.media.MediaRouteSelector
 import com.google.android.gms.cast.CastMediaControlIntent
+import com.google.android.gms.cast.framework.CastSession
+import com.google.android.gms.cast.framework.CastState
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -46,6 +50,76 @@ internal class CastReceiverSelection(applied: String) {
     }
 }
 
+/** The signed-in account's receiver choice; the next Cast session launches it. */
+internal fun MobileCast.useReceiver(context: Context, putio: Boolean) {
+    (controller(context)?.gateway as? GmsCastGateway)?.receivers?.use(putio)
+}
+
+/**
+ * Switches the Cast framework's receiver between sessions, and hands the search the selector that
+ * comes with it. A Cast context that refuses the switch keeps the receiver it has.
+ */
+internal class CastReceiverSwitch(
+    private val context: Context,
+    private val reselect: (MediaRouteSelector?) -> Unit,
+) {
+    private var cast: CastContextHandle? = null
+    private var selection: CastReceiverSelection? = null
+    private var wanted: String? = null
+
+    fun bind(cast: CastContextHandle) {
+        this.cast = cast
+        selection = CastReceiverSelection(cast.receiverApplicationId)
+        wanted?.let(::want)
+    }
+
+    /** Uses the put.io receiver for the next session, or Google's when [putio] is false. */
+    fun use(putio: Boolean) {
+        CastReceiverStore.save(context, putio)
+        want(receiverApplicationId(putio))
+    }
+
+    /** The session ended or never started: a choice made during it applies now. */
+    fun sessionGone() {
+        selection?.sessionGone()?.let(::apply)
+    }
+
+    private fun want(applicationId: String) {
+        wanted = applicationId
+        val live = cast?.castState.let { it == CastState.CONNECTING || it == CastState.CONNECTED }
+        selection?.want(applicationId, live)?.let(::apply)
+    }
+
+    private fun apply(applicationId: String) {
+        val cast = cast ?: return
+        runCatching {
+            cast.setReceiverApplicationId(applicationId)
+            reselect(cast.mergedSelector)
+        }
+    }
+}
+
+/**
+ * Hears the put.io receiver's own word on its load, from the session that carries it. A session
+ * that went away mid-call has nothing more to say, so a failed call is dropped.
+ */
+internal class PutioReceiverMessages(private val heard: (PutioReceiverState) -> Unit) {
+    private var session: CastSession? = null
+
+    fun listen(next: CastSession?) {
+        session?.let { previous -> runCatching { previous.removeMessageReceivedCallbacks(PUTIO_CAST_NAMESPACE) } }
+        session = null
+        next ?: return
+        runCatching {
+            next.setMessageReceivedCallbacks(PUTIO_CAST_NAMESPACE) { _, _, message ->
+                if (session === next) parsePutioReceiverStatus(message)?.let(heard)
+            }
+            session = next
+            next.sendMessage(PUTIO_CAST_NAMESPACE, PUTIO_GET_STATUS_MESSAGE)
+        }
+    }
+}
+
 /**
  * The receiver the last signed-in account chose, for the Cast options of a fresh process: a session
  * Cast resumes then is one of that receiver.
@@ -54,7 +128,7 @@ internal object CastReceiverStore {
     fun putio(context: Context): Boolean = preferences(context).getBoolean(PUTIO_KEY, false)
 
     fun save(context: Context, putio: Boolean) {
-        preferences(context).edit().putBoolean(PUTIO_KEY, putio).apply()
+        preferences(context).edit { putBoolean(PUTIO_KEY, putio) }
     }
 
     private fun preferences(context: Context) =
@@ -84,9 +158,8 @@ internal fun PutioReceiverState.failsLoad(fileId: Long, inFlight: Boolean): Bool
 
 /** A receiver STATUS message, or null for any other message. */
 internal fun parsePutioReceiverStatus(message: String): PutioReceiverState? {
-    val root = runCatching { Json.parseToJsonElement(message) }.getOrNull() as? JsonObject ?: return null
-    if (root.string("type") != "STATUS") return null
-    val state = root["state"] as? JsonObject ?: return null
+    val root = runCatching { Json.parseToJsonElement(message) }.getOrNull() as? JsonObject
+    val state = root?.takeIf { it.string("type") == "STATUS" }?.get("state") as? JsonObject ?: return null
     val fileId = (state["fileId"] as? JsonPrimitive)?.takeUnless { it.isString }?.longOrNull?.takeIf { it > 0L }
     return when (state.string("status")) {
         "idle" -> PutioReceiverState.Idle
@@ -97,4 +170,5 @@ internal fun parsePutioReceiverStatus(message: String): PutioReceiverState? {
     }
 }
 
-private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull
+private fun JsonObject.string(key: String): String? =
+    (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull

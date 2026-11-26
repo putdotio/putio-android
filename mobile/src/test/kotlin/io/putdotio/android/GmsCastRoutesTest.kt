@@ -196,13 +196,13 @@ class GmsCastRoutesTest {
         }
         val cast = FakeCastContextHandle(SELECTOR, putioSelector = PUTIO_SELECTOR)
         try {
-            gateway.useReceiver(putio = true)
+            gateway.receivers.use(putio = true)
             gateway.bind(cast)
 
             assertEquals(listOf(PUTIO_RECEIVER_APPLICATION_ID), cast.applied)
             assertEquals(PUTIO_SELECTOR, routes.selector)
         } finally {
-            gateway.useReceiver(putio = false)
+            gateway.receivers.use(putio = false)
         }
     }
 
@@ -214,12 +214,12 @@ class GmsCastRoutesTest {
         val cast = FakeCastContextHandle(SELECTOR, castState = CastState.CONNECTED)
         try {
             gateway.bind(cast)
-            gateway.useReceiver(putio = true)
+            gateway.receivers.use(putio = true)
 
             assertEquals(emptyList<String>(), cast.applied)
             assertTrue(CastReceiverStore.putio(app))
         } finally {
-            gateway.useReceiver(putio = false)
+            gateway.receivers.use(putio = false)
         }
     }
 

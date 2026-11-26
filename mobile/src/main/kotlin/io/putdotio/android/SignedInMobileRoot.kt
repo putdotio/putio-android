@@ -71,6 +71,7 @@ import io.putdotio.android.playback.MobileCast
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.PlaybackRepository
 import io.putdotio.android.playback.SignedInCastAccount
+import io.putdotio.android.playback.useReceiver
 import io.putdotio.android.playback.dispatch
 import io.putdotio.android.playback.playbackPreference
 import io.putdotio.android.playback.confirmedStreamingMethod
