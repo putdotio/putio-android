@@ -1162,7 +1162,7 @@ private fun MediaInfo.putioFileId(putioReceiver: Boolean): Long? =
         ?: contentId?.toLongOrNull()?.takeIf { putioReceiver && it > 0L }
 
 /** The Cast form of [PlaybackCastMedia], tagged with its file id. */
-private fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean): MediaInfo {
+private fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean = true): MediaInfo {
     val kind = if (mediaType == PlaybackMediaType.AUDIO) {
         MediaMetadata.MEDIA_TYPE_MUSIC_TRACK
     } else {
