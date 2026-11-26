@@ -421,7 +421,6 @@ class MobileDownloadsScreenTest {
         compose.onNodeWithTag(MOBILE_DOWNLOADS_PAUSE_OR_RESUME_ALL_TAG).assertDoesNotExist()
     }
 
-    /** The tab as the shell draws it: the top bar over the list, sharing one selection. */
     @Composable
     private fun DownloadsTab(state: DownloadsState, onEvent: (DownloadsEvent) -> Boolean) {
         val selection = rememberDownloadsSelection()

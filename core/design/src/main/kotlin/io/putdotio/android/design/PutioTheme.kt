@@ -11,11 +11,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
-/**
- * The tier-2 binding from DESIGN.md: one generated dark color scheme, the contract's type and
- * corner scales, and stock Material 3 components. Dark only; there is no light scheme in the
- * contract.
- */
 @Composable
 public fun PutioTheme(content: @Composable () -> Unit) {
     MaterialTheme(
@@ -26,14 +21,6 @@ public fun PutioTheme(content: @Composable () -> Unit) {
     )
 }
 
-/**
- * DESIGN.md's type scale on the Material slots stock components read: the top app bar reads
- * titleLarge, dialog titles headlineSmall, list headlines bodyLarge, dialog, sheet and snackbar
- * bodies bodyMedium, and nav labels labelMedium. Slots the contract does not name keep Material's
- * sizes in GT America, the UI face, except labelSmall, which rises to label-sm so no public slot
- * sets text below 12sp. Material 3 1.4 keeps its emphasized slots internal, and no stock component
- * reads labelSmallEmphasized.
- */
 internal val putioTypography: Typography = Typography().inUiFace().run {
     copy(
         headlineMedium = headlineMedium.merge(PutioTypeScale.headlineLg),
@@ -69,7 +56,6 @@ private fun Typography.inUiFace(): Typography {
     )
 }
 
-/** DESIGN.md's corners on Material's shape scale. */
 internal val putioShapes: Shapes = Shapes().copy(
     extraSmall = RoundedCornerShape(PutioRadius.extraSmall),
     small = RoundedCornerShape(PutioRadius.small),
@@ -78,15 +64,8 @@ internal val putioShapes: Shapes = Shapes().copy(
     extraLarge = RoundedCornerShape(PutioRadius.extraLarge),
 )
 
-/** Numbers never go below 12sp (DESIGN.md Typography). */
 private val MINIMUM_NUMBER_SIZE = 12.sp
 
-/**
- * This style, over the inherited text style, with numbers set in the mono face, at its weight, with
- * tabular figures. Mono takes the size of the text it sits in, raised to 12sp when that is smaller. The
- * floor needs an `sp` size to compare: [PutioTheme] gives every slot one, and an `em` size here
- * resolves against the inherited one.
- */
 @Composable
 @ReadOnlyComposable
 public fun TextStyle.putioMono(): TextStyle {
@@ -94,7 +73,6 @@ public fun TextStyle.putioMono(): TextStyle {
     return monoNumbers(inherited.merge(this), inherited.fontSize)
 }
 
-/** [style] in mono, with an `em` size resolved against [inheritedSize] before the 12sp floor applies. */
 internal fun monoNumbers(style: TextStyle, inheritedSize: TextUnit = TextUnit.Unspecified): TextStyle {
     val size = if (style.fontSize.isEm && inheritedSize.isSp) {
         (inheritedSize.value * style.fontSize.value).sp

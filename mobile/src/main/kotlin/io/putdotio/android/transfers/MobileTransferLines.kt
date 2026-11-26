@@ -1,10 +1,5 @@
 package io.putdotio.android.transfers
 
-/**
- * The Add transfer field, checked one line at a time: a line is good when every link on it parses,
- * and only good lines go. [badLines] are 1-based line numbers; [badRanges] are their characters in
- * the field, for dimming them in place.
- */
 internal class MobileTransferLines(
     val links: List<TransferSubmission>,
     val badLines: List<Int>,

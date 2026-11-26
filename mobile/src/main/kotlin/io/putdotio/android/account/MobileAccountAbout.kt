@@ -87,13 +87,8 @@ private fun playerLabel(playbackPreference: PlaybackPreference): String =
         PlaybackPreference.MP4 -> "media3/mp4"
     }
 
-/** The player's name on the App info page; the support text keeps the stream method too. */
 private const val PLAYER_NAME = "Media3"
 
-/**
- * App info, a subpage of Account: what support asks for as value rows, the privacy note, and a tonal
- * Copy for support that puts [AppDiagnostics.supportText] on the clipboard.
- */
 @Composable
 internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier = Modifier) {
     val clipboard = LocalClipboard.current

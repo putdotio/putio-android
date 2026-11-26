@@ -24,7 +24,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 
-/** The store against a stand-in for the system TV provider, which owns the real rows. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class TvProviderWatchNextStoreTest {
@@ -144,7 +143,6 @@ class TvProviderWatchNextStoreTest {
     )
 }
 
-/** Keeps watch-next rows by id and, like the real provider, refuses selections. */
 class FakeTvProvider : ContentProvider() {
     val rows = mutableListOf<ContentValues>()
     private var nextId = 1L

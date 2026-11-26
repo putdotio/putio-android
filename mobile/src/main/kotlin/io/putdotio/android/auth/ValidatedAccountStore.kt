@@ -10,19 +10,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
 
-/**
- * The account put.io last confirmed for the stored token. A restore put.io cannot answer opens the
- * shell offline with it, as a running app keeps the account it validated when the network goes.
- * It is written only after put.io confirms the token, and cleared before any other token is stored.
- */
 internal interface ValidatedAccountStore {
-    /** Null when there is none or the record cannot be read. */
     suspend fun read(): MobileAccount?
 
-    /** Best effort: a failed write only costs the next offline start its shell. */
     suspend fun write(account: MobileAccount)
 
-    /** False when the record could not be removed. */
     suspend fun clear(): Boolean
 }
 

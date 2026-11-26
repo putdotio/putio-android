@@ -19,17 +19,12 @@ public const val PLAYBACK_REPORTING_LEASE_KEY: String = "io.putdotio.android.pla
 private const val POSITION_REPORT_INTERVAL_MILLIS = 10_000L
 private const val SEEK_SETTLE_MILLIS = 1_000L
 
-/** Tags [this] item with a [PlaybackPositionWriter] lease, so an observer reports its positions under it. */
 public fun MediaItem.withReportingLease(token: String): MediaItem {
     val extras = Bundle(mediaMetadata.extras ?: Bundle())
     extras.putString(PLAYBACK_REPORTING_LEASE_KEY, token)
     return buildUpon().setMediaMetadata(mediaMetadata.buildUpon().setExtras(extras).build()).build()
 }
 
-/**
- * One per actual player, on mobile and TV. The owner calls this on the player's application
- * looper and supplies a scope on that looper.
- */
 public class PlaybackPositionObserver(
     private val player: Media3Player,
     parentScope: CoroutineScope,

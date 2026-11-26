@@ -8,29 +8,12 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * The session the React Native TV app (putio-web `apps/tv-native`) left behind
- * under the same application id. Read when there is no Keystore session, and
- * deleted once its token is stored or put.io rejects it.
- */
 internal interface LegacyTvSession {
-    /** The legacy token, or null when there is none or it cannot be read. */
     suspend fun read(): AccessToken?
 
-    /** Deletes every legacy copy; nothing reads it again. */
     suspend fun delete()
 }
 
-/**
- * tv-native stores the token as a raw string in React Native AsyncStorage
- * 1.23.1 (`token-storage.android.ts`), whose Android backend is the SQLite
- * database `RKStorage`, table `catalystLocalStorage` (`key TEXT PRIMARY KEY,
- * value TEXT NOT NULL`); tv-native does not opt into the Room-based
- * `AsyncStorage_useNextStorage`. Its only other key is an update notice, so
- * the whole database goes, journals included, rather than leaving the token in
- * free pages after a row delete. It opens read-write so SQLite can roll back a
- * hot journal tv-native left mid-write; a read-only open fails on one.
- */
 internal class AsyncStorageLegacyTvSession(
     private val context: Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,

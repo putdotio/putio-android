@@ -37,7 +37,6 @@ internal class DownloadsController(
     private val engine: DownloadEngine,
     parentScope: CoroutineScope,
     private val sources: DownloadSources = DownloadSources(),
-    /** A monotonic clock for speed intervals, which a wall-clock change must not bend. */
     private val elapsedMillis: () -> Long = { System.nanoTime() / NANOS_PER_MILLI },
     private val clock: () -> Long = System::currentTimeMillis,
 ) : Closeable {
@@ -221,7 +220,6 @@ internal class DownloadsController(
         return true
     }
 
-    /** A row being deleted takes nothing; otherwise a start needs no live or finished row, a retry a stuck one. */
     private fun accepts(fileId: FilesItemId, retry: Boolean): Boolean {
         if (engine.isRemoving(fileId) || synchronized(lock) { fileId in mutableState.value.removing }) return false
         val entry = store.find(fileId)
@@ -236,12 +234,6 @@ internal class DownloadsController(
         return update { it.copy(removal = removal) }
     }
 
-    /**
-     * A confirmed removal, or [cancelling] a queued row, which asks nothing since the row holds
-     * nothing playable. Each row is marked before the engine deletes its bytes, so a process death
-     * in between finishes the removal on the next start. Only local copies are touched: the
-     * controller has no way to reach the put.io originals.
-     */
     private fun removeNow(cancelling: FilesItemId?): Boolean {
         val fileIds = synchronized(lock) {
             val current = mutableState.value
@@ -266,11 +258,6 @@ internal class DownloadsController(
         return true
     }
 
-    /**
-     * Sign-out's Remove downloads: marks every row and hands its bytes to the engine before it returns,
-     * so the caller can end the session after. A row the engine has not confirmed by then finishes its
-     * removal on this account's next sign-in, as a confirmed removal does after a process death.
-     */
     suspend fun removeAll() {
         if (synchronized(lock) { closed }) return
         enqueue {
@@ -287,7 +274,6 @@ internal class DownloadsController(
         }.join()
     }
 
-    /** Pause holds the rows that can pause, Resume releases the viewer's paused ones; deleting rows take neither. */
     private fun setPaused(event: DownloadsEvent): Boolean {
         val paused = event is DownloadsEvent.Pause
         val fileIds = (event as? DownloadsEvent.Pause)?.fileIds ?: (event as? DownloadsEvent.Resume)?.fileIds.orEmpty()
@@ -307,7 +293,6 @@ internal class DownloadsController(
         return changed
     }
 
-    /** Store writes and engine calls run one at a time, in dispatch order. */
     private fun enqueue(block: suspend () -> Unit): Job = scope.launch { mutations.withLock { block() } }
 
     private fun update(transform: (DownloadsState) -> DownloadsState): Boolean {
@@ -336,7 +321,6 @@ private class PendingStart(
     val redecides: Boolean,
 )
 
-/** Progress is display-only, so it polls outside the mutation queue and dies with the controller scope. */
 private class ProgressWatch(
     private val scope: CoroutineScope,
     private val engine: DownloadEngine,
@@ -364,11 +348,6 @@ private class ProgressWatch(
     }
 }
 
-/**
- * Each running row's speed over the bytes the last two progress reports carried. Reports arrive
- * about once a second while the screen watches; a gap longer than [MAX_WINDOW_MILLIS], such as the
- * time the screen was hidden, starts over rather than average over it.
- */
 private class SpeedWatch {
     private class Sample(val bytes: Long, val atMillis: Long)
 

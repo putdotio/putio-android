@@ -31,7 +31,6 @@ internal fun FilesSort.tvLabel(): Int =
         FilesSort.WATCH_STATUS_DESCENDING -> R.string.tv_files_sort_watch_descending
     }
 
-/** put.io's reason for a refused request, else this failure's copy. */
 @Composable
 internal fun FilesFailure.tvMessageText(): String {
     val failure = this as? PutioFailure

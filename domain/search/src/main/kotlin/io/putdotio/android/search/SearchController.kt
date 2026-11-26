@@ -92,11 +92,6 @@ public class SearchController internal constructor(
         return true
     }
 
-    /**
-     * The type chip in force. Choosing another with a query in the field searches again at once under
-     * it; that search is not one anyone submitted, so it is not kept in recent searches. Choosing the
-     * chip in force, or any chip on a closed controller, does nothing.
-     */
     public var filter: SearchFilter
         get() = state.value.filter
         set(value) {
@@ -119,10 +114,6 @@ public class SearchController internal constructor(
             search?.let { (term, id) -> launchInitial(term, id, debounce = false) }
         }
 
-    /**
-     * The folder searches stay inside, or null for the whole account. A new scope starts over
-     * from an empty query on every type, so results never mix scopes; a closed controller ignores it.
-     */
     public var scope: SearchScope?
         get() = state.value.scope
         set(value) {
@@ -199,7 +190,6 @@ public class SearchController internal constructor(
             else -> content.pagingOrNull() is SearchPaging.Failed && loadNextPage()
         }
 
-    /** Opening a result is what makes its search worth remembering, as in tv-native. */
     public fun openResult(itemId: FilesItemId): Boolean {
         val (term, item) =
             synchronized(lock) {
@@ -215,10 +205,6 @@ public class SearchController internal constructor(
         return sent
     }
 
-    /**
-     * put.io accepted [seconds] as [itemId]'s position, from a watched change or playback. A result
-     * showing that media file takes it, so its row and actions read the new state without a search.
-     */
     public fun positionSaved(itemId: FilesItemId, seconds: Double): Boolean {
         val valid = itemId.value > 0L && seconds.isFinite() && seconds >= 0.0
         return valid && synchronized(lock) {

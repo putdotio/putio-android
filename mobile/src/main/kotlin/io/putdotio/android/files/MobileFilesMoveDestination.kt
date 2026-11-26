@@ -90,7 +90,6 @@ internal const val MOBILE_FILES_MOVE_NEW_FOLDER_TAG = "mobile-files-move-new-fol
 
 internal fun mobileFilesMoveFolderTag(id: FilesItemId): String = "mobile-files-move-folder-${id.value}"
 
-/** The picker's New folder: who creates it, and who else learns of the new folder; no creator hides it. */
 internal class MobileMovePickerFolders(
     val creator: FilesFolderCreator?,
     val onAuthenticationRequired: suspend () -> Unit,
@@ -101,11 +100,6 @@ internal class MobileMovePickerFolders(
     }
 }
 
-/**
- * A full-screen folder picker: close and the title, breadcrumb chips, folder rows with chevrons, and
- * a bottom bar with New folder and a filled confirm that names the target. Back goes up a folder,
- * then closes; a crumb goes straight to its folder.
- */
 @Composable
 internal fun MobileFilesMoveDestination(
     state: FilesMoveDestinationState,
@@ -175,7 +169,6 @@ internal fun MobileFilesMoveDestination(
     }
 }
 
-/** A listed folder of the viewer's own can take a new one; put.io refuses the rest with a reason. */
 private val FilesMoveDestinationState.canCreateFolder: Boolean
     get() = current.folder.id.value >= 0L &&
         (current.content is FilesContent.Ready || current.content is FilesContent.Empty)
@@ -208,7 +201,6 @@ private fun MobileMovePickerBar(
     }
 }
 
-/** "Remember target folder" sits in an overflow, so the bar keeps the board's close and title. */
 @Composable
 private fun MobileMovePickerOptions(rememberTarget: Boolean, onChange: (Boolean) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
@@ -245,7 +237,6 @@ private fun MobileMovePickerOptions(rememberTarget: Boolean, onChange: (Boolean)
     }
 }
 
-/** Files › … › the current folder; the current crumb is filled, the others go back to their folder. */
 @Composable
 private fun MobileMoveCrumbs(state: FilesMoveDestinationState, onEvent: (FilesMoveDestinationEvent) -> Unit) {
     val path = state.path

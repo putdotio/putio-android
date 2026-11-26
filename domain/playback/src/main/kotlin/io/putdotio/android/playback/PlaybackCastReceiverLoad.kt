@@ -14,10 +14,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
-/**
- * What the put.io Cast receiver needs to pick the stream itself: the file, the download token, and
- * the playlist's subtitle filter. The receiver builds the HLS URL, so the token travels here only.
- */
 public data class PlaybackCastReceiverLoad(
     public val fileId: Long,
     public val token: String,
@@ -25,10 +21,6 @@ public data class PlaybackCastReceiverLoad(
     public val subtitleLanguages: List<String>? = null,
     public val mediaInfo: PutioMediaInfo? = null,
 ) {
-    /**
-     * The LOAD's `customData` from [positionMillis], within [maxBytes] where it can be: `media_info`
-     * keeps as many streams as fit, video and audio first, and goes when none does.
-     */
     public fun customData(positionMillis: Long, maxBytes: Int): String {
         val load = buildJsonObject {
             put("fileId", fileId)
@@ -58,10 +50,6 @@ public data class PlaybackCastReceiverLoad(
             "subtitleLanguages=$subtitleLanguages, <redacted token>)"
 }
 
-/**
- * The put.io receiver's load for this source, or null when it cannot say what the app plays: only
- * a video's Standard HLS stream, whose filter it can carry, goes this way.
- */
 internal fun PlaybackSource.toReceiverLoad(target: PlaybackTarget, downloadToken: String): PlaybackCastReceiverLoad? {
     val query = url.value.queryValues()
         ?.takeIf { kind == PlaybackSourceKind.HLS && target.mediaType == PlaybackMediaType.VIDEO }
@@ -89,7 +77,6 @@ private fun PutioMediaInfo.trimmed(): PutioMediaInfo? {
     )
 }
 
-/** The decoded query of this URL, last value winning; null for a malformed URL. */
 private fun String.queryValues(): Map<String, String>? =
     try {
         URI(this).rawQuery.orEmpty().split('&').filter(String::isNotEmpty).associate { pair ->

@@ -34,7 +34,6 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.DragEventBuilder
 
-/** Drops from other apps through the production drop zone, delivered as the window's drag events. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileTransferDropTest {

@@ -46,7 +46,6 @@ class MainActivity : BasePutioActivity() {
 
     private val pendingNowPlayingRequest = MutableStateFlow(false)
 
-    /** Stays pending until the shell has acted on it, so a recreation mid-flight cannot lose it. */
     internal val nowPlayingRequests: NowPlayingRequests =
         NowPlayingRequests(pendingNowPlayingRequest) { pendingNowPlayingRequest.value = false }
 
@@ -97,7 +96,6 @@ class MainActivity : BasePutioActivity() {
         super.onPause()
     }
 
-    /** Fills the system Keyboard Shortcuts Helper (Meta + /) with the shortcuts the app takes. */
     override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>, menu: Menu?, deviceId: Int) {
         super.onProvideKeyboardShortcuts(data, menu, deviceId)
         data += mobileKeyboardShortcutGroups(this)
@@ -132,7 +130,6 @@ class MainActivity : BasePutioActivity() {
         }
     }
 
-    /** A link the shell has not routed yet, for example one received signed out, survives process death. */
     private fun restorePendingDeepLink(savedInstanceState: Bundle?) {
         if (deepLinkRequests.pending.value != null) return
         val saved = savedInstanceState?.getString(STATE_DEEP_LINK_PENDING) ?: return
@@ -156,7 +153,6 @@ internal class NowPlayingLaunchState : ViewModel() {
     var deepLinkLaunchConsumed = false
 }
 
-/** A request to open the live audio player; [acknowledge] clears it once handled. */
 internal class NowPlayingRequests(
     internal val pending: StateFlow<Boolean>,
     internal val acknowledge: () -> Unit,

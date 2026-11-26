@@ -24,11 +24,6 @@ internal fun interface MobilePlayerFactory {
 
     fun observePositions(context: android.content.Context, player: Media3Player): Closeable = Closeable {}
 
-    /**
-     * Attaches to the audio session. [onResult] may run synchronously or later on the
-     * main thread; closing the returned handle detaches without stopping playback.
-     * The default is a private player that lives and dies with the handle.
-     */
     fun connectAudio(
         context: android.content.Context,
         onResult: (Result<Media3Player>) -> Unit,
@@ -38,10 +33,8 @@ internal fun interface MobilePlayerFactory {
         return Closeable { player.release() }
     }
 
-    /** Ends session audio so a private video player owns the media controls. */
     fun stopAudio(context: android.content.Context) {}
 
-    /** The file the audio session currently holds, or null when idle or unreachable. */
     suspend fun activeAudio(context: android.content.Context): ActiveAudio? =
         suspendCancellableCoroutine { continuation ->
             var handle: Closeable? = null

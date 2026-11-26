@@ -14,13 +14,6 @@ import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.pendingIntent
 import kotlin.math.roundToInt
 
-/**
- * The download service's foreground notification: how many files are on their way, the first
- * running one's name with the overall percentage, a bar, and Pause and Cancel for all of them.
- * Only live transfers count; paused, parked and removing ones are not on their way. While Media3
- * deletes cancelled bytes and nothing else is live, it says so without actions. The name shows only
- * on an unlocked screen, and no URL or token reaches the notification.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun downloadProgressNotification(
     context: Context,
@@ -75,7 +68,6 @@ private fun progressBuilder(context: Context, channelId: String, title: String):
         .setShowWhen(false)
         .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
 
-/** The first running file and the overall percentage, else what the queue waits for. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun progressText(context: Context, running: List<Download>, percent: Int?, notMetRequirements: Int): String =
     when {
@@ -90,7 +82,6 @@ private fun progressText(context: Context, running: List<Download>, percent: Int
         else -> context.getString(R.string.mobile_downloads_status_queued)
     }
 
-/** The name a request carries for its row; a request without one reads as a recovered download. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.name(context: Context): String =
     request.data.toDownloadRequestData().name.ifBlank {

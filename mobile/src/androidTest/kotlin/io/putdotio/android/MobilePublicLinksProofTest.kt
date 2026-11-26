@@ -58,10 +58,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Synthetic proof of Exclusive access through the production Files route, public links controller,
- * sheet, share chooser and Account list over faked repositories; no API calls.
- */
 @RunWith(AndroidJUnit4::class)
 class MobilePublicLinksProofTest {
     private val compose = createComposeRule()

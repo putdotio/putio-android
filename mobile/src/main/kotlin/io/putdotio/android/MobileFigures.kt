@@ -11,11 +11,9 @@ internal fun AnnotatedString.Builder.appendMonoValue(value: String, mono: SpanSt
     withStyle(mono) { append(value) }
 }
 
-/** [template] with its `%1$s`, `%2$s`… slots filled by [values] in [mono]. */
 internal fun monoArguments(template: String, mono: SpanStyle, vararg values: String): AnnotatedString =
     styledTemplate(template, values.map { it to mono })
 
-/** [template] with each `%n$s` slot filled from [slots] in its style. */
 internal fun styledTemplate(template: String, slots: List<Pair<String, SpanStyle>>): AnnotatedString =
     buildAnnotatedString {
         var cursor = 0

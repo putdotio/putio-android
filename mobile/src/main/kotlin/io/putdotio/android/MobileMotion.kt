@@ -52,10 +52,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/**
- * Material's standard motion scheme springs. Material 3 1.4 keeps `MotionScheme` internal, so these
- * repeat its `StandardMotionTokens` until the scheme is public.
- */
 internal object MobileMotionSprings {
     private const val SPATIAL_DAMPING = 0.9f
     private const val EFFECTS_DAMPING = 1f
@@ -70,21 +66,11 @@ internal object MobileMotionSprings {
     fun <T> fastEffects(): FiniteAnimationSpec<T> = spring(EFFECTS_DAMPING, FAST_EFFECTS_STIFFNESS)
 }
 
-/**
- * Fade through runs in two phases, which springs cannot delay: Material's 300 ms, the outgoing tab
- * fading out in the first 90 ms and the incoming one fading and scaling in after it.
- */
 private fun <T> fadeThroughIn(): FiniteAnimationSpec<T> =
     tween(FADE_THROUGH_IN_MS, delayMillis = FADE_THROUGH_OUT_MS, easing = LinearOutSlowInEasing)
 
-/** How one screen replaces another (DESIGN.md Motion). */
 internal enum class MobileTransition { FadeThrough, Push, Pop, Container, Fade, Cut }
 
-/**
- * Between tabs: fade through. Within a tab: shared axis X, forward on a push and back on a pop.
- * The player opens as a container transform from its row. Reduced motion turns each into a fade.
- * Account's pages beside its list cut, so the list stays still.
- */
 internal fun mobileTransition(
     from: String?,
     to: String?,
@@ -102,7 +88,6 @@ internal fun mobileTransition(
         else -> MobileTransition.Push
     }
 
-/** The shared axis offset, signed for the layout direction, and whether the system turned animation off. */
 @Immutable
 internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boolean) {
     fun between(
@@ -140,7 +125,6 @@ internal data class MobileMotion(val axisOffsetPx: Int, val reducedMotion: Boole
             MobileTransition.Cut -> ExitTransition.None
         }
 
-    /** A move within one tab, such as a folder push, as one content transform. */
     fun axis(forward: Boolean): ContentTransform {
         val transition = when {
             reducedMotion -> MobileTransition.Fade
@@ -163,10 +147,6 @@ internal fun rememberMobileMotion(): MobileMotion {
     }
 }
 
-/**
- * Within-tab navigation the NavHost does not own, such as folders: [forward] tells a push, which
- * slides in from the end, from a pop, which slides back.
- */
 @Composable
 internal fun <S> MobileAxisContent(
     state: S,
@@ -185,10 +165,6 @@ internal fun <S> MobileAxisContent(
     ) { shown -> content(shown) }
 }
 
-/**
- * The in-app predictive back preview for pops the NavHost does not own: the screen shrinks toward
- * the gesture's edge while the viewer drags, and springs back once the gesture ends either way.
- */
 @Stable
 internal class MobileBackPreview(private val scope: CoroutineScope) {
     var value by mutableFloatStateOf(0f)
@@ -219,11 +195,6 @@ internal fun rememberMobileBackPreview(): MobileBackPreview {
     return remember(scope) { MobileBackPreview(scope) }
 }
 
-/**
- * Back for a pop the NavHost does not own, previewed on [preview] while the gesture runs. Like the
- * NavHost's own handler it completes synchronously, so a key or button Back acts at once; one
- * composed earlier yields to handlers composed after it.
- */
 @Composable
 internal fun MobilePredictiveBackHandler(
     enabled: Boolean,
@@ -285,10 +256,8 @@ internal fun Modifier.mobileBackPreview(preview: MobileBackPreview): Modifier = 
     }
 }
 
-/** The NavHost's layout, so the player can grow out of the row that opened it. */
 internal val LocalMobileSharedTransition = staticCompositionLocalOf<SharedTransitionScope?> { null }
 
-/** The enter and exit of the route a composable sits in; rows on that route share bounds with the player. */
 internal val LocalMobileRouteAnimation = staticCompositionLocalOf<AnimatedVisibilityScope?> { null }
 
 @Composable

@@ -21,10 +21,6 @@ import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
 
 private const val EMULATOR_CODEC_WORKAROUND_API = 37
 
-/**
- * The renderers every ExoPlayer in the app starts from, on either surface: FFmpeg decodes audio
- * MediaCodec can't, and text takes a timing offset.
- */
 @UnstableApi
 public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
     val renderersFactory: DefaultRenderersFactory = PlaybackRenderersFactory(context)
@@ -74,10 +70,6 @@ internal class PlaybackRenderersFactory(context: Context) : DefaultRenderersFact
     }
 }
 
-/**
- * The load control every ExoPlayer in the app starts from. Media3 sizes its buffer for the
- * selected tracks, up to 125 MiB for video, and holds it on the Java heap.
- */
 @UnstableApi
 public fun playbackLoadControl(context: Context): DefaultLoadControl.Builder {
     val activityManager = context.getSystemService(ActivityManager::class.java)

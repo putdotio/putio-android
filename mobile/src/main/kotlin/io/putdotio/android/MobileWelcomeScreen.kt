@@ -64,7 +64,6 @@ import io.putdotio.android.design.rememberWelcomeSequencePosition
 import kotlin.math.abs
 import io.putdotio.android.design.R as DesignR
 
-/** One kaomoji over its caption on the Welcome stage. */
 internal data class MobileWelcomeFrame(
     @StringRes val kaomoji: Int,
     @StringRes val caption: Int,
@@ -99,7 +98,6 @@ internal data class MobileWelcomeAction(
     val style: MobileWelcomeActionStyle,
 )
 
-/** The copy and controls of one signed-out moment; layout stays in [MobileWelcomeScreen]. */
 internal data class MobileWelcomeContent(
     @StringRes val title: Int,
     @StringRes val lede: Int,
@@ -179,7 +177,6 @@ private val WORDMARK_WIDTH = 88.dp
 private val STAGE_TOP = 96.dp
 private val STAGE_TOP_SHORT = 24.dp
 
-/** Below the bar, the height the stage and the copy need with the full gap above the stage. */
 private val SHORT_WINDOW = 600.dp
 private val STAGE_HEIGHT = 220.dp
 private val KAOMOJI_SIZE = 48.dp
@@ -283,10 +280,6 @@ private fun WelcomeCopy(
     }
 }
 
-/**
- * The kaomoji stage: frames roll up one after another, with page dots that follow. It is decoration,
- * so screen readers skip it. Reduced motion, and a stage of one frame, hold the first frame still.
- */
 @Composable
 private fun WelcomeStage(
     frames: List<MobileWelcomeFrame>,

@@ -14,12 +14,6 @@ import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.register
 import org.gradle.kotlin.dsl.withType
 
-/**
- * Shared setup for the `mobile` and `tv` application modules: SDK levels, the
- * `production` and `nightly` channels, release minification, release-like nightly debug builds,
- * upload signing, Sentry debug files, the lint and detekt gates, and the launcher manifest
- * check. Each app declares its application id, surface-specific build config and dependencies.
- */
 class PutioAndroidApplicationPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.application")
@@ -176,14 +170,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         }
     }
 
-    /**
-     * Only with a non-empty `SENTRY_AUTH_TOKEN`, which delivery sets outside dry runs: each release
-     * build then gets an R8 mapping id Sentry events carry and uploads its mapping under it, plus its
-     * native libraries keyed by build id.
-     * Other builds never apply the plugin. Its
-     * tracing, SDK installation, optimizations and telemetry stay off, since the SDK lives in
-     * core/telemetry.
-     */
     private fun Project.uploadDebugFilesToSentry() {
         val token = providers.environmentVariable("SENTRY_AUTH_TOKEN").filter(String::isNotBlank)
         if (!token.isPresent) return
@@ -203,13 +189,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         }
     }
 
-    /**
-     * Both apps share `io.put.putio`, so one version name gives each its own code:
-     * `major * 1_000_000 + minor * 10_000 + patch * 10`, plus 1 for TV. TVs can install either app
-     * and Google Play serves the highest code, so TV must take the higher one. Slot 2 belongs to
-     * putdotio/putio-tv-native-legacy until it retires; its 3000002 outranks TV 3.0.0, so TV ships
-     * from 3.0.1.
-     */
     private fun Project.putioVersionCode(versionName: String): Int {
         val (major, minor, patch) = versionName.split('.').map(String::toInt)
         val app = when (path) {
@@ -233,10 +212,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         providers.environmentVariable(name).orNull?.takeIf { it.isNotEmpty() }
             ?: error("ANDROID_KEYSTORE_PATH is set, so $name must be too")
 
-    /**
-     * Embedded in a Java string literal, so anything but empty or `https://<key>@<host>/<project id>`
-     * fails the build, without printing the value.
-     */
     private fun Project.sentryDsn(): String {
         val dsn = providers.gradleProperty("putioSentryDsn")
             .orElse(providers.environmentVariable("PUTIO_SENTRY_DSN"))

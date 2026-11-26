@@ -22,14 +22,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** A PDF the viewer can't show however often it tries: absent, too large, protected or malformed. */
 public class FilesPdfUnreadable(message: String, cause: Throwable? = null) : IOException(message, cause)
 
-/**
- * One PDF open in a viewer. The renderer needs a seekable file, and a stream from put.io reopens the
- * connection on every backward seek, so the document is first copied, in one pass, into a private
- * cache file that [close] deletes. Pages render one at a time, at the width they are shown.
- */
 public class FilesPdfDocument private constructor(
     private val file: File,
     private val descriptor: ParcelFileDescriptor,
@@ -38,12 +32,10 @@ public class FilesPdfDocument private constructor(
 ) {
     public val pageCount: Int get() = renderer.pageCount
 
-    /** Renders [index] [widthPx] wide, its height kept to the page's own ratio, on white as paper is. */
     public suspend fun render(index: Int, widthPx: Int): Bitmap = render(index) { width, height ->
         pdfBitmapSize(width, height, widthPx)
     }
 
-    /** Renders [index] as large as fits [widthPx] by [heightPx], its ratio kept. */
     public suspend fun renderFitting(index: Int, widthPx: Int, heightPx: Int): Bitmap = render(index) { width, height ->
         pdfBitmapSize(width, height, pdfFittingWidth(width, height, widthPx, heightPx))
     }
@@ -58,7 +50,6 @@ public class FilesPdfDocument private constructor(
         }
     }
 
-    /** Closes after any page still rendering, off the caller's thread, and deletes the copy. */
     public fun close() {
         CoroutineScope(dispatcher + NonCancellable).launch {
             runCatching { renderer.close() }
@@ -68,11 +59,6 @@ public class FilesPdfDocument private constructor(
     }
 
     public companion object {
-        /**
-         * Copies the stream [openStream] returns into the viewer cache and opens it; throws an
-         * [IOException] when the bytes don't arrive, and a [FilesPdfUnreadable] when the document is too
-         * large, protected, absent or doesn't parse. [openStream] runs off the main thread; null means no bytes.
-         */
         public suspend fun open(context: Context, sizeBytes: Long, openStream: () -> InputStream?): FilesPdfDocument {
             if (sizeBytes > PDF_MAX_BYTES) throw FilesPdfUnreadable("Too large to view in the app")
             val dispatcher = Dispatchers.IO.limitedParallelism(1)
@@ -105,7 +91,6 @@ public class FilesPdfDocument private constructor(
             input.use { source -> file.outputStream().use { source.copyCancellably(it) } }
         }
 
-        /** The renderer over [descriptor], which closes when the document doesn't parse or is protected. */
         private fun openRenderer(descriptor: ParcelFileDescriptor): PdfRenderer =
             try {
                 PdfRenderer(descriptor)
@@ -117,10 +102,6 @@ public class FilesPdfDocument private constructor(
                 throw FilesPdfUnreadable("Protected document", error)
             }
 
-        /**
-         * Deletes copies left by a viewer that never closed, a crash say, and those of open documents,
-         * which keep reading through their descriptors. A copy still being written stays.
-         */
         public fun clearCache(context: Context) {
             viewerCache(context).listFiles()?.filterNot { it in copying }?.forEach { it.deleteRecursively() }
         }
@@ -143,10 +124,6 @@ private suspend fun InputStream.copyCancellably(output: java.io.OutputStream) {
 
 internal data class PdfBitmapSize(val width: Int, val height: Int)
 
-/**
- * A page [widthPx] wide at its own ratio, shrunk to stay under [PDF_MAX_PIXELS] so a poster-sized
- * page can't take the heap; never under one pixel a side.
- */
 internal fun pdfBitmapSize(pageWidth: Int, pageHeight: Int, widthPx: Int): PdfBitmapSize {
     val ratio = pageHeight.toDouble() / pageWidth.coerceAtLeast(1)
     require(ratio <= PDF_MAX_PAGE_RATIO) { "Page too tall to show" }
@@ -163,7 +140,6 @@ internal fun pdfBitmapSize(pageWidth: Int, pageHeight: Int, widthPx: Int): PdfBi
     return PdfBitmapSize(finalWidth, finalHeight)
 }
 
-/** The width at which a page fills [widthPx] by [heightPx] without passing either side. */
 internal fun pdfFittingWidth(pageWidth: Int, pageHeight: Int, widthPx: Int, heightPx: Int): Int {
     val ratio = pageHeight.toDouble() / pageWidth.coerceAtLeast(1)
     val byHeight = (heightPx.coerceAtLeast(1) / ratio).toInt()
@@ -172,10 +148,8 @@ internal fun pdfFittingWidth(pageWidth: Int, pageHeight: Int, widthPx: Int, heig
 
 private const val PDF_MAX_PAGE_RATIO = 20.0
 
-/** About 16 MB per page bitmap at four bytes a pixel. */
 private const val PDF_MAX_PIXELS = 4_000_000.0
 
-/** Larger documents are too much to copy into the cache before the first page shows. */
 internal const val PDF_MAX_BYTES = 200L * 1000L * 1000L
 
 private const val COPY_BUFFER_BYTES = 64 * 1024

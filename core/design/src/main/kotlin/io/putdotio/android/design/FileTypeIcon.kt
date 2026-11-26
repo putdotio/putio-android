@@ -7,12 +7,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import io.putdotio.sdk.files.PutioFileType
 
-/**
- * Yellow Phosphor file icons, every kind — the icon family is a cross-tier
- * decision (putio-design platforms/android/DESIGN.md). SWF has no Phosphor
- * glyph of its own and rides file-code; unknown kinds fall back to the plain
- * file glyph.
- */
 @DrawableRes
 public fun fileTypeIconRes(type: PutioFileType): Int = when (type) {
     PutioFileType.FOLDER -> R.drawable.ic_ph_folder_fill

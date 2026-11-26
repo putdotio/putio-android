@@ -87,13 +87,6 @@ internal class SubtitleCueRenderer(
     private val stacked = CueLayer(context).apply { subtitleView.setBottomPaddingFraction(0f) }
     private var bottomPaddingFraction = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
 
-    /**
-     * [textScale] multiplies Android's caption size, as the user's caption settings set it; any
-     * scale but 1 also overrides the sizes a styled subtitle file sets. [textSizeFraction] is the
-     * text size at scale 1, as a fraction of the video height. [bottomPaddingFraction]
-     * raises cues placed at the bottom by default, and WebVTT cues stacked up from it; positioned
-     * cues stay where the file puts them.
-     */
     fun layOut(
         textScale: Float,
         bottomPaddingFraction: Float,

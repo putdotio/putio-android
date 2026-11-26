@@ -99,7 +99,6 @@ private fun ImageBitmap.hasVisiblePixel(): Boolean {
     return false
 }
 
-/** The row below the lowest pixel unlike the top-left corner's background, or 0 when there is none. */
 private fun ImageBitmap.drawnBottom(): Int {
     val pixels = toPixelMap()
     val background = pixels[0, 0]
@@ -270,7 +269,6 @@ class MobileSubtitleControlsTest {
         }
     }
 
-    /** Four supported tracks, one of them embedded in the stream, and one the device can't render. */
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     private fun sourcedSubtitleGroup(): TrackGroup = TrackGroup(
         Format.Builder().setId("1:os-tr").setLanguage("tr").setLabel("Turkish")

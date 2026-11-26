@@ -21,18 +21,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 
-/** Whether download outcomes would be shown, and how to turn them on from a visible screen. */
 @Immutable
 internal class DownloadNotificationAccess(
     val enabled: Boolean,
     val turnOn: () -> Unit,
 )
 
-/**
- * Re-read on every resume, so a change made in system settings shows at once. Turning on asks
- * for the Android 13 permission while the system still allows a prompt, and otherwise opens the
- * app's notification settings.
- */
 @Composable
 internal fun rememberDownloadNotificationAccess(): DownloadNotificationAccess {
     val context = LocalContext.current
@@ -59,7 +53,6 @@ internal fun rememberDownloadNotificationAccess(): DownloadNotificationAccess {
     }
 }
 
-/** The first download asks once, so the viewer can hear when it finishes; later asks come from Downloads. */
 @Composable
 internal fun rememberFirstDownloadNotificationPrompt(): () -> Unit {
     val context = LocalContext.current
@@ -75,7 +68,6 @@ internal fun rememberFirstDownloadNotificationPrompt(): () -> Unit {
     }
 }
 
-/** The system still shows its prompt before the first ask and after one denial. */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private fun Activity?.mayPromptForNotifications(settings: MobileDownloadSettings): Boolean =
     this != null && !notificationPermissionGranted() &&

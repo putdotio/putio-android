@@ -41,11 +41,6 @@ internal const val MOBILE_FILES_SELECTION_DOWNLOAD_TAG = "mobile-files-selection
 internal const val MOBILE_FILES_SELECTION_WATCHED_TAG = "mobile-files-selection-watched"
 internal const val MOBILE_FILES_SELECTION_DELETE_TAG = "mobile-files-selection-delete"
 
-/**
- * Files selection, shared by the top bar and the folder's list. It belongs to the folder it started
- * in: another folder, or the same folder reached again, shows none. Rows that leave the listing
- * leave the selection.
- */
 @Stable
 internal class FilesSelection(
     private val selection: MobileSelection = MobileSelection(),
@@ -56,14 +51,12 @@ internal class FilesSelection(
     fun isActive(state: FilesBrowserState): Boolean =
         scope == state.selectionScope() && selection.isActive(state.selectableIds())
 
-    /** The selected rows, in the listing's order. */
     fun selected(state: FilesBrowserState): List<FilesItem> {
         if (scope != state.selectionScope()) return emptyList()
         val ids = selection.selected(state.selectableIds())
         return state.current.content.items().filter { it.id.value in ids }
     }
 
-    /** Starts selection in the current folder with [item] selected, as the sheet's Select does. */
     fun start(state: FilesBrowserState, item: FilesItem) {
         val current = state.selectionScope()
         if (scope != current) {
@@ -89,11 +82,6 @@ internal class FilesSelection(
         scope = null
     }
 
-    /**
-     * Ends the selection once another folder shows, its folder reads afresh (an outside open can
-     * replace it in place), or it lists nothing; and forgets rows that left the listing, so neither
-     * comes back checked later.
-     */
     fun reconcile(state: FilesBrowserState) {
         val current = scope ?: return
         val selectable = state.selectableIds()
@@ -128,7 +116,6 @@ internal class FilesSelection(
     }
 }
 
-/** The folder a selection belongs to, by its place in the stack and its ID. */
 internal data class FilesSelectionScope(val depth: Int, val folderId: Long)
 
 private fun FilesBrowserState.selectionScope() = FilesSelectionScope(stack.size, current.folder.id.value)
@@ -136,7 +123,6 @@ private fun FilesBrowserState.selectionScope() = FilesSelectionScope(stack.size,
 private fun FilesBrowserState.selectableIds(): Set<Long> =
     current.content.items().filter { it.id.value > 0L }.mapTo(linkedSetOf()) { it.id.value }
 
-/** The session's Files selection, kept in step with the folder on screen and its rows. */
 @Composable
 internal fun rememberFilesSelection(key: Any?, states: State<FilesBrowserState>): FilesSelection {
     val selection = rememberSaveable(key, saver = FilesSelection.Saver) { FilesSelection() }
@@ -150,10 +136,6 @@ internal fun rememberFilesSelection(key: Any?, states: State<FilesBrowserState>)
     return selection
 }
 
-/**
- * What the toolbar offers for [items]: each action only when every item allows it, under the
- * sheet's own rules. [watched] is true for Mark as watched, false for Mark as unwatched.
- */
 internal data class FilesSelectionActions(
     val move: Boolean,
     val download: Boolean,
@@ -178,10 +160,6 @@ internal fun List<FilesItem>.selectionActions(
     )
 }
 
-/**
- * Unwatched when every item is finished; otherwise Watched when every item has a known length to
- * save as its end; otherwise neither, as for a file the sheet offers no choice for.
- */
 private fun List<FilesItem>.selectionWatchedChoice(): Boolean? {
     val choices = map { it.watchedChoice() }
     return when {
@@ -192,20 +170,13 @@ private fun List<FilesItem>.selectionWatchedChoice(): Boolean? {
     }
 }
 
-/** What the toolbar runs; each null action stays hidden. */
 internal class MobileFilesSelectionHandlers(
     val onMove: ((List<FilesItem>) -> Unit)?,
-    /** Takes the selected files that are not on this device or on their way. */
     val onDownload: ((List<FilesItem>) -> Unit)?,
     val onSetWatched: ((List<FilesItem>, Boolean) -> Unit)?,
     val onDelete: (List<FilesItem>, FilesDeleteMode) -> Unit,
 )
 
-/**
- * The floating toolbar over a Files selection: Move, Download, Watched and the delete action, each
- * when every selected row allows it. Move to trash goes at once; Delete permanently asks first,
- * naming the count.
- */
 @Composable
 internal fun MobileFilesSelectionToolbar(
     items: List<FilesItem>,
@@ -235,10 +206,6 @@ internal fun MobileFilesSelectionToolbar(
     }
 }
 
-/**
- * The toolbar's delete: Move to trash goes at once; Delete permanently asks first, naming the count.
- * Both follow the latest Trash setting, as the sheet does.
- */
 @Composable
 private fun DeleteAction(
     items: List<FilesItem>,
@@ -300,7 +267,6 @@ private fun DownloadTile(onClick: () -> Unit) {
     )
 }
 
-/** Watched, or Unwatched when every selected file is finished. */
 @Composable
 private fun WatchedTile(watched: Boolean, onClick: () -> Unit) {
     MobileToolbarTile(
@@ -314,7 +280,6 @@ private fun WatchedTile(watched: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** Trash, or Delete when the account turns Trash off; red, as the sheet's delete row is. */
 @Composable
 private fun DeleteTile(permanent: Boolean, enabled: Boolean, onClick: () -> Unit) {
     MobileToolbarTile(
@@ -330,7 +295,6 @@ private fun DeleteTile(permanent: Boolean, enabled: Boolean, onClick: () -> Unit
     )
 }
 
-/** Where the toolbar's actions go; each one ends the selection once sent. */
 internal class MobileFilesSelectionSources(
     val onMove: ((List<FilesItem>) -> Unit)?,
     val onDownload: ((FilesItem) -> Unit)?,
@@ -338,10 +302,6 @@ internal class MobileFilesSelectionSources(
     val onEvent: (FilesBrowserEvent) -> Unit,
 )
 
-/**
- * The floating toolbar while rows are selected, reporting its height so the list's last row
- * clears it; nothing, and no height, otherwise.
- */
 @Composable
 internal fun MobileFilesSelectionToolbarSlot(
     state: FilesBrowserState,
@@ -396,22 +356,18 @@ internal fun MobileFilesSelectionToolbarSlot(
     )
 }
 
-/** The list in selection: which rows are checked, how a tap toggles one, and the toolbar's room. */
 internal class MobileFilesListSelection(
     val checked: Set<FilesItemId>,
     val onToggle: (FilesItem) -> Unit,
     val bottomClearance: Dp,
 )
 
-/** Whether there is a selection and it is on in [state]'s folder. */
 internal fun FilesSelection?.isActiveIn(state: FilesBrowserState): Boolean = this?.isActive(state) == true
 
-/** The room the list leaves under its last row for a toolbar [heightPx] tall. */
 @Composable
 internal fun selectionToolbarClearance(heightPx: Int): Dp =
     with(LocalDensity.current) { heightPx.toDp() } + MobileSelectionToolbarClearance
 
-/** What the list needs while rows are selected in [state]'s folder; null otherwise. */
 internal fun FilesSelection?.listSelection(
     state: FilesBrowserState,
     bottomClearance: Dp,
@@ -424,16 +380,13 @@ internal fun FilesSelection?.listSelection(
     )
 }
 
-/** The sheet's Select, which starts selection in the folder [state] reads, when there is a selection. */
 internal fun MobileFilesItemActions.selectingIn(
     selection: FilesSelection?,
     state: () -> FilesBrowserState,
 ): MobileFilesItemActions = selection?.let { withSelect { item -> it.start(state(), item) } } ?: this
 
-/** A row's long-press, which starts selection in the folder [state] reads, when there is a selection. */
 internal fun FilesSelection?.starter(state: () -> FilesBrowserState): ((FilesItem) -> Unit)? =
     this?.let { selection -> { item -> selection.start(state(), item) } }
 
-/** A file not downloaded yet, or whose download failed or went missing, can start one. */
 private val DownloadStatus?.downloadable: Boolean
     get() = this == null || this is DownloadStatus.Failed || this == DownloadStatus.Missing

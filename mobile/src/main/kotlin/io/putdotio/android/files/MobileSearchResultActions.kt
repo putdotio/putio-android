@@ -13,7 +13,6 @@ import io.putdotio.android.downloads.DownloadsState
 import io.putdotio.android.sharing.MobilePublicLinkSheet
 import io.putdotio.android.sharing.MobilePublicLinks
 
-/** What a search result's sheet can reach: the session's actions, downloads and public links. */
 internal class MobileSearchResultActions(
     val itemActions: MobileFilesItemActions,
     val downloads: DownloadsState,
@@ -23,11 +22,6 @@ internal class MobileSearchResultActions(
     val publicLinks: MobilePublicLinks?,
 )
 
-/**
- * A search result's actions sheet, opened by [content]'s overflow and long-press. The result isn't
- * in a loaded folder, so the sheet leaves out Rename, Move, Make a copy and the delete action, which
- * act on a folder's listing; opening the result reaches them in its folder.
- */
 @Composable
 internal fun MobileSearchResultActionsHost(
     results: List<FilesItem>,

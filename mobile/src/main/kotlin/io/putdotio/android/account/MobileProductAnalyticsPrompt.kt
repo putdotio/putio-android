@@ -77,14 +77,8 @@ internal const val MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG = "mobile-product-analyti
 internal const val MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG = "mobile-product-analytics-allow"
 internal const val MOBILE_PRODUCT_ANALYTICS_DENY_TAG = "mobile-product-analytics-deny"
 
-/** The launch extra a debug build needs to show the prompt; `adb shell am start --ez` sets it. */
 internal const val EXTRA_HARNESS_ANALYTICS_PROMPT = "putio.harness.analytics_prompt"
 
-/**
- * Whether the signed-in shell may ask. Debug builds keep the prompt out of harness, proof and test
- * launches, which share an account, unless the launch opts in; an opted-in launch asks whatever the
- * account and config hold, so the shared account never needs its answer reset.
- */
 internal enum class MobileProductAnalyticsPromptMode {
     Ask,
     Suppressed,
@@ -104,11 +98,6 @@ internal enum class MobileProductAnalyticsPromptMode {
 internal val LocalMobileProductAnalyticsPromptMode =
     staticCompositionLocalOf { MobileProductAnalyticsPromptMode.of(BuildConfig.DEBUG, harnessAsks = false) }
 
-/**
- * Asks once whether the account allows product analytics. An answer saves the account setting, then
- * records the answer in this app's config; a failed setting records nothing. Closing it without
- * answering writes nothing, so the next launch asks again.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileProductAnalyticsPrompt(
@@ -255,7 +244,6 @@ private fun MobileProductAnalyticsPromptContent(
     }
 }
 
-/** Side by side when the sheet is wide enough, as on iOS; stacked on a phone. */
 @Composable
 private fun PromptLists() {
     BoxWithConstraints {

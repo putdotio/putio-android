@@ -45,7 +45,6 @@ public sealed interface AndroidAppConfigChange {
         val enabled: Boolean,
     ) : AndroidAppConfigChange
 
-    /** Records that the product analytics prompt was answered; there is no way back to unanswered. */
     public data object ProductAnalyticsPromptAnswered : AndroidAppConfigChange
 }
 

@@ -10,9 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** What the system asked the TV app to show: a file from search or Watch Next, or a search. */
 internal sealed interface TvLaunchRequest {
-    /** A file to open; [continueWatching] marks a Watch Next card, which leaves the row once its file is gone. */
     data class OpenFile(
         val id: FilesItemId,
         val continueWatching: Boolean = false,
@@ -21,13 +19,6 @@ internal sealed interface TvLaunchRequest {
     data class Search(val term: SearchTerm) : TvLaunchRequest
 }
 
-/**
- * Reads `putio://files/<id>~<key>` (a system search result), `putio://continue/<id>~<key>` (a
- * Watch Next card) and `putio://search/<key>?q=<term>` (the system search row that searches
- * put.io), then removes the link from the intent so a replayed intent cannot open it twice. A link
- * without this install's key and anything else, an `ACTION_SEARCH` term included, return null,
- * and the app opens normally.
- */
 internal fun Intent.consumeTvLaunchRequest(key: () -> TvLinkKey): TvLaunchRequest? =
     data?.takeIf { action == Intent.ACTION_VIEW }?.let { link ->
         setDataAndType(null, null)
@@ -52,7 +43,6 @@ private fun Uri.linkKey(): String? =
         ?.let { if (host == HOST_SEARCH) it else it.substringAfter(TvLinkKey.SEPARATOR, missingDelimiterValue = "") }
         ?.takeIf(String::isNotEmpty)
 
-/** The request as a `putio://` URI: what saved state keeps, and with [key], what system links carry. */
 internal fun TvLaunchRequest.toUri(key: TvLinkKey? = null): Uri =
     when (this) {
         is TvLaunchRequest.OpenFile ->
@@ -63,15 +53,12 @@ internal fun TvLaunchRequest.toUri(key: TvLinkKey? = null): Uri =
                 .appendQueryParameter(QUERY, term.value).build()
     }
 
-/** A pending launch request; it stays pending until the signed-in shell has acted on it. */
 internal class TvLaunchRequests : ViewModel() {
     private val mutablePending = MutableStateFlow<TvLaunchRequest?>(null)
     val pending: StateFlow<TvLaunchRequest?> = mutablePending.asStateFlow()
 
-    /** Set once the activity's launch intent has been read, so a recreation does not read it again. */
     var launchIntentConsumed: Boolean = false
 
-    /** Only the newest request matters. */
     fun receive(request: TvLaunchRequest) {
         mutablePending.value = request
     }

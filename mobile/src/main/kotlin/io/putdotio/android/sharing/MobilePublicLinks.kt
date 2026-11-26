@@ -107,23 +107,17 @@ internal fun mobilePublicLinkRevokeTag(id: PublicLinkId): String = "mobile-publi
 
 internal fun mobilePublicLinkMoreTag(id: PublicLinkId): String = "mobile-public-link-more-${id.value}"
 
-/** The session's public links and how to change them, handed from the shell to Files and Account. */
 internal class MobilePublicLinks(
     val state: PublicLinksState,
     val onEvent: (PublicLinksEvent) -> Boolean,
 )
 
-/**
- * Exclusive access for one of the viewer's own items: one line of what a link allows, the item's live
- * links with copy, share and revoke, and a filled Create link.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobilePublicLinkSheet(
     item: FilesItem,
     publicLinks: MobilePublicLinks,
     onDismiss: () -> Unit,
-    /** Closes the sheet once a link is copied, for the screen under it to say so; null keeps it open. */
     onCopied: (() -> Unit)? = null,
 ) {
     val state = publicLinks.state
@@ -189,7 +183,6 @@ internal fun MobilePublicLinkSheet(
     PublicLinkRevokeDialog(actions, state, onEvent)
 }
 
-/** "Anyone with a link can open <name>…", the name in the text colour and the hours in mono. */
 @Composable
 private fun sheetBody(name: String): AnnotatedString {
     val template = stringResource(R.string.mobile_public_links_sheet_body)
@@ -198,7 +191,6 @@ private fun sheetBody(name: String): AnnotatedString {
     return styledTemplate(template, listOf(name to nameStyle, PUBLIC_LINK_HOURS.toString() to mono))
 }
 
-/** A live link: the full address in mono cut in the middle, its remaining time, then copy, share and revoke. */
 @Composable
 private fun PublicLinkSheetRow(link: PublicLink, state: PublicLinksState, actions: PublicLinkActions) {
     val revoking = (state.mutation as? PublicLinksMutation.Revoking)?.link?.id == link.id
@@ -255,7 +247,6 @@ private fun PublicLinkCopyButton(link: PublicLink, actions: PublicLinkActions) {
     }
 }
 
-/** "Expires in" with the remainder in mono, counted down each minute. */
 @Composable
 private fun PublicLinkExpiry(link: PublicLink, modifier: Modifier = Modifier) {
     val style = MaterialTheme.typography.bodySmall
@@ -290,7 +281,6 @@ private fun PublicLinkExpiry(link: PublicLink, modifier: Modifier = Modifier) {
     Text(text, style = style, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }
 
-/** "2d 14h", "5h", "12m": the two largest units left, so a glance says how long. */
 internal fun Duration.shortRemainder(): String {
     val days = toDays()
     val hours = toHours() % HOURS_PER_DAY
@@ -303,10 +293,8 @@ internal fun Duration.shortRemainder(): String {
     }
 }
 
-/** The address without its scheme, which every link shares. */
 private fun PublicLink.displayAddress(): String = url.value.removePrefix("https://")
 
-/** Account's list of every public link the account holds: copy on the row, share and revoke in its menu. */
 @Composable
 internal fun MobilePublicLinksScreen(
     publicLinks: MobilePublicLinks,
@@ -455,7 +443,6 @@ private fun PublicLinksInlineFailure(failure: PutioFailure, onRetry: () -> Unit)
     }
 }
 
-/** Copy, share and the revoke confirmation one surface offers for its links. */
 private class PublicLinkActions(
     val copiedId: PublicLinkId?,
     val confirming: PublicLink?,
@@ -551,7 +538,6 @@ private fun PublicLinksOutcome.message(): String =
             stringResource(R.string.mobile_public_links_revoke_failed, failure.publicLinksMessage())
     }
 
-/** put.io's reason for a refused request, else the shared copy; a bare 403 names links, not a folder. */
 @Composable
 private fun PutioFailure.publicLinksMessage(): String =
     if (this is PutioFailure.AccessDenied) {
@@ -572,9 +558,6 @@ private fun PublicLinkRefusal.messageResource(): Int =
         PublicLinkRefusal.WEEKLY_LIMIT -> R.string.mobile_public_links_refused_weekly
     }
 
-/**
- * The address is a bearer link to the file, so Android 13+ keeps it out of the clipboard preview.
- */
 private fun sensitiveClip(label: String, url: String): ClipData =
     ClipData.newPlainText(label, url).apply {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -582,7 +565,6 @@ private fun sensitiveClip(label: String, url: String): ClipData =
         }
     }
 
-/** The link alone, as text: the address carries only the share's token, never the session's. */
 private fun Context.sharePublicLink(link: PublicLink) {
     val send = Intent(Intent.ACTION_SEND)
         .setType("text/plain")
@@ -591,7 +573,6 @@ private fun Context.sharePublicLink(link: PublicLink) {
     startActivity(Intent.createChooser(send, null))
 }
 
-/** put.io's hours before a link stops working, which its API does not return. */
 private const val EMPTY_HEIGHT_FRACTION = 0.7f
 private const val PUBLIC_LINK_HOURS = 72
 private const val HOURS_PER_DAY = 24

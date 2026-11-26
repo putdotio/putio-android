@@ -17,22 +17,11 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * One session's folder and search listings, loaded a page at a time through the app's repositories. A query returns
- * the items that have landed and asks for the next page; each landed page reports its listing so the picker queries
- * again. A failed page is reported once and asked for again on the query after that, so a page that keeps failing
- * cannot loop the picker. An idle listing older than [FRESH_FOR] starts again from its first page, showing its old
- * rows until that page lands.
- *
- * A picker registers for changes only after its query returns, so a page that lands in that gap would go unheard;
- * a landed page is announced again every [RENOTIFY_AFTER], up to [RENOTIFY_TIMES] times, until a query reads it.
- */
 internal class DocumentListings(
     private val files: FilesRepository,
     private val search: SearchRepository,
     private val scope: CoroutineScope,
     private val clock: () -> Long,
-    /** A page landed, with its failure the first time it is announced; runs outside the lock. */
     private val onLanded: (DocumentsListingKey, PutioFailure?) -> Unit,
 ) {
     private val lock = Any()
@@ -57,13 +46,11 @@ internal class DocumentListings(
             Snapshot(next.items, loading = next.job != null, failed = next.failure != null)
         }
 
-    /** An item this session has listed. */
     fun find(fileId: FilesItemId): FilesItem? =
         synchronized(lock) {
             listings.values.firstNotNullOfOrNull { listing -> listing.items.firstOrNull { it.id == fileId } }
         }
 
-    /** The session ended: stop every load and forget every listing. */
     fun close() {
         synchronized(lock) {
             closed = true
@@ -72,7 +59,6 @@ internal class DocumentListings(
         }
     }
 
-    /** Starts loading [cursor]'s page, or the first page without one; the caller holds [lock]. */
     private fun load(key: DocumentsListingKey, base: Listing, cursor: FilesCursor?): Listing {
         val job = scope.launch(start = CoroutineStart.LAZY) {
             val result = fetch(key, cursor)
@@ -111,7 +97,6 @@ internal class DocumentListings(
             }.map { Page(it.items, it.nextCursor) }
         }
 
-    /** Keeps the most recently read listings; the caller holds [lock]. */
     private fun trim() {
         val eldest = listings.entries.iterator()
         while (listings.size > MAX_LISTINGS && eldest.hasNext()) {
@@ -132,9 +117,7 @@ internal class DocumentListings(
         val failedCursor: FilesCursor? = null,
         val failureShown: Boolean = false,
         val updatedAt: Long = 0L,
-        /** How many pages have landed, so a later announcement can tell which landing it repeats. */
         val landings: Int = 0,
-        /** A query has returned the latest landing. */
         val delivered: Boolean = true,
     ) {
         fun isStale(now: Long): Boolean = job == null && now - updatedAt > FRESH_FOR.inWholeMilliseconds

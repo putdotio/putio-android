@@ -6,7 +6,6 @@ import io.putdotio.android.account.MobileAccountPage
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.downloads.MOBILE_DOWNLOADS_ROUTE
 
-/** The tabs, in the order DESIGN.md's Layout fixes. Each keeps its own back stack. */
 internal enum class MobileDestination(
     val route: String,
     @StringRes val labelRes: Int,
@@ -48,7 +47,6 @@ internal enum class MobileDestination(
     companion object {
         val start: MobileDestination = Files
 
-        /** The tab a route belongs to; null for playback, which plays over whichever tab opened it. */
         fun ofRoute(route: String?): MobileDestination? =
             if (MobileAccountPage.ofRoute(route) != null) Account else entries.firstOrNull { it.route == route }
 

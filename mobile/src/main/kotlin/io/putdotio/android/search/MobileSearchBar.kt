@@ -44,12 +44,6 @@ import io.putdotio.android.MobileIconButton
 internal const val MOBILE_SEARCH_FIELD_TAG = "mobile-search-field"
 internal const val MOBILE_SEARCH_CLEAR_TAG = "mobile-search-clear"
 
-/**
- * Expanded search's bar, in the Files pill's place: back, the query, then clear once there is one,
- * on surface-container-highest. A folder's search names the folder in its hint. The field starts
- * from [query] and owns its text from then on; [replacement] is how anything else changes it. Like
- * the top bars it replaces, it owns the status bar inset.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileSearchBar(
@@ -125,7 +119,6 @@ internal fun MobileSearchBar(
     }
 }
 
-/** The drawer's menu button when the tabs live there, then clear once there is a query. */
 @Composable
 private fun MobileSearchBarTrailing(
     text: TextFieldState,
@@ -148,18 +141,11 @@ private fun MobileSearchBarTrailing(
     }
 }
 
-/** Text something other than typing puts in the field, such as a recent search; each is put there once. */
 internal class MobileSearchFieldText(val text: String)
 
-/**
- * The field's text. It starts from the query and edits itself, sending each edit up; only an
- * explicit [MobileSearchFieldText] replaces it, with the caret at its end. A new scope starts a new
- * field, so the query never has to be matched against edits still on their way up.
- */
 private class MobileQueryText(val state: TextFieldState, initial: String) {
     private var sent = initial
 
-    /** Sends the text up unless it was the last sent or put there. */
     fun send(onQueryChanged: (String) -> Unit) {
         val typed = state.text.toString()
         if (typed != sent) {

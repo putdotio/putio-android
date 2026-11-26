@@ -12,10 +12,6 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
-/**
- * Writes PutioDesignTokens.kt and the XML color resources from the vendored DTCG token graph,
- * and PutioScales.kt from DESIGN.md's front matter, embedding the installed brand fonts.
- */
 @CacheableTask
 abstract class GenerateDesignTokensTask : DefaultTask() {
 
@@ -23,12 +19,10 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val tokensFile: RegularFileProperty
 
-    /** The root DESIGN.md, whose front matter owns the type and corner scales. */
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val designMd: RegularFileProperty
 
-    /** Version of @putdotio/design the vendored JSON came from; recorded in the generated header. */
     @get:Input
     abstract val designVersion: Property<String>
 
@@ -36,7 +30,6 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val brandFontsLock: RegularFileProperty
 
-    /** The lock directory's files, which may be absent; only locked names count. */
     @get:InputFiles
     @get:PathSensitive(PathSensitivity.NAME_ONLY)
     abstract val brandFonts: ConfigurableFileCollection
@@ -44,7 +37,6 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
 
-    /** An Android resource directory holding `values/putio_design_colors.xml` and `font/`, the installed brand fonts. */
     @get:OutputDirectory
     abstract val resOutputDir: DirectoryProperty
 

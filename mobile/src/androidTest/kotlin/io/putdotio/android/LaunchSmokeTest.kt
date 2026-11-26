@@ -14,15 +14,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * The harness launch proof: the shell reaches RESUMED, stays there through a
- * stability window, and actually composites pixels. `:mobile:verifyCiPhoneLaunchProof`
- * runs this on the `ciPhone` Gradle Managed Device; a crash or ANR fails the instrumentation.
- *
- * The pixel assertion exists because a resumed activity can still render
- * black under emulator load; the shell's dark surface (#161616) composites
- * at mean luma ~22, so below 16 means nothing reached the screen.
- */
 @RunWith(AndroidJUnit4::class)
 class LaunchSmokeTest {
 

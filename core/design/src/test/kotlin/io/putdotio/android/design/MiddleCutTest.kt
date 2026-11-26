@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** One unit of width per UTF-16 code unit, so each case states its own budget. */
 class MiddleCutTest {
     private val width: (String) -> Int = { it.length }
 

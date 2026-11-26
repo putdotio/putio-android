@@ -15,11 +15,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Replays the deterministic Transfers poll histories on an Android runtime and reports the
- * thread CPU time of one poll: the pre-by-id list walk against the current refresh. The fake
- * SDK decodes pre-encoded JSON per request, so there is no network and no API account.
- */
 @RunWith(AndroidJUnit4::class)
 class TransfersPollingCpuBenchmark {
     @Test

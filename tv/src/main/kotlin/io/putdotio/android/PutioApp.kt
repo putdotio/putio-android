@@ -130,7 +130,6 @@ import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.launch
 import io.putdotio.android.settings.putioFailure
 
-/** TV root: the generated Compose for TV scheme, then whichever screen the session state names. */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) {
@@ -233,17 +232,14 @@ private fun TvSignedInApp(
     )
 }
 
-/** One signed-in session's shell and player; the controllers all come from [session]. */
 @Composable
 internal fun TvSessionShell(
     session: TvSession,
     account: TvAccount,
-    /** Changes with the signed-in session so one account's saved UI state never greets the next. */
     sessionKey: Any,
     onSignOut: () -> Unit,
     onSessionRejected: suspend () -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    /** A file or search the system asked for; it is handled once the shell exists. */
     pendingLaunch: TvLaunchRequest? = null,
     onLaunchHandled: (TvLaunchRequest) -> Unit = {},
     connectivity: TvConnectivity = rememberTvConnectivity(),
@@ -487,8 +483,6 @@ internal fun TvSessionShell(
     }
 }
 
-/** Opens a Search or Home pick; false when Files refused it while a move or deletion settles. */
-/** A restore changes Files behind the browser's cache: one item's folder, or every folder. */
 @Composable
 private fun InvalidateFilesOnRestore(session: TvSession, trashState: TrashState) {
     LaunchedEffect(session, trashState.restoredVersion) {
@@ -614,11 +608,6 @@ private fun TvFilesPane(
     )
 }
 
-/**
- * Acts on what system search or a Watch Next card asked for: a file resolves, then plays or
- * opens in Files; a search opens Search with its term. Returns what Files explains when a file did
- * not open; a 401 is left to the shell, which signs out.
- */
 @Composable
 private fun rememberTvLaunchHandling(
     session: TvSession,
@@ -676,7 +665,6 @@ private fun rememberTvLaunchHandling(
     )
 }
 
-/** Why a file from system search or Watch Next did not open; Files shows it. */
 private class TvLinkNotice(
     rejected: Boolean,
     failure: PutioFailure?,

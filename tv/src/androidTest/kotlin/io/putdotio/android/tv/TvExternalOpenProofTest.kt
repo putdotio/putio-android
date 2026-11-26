@@ -45,12 +45,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Controlled-state proof that a Search pick opens the item itself on the real signed-in TV
- * shell, and that Back returns to Files: fake repositories stand in for the account, the TV
- * session and shell are the production ones, and the player streams a caller-owned local
- * fixture. No API calls.
- */
 @RunWith(AndroidJUnit4::class)
 class TvExternalOpenProofTest {
     private val compose = createAndroidComposeRule<TvProofActivity>()
@@ -242,10 +236,6 @@ class TvExternalOpenProofTest {
         )
     }
 
-    /**
-     * [PAGED_FOLDER] lists 3 pages of 50 rows, each later page after a delay long enough to
-     * press Back during it; [PAGED_DOCUMENT] is on the third page.
-     */
     private fun pagedDependencies(): TvSessionDependencies {
         val folder = proofItem(PAGED_FOLDER_ID, PAGED_FOLDER, PutioFileType.FOLDER, FilesFolder.Root.id)
         val document = proofItem(PAGED_DOCUMENT_ID, PAGED_DOCUMENT, PutioFileType.FILE, folder.id)
@@ -277,7 +267,6 @@ class TvExternalOpenProofTest {
     private fun isFocused(label: String) = compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes()
         .any { it.config.getOrNull(SemanticsProperties.Focused) == true }
 
-    /** Walks the D-pad down, then up, until [label] holds focus. */
     private fun focus(label: String) {
         repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_DOWN) }
         repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_UP) }
@@ -290,10 +279,6 @@ class TvExternalOpenProofTest {
         Thread.sleep(STEP_MILLIS)
     }
 
-    /**
-     * Copies the fixture adb pushed into the app's own files directory: a directory adb creates
-     * under `Android/data` is not readable to the app, and the app cannot read `/data/local/tmp`.
-     */
     private fun localSource(): PlaybackSource {
         val pushed = requireNotNull(arguments.getString("putio.tv.open.fixture"))
         val file = File(requireNotNull(context.getExternalFilesDir(null)), "tv-open-fixture.mp4")

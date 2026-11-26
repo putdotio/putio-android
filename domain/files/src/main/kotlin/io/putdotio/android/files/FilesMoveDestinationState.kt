@@ -7,21 +7,15 @@ public data class FilesMoveDestinationFolder internal constructor(
     val folder: FilesFolder,
     val content: FilesContent,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
-    /** Taken from a remembered path and not yet read; its first read checks its name and place. */
     internal val remembered: Boolean = false,
 )
 
-/**
- * A folder picker for [sourceItems], all listed in [sourceFolderId]; without source items it picks a
- * destination for new content, such as a transfer.
- */
 @ConsistentCopyVisibility
 public data class FilesMoveDestinationState internal constructor(
     val sourceItems: List<FilesItem>,
     val sourceFolderId: FilesItemId?,
     internal val stack: List<FilesMoveDestinationFolder>,
     internal val nextRequestValue: Long,
-    /** The picker opened at a remembered folder whose first read is pending; a failed read restarts at root. */
     internal val opensRememberedTarget: Boolean = false,
 ) {
     val current: FilesMoveDestinationFolder get() = stack.last()
@@ -45,7 +39,6 @@ public sealed interface FilesMoveDestinationEvent {
     public data object LoadNextPage : FilesMoveDestinationEvent
     public data object Retry : FilesMoveDestinationEvent
 
-    /** The picker's New folder made [folder] in the folder on screen; the picker lists it and opens it. */
     public data class FolderCreated(val folder: FilesItem) : FilesMoveDestinationEvent
 }
 
@@ -86,7 +79,6 @@ private fun FilesMoveDestinationState.reduceEvent(event: FilesMoveDestinationEve
         }
     }
 
-/** A remembered path's folders above the target are read only when Back reaches them. */
 private fun FilesMoveDestinationState.loadUnreadFolder(): FilesMoveDestinationTransition {
     if (current.content !is FilesContent.Loading) return FilesMoveDestinationTransition(this)
     val requestId = FilesRequestId(nextRequestValue)
@@ -109,7 +101,6 @@ private fun FilesMoveDestinationState.openDestination(itemId: FilesItemId): File
     )
 }
 
-/** A folder made a moment ago holds nothing, so it opens without a read. */
 private fun FilesMoveDestinationState.openCreatedFolder(folder: FilesItem): FilesMoveDestinationTransition {
     if (!acceptsCreatedFolder(folder)) return FilesMoveDestinationTransition(this, consumed = false)
     val items = listOf(folder) + current.content.items().filterNot { it.id == folder.id }
@@ -122,7 +113,6 @@ private fun FilesMoveDestinationState.openCreatedFolder(folder: FilesItem): File
     return FilesMoveDestinationTransition(copy(stack = stack.replaceLast(parent) + child))
 }
 
-/** A new folder of the listed folder on screen, not the item being moved and not already open. */
 private fun FilesMoveDestinationState.acceptsCreatedFolder(folder: FilesItem): Boolean {
     val listed = current.content is FilesContent.Ready || current.content is FilesContent.Empty
     val newChild = folder.isFolder && folder.id.value > 0L && folder.parentId == current.folder.id

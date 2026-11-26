@@ -132,10 +132,6 @@ private fun PlaybackException.errorCodeFailureOrNull(): PlaybackFailure? =
         else -> null
     }
 
-/**
- * The device has no decoder for the format, or cannot parse the container or manifest. A decoder
- * that fails to start is left out: another app can hold the hardware decoder, so a retry may work.
- */
 private val MEDIA_UNSUPPORTED_ERROR_CODES = setOf(
     PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
     PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,

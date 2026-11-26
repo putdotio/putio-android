@@ -40,7 +40,6 @@ private fun FilesBrowserState.copyStarted(event: FilesBrowserEvent.CopyStarted):
     }
 }
 
-/** A lost or unreadable answer, or a server fault, leaves open whether put.io accepted the copy. */
 private val PutioFailure.mayHaveStartedCopy: Boolean
     get() = this is PutioFailure.NetworkUnavailable || this is PutioFailure.Timeout ||
         this is PutioFailure.InvalidResponse || this is PutioFailure.ServerUnavailable ||
@@ -100,6 +99,5 @@ internal suspend fun FilesRepository.executeCopy(effect: FilesBrowserEffect.Copy
 
 internal fun FilesCopyOutcome?.hasRequest(requestId: FilesRequestId): Boolean = this?.requestId == requestId
 
-/** Web checks a running copy every 1.5 s; Android stops asking after about five minutes. */
 internal const val COPY_CHECK_INTERVAL_MILLIS = 1_500L
 internal const val MAX_COPY_CHECKS = 200

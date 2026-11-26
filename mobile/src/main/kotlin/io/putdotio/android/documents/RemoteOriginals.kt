@@ -8,11 +8,6 @@ import kotlinx.coroutines.runBlocking
 import okhttp3.Call
 import okhttp3.Response
 
-/**
- * A document's original bytes from put.io, through the request share-out exports with: the API's download endpoint,
- * the account download token in the header and never in the URL. Each open asks for the rest of the file from its
- * offset. A refused token fails the read and is reloaded on the next one; the session stays signed in.
- */
 internal class RemoteOriginals(
     private val http: Call.Factory,
     private val originals: OriginalDownloads,
@@ -32,7 +27,6 @@ internal class RemoteOriginals(
     }
 }
 
-/** The body from [offset]; a server that ignores the range sends the whole file, which is skipped to it. */
 private fun Response.bodyFrom(offset: Long): InputStream =
     try {
         when {
@@ -45,7 +39,6 @@ private fun Response.bodyFrom(offset: Long): InputStream =
         throw error
     }
 
-/** The first byte of a `Content-Range: bytes <start>-<end>/<total>` answer. */
 private fun Response.rangeStart(): Long? =
     header("Content-Range")?.removePrefix("bytes ")?.substringBefore('-')?.trim()?.toLongOrNull()
 

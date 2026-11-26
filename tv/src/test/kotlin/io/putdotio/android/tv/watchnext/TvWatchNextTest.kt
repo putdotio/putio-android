@@ -278,7 +278,6 @@ class TvWatchNextTest {
     )
 }
 
-/** The provider's rows for this app, with the `browsable` flag the launcher clears on removal. */
 private class FakeWatchNextStore : TvWatchNextStore {
     data class Row(
         val rowId: Long,

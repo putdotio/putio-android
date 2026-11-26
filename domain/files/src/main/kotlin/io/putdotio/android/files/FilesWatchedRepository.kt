@@ -11,15 +11,11 @@ import io.putdotio.sdk.errors.PutioException
 import io.putdotio.sdk.files.FilesWatchStatusInput
 import java.util.concurrent.CancellationException
 
-/** The account's saved position for a media file, which is what "watched" means on put.io. */
 public interface FilesWatchedRepository {
-    /** Saves [seconds] as the file's position; the file's duration marks it watched. */
     public suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit>
 
-    /** Drops the saved position, so the file reads as unwatched. */
     public suspend fun clearPosition(itemId: FilesItemId): PutioResult<Unit>
 
-    /** Drops saved positions for [itemIds] in one request, so they read as unwatched. */
     public suspend fun clearPositions(itemIds: List<FilesItemId>): PutioResult<Unit>
 }
 
@@ -42,10 +38,6 @@ public class SdkFilesWatchedRepository(
     }
 }
 
-/**
- * URLs another player can open. They carry the account's download token, never the session's
- * access token, and must never be logged or stored.
- */
 public fun interface FilesStreamUrls {
     public suspend fun originalStreamUrl(itemId: FilesItemId): FilesStreamUrlResult
 }
@@ -57,7 +49,6 @@ public sealed interface FilesStreamUrlResult {
         override fun toString(): String = "Ready(<redacted stream url>)"
     }
 
-    /** put.io returned no download token; the session's access token is never a substitute. */
     public data object DownloadTokenUnavailable : FilesStreamUrlResult
 
     public data class Failure(

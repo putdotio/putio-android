@@ -11,7 +11,6 @@ import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PlaybackSourceKind
 import java.net.HttpURLConnection
 
-/** Why a video plays converted instead of as its original. */
 public enum class PlaybackFallbackReason(
     public val code: String,
 ) {
@@ -26,10 +25,6 @@ public enum class PlaybackFallbackReason(
     CastReceiver("cast_receiver"),
 }
 
-/**
- * Whether the device plays these tracks: null when it does, or when there is no video track to
- * judge yet; otherwise why the original falls back.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 public fun directPlayVerdict(tracks: Tracks): PlaybackFallbackReason? {
     val video = tracks.groups.filter { it.type == C.TRACK_TYPE_VIDEO }
@@ -96,7 +91,6 @@ private fun PlaybackContent.Ready?.streamsOriginalVideo(target: PlaybackTarget, 
     this != null && (!offline || cast) && source.kind == PlaybackSourceKind.ORIGINAL &&
         target.mediaType == PlaybackMediaType.VIDEO
 
-/** Why an original that failed before its first frame falls back; null for a failure converted would share. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 public fun PlaybackException.originalRejection(): PlaybackFallbackReason? =
     when (errorCode) {

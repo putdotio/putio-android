@@ -63,11 +63,6 @@ internal const val OAUTH_TOKEN_QUERY = "oauth_token"
 private const val API_HOST = "api.put.io"
 private const val PUTIO_DOMAIN = ".put.io"
 
-/**
- * Process-wide Media3 download plumbing. Requests and the playlists a download stores hold token-free
- * URLs. The resolver adds the account download token when a put.io request has none: a header on the API
- * host, the query on media hosts, which refuse the header. Online streams keep the SDK's query token.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadCache private constructor(context: Context) {
     // Only the application context is retained; lint cannot see the caller passed it.
@@ -101,7 +96,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
     private val tokenGeneration = AtomicLong(0L)
     private val headlessParker = HeadlessDownloadParker()
 
-    /** The signed-in session's download token, replaced by the auth layer on sign-in and sign-out. */
     @Volatile
     var downloadToken: MediaDownloadToken? = null
         set(value) {
@@ -120,30 +114,18 @@ internal class MobileDownloadCache private constructor(context: Context) {
             }
         }
 
-    /** Runs before the token is cleared so in-flight transfers park instead of failing with 401. */
     @Volatile
     var onTokenClearing: (() -> Unit)? = null
 
-    /**
-     * Completes once the auth layer has decided whether a stored session exists. A
-     * background restart of the download service can open requests before that, so
-     * the resolver waits here instead of sending an unauthenticated request.
-     */
     val sessionSettled = CountDownLatch(1)
 
     fun markSessionSettled() = sessionSettled.countDown()
 
-    /** Network access for downloads and for the player's cache misses. */
     val upstreamFactory: DataSource.Factory = DataSource.Factory {
         val network = OkHttpDataSource.Factory(httpClient).createDataSource()
         RefusedTokenDataSource(ResolvingDataSource(network, ::authorize)) { downloadToken?.refuse(it) }
     }
 
-    /**
-     * The player reads completed downloads from the cache and streams everything
-     * else straight from the network: a null write sink keeps online playback from
-     * filling the no-eviction download directory.
-     */
     fun playbackFactory(
         userId: () -> Long = {
             resolvePlaybackUserId(
@@ -188,13 +170,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
         }
     }
 
-    /**
-     * Media3's DownloadService binds the first manager it sees for the whole
-     * process, so there is exactly one. Request ids are `userId:fileId`; each
-     * request gets a downloader writing under that user's cache keys, and the
-     * engine stops requests that belong to a user who is not signed in. Transfers
-     * wait for a network and for the system to stop reporting low storage.
-     */
     val downloadManager: DownloadManager
         get() = rawDownloadManager.also { manager ->
             if (!managerConfigured.get() && Looper.myLooper() == manager.applicationLooper) {
@@ -202,10 +177,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
             }
         }
 
-    /**
-     * Whether a completed download's bytes are still here. The request URL keys the HLS
-     * master playlist or the original file; a cleared cache directory loses both.
-     */
     fun holdsLocalCopy(download: Download): Boolean {
         val userId = download.request.ownerUserId() ?: return false
         return holds(userId, download.request.uri)
@@ -220,13 +191,11 @@ internal class MobileDownloadCache private constructor(context: Context) {
         return if (length > 0L) cache.isCached(key, 0L, length) else cache.getCachedSpans(key).isNotEmpty()
     }
 
-    /** Blocking index and cache read: whether this user's completed download still has its bytes. */
     fun hasLocalCopy(userId: Long, fileId: FilesItemId): Boolean =
         runCatching { downloadManager.downloadIndex.getDownload(downloadContentId(userId, fileId)) }.getOrNull()
             ?.takeIf { it.state == Download.STATE_COMPLETED }
             ?.let(::holdsLocalCopy) == true
 
-    /** Blocking index and cache read; see [DownloadIndex.offlineRequest]. Only subtitle files on disk are kept. */
     fun offlineRequest(userId: Long, fileId: FilesItemId): OfflineRequest? =
         downloadManager.downloadIndex.offlineRequest(userId, fileId)?.let { request ->
             val isOriginal = isOriginalDownloadUri(request.url.toUri())
@@ -304,7 +273,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
     }
 }
 
-/** Forgets a download token put.io answered 401 to, so the next attempt loads a fresh one. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class RefusedTokenDataSource(
     private val upstream: DataSource,
@@ -326,16 +294,11 @@ private fun DataSpec.sentToken(): AccountDownloadToken? =
 
 private const val HTTP_UNAUTHORIZED = 401
 
-/** Request ids are `userId:fileId`; the user prefix scopes every cached byte the request produces. */
 internal fun downloadContentId(userId: Long, fileId: FilesItemId): String = "$userId:${fileId.value}"
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun DownloadRequest.ownerUserId(): Long? = id.substringBefore(':', missingDelimiterValue = "").toLongOrNull()
 
-/**
- * The URL this user's download was requested with, and the subtitle files it asked for. The cache is keyed by the
- * URL, so offline playback replays it verbatim, including downloads made before [apiUrl] last changed.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun DownloadIndex.offlineRequest(userId: Long, fileId: FilesItemId): OfflineRequest? =
     getDownload(downloadContentId(userId, fileId))?.request?.let { request ->
@@ -414,7 +377,6 @@ internal fun resolvePlaybackUserId(
     return (authState() as? MobileAuthState.SignedIn)?.account?.userId ?: NO_DOWNLOAD_USER
 }
 
-/** The owning user, then the signed URL minus its token. The token is per-session noise. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class UserScopedCacheKeys(private val userId: () -> Long) : CacheKeyFactory {
     constructor(userId: Long) : this({ userId })

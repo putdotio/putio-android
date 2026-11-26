@@ -32,10 +32,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Host-driven TalkBack gestures via `scripts/talkback-input.py`;
- * private audio, with no accessibility connection or session service.
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileTalkBackSessionProofTest {

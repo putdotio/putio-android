@@ -10,7 +10,6 @@ import org.gradle.kotlin.dsl.getByType
 import org.gradle.kotlin.dsl.withType
 import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidExtension
 
-/** Android SDK levels shared by the application and every library module. */
 object PutioAndroidSdk {
     const val COMPILE = 37
     const val COMPILE_MINOR = 1
@@ -26,12 +25,6 @@ object PutioAndroidSdk {
     }
 }
 
-/**
- * Shared setup for the `core` and `domain` Android libraries: SDK levels, the
- * repository's lint and detekt gates, Kotlin explicit API mode, the Compose compiler, the JVM
- * test stack and the instrumentation runner. Each module still declares its namespace and its
- * own dependencies.
- */
 class PutioAndroidLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.library")

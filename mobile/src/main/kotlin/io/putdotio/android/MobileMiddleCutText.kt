@@ -8,7 +8,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import io.putdotio.android.design.PutioMiddleCutText
 
-/** [PutioMiddleCutText] with Material's text style and content colour. */
 @Composable
 internal fun MobileMiddleCutText(
     text: String,

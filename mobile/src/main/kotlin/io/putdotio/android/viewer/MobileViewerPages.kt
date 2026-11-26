@@ -74,10 +74,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 
-/**
- * The image, fitted to the frame over a checkerboard. Coil decodes it at the frame's size, never at
- * its own, so a 50-megapixel photo costs one screen of memory.
- */
 @Composable
 internal fun MobileImagePage(
     file: FilesItem,
@@ -158,7 +154,6 @@ private sealed interface PdfState {
     data object Failed : PdfState
 }
 
-/** The document's pages down one column at the frame's width, each rendered while it is on screen. */
 @Composable
 internal fun MobilePdfPage(
     file: FilesItem,
@@ -235,7 +230,6 @@ private sealed interface PageState {
     data object Failed : PageState
 }
 
-/** One page, A4-shaped until it renders; a page that won't render says so and offers another app. */
 @Composable
 private fun MobilePdfPageImage(
     document: FilesPdfDocument,
@@ -282,7 +276,6 @@ private sealed interface TextState {
     data object Failed : TextState
 }
 
-/** The file's start in mono, line by line; past [TEXT_PREVIEW_LIMIT_BYTES] it says so and offers another app. */
 @Composable
 internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
     val context = LocalContext.current

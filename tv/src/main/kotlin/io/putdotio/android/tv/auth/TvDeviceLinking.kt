@@ -10,18 +10,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * The device-code screen's attempts, driven through the SDK orchestrator one at a time
- * on [scope]. A replacement joins the previous collector first, and every event carries
- * the generation it belongs to, so an abandoned poll can neither repaint the screen nor
- * persist a token after the user asked for a new code.
- */
 internal class TvDeviceLinking(
     private val state: MutableStateFlow<TvAuthState>,
     private val sessionGateway: TvSessionGateway,
     private val tokens: TvSessionTokens,
     private val scope: CoroutineScope,
-    /** Persists a linked token; runs non-cancellable within the attempt that linked it. */
     private val onLinked: suspend (linked: DeviceCodeAuthState.Linked, sessionExpired: Boolean) -> Unit,
 ) {
     private var attempt: Job? = null
@@ -58,10 +51,6 @@ internal class TvDeviceLinking(
         }
     }
 
-    /**
-     * Forgets the session's token on the gateway and in storage, then offers a new code. A
-     * store that cannot be cleared stops on [TvLinkStop.StorageUnavailable] instead.
-     */
     suspend fun restart(sessionExpired: Boolean) = withContext(NonCancellable) {
         if (tokens.clear()) {
             start(sessionExpired)
@@ -77,7 +66,6 @@ internal class TvDeviceLinking(
         state.value = TvAuthState.Linking(TvLinkPhase.Stopped(reason, shownCode), sessionExpired)
     }
 
-    /** Cancels the running attempt, if any, and waits for its collector to finish. */
     suspend fun cancelAndJoin() {
         attempt?.cancelAndJoin()
     }

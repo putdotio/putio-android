@@ -55,13 +55,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * Playback replaces the signed-in shell rather than covering it, so no shell control can
- * take D-pad focus behind the video. The shell's saved state (destination, drawer) is kept
- * while it is away; on return the Files pane puts focus back on the row that was playing.
- * In the [background], the shell shows again while the player stays composed behind it,
- * drawing nothing and taking neither focus nor Back.
- */
 @Composable
 internal fun TvPlaybackLayer(
     playing: Boolean,
@@ -81,12 +74,6 @@ internal fun TvPlaybackLayer(
     }
 }
 
-/**
- * One session playback: the shared controller's state on the TV player screen. With
- * [autoplayNextVideo] a finished video moves on to the next one in its folder, by the rules
- * mobile uses, and playback leaves after the folder's last. With [findNextEpisode], the account's
- * next_episode, a playing video offers the next one as a chip.
- */
 @Composable
 internal fun TvPlaybackRoute(
     controller: PlaybackController,

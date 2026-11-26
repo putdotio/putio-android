@@ -482,7 +482,6 @@ class MobileDocumentsProviderTest {
         var closedStreams = 0
         var now = 0L
 
-        /** How the stand-in for put.io answers a ranged download. */
         var answer = Answer.PARTIAL
         var downloadTokenLoads = 0
         val rejected = mutableListOf<MobileAuthSessionId>()
@@ -550,7 +549,6 @@ class MobileDocumentsProviderTest {
 
         fun query(uri: Uri): Cursor? = context.contentResolver.query(uri, null, Bundle(), null)
 
-        /** DocumentsUI sends the search term as a query argument; the URI only names the root. */
         fun search(rootId: String, term: String): Cursor? =
             context.contentResolver.query(
                 DocumentsContract.buildSearchDocumentsUri(authority, rootId, term),
@@ -614,7 +612,6 @@ class MobileDocumentsProviderTest {
             return checkNotNull(continuations[cursor.value])
         }
 
-        /** Set to hold every single-file read until it is cancelled. */
         var resolveHangs = false
         var resolvesCancelled = 0
 

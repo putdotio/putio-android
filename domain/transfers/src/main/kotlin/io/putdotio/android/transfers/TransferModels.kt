@@ -77,20 +77,16 @@ public data class TransferItem(
     val uploadSpeedBytesPerSecond: Double?,
     val estimatedSecondsRemaining: Double?,
     val availability: Double?,
-    /** put.io's own failure reason, trimmed; null when the API sends none. */
     val errorMessage: String?,
     val createdAt: String,
     val userFileExists: Boolean?,
-    /** The folder put.io saves into; 0 is the root. Null when the API sends none. */
     val saveParentId: Long? = null,
-    /** The link the transfer started from, only when it is an HTTP(S) or magnet link. */
     val source: TransferSource? = null,
     val downloadedBytes: Double? = null,
     val currentRatio: Double? = null,
     val finishedAt: String? = null,
 )
 
-/** A transfer's source link; it can carry a tracker passkey or a signed URL, so it never prints. */
 @JvmInline
 public value class TransferSource(public val value: String) {
     override fun toString(): String = "TransferSource(<redacted>)"
@@ -132,7 +128,6 @@ public value class TransferSubmission private constructor(public val value: Stri
             return value.takeIf { valid }?.let(::TransferSubmission)
         }
 
-        /** Every whitespace-separated link, or null when any is invalid, none is given, or there are too many. */
         public fun parseAll(input: String): List<TransferSubmission>? {
             val links = input.split(LinkSeparator)
                 .filter(String::isNotEmpty)
@@ -143,12 +138,10 @@ public value class TransferSubmission private constructor(public val value: Stri
     }
 }
 
-/** put.io's `TRANSFER_MULTI_ADD_LIMIT` for one `/transfers/add-multi` call. */
 public const val MAX_TRANSFER_LINKS: Int = 100
 
 private val LinkSeparator = Regex("[\\s\\p{Z}\\u0085]+")
 
-/** A `.torrent` the user picked or shared; its bytes stay in memory and never reach logs. */
 public class TorrentUpload(public val fileName: String, public val content: ByteArray) {
     init {
         require(fileName.endsWith(TORRENT_EXTENSION, ignoreCase = true)) { "A torrent upload needs a .torrent name" }
@@ -161,7 +154,6 @@ public class TorrentUpload(public val fileName: String, public val content: Byte
     }
 }
 
-/** One confirmed submission, saved to [saveParentId] or, when null, the account's default download folder. */
 public sealed interface TransferAddRequest {
     public val saveParentId: Long?
 
@@ -184,7 +176,6 @@ public sealed interface TransferAddRequest {
     ) : TransferAddRequest
 }
 
-/** put.io adds each link on its own; [rejectedLinks] are the ones it refused. */
 public data class TransferAddOutcome(
     val added: List<TransferItem>,
     val rejectedLinks: List<String> = emptyList(),

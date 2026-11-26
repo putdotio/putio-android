@@ -190,7 +190,6 @@ internal fun MobileNavHost(
     continueWatching: ContinueWatching? = null,
     pinnedFiles: MobilePinnedFiles? = null,
     onNewFolder: (() -> Unit)? = null,
-    /** From 840dp, the Files bar over the list pane; Files then shows the selected file beside the list. */
     filesListPaneTopBar: (@Composable () -> Unit)? = null,
     linkedFile: FilesItemId? = null,
     onLinkedFileLanded: () -> Unit = {},
@@ -543,11 +542,6 @@ private fun NavHostController.openAccountPage(page: MobileAccountPage, besideLis
     }
 }
 
-/**
- * Files and the Search that opens over it. Search moves along the shared axis in [searchForward]'s
- * direction: forward when it opens or a result opens, back on Back. Folders move the same way
- * inside [MobileFilesRoute], and Back previews either pop on [backPreview].
- */
 @Composable
 private fun MobileFilesTab(
     routeAnimation: AnimatedVisibilityScope,
@@ -669,7 +663,6 @@ private fun PlaybackController.rejectOriginal(reason: PlaybackFallbackReason, po
 
 private val PlaybackFailure.rejectsSession: Boolean get() = putioFailure is PutioFailure.AuthenticationRequired
 
-/** [load] for the file on screen, or no Cast without it. */
 private fun castMediaFor(
     load: (suspend (PlaybackTarget, PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>)?,
     target: PlaybackTarget,
@@ -697,16 +690,11 @@ internal fun NavHostController.navigateTo(destination: MobileDestination) {
     }
 }
 
-/**
- * Shows [destination]'s own screen. Tab restoration can bring back a player saved above it, which
- * a link or an item opened from another screen must not show: they land as on a cold start.
- */
 internal fun NavHostController.showTab(destination: MobileDestination) {
     navigateTo(destination)
     popBackStack(destination.route, inclusive = false)
 }
 
-/** Trash lives under Account, so Back from it lands on Account wherever it was opened from. */
 internal fun NavHostController.navigateToTrash() {
     showTab(MobileDestination.Account)
     navigate(MOBILE_TRASH_ROUTE) { launchSingleTop = true }
@@ -751,7 +739,6 @@ private fun NavHostController.navigatePlayback(route: String, replaceCurrentPlay
     }
 }
 
-/** Each video the player resolves, autoplay's next ones included, can join Continue watching. */
 @Composable
 private fun RecordOpenedVideos(controller: PlaybackController, continueWatching: ContinueWatching) {
     LaunchedEffect(controller, continueWatching) {

@@ -16,7 +16,6 @@ import java.io.Closeable
 import java.util.UUID
 import io.putdotio.android.PutioFailure
 
-/** All access belongs to the application's main thread, including the final authorization check. */
 @MainThread
 public class PlaybackPositionWriter(
     private val scope: CoroutineScope,
@@ -43,23 +42,10 @@ public class PlaybackPositionWriter(
         return token
     }
 
-    /**
-     * Runs [block] between this writer's requests, for another writer of the same positions: no
-     * request starts until the one before has finished, so put.io applies them in the order sent.
-     */
     public suspend fun <T> exclusive(block: suspend () -> T): T = requests.withLock { block() }
 
-    /**
-     * Runs [block], another write of [fileId]'s position, as the last word on it: positions this
-     * writer took for the file before the call are dropped unless already sent, and one already
-     * sent finishes before [block] starts.
-     */
     public suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T = supersede(listOf(fileId), block)
 
-    /**
-     * Runs [block], another write for [fileIds], after invalidating all pending leases for those
-     * files atomically and waiting for any in-flight write to finish.
-     */
     public suspend fun <T> supersede(fileIds: Iterable<Long>, block: suspend () -> T): T {
         val targets = fileIds.toSet()
         if (targets.isNotEmpty()) {
@@ -83,7 +69,6 @@ public class PlaybackPositionWriter(
         drain()
     }
 
-    /** Discards revoked work; this is deliberately different from a player's trailing flush. */
     public fun reconcile() {
         leases.values.filterNot { it.authorized() }.forEach { it.delivery = Delivery.Unsent }
         if (pending?.allowed() == false) pending = null

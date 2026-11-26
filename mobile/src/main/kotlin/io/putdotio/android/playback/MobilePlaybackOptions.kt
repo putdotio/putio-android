@@ -34,7 +34,6 @@ internal fun RetainedPlayerPreferences.adoptPlaybackOptions(player: Media3Player
     audioSelection = identity?.let { AudioSelection.Track(it) } ?: AudioSelection.Automatic
 }
 
-/** A choice row: its label, and a yellow check while it is the current one. */
 @Composable
 internal fun PlaybackOption(
     label: AnnotatedString,

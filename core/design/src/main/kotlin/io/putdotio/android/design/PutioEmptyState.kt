@@ -21,11 +21,6 @@ private val HEADLINE_GAP = 8.dp
 private val ACTION_GAP = 24.dp
 private val MESSAGE_WIDTH = 300.dp
 
-/**
- * The put.io empty-state voice: a mono glyph, a one-line headline, one sentence and at most one
- * action, with no artwork. The glyph is decoration, so screen readers hear the headline first.
- * A state the table has no glyph for passes none. The caller owns size, scrolling and padding.
- */
 @Composable
 public fun PutioEmptyState(
     glyph: PutioEmptyGlyph?,
@@ -37,7 +32,6 @@ public fun PutioEmptyState(
     PutioEmptyState(glyph, headline, AnnotatedString(message), modifier, action)
 }
 
-/** The same state with a message that styles part of itself, such as the search term it names. */
 @Composable
 public fun PutioEmptyState(
     glyph: PutioEmptyGlyph?,

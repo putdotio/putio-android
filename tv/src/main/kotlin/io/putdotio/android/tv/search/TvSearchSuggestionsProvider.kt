@@ -29,14 +29,6 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
-/**
- * put.io as an Android TV global search source. The system's search app queries this provider
- * as the viewer types (`searchable.xml`); each query runs [TvGlobalSearch]. A chosen file row
- * opens `putio://files/<id>~<key>` in [io.putdotio.android.MainActivity], and the first row,
- * "Search put.io for …", opens `putio://search/<key>?q=<term>`. Only callers holding
- * `GLOBAL_SEARCH` (the system search app) may use it, so other apps never see file names or the
- * [TvLinkKey] that lets a link open a file.
- */
 internal class TvSearchSuggestionsProvider internal constructor(
     private val globalSearch: (Context?) -> TvGlobalSearch?,
 ) : ContentProvider() {
@@ -85,18 +77,10 @@ internal class TvSearchSuggestionsProvider internal constructor(
 
 internal data class TvGlobalSearchResult(val term: SearchTerm, val items: List<FilesItem>)
 
-/**
- * A system search query: the first page of the account's file search, run in the signed-in
- * session. Null for a blank query, no session, a 401 or a session that ended while it ran; no
- * items for another failed or slow search. Nobody watches this process, so a 401 goes to [reject], which
- * ends the session without requesting a code.
- */
 internal class TvGlobalSearch(
-    /** The signed-in session, restored without a screen when the app has not; null for none. */
     private val session: suspend () -> TvAuthState.SignedIn?,
     private val search: suspend (SearchTerm) -> PutioResult<SearchPage>,
     private val reject: suspend (TvAuthSessionId) -> Unit,
-    /** Whether the session is still the signed-in one. */
     private val isCurrent: (TvAuthSessionId) -> Boolean,
 ) {
     suspend fun files(query: String?): TvGlobalSearchResult? {
@@ -118,7 +102,6 @@ internal class TvGlobalSearch(
     }
 }
 
-/** System search in [controller]'s session; a 401 ends it quietly, with no code polled unseen. */
 internal fun tvGlobalSearch(
     controller: TvAuthController,
     session: suspend () -> TvAuthState.SignedIn?,
@@ -133,11 +116,6 @@ internal fun tvGlobalSearch(
 
 internal data class TvSearchRow(val term: SearchTerm, val label: String)
 
-/**
- * The rows the system search shows. First [searchRow], whose intent data is the keyed
- * `putio://search/<key>?q=<term>`. Then each file: its name, its kind, put.io's still or else
- * [fallbackArt], and a duration for media; the intent data id completes `putio://files/<id>~<key>`.
- */
 internal fun tvSearchSuggestions(
     searchRow: TvSearchRow?,
     items: List<FilesItem>,

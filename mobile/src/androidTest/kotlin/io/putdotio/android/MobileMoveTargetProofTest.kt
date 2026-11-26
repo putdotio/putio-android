@@ -69,10 +69,6 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.hasTestTag
 import io.putdotio.android.files.MOBILE_FILES_MOVE_OPTIONS_TAG
 
-/**
- * Synthetic proof of "Remember target folder" through the production Files route, controller,
- * move picker and on-device store over a faked repository; no API calls.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileMoveTargetProofTest {
     private val compose = createComposeRule()
@@ -221,7 +217,6 @@ class MobileMoveTargetProofTest {
         saveProofScreenshot(proofDirectory("move-target-proof-$runId"), label)
     }
 
-    /** Remember target folder sits in the picker's overflow; opens it first when it is closed. */
     private fun rememberTarget(): SemanticsNodeInteraction {
         if (compose.onAllNodes(hasTestTag(MOBILE_FILES_MOVE_REMEMBER_TAG)).fetchSemanticsNodes().isEmpty()) {
             compose.onNodeWithTag(MOBILE_FILES_MOVE_OPTIONS_TAG).performClick()
@@ -296,7 +291,6 @@ private class MoveTargetRepository : FilesRepository {
 private const val DIALOG_EXIT_MILLIS = 1_000L
 private const val INTO_ITSELF = "A folder can’t be moved into itself or a folder inside it."
 
-/** put.io's answer to moving a folder into a folder inside it. */
 private fun intoItselfRefusal(): PutioApiException {
     val message = "You don't have the permission to access the requested resource. " +
         "It is either read-protected or not readable by the server."

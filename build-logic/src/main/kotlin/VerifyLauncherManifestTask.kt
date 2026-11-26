@@ -12,17 +12,14 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.w3c.dom.Element
 
-/** Fails unless the merged manifest lists [activity] for each launcher's `ACTION_MAIN` query. */
 abstract class VerifyLauncherManifestTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val mergedManifest: RegularFileProperty
 
-    /** Fully qualified activity class name as written in the merged manifest. */
     @get:Input
     abstract val activity: Property<String>
 
-    /** Categories a launcher pairs with `android.intent.action.MAIN`, e.g. `LEANBACK_LAUNCHER`. */
     @get:Input
     abstract val launcherCategories: ListProperty<String>
 
@@ -51,7 +48,6 @@ internal fun requireLauncherEntries(manifest: File, activity: String, categories
     }
 }
 
-/** The merged manifest's `<activity>` elements named [activity], fully qualified. */
 internal fun manifestActivities(manifest: File, activity: String): List<Element> {
     val factory = DocumentBuilderFactory.newInstance().apply {
         isNamespaceAware = true

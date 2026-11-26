@@ -51,17 +51,12 @@ internal fun MobileFilesRoute(
     pinned: List<FilesItem> = emptyList(),
     onRefreshPinned: (() -> Unit)? = null,
     onNewFolder: (() -> Unit)? = null,
-    /** From 840dp, the Files bar; it then sits over the list pane, beside the selected file's detail. */
     listPaneTopBar: (@Composable () -> Unit)? = null,
-    /** Reaches files for the viewers and other apps; null leaves only media playable. */
     fileOpener: MobileFileOpener? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
-    /** The account's confirmed resume setting, which the detail's Resume label follows. */
     resumePlayback: Boolean = true,
     itemActions: MobileFilesItemActions = MobileFilesItemActions(),
-    /** Lets the Move and Make a copy pickers create a folder; null hides their New folder. */
     folderCreator: FilesFolderCreator? = null,
-    /** The current folder's selection, shared with the shell's top bar; null leaves Select out. */
     selection: FilesSelection? = null,
     linkedFile: FilesItemId? = null,
     onLinkedFileLanded: () -> Unit = {},
@@ -219,7 +214,6 @@ private fun LandOnLinkedFile(
     LaunchedEffect(linkedItem?.id) { linkedItem?.let(currentLand) }
 }
 
-/** Media plays, images, PDFs and text open in the viewer, and anything else in another app. */
 private fun fileOpenAction(
     onPlayMedia: (FilesItem) -> Unit,
     onView: (FilesItem) -> Unit,
@@ -243,7 +237,6 @@ private fun MobileFilesItemActions.opening(
     else -> copy(onOpen = view, onOpenWith = openWith)
 }
 
-/** The viewer over the folder's files of the shown file's kind, while that file is still listed. */
 @Composable
 private fun MobileFilesViewerHost(
     state: FilesBrowserState,
@@ -279,7 +272,6 @@ private fun MobileFilesViewerHost(
     }
 }
 
-/** Everything the folder listings take; one value, so the movable listing gets it as its parameter. */
 private data class MobileFilesFoldersArgs(
     val state: FilesBrowserState,
     val currentKey: Pair<Int, Long>,
@@ -457,23 +449,17 @@ private fun MobileFilesFolder(
     }
 }
 
-/** Opens the Move picker for one item or several, while this folder can start a move. */
 private fun movePicker(
     repository: FilesRepository?,
     state: FilesBrowserState,
     open: (List<FilesItem>) -> Unit,
 ): ((List<FilesItem>) -> Unit)? = open.takeIf { repository != null && state.canStartMove }
 
-/** Every item of [ids] in the current listing, or null: the picker never moves fewer than it says. */
 private fun FilesBrowserState.listedAll(ids: List<Long>): List<FilesItem>? {
     val listed = (current.content as? FilesContent.Ready)?.items.orEmpty().filter { it.id.value in ids }
     return listed.takeIf { it.isNotEmpty() && it.size == ids.size }
 }
 
-/**
- * The move picker without a source item, so every folder of the viewer's own, root included, is a
- * destination. Like Move, it opens at root unless "Remember target folder" is on.
- */
 @Composable
 private fun MobileFilesCopySession(
     item: FilesItem,
@@ -589,7 +575,6 @@ private fun MobileFilesMoveSession(
 private val FilesMoveDestinationState.confirmable: Boolean
     get() = canMoveHere && current.content.authoritativeSessionFailure() == null
 
-/** Read once per picker, so a toggle changes where the next picker opens, as on web. */
 @Composable
 private fun rememberMoveTargetMemory(
     store: FilesMoveTargetStore?,
@@ -610,7 +595,6 @@ private fun MutableState<FilesMoveTargetMemory>.choose(store: FilesMoveTargetSto
     }
 }
 
-/** Folders made in an open picker; their parents' listings go stale once it closes. */
 private class PickerCreatedFolders {
     private val folders = mutableListOf<FilesItem>()
 

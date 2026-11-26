@@ -8,13 +8,6 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
 
-/**
- * Starts a drag out of a row: with a mouse or touchpad as soon as the pressed pointer moves, with
- * touch or a stylus only when it moves after a long press, as Android's drag-and-drop guidance asks.
- * It only watches the pointer, so taps, the long-press sheet and scrolling work as before: a touch
- * that moves before the long press is a scroll and never drags. The gesture is set up once, so
- * [onDragStart] must read anything that changes through state.
- */
 internal fun Modifier.mobileFileDragSource(enabled: Boolean, onDragStart: () -> Unit): Modifier =
     if (!enabled) {
         this

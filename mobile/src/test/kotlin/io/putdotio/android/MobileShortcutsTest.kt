@@ -15,7 +15,6 @@ import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 import org.xmlpull.v1.XmlPullParser
 
-/** The launcher's static shortcuts, read with the platform's own intent parser, as the shortcut service does. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileShortcutsTest {
@@ -56,7 +55,6 @@ class MobileShortcutsTest {
         }
     }
 
-    /** Shortcut id to the intent the platform builds from `res/xml/shortcuts.xml`. */
     private fun shortcutIntents(): Map<String, Intent> {
         val parser = context.resources.getXml(R.xml.shortcuts)
         val attributes = Xml.asAttributeSet(parser)

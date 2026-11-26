@@ -24,7 +24,6 @@ internal fun ComposeContentTestRule.awaitText(text: String, substring: Boolean =
         onAllNodesWithText(text, substring = substring, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
     }
 
-/** [content] in the app's Compose for TV theme. */
 internal fun ComposeContentTestRule.setTvContent(content: @Composable () -> Unit) {
     setContent {
         CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined) {
@@ -33,7 +32,6 @@ internal fun ComposeContentTestRule.setTvContent(content: @Composable () -> Unit
     }
 }
 
-/** A D-pad Center tap with no hold between down and up. */
 @OptIn(ExperimentalTestApi::class)
 internal fun KeyInjectionScope.pressCenter() {
     keyDown(Key.DirectionCenter)

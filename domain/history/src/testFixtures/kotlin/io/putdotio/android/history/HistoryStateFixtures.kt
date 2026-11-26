@@ -1,6 +1,5 @@
 package io.putdotio.android.history
 
-/** A History state as the reducer would hold it, for tests outside this module. */
 public fun historyState(
     content: HistoryContent,
     clearing: HistoryClearing = HistoryClearing.Idle,

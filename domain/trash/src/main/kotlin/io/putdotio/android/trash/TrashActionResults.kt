@@ -25,7 +25,6 @@ internal fun TrashMachine.completeAction(
     return if (submission == TrashActionSubmission.REJECTED) next else next.startActionCheck() ?: next
 }
 
-/** Applied after an initial page that verifies a pending action has been accepted into state. */
 internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): TrashMachine {
     val outcome = state.actionOutcome?.takeIf { it.check == TrashActionCheck.CHECKING } ?: return this
     val check = outcome.verify(page)

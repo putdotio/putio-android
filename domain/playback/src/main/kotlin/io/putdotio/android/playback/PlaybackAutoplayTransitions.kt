@@ -25,7 +25,6 @@ internal fun PlaybackState.nextChosen(event: PlaybackEvent.NextChosen): Playback
     }
 }
 
-/** What the folder's next video means for this state: found, chosen, none, or a failed lookup. */
 internal fun PlaybackState.nextVideo(event: PlaybackEvent): PlaybackTransition =
     when (event) {
         is PlaybackEvent.NextChosen -> nextChosen(event)

@@ -17,7 +17,6 @@ internal inline fun <reified I : FilesFolderOperationIntent> FilesBrowserState.r
     loading?.requestId == requestId && loading.phase == phase && loading.intent is I
 }
 
-/** The intent of type [I] still owning this operation, whether loading or failed. */
 public inline fun <reified I : FilesFolderOperationIntent> FilesFolderOperation.pendingIntent(): I? = when (this) {
     is FilesFolderOperation.Loading -> intent as? I
     is FilesFolderOperation.Failed -> intent as? I
@@ -143,7 +142,6 @@ private fun effectFor(
         }
     }
 
-/** Each of [itemIds], once, as the listing has it; null unless every one is listed and real. */
 internal fun FilesContent.listedItems(itemIds: List<FilesItemId>): List<FilesItem>? {
     val listed = items().filter { it.id.value > 0L }.associateBy { it.id }
     val found = itemIds.mapNotNull(listed::get)

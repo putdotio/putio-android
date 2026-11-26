@@ -3,7 +3,6 @@ package io.putdotio.android.auth
 import kotlinx.coroutines.CompletableDeferred
 import java.util.ArrayDeque
 
-/** For fixtures that never sign out. */
 public object NoTokenRevocations : TokenRevocations {
     override suspend fun revoke(accessToken: AccessToken): Unit = Unit
 
@@ -43,10 +42,6 @@ public class InMemoryAuthTokenStore(
     }
 }
 
-/**
- * Answers with [results] in order, then with the last one; records each revoked token value.
- * A set [gate] holds the next answer, as a request still in flight, until it completes.
- */
 public class ScriptedTokenRevoker(
     vararg results: TokenRevocationResult,
 ) : AuthTokenRevoker {

@@ -90,12 +90,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The production Downloads screen, controller, engine and notifications over a real Media3
- * manager reading generated local files, so no API call, account or session is involved. Five
- * files queue at a limit of 2, wait while the system reports low storage, and the third fails
- * for storage until it is retried.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
 class MobileDownloadsQueueProofTest {
@@ -302,7 +296,6 @@ class MobileDownloadsQueueProofTest {
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
     }
 
-    /** Local bytes at a steady rate; the failing file reports a full disk until it is retried. */
     private inner class ProofSource : DataSource {
         private val file = FileDataSource()
 

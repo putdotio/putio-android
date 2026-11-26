@@ -87,7 +87,6 @@ import org.junit.Test
 import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 
-/** Actual shell/chrome with controlled content; no auth runtime, API calls or media-session service. */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileShellAccessibilityProofTest {
@@ -382,7 +381,6 @@ class MobileShellAccessibilityProofTest {
         capture("settings-bottom")
     }
 
-    /** The app picks the bar, the rail or the menu drawer from the window and its labels; the proof follows it. */
     private fun shownNavigation(): MobileNavigationLayout {
         val shown = NAVIGATION_TAGS.filterValues { tag ->
             compose.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty()

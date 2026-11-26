@@ -12,11 +12,6 @@ import org.gradle.kotlin.dsl.register
 internal const val OKHTTP_CLIENT_PATTERN: String =
     """\bOkHttpClient\s*(?:\(|\.\s*Builder\b)|\bokhttp3\.OkHttpClient\.Builder\b|::\s*OkHttpClient\b|\bOkHttpClient\s*::\s*Builder\b|\bimport\s+okhttp3\.OkHttpClient(?:\.\*|\s+as\b)"""
 
-/**
- * Root build conventions: verification tasks (`verify`, `verifyDocs`, `verifyScripts`,
- * `verifyLibraries`, `verifyMobile`, `verifyTv`, `verifyRelease`), design/icon sync tasks, and
- * repository lint gates.
- */
 class PutioRootPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         require(target == target.rootProject) { "putio.root must be applied to the root project" }

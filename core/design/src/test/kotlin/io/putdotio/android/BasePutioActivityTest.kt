@@ -83,7 +83,6 @@ class BasePutioActivityTest {
         assertNotEquals(linear, with(launched.density) { 40.sp.toPx() }, 0.01f)
     }
 
-    /** The activity's font scale, after checking Compose renders at the same one. */
     private fun fontScaleAt(system: Float): Float {
         val launched = launchAt(system)
         assertEquals(launched.fontScale, launched.density.fontScale)

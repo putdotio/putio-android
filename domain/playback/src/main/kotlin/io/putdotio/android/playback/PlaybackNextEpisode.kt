@@ -5,10 +5,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import io.putdotio.android.PutioFailure
 
-/**
- * With the account's next_episode on, a playing video asks autoplay's folder walk for the one after
- * it, once. A failed walk offers none; a rejected session still ends.
- */
 @Composable
 public fun rememberNextEpisode(
     state: PlaybackState,

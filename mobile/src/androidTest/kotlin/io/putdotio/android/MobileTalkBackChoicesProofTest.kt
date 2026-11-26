@@ -25,10 +25,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Observes actual UI callbacks while the host drives TalkBack via `scripts/talkback-input.py`
- * without a second accessibility service.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileTalkBackChoicesProofTest {
     @get:Rule val optIn = accessibilityProofOptIn()

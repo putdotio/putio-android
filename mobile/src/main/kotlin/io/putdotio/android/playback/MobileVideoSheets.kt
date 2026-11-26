@@ -27,7 +27,6 @@ import io.putdotio.sdk.files.PlaybackSubtitles
 internal val MobileVideoSheet.isSubtitles: Boolean
     get() = this == MobileVideoSheet.Subtitles || this == MobileVideoSheet.SubtitleAppearance
 
-/** The video's option chips; hide_subtitles hides subtitles entirely, as every reference player does. */
 @Composable
 internal fun MobileVideoChips(
     options: PlayerOptionsSnapshot,
@@ -54,7 +53,6 @@ internal fun MobileVideoChips(
     }
 }
 
-/** Next episode, when the account's next-episode setting found one. */
 @Composable
 internal fun MobileNextEpisodeChip(nextEpisode: PlaybackTarget?, onNextEpisode: () -> Unit, modifier: Modifier) {
     if (nextEpisode == null) return
@@ -67,7 +65,6 @@ internal fun MobileNextEpisodeChip(nextEpisode: PlaybackTarget?, onNextEpisode: 
     )
 }
 
-/** Picture-in-picture, where the host and the device have the window. */
 @Composable
 internal fun MobilePictureInPictureButton(enter: (() -> Unit)?, modifier: Modifier) {
     if (enter == null) return
@@ -79,10 +76,6 @@ internal fun MobilePictureInPictureButton(enter: (() -> Unit)?, modifier: Modifi
     )
 }
 
-/**
- * The player's keys with no sheet open. With one open the keys move through it, and leaving
- * closes the sheet, not the player.
- */
 internal fun videoKeyCommand(
     event: KeyEvent,
     sheet: MobileVideoSheet?,
@@ -96,7 +89,6 @@ internal fun videoKeyCommand(
         else -> false
     }
 
-/** Where Back goes from a sheet: Size and timing returns to Subtitles, the rest close. */
 internal fun MobileVideoSheet?.parentSheet(): MobileVideoSheet? =
     if (this == MobileVideoSheet.SubtitleAppearance) MobileVideoSheet.Subtitles else null
 

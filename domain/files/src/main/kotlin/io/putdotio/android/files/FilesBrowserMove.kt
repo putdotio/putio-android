@@ -104,10 +104,6 @@ private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked):
 public val FilesFolderOperation.pendingMove: FilesFolderOperationIntent.Move?
     get() = pendingIntent()
 
-/**
- * A page that lists a moved item again: the move left it here, whatever the check said. A refused
- * move keeps its status and counts the item too.
- */
 internal fun FilesMoveOutcome.afterFolderPage(page: FilesPage): FilesMoveOutcome {
     val listed = page.items.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf { it in intent.itemIds } }
     return when {

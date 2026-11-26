@@ -7,7 +7,6 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-/** One JSON document per user in private SharedPreferences; sign-out clears every user's. */
 internal class MobileMoveTargetStore internal constructor(
     private val preferences: SharedPreferences,
     private val key: String,

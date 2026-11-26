@@ -12,7 +12,6 @@ abstract class VerifyInstrumentationProofTask : DefaultTask() {
     @get:InputDirectory
     abstract val resultsDirectory: DirectoryProperty
 
-    /** Fully qualified `Class#method` whose passing XML result is the proof. */
     @get:Input
     abstract val requiredTest: Property<String>
 

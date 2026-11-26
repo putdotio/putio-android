@@ -54,7 +54,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 
-/** Hardware keys through the real input stages, on the production shell over a fixed Files listing. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileKeyboardShortcutsTest {
@@ -93,7 +92,6 @@ class MobileKeyboardShortcutsTest {
         compose.runOnIdle { assertEquals(2, events.size) }
     }
 
-    /** Below API 28 the listener rides androidx's KeyEventDispatcher, which ComponentActivity routes keys through. */
     @Test
     @Config(sdk = [26])
     fun onApi26F5RefreshesAndEscapeStaysInTheApp() {
@@ -251,7 +249,6 @@ class MobileKeyboardShortcutsTest {
         compose.waitForIdle()
     }
 
-    /** A navigation key leaves touch mode, as on a device; then the row takes focus as arrows would give it. */
     private fun focusRow(name: String) {
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_TAB)
         compose.onNode(hasText(name) and hasAnyAncestor(hasTestTag(FILES_LIST))).requestFocus().assertIsFocused()

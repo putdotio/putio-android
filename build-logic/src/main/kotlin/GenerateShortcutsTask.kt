@@ -11,11 +11,6 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
-/**
- * Writes `xml/shortcuts.xml` from a template with each `${applicationId}` replaced. The platform
- * reads a static shortcut's `android:targetPackage` literally, without resolving resource
- * references, and every channel and build type installs under its own application id.
- */
 @CacheableTask
 abstract class GenerateShortcutsTask : DefaultTask() {
     @get:InputFile
@@ -25,7 +20,6 @@ abstract class GenerateShortcutsTask : DefaultTask() {
     @get:Input
     abstract val applicationId: Property<String>
 
-    /** An Android resource directory. */
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
 

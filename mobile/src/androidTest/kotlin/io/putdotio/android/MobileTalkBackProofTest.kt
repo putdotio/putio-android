@@ -36,10 +36,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Host-driven real TalkBack proof via `scripts/talkback-input.py`;
- * observes callbacks and player state without an accessibility connection.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileTalkBackProofTest {
     @get:Rule val optIn = accessibilityProofOptIn()

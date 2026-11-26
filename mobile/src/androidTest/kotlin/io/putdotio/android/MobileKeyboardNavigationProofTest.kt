@@ -45,7 +45,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 
-/** Normal-font keyboard proof in the real shell, without an account runtime or API calls. */
 @RunWith(AndroidJUnit4::class)
 class MobileKeyboardNavigationProofTest {
     private val compose = createComposeRule()

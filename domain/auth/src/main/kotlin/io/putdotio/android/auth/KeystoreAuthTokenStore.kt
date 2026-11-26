@@ -53,11 +53,6 @@ public class KeystoreAuthTokenStore internal constructor(
         ioDispatcher = Dispatchers.IO,
     )
 
-    /**
-     * A record that can never decrypt (missing key, failed GCM tag, malformed
-     * ciphertext or plaintext) is wiped with its key and read as absent, so the
-     * next sign-in starts clean. Anything else may be transient and throws.
-     */
     override suspend fun read(): AccessToken? = withContext(ioDispatcher) {
         try {
             storageOperation(AUTH_STORAGE_READ_OPERATION) {
@@ -117,10 +112,6 @@ public class KeystoreAuthTokenStore internal constructor(
     }
 
     public companion object {
-        /**
-         * Signed-out tokens whose revocation put.io has not confirmed yet, one per slot. Each
-         * has its own record and Keystore key, so clearing the session never drops one.
-         */
         public fun pendingRevocations(context: Context): List<KeystoreAuthTokenStore> =
             (0 until PENDING_REVOCATION_SLOTS).map { slot ->
                 KeystoreAuthTokenStore(

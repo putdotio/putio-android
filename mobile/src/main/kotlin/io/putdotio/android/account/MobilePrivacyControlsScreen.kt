@@ -154,7 +154,6 @@ internal fun MobilePrivacyControlsScreen(
     }
 }
 
-/** A two-line privacy row: the glyph and the trailing control sit on the title's line. */
 @Composable
 private fun PrivacyLine(
     @StringRes title: Int,

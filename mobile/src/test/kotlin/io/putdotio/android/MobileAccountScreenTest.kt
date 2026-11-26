@@ -1054,7 +1054,6 @@ private class AccountScreenOptions(
     val sessionId: () -> MobileAuthSessionId = { SessionOne },
 )
 
-/** Account's ways out to its subpages, and what Library and the sign-out confirm read from outside. */
 private class AccountPages(
     val onPrivacyControls: () -> Unit = {},
     val onAppInfo: () -> Unit = {},

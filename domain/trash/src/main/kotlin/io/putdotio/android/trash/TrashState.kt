@@ -42,7 +42,6 @@ public sealed interface TrashSelectionAction : TrashAction {
 
 public enum class TrashActionSubmission { SUBMITTING, ACKNOWLEDGED, UNCERTAIN, REJECTED }
 
-/** Verification is one authoritative Trash reload; INCONCLUSIVE keeps read-only recovery open. */
 public enum class TrashActionCheck { NOT_CHECKED, CHECKING, VERIFIED, INCONCLUSIVE, FAILED }
 
 public data class TrashActionOutcome(
@@ -145,7 +144,6 @@ internal sealed interface TrashRequest {
     data class Act(override val id: Long, val action: TrashAction, val selection: TrashBulkSelection?) : TrashRequest
 }
 
-/** Restore all targets the listed snapshot: its cursor when the server issued one, else the loaded IDs. */
 public data class TrashBulkSelection(val cursor: FilesCursor?, val itemIds: List<FilesItemId>) {
     init {
         require(cursor != null || itemIds.isNotEmpty()) { "Bulk selection needs a cursor or item IDs" }

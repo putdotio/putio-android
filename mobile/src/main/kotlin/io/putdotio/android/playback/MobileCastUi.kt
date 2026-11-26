@@ -84,10 +84,6 @@ internal const val MOBILE_CAST_STOP_TAG = "mobile-cast-stop"
 internal const val MOBILE_CAST_LABEL_TAG = "mobile-cast-label"
 internal const val MOBILE_CAST_RETRY_TAG = "mobile-cast-retry"
 
-/**
- * Cast in a player's top bar, once a receiver is in reach; yellow while casting. Where Android needs
- * the local network allowed first, the tap runs [onAskLocalNetwork] ([rememberLocalNetworkRequest]).
- */
 @Composable
 internal fun MobileCastButton(
     availability: CastAvailability,
@@ -136,12 +132,6 @@ internal fun rememberLocalNetworkRequest(onAnswer: () -> Unit, onGranted: () -> 
     }
 }
 
-/**
- * "Cast to": the receivers in reach, each with its kind's glyph, its name and its model or "Audio
- * only". The one playing carries a check, and Stop casting ends the session. The sheet lives in the
- * player's own window, as its side sheets do, so an immersive video keeps its system bars hidden;
- * Back or a tap on the dimmed player closes it.
- */
 @Composable
 internal fun MobileCastPicker(gateway: CastGateway, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     LifecycleStartEffect(gateway) {
@@ -258,7 +248,6 @@ private fun MobileCastSearchingRow() {
     }
 }
 
-/** A 64dp row: the glyph in the secondary text colour, the name over its supporting line. */
 @Composable
 private fun MobileCastActionRow(
     @DrawableRes icon: Int,
@@ -313,10 +302,6 @@ private fun MobileCastActionRow(
     }
 }
 
-/**
- * Over the casting video's dark frame, just above the transport: the cast glyph and "Playing on
- * Living room TV", or why the receiver can't play it, with Try again when [onRetry] can fix that.
- */
 @Composable
 internal fun MobileCastFrameLabel(text: String, onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
     Box(modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
@@ -348,7 +333,6 @@ internal fun MobileCastFrameLabel(text: String, onRetry: (() -> Unit)?, modifier
     }
 }
 
-/** Sends the file to the receiver again after its lookup failed. */
 @Composable
 internal fun MobileCastRetry(onRetry: () -> Unit, modifier: Modifier = Modifier) {
     TextButton(
@@ -393,5 +377,4 @@ private val CAST_PICKER_MAX_WIDTH = 560.dp
 private const val CAST_PICKER_SCRIM_ALPHA = 0.55f
 private val CAST_ROW_HEIGHT = 64.dp
 
-/** Half the transport's 80dp, then room for the line itself over it. */
 private val CAST_LABEL_LIFT = 72.dp

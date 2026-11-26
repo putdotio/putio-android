@@ -8,7 +8,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Expected values come from DESIGN.md's typography front matter and its Typography section. */
 class PutioTypographyTest {
     @Test
     fun materialSlotsStockComponentsReadCarryTheContract() {

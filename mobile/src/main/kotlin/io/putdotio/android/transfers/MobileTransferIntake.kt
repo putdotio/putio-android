@@ -100,7 +100,6 @@ internal fun MobileTransferDestinationRow(
     }
 }
 
-/** Material's text button pads its label by 12dp on each side. */
 private val TEXT_BUTTON_INSET = 12.dp
 
 @Composable
@@ -127,7 +126,6 @@ internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, 
     }
 }
 
-/** The Files move picker, choosing where a new transfer saves instead of where an item moves. */
 @Composable
 internal fun MobileTransferDestinationPicker(
     repository: FilesRepository,

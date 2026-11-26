@@ -18,18 +18,8 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** Material's disabled-content opacity. */
 private const val DISABLED_ALPHA = 0.38f
 
-/**
- * DESIGN.md's compact neutral switch, a deliberate step off stock M3. Off: a `surface` track in a
- * 2dp `--solid` outline with a 12dp `--solid` handle. On: an `on-surface` track with an 18dp
- * `surface` handle. TV draws it at [PutioSwitchSize.Tv] with its own [onTrack] and [surface],
- * which trade places on the focus fill.
- *
- * It only draws. The row it sits in toggles as one node, with `Role.Switch` and the checked
- * state, and is the 48dp target, so the switch adds no semantics and takes no input.
- */
 @Composable
 public fun PutioSwitch(
     checked: Boolean,

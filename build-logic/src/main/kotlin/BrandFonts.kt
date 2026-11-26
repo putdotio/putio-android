@@ -7,25 +7,15 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 
-/**
- * `design/brand-fonts.lock.json`: the licensed GT America and Berkeley Mono files the apps embed.
- * `./gradlew syncBrandFonts` fetches them into the lock's git-ignored directory; no other task
- * downloads them. A build without them sets DESIGN.md's families in the system face.
- */
 object BrandFonts {
     const val BASE_URL: String = "https://static.put.io"
 
-    /** Android resource names, so a file keeps its name in `res/font`. */
     private val FILE_NAME = Regex("""(gt_america|berkeley_mono)_[a-z0-9_]*[a-z0-9]\.(ttf|otf)""")
     private val SOURCE_PATH = Regex("""fonts/[a-z0-9-]+(/[a-z0-9-]+)*/[a-z0-9-]+\.(ttf|otf)""")
     private val DIRECTORY = Regex("""[a-z0-9_-]+(/[a-z0-9_-]+)*""")
     private val SHA256 = Regex("[0-9a-f]{64}")
     private val FACE_KEYS = setOf("path", "sha256", "family", "weight", "weightRange")
 
-    /**
-     * A locked file fetched from [url]: a static face at [weight], or a variable one whose weight axis
-     * spans [weightRange].
-     */
     data class Face(
         val file: String,
         val family: String,
@@ -73,10 +63,6 @@ object BrandFonts {
         return Lock(directory, faces)
     }
 
-    /**
-     * The locked files present among [files], matched by name, after checking each one's digest. A
-     * present file that does not match its digest fails; so does a missing one when [required].
-     */
     fun installed(lock: Lock, files: Iterable<File>, required: Boolean): Set<String> {
         val byName = files.filter(File::isFile).associateBy(File::getName)
         val mismatched = lock.faces.filter { face ->

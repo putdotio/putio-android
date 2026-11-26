@@ -16,10 +16,6 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.sdk.files.FilesApi
 import io.putdotio.sdk.files.PutioFileType
 
-/**
- * Foreground host for Media3 downloads. Its notification ([downloadProgressNotification]) shows the
- * count, progress and the first running name on an unlocked screen; URLs and tokens never reach it.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileDownloadService : DownloadService(
     FOREGROUND_NOTIFICATION_ID,
@@ -46,11 +42,6 @@ class MobileDownloadService : DownloadService(
     }
 }
 
-/**
- * Hands [userId]'s download to Media3 through the download service: a new request, or a failed or
- * missing one again, which joins the back of the queue. Its last outcome notification goes once the
- * service has the request; a start the system refuses throws and leaves it, Try again included.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun DownloadEntry.sendDownloadRequest(
     context: Context,

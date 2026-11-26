@@ -7,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.core.view.WindowCompat
 
 public abstract class BasePutioActivity : ComponentActivity() {
-    /** The largest font scale this app's text follows; larger system sizes render at it. */
     protected open val maxFontScale: Float get() = MAX_FONT_SCALE
 
     override fun attachBaseContext(newBase: Context) {
@@ -29,7 +28,6 @@ public abstract class BasePutioActivity : ComponentActivity() {
     }
 
     public companion object {
-        /** Android's "Largest" step before Android 14's nonlinear scales. */
         public const val MAX_FONT_SCALE: Float = 1.3f
     }
 }

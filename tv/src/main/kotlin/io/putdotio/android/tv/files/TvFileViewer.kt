@@ -87,18 +87,14 @@ import okhttp3.Request
 
 internal const val TV_FILE_VIEWER_TAG = "tv-file-viewer"
 
-/** The original file's URL for this app's own viewer; it carries the download token, so it goes nowhere else. */
 internal typealias TvViewerUrl = suspend (FilesItemId) -> FilesStreamUrlResult
 
-/** A file the viewer shows and where focus goes back to when it closes. */
 internal class TvFileViewerOpen(val id: FilesItemId, val returnFocus: () -> FocusRequester)
 
-/** Which file, if any, a pane shows in the viewer. */
 @Stable
 internal class TvFileViewerState {
     var open: TvFileViewerOpen? by mutableStateOf(null)
 
-    /** Shows [item] when the viewer takes its kind; otherwise hands it to [otherwise]. */
     fun openOr(
         item: FilesItem,
         viewerUrl: TvViewerUrl?,
@@ -113,10 +109,6 @@ internal class TvFileViewerState {
     }
 }
 
-/**
- * The viewer over a pane while [state] names one of [items]; it closes when that file leaves them.
- * With [siblings], an image pages through the other images in [items].
- */
 @Composable
 internal fun TvFileViewerLayer(
     state: TvFileViewerState,
@@ -139,7 +131,6 @@ internal fun TvFileViewerLayer(
     )
 }
 
-/** Images page through the folder's other images; a PDF or text file stands alone. */
 internal fun viewerFilesFor(items: List<FilesItem>, shown: FilesItem): List<FilesItem> =
     if (shown.viewerKind == FilesViewerKind.Image) {
         items.filter { it.viewerKind == FilesViewerKind.Image }
@@ -147,10 +138,6 @@ internal fun viewerFilesFor(items: List<FilesItem>, shown: FilesItem): List<File
         listOf(shown)
     }
 
-/**
- * Images, PDFs and text on black over the whole screen. Left and Right move between [files], or
- * between a PDF's pages, Up and Down scroll text, and Back closes it and returns focus to the opener.
- */
 @Composable
 internal fun TvFileViewer(
     files: List<FilesItem>,
@@ -214,7 +201,6 @@ internal fun TvFileViewerContent(
     }
 }
 
-/** The file index Left or Right moves to, or null when the key doesn't move between files. */
 private fun stepFiles(key: Key, index: Int, count: Int): Int? = when {
     count < 2 -> null
     key == Key.DirectionLeft -> (index - 1).coerceAtLeast(0)
@@ -244,7 +230,6 @@ private fun TvViewerFile(file: FilesItem, viewerUrl: TvViewerUrl, keys: TvViewer
     }
 }
 
-/** The page's own handling of a D-pad key, ahead of moving between files. */
 private class TvViewerKeys {
     var onKey: (Key) -> Boolean = { false }
 }
@@ -259,10 +244,6 @@ private sealed interface TvViewerSource {
     data object Failed : TvViewerSource
 }
 
-/**
- * The image fitted to the screen and decoded at its size. It is cached in memory by file id and never
- * on disk, so the tokened URL is not kept as a cache key.
- */
 @Composable
 private fun TvImagePage(file: FilesItem, url: String, onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -292,7 +273,6 @@ private sealed interface PdfState {
     data object Failed : PdfState
 }
 
-/** One page at a time, fitted to the screen; Left or Up goes back a page, Right or Down forward. */
 @Composable
 private fun TvPdfPage(file: FilesItem, url: String, keys: TvViewerKeys, onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -389,7 +369,6 @@ private sealed interface TextState {
     data object Failed : TextState
 }
 
-/** The file's start in mono; Up and Down scroll most of a screen. Past the limit it says so. */
 @Composable
 private fun TvTextPage(url: String, keys: TvViewerKeys, onDismiss: () -> Unit) {
     val state by produceState<TextState>(TextState.Loading, url) {
@@ -469,7 +448,6 @@ private fun TvViewerFailure(onDismiss: () -> Unit) {
     )
 }
 
-/** "n / total" in mono over a scrim that fades up, so it stays readable over a light picture. */
 @Composable
 private fun TvViewerPosition(position: Int, count: Int, modifier: Modifier = Modifier) {
     val scrim = MaterialTheme.colorScheme.scrim
@@ -499,7 +477,6 @@ private fun TvViewerPositionText(position: Int, count: Int, modifier: Modifier =
     )
 }
 
-/** The file's bytes from put.io; blocking, so callers run it off the main thread. */
 private fun openViewerStream(url: String): InputStream {
     val response = viewerHttp.newCall(Request.Builder().url(url).build()).execute()
     if (!response.isSuccessful) {

@@ -94,7 +94,6 @@ class AsyncStorageLegacyTvSessionTest {
         assertFalse(database.exists())
     }
 
-    /** The schema React Native AsyncStorage 1.23.1 creates (`ReactDatabaseSupplier`). */
     private fun writeFixture(vararg rows: Pair<String, String>) {
         context.deleteDatabase(RN_DATABASE)
         database.parentFile?.mkdirs()

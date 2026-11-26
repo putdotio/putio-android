@@ -42,11 +42,6 @@ internal data class TvChoice<T>(
     val label: String,
 )
 
-/**
- * Centred M3 choice dialog per the TV contract: 28dp corner, one radio row per
- * choice, focus lands on the current choice (or the first row when there is none),
- * Back dismisses without a change.
- */
 @Composable
 internal fun <T> TvChoiceDialog(
     title: String,

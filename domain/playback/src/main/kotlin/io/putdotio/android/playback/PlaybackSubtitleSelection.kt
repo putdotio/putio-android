@@ -159,10 +159,6 @@ public fun TrackSelectionParameters.withSubtitleSelection(
     }
 }
 
-/**
- * A track the media marks default. put.io marks the account's default subtitle this way: the
- * HLS master with `DEFAULT=YES`, and [toMediaItem] for the sidecar list's `default`.
- */
 internal val PlaybackSubtitleTrack.isServerDefault: Boolean
     get() = (identity.selectionFlags and C.SELECTION_FLAG_DEFAULT) != 0
 

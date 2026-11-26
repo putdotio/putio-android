@@ -574,7 +574,6 @@ class PlaybackSubtitleSelectionTest {
 
     private fun startupTextTrack(settings: AccountSettingsState): String? = selectedTextId(startupParameters(settings))
 
-    /** The text track DefaultTrackSelector picks from [text] for [parameters], or null when none shows. */
     private fun selectedTextId(parameters: TrackSelectionParameters, text: TrackGroup = TextGroup): String? {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val selector = DefaultTrackSelector(context, parameters)
@@ -589,7 +588,6 @@ class PlaybackSubtitleSelectionTest {
         return result.selections[1]?.selectedFormat?.id.also { selector.release() }
     }
 
-    /** put.io's subtitles for a Turkish-locale device: the account ranks English first. */
     private fun serverTracks(defaultId: String?): TrackGroup =
         TrackGroup(
             *listOf("tr" to "Turkish", "en" to "English").map { (language, label) ->

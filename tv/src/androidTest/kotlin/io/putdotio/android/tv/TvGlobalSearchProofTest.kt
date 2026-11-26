@@ -13,14 +13,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Live proof of the system search provider: in an install signed in with `devs-auto`, queries
- * `searchable.xml`'s suggestions authority the way the system search app does, from this app's
- * process so the GLOBAL_SEARCH read permission does not apply, and expects the caller's fixture
- * after a first, keyed "Search put.io for" row, as a row whose intent data id names the fixture's
- * file id. The query runs in a fresh process, so
- * it also covers the provider's quiet session restore. Opt-in; makes one search request.
- */
 @RunWith(AndroidJUnit4::class)
 class TvGlobalSearchProofTest {
     @Test

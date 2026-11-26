@@ -21,10 +21,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/**
- * Player failures as put.io's playback failure reports (schema 2) want them: the contract's tags
- * only, in codes and media facts, never the error's text or the media URL, and no user.
- */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class PlaybackTelemetryTest {

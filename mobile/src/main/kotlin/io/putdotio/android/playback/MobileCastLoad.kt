@@ -9,7 +9,6 @@ import com.google.android.gms.cast.MediaTrack
 import com.google.android.gms.common.images.WebImage
 import org.json.JSONObject
 
-/** Cast takes 0.5x to 2x; a local speed outside that hands over at the nearest end. */
 internal fun Float.castRate(): Double =
     toDouble().coerceIn(MediaLoadRequestData.PLAYBACK_RATE_MIN, MediaLoadRequestData.PLAYBACK_RATE_MAX)
 
@@ -24,10 +23,6 @@ internal fun PlaybackCastMedia.failedAt(startMillis: Long): CastRemoteStatus =
         audio = mediaType == PlaybackMediaType.AUDIO,
     )
 
-/**
- * The LOAD for this media. The put.io receiver gets [PlaybackCastMedia.receiverLoad] and picks the
- * stream itself, so the token-bearing URL stays here; any other receiver plays [PlaybackCastMedia.url].
- */
 internal fun PlaybackCastMedia.loadRequest(
     startMillis: Long,
     autoplay: Boolean,
@@ -62,10 +57,8 @@ private fun PlaybackCastMedia.loadBuilder(startMillis: Long, autoplay: Boolean, 
         .setPlaybackRate(speed.castRate())
         .setActiveTrackIds(activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
 
-/** The put.io file this media belongs to; null for media another sender sent. */
 internal fun MediaInfo.putioFileId(): Long? = customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
 
-/** The Cast form of [PlaybackCastMedia], tagged with its file id. */
 internal fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean = true): MediaInfo {
     val kind = if (mediaType == PlaybackMediaType.AUDIO) {
         MediaMetadata.MEDIA_TYPE_MUSIC_TRACK
@@ -97,12 +90,10 @@ internal fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean = true): MediaInfo 
         .build()
 }
 
-/** Ties the receiver's media to the put.io file; another sender's media carries none. */
 internal const val FILE_ID_KEY = "putioFileId"
 private const val WEBVTT_CONTENT_TYPE = "text/vtt"
 private const val CAST_MESSAGE_MAX_BYTES = 64 * 1024
 private const val CAST_ENVELOPE_BYTES = 1024
 
-/** The tracks of [type] among these, as the receiver lists them. */
 internal fun List<MediaTrack>.castTracks(type: Int): List<CastTrack> =
     filter { it.type == type }.map { CastTrack(it.id, it.name?.takeIf(String::isNotBlank), it.language) }

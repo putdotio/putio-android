@@ -9,13 +9,6 @@ import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 
-/**
- * Asks for [nextPage] once a row within [threshold] of the list's end is laid out, as web does.
- * [nextPage] identifies the page that may load now (its cursor), or is null when none may. It
- * fires once per page, so a page that lands with the end still in view asks for the one after it
- * even if its loading state was never drawn. A failed page is left to its Retry: the caller has
- * no next page to offer, so nothing retries on its own.
- */
 @Composable
 internal fun LoadNextPageNearEnd(
     listState: LazyListState,
@@ -37,7 +30,6 @@ internal fun LoadNextPageNearEnd(
     }
 }
 
-/** An empty page that still has a next one asks for it at once: there is no list to scroll. */
 @Composable
 internal fun LoadNextPageNow(nextPage: Any?, onLoadNextPage: () -> Unit) {
     val currentOnLoadNextPage by rememberUpdatedState(onLoadNextPage)
@@ -46,5 +38,4 @@ internal fun LoadNextPageNow(nextPage: Any?, onLoadNextPage: () -> Unit) {
     }
 }
 
-/** Rows left below the viewport when the next page is requested; web uses the same margin. */
 internal const val MOBILE_PAGING_THRESHOLD = 25

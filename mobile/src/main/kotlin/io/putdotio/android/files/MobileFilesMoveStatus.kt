@@ -41,7 +41,6 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome, onRetry: (() -> Un
     }
 }
 
-/** The settled move's line: the item by name, or several by count; a lone name clash names it. */
 @Composable
 private fun FilesMoveOutcome.statusMessage(retryable: Boolean): String? {
     val collision = errors?.singleOrNull()?.takeIf { error ->
@@ -66,7 +65,6 @@ private fun FilesMoveOutcome.statusMessage(retryable: Boolean): String? {
     }
 }
 
-/** A refused move: a clash names its item when it is the one refusal; several count. */
 @Composable
 private fun FilesMoveOutcome.rejectedMessage(collision: FileMoveError?, many: Boolean): String {
     val clashName = collision?.name ?: itemName.takeUnless { many }
@@ -78,10 +76,6 @@ private fun FilesMoveOutcome.rejectedMessage(collision: FileMoveError?, many: Bo
     }
 }
 
-/**
- * The items put.io's answer refused, by ID, and any the check or a later page found outside the
- * destination; when neither names one, every item counts.
- */
 private val FilesMoveOutcome.refusedCount: Int
     get() {
         val refused = intent.itemIds.filter { id -> errors.orEmpty().any { it.id == id.value } }.toSet()

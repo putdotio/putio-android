@@ -37,11 +37,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Controlled-state proof of recent searches on the real signed-in TV shell: the production
- * store keeps them in an in-memory `/config` with tv-native's `searchHistory` and
- * `searchHistoryEnabled` keys, and every write is logged. No API calls.
- */
 @RunWith(AndroidJUnit4::class)
 class TvSearchHistoryProofTest {
     private val compose = createAndroidComposeRule<TvProofActivity>()
@@ -205,7 +200,6 @@ class TvSearchHistoryProofTest {
     private fun isFocused(label: String) = compose.onAllNodesWithContentDescription(label).fetchSemanticsNodes()
         .any { it.config.getOrNull(SemanticsProperties.Focused) == true }
 
-    /** Walks the D-pad down, then up, until [label] holds focus. */
     private fun focus(label: String) {
         repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_DOWN) }
         repeat(MAX_STEPS) { if (!isFocused(label)) press(KeyEvent.KEYCODE_DPAD_UP) }

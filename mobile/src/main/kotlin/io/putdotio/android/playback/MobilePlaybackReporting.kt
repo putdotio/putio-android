@@ -18,12 +18,10 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
-/** Application-owned so service audio can report after its Activity and task have gone. */
 internal class MobilePlaybackReporting(
     private val auth: StateFlow<MobileAuthState>,
     private val scope: CoroutineScope,
     onAuthenticationRequired: suspend (MobileAuthSessionId) -> Unit = {},
-    /** Positions of downloaded files, kept on the device when put.io cannot take them. */
     private val offline: () -> OfflinePlaybackPositions? = { null },
     write: suspend (Long, Double) -> PlaybackRepositoryResult<Unit>,
 ) {
@@ -32,7 +30,6 @@ internal class MobilePlaybackReporting(
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 
-    /** Positions the server accepted, for surfaces that cache `start_from`. Late subscribers see only new saves. */
     val savedPositions: SharedFlow<SavedPlaybackPosition> = mutableSavedPositions
 
     private val writer = PlaybackPositionWriter(scope) { fileId, seconds ->
@@ -97,17 +94,10 @@ internal class MobilePlaybackReporting(
         }
     }
 
-    /** A position put.io accepted, directly or through the offline sync. */
     fun publishSaved(fileId: Long, seconds: Double) {
         mutableSavedPositions.tryEmit(SavedPlaybackPosition(fileId, seconds))
     }
 
-    /**
-     * The confirmed resume setting decides. Settings that never loaded this session, such as on
-     * a cold start offline, let a downloaded file report under the setting this device last
-     * confirmed; its positions then wait in the offline store. A pending or failed write of the
-     * setting still suspends reporting, because the settings themselves did load.
-     */
     private fun resumeAllowed(sessionId: MobileAuthSessionId, userId: Long, fileId: Long): Boolean {
         val state = settings?.takeIf { it.sessionId == sessionId }?.state?.value
         val offlineStore = offline()?.loadedStore(userId)?.takeIf { state?.content !is AccountSettingsContent.Ready }
@@ -115,13 +105,10 @@ internal class MobilePlaybackReporting(
             ?: (offlineStore?.resumeSetting == true && offlineStore.tracks(fileId) && state != null)
     }
 
-    /** Runs [block] between the player's position writes; the offline sync sends its writes here. */
     suspend fun exclusive(block: suspend () -> Unit) = writer.exclusive(block)
 
-    /** Runs [block], another write of [fileId]'s position, after every position playback took for it. */
     suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T = writer.supersede(fileId, block)
 
-    /** Runs [block] for [fileIds] after every position playback took for them. */
     suspend fun <T> supersede(fileIds: Iterable<Long>, block: suspend () -> T): T = writer.supersede(fileIds, block)
 
     fun observe(player: Player): PlaybackPositionObserver =

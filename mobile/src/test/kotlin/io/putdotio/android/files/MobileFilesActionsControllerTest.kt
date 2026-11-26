@@ -513,7 +513,6 @@ class MobileFilesActionsControllerTest {
         var next: (suspend () -> PutioResult<Unit>)? = null
         var failing: Set<FilesItemId> = emptySet()
 
-        /** Calls in the order they were sent. */
         val answered = mutableListOf<String>()
 
         override suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit> {
@@ -542,13 +541,10 @@ class MobileFilesActionsControllerTest {
         var result: PutioResult<Unit> = PutioResult.Success(Unit)
         val resolved = mutableListOf<FilesItemId>()
 
-        /** How many more reads of an item still find it in Trash. */
         val notYetBack = mutableMapOf<FilesItemId, Int>()
 
-        /** Every read answers that the session was rejected. */
         var rejecting = false
 
-        /** Items whose first read answers with another item's id. */
         val answeredAs = mutableMapOf<FilesItemId, FilesItemId>()
 
         override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> = result.also { restored += itemId }

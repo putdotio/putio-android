@@ -26,15 +26,9 @@ import io.putdotio.android.playback.playbackExoPlayer
 import java.io.Closeable
 import java.util.UUID
 
-/** Creates the player one TV playback screen owns and releases, and the session that publishes it. */
 internal fun interface TvPlayerFactory {
     fun create(context: Context, mediaType: PlaybackMediaType): Player
 
-    /**
-     * Publishes [player] to the system for as long as the screen shows it: remote media keys
-     * the screen does not take, the system's media controls and Now Playing. Closing it
-     * unpublishes the player, which the screen releases afterwards.
-     */
     fun publish(context: Context, player: Player): Closeable = Closeable {}
 
     fun publishInBackground(context: Context, player: Player): Closeable = publish(context, player)
@@ -50,10 +44,6 @@ internal interface TvQueueSession : Closeable {
     fun swap(player: Player)
 }
 
-/**
- * A streaming ExoPlayer. The resolved source already carries its media credential, and
- * the default media source factory picks HLS from the item's MIME type.
- */
 internal object DefaultTvPlayerFactory : TvPlayerFactory {
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     override fun create(context: Context, mediaType: PlaybackMediaType): Player =
@@ -105,11 +95,6 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
     }
 }
 
-/**
- * A session for the one file the screen plays. Controllers get transport, seek and speed only:
- * a controller that replaced or added media items would play another file while the screen
- * still reports positions for the first.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun tvMediaSession(context: Context, player: Player, queue: Boolean = false): MediaSession.Builder =
     MediaSession.Builder(context, player)
@@ -252,13 +237,6 @@ private fun tvSessionPlayerCommands(): Player.Commands = Player.Commands.Builder
     )
     .build()
 
-/**
- * The tv-native player's default `medium` buffer (putio-web `apps/tv-native`
- * `lib/queries/remote-config.ts` @ `22264d5`): at least 8 s and at most 30 s ahead, starting
- * after 1.5 s and after 3 s once it has stalled. ExoPlayer's defaults buffer 50 s, more than a
- * low-memory TV stick should hold. The RN app's other sizes had no server key and stay out.
- * The device's byte cap still stops loading first on high-bitrate files.
- */
 @UnstableApi
 internal fun tvLoadControl(context: Context): DefaultLoadControl =
     playbackLoadControl(context)

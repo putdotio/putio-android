@@ -121,11 +121,6 @@ public class AppConfigRecentSearchStore(
     }
 }
 
-/**
- * The account's recent searches as far as the store knows, published to its flows, and the
- * writes that change them, each rolled back if the server refuses it. Only the store's
- * command loop calls in.
- */
 private class RecentSearchWrites(
     private val saveTerms: suspend (List<String>) -> Unit,
     private val saveEnabled: suspend (Boolean) -> Unit,
@@ -145,7 +140,6 @@ private class RecentSearchWrites(
         publish(StoredRecentSearches(config.enabled, loaded))
     }
 
-    /** Nothing is recorded or edited while the account has history turned off. */
     suspend fun editTerms(terms: List<SearchTerm>): Boolean = !stored.enabled || writeTerms(terms)
 
     suspend fun writeEnabled(enabled: Boolean): Boolean =

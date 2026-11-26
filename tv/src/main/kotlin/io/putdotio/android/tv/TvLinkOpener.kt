@@ -17,11 +17,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/**
- * Opens a file named by system search or a Watch Next card, as a product link opens one: the
- * id resolves in the session, then [open] plays media or shows it in Files. Only the latest
- * request opens. A card whose file put.io no longer has is reported to [onCardGone].
- */
 internal class TvLinkOpener(
     private val resolver: FilesItemResolver,
     private val scope: CoroutineScope,
@@ -32,10 +27,8 @@ internal class TvLinkOpener(
     private val opened = Channel<TvExternalOpen>(Channel.BUFFERED)
     private val mutableFailure = MutableStateFlow<PutioFailure?>(null)
 
-    /** What each resolved request did. */
     val opens: Flow<TvExternalOpen> = opened.receiveAsFlow()
 
-    /** Why the last request's file could not be resolved; cleared by the next success or dismissal. */
     val failure: StateFlow<PutioFailure?> = mutableFailure.asStateFlow()
 
     fun open(id: FilesItemId, continueWatching: Boolean) {
@@ -54,7 +47,6 @@ internal class TvLinkOpener(
         }
     }
 
-    /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissFailure() {
         mutableFailure.update { it?.takeIf { failure -> failure is PutioFailure.AuthenticationRequired } }
     }

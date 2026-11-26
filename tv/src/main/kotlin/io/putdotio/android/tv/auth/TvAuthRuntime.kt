@@ -41,10 +41,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-/**
- * Process-wide TV session: one SDK client, one controller, one application scope, and the
- * launcher's Watch Next row, which follows the session even with no screen showing.
- */
 internal class TvAuthRuntime(
     val putioClient: PutioClient,
     val authController: TvAuthController,
@@ -67,11 +63,6 @@ internal class TvAuthRuntime(
     private val restoreMutex = Mutex()
     private var backgroundRestore: Deferred<Boolean>? = null
 
-    /**
-     * The signed-in session for a caller with no screen, such as the system search provider:
-     * restores a stored session when none ran or an earlier failure left auth in
-     * [TvAuthState.Initializing], and never starts a sign-in.
-     */
     private suspend fun signedInSession(): TvAuthState.SignedIn? {
         (authController.state.value as? TvAuthState.SignedIn)?.let { return it }
         val deferred = restoreMutex.withLock {
@@ -92,7 +83,6 @@ internal class TvAuthRuntime(
         return authController.state.value as? TvAuthState.SignedIn
     }
 
-    /** What the system search provider runs. */
     internal val globalSearch: TvGlobalSearch by lazy {
         tvGlobalSearch(authController, ::signedInSession, SdkSearchRepository(putioClient)::search)
     }
@@ -210,7 +200,6 @@ internal fun TvAuthState.diagnosticsAnswer(): DiagnosticsAnswer? =
         is TvAuthState.SignedIn -> DiagnosticsAnswer.Account(account.diagnosticsEnabled)
     }
 
-/** The account and its product analytics answer: signed out is `null to false`; null keeps the last answer. */
 internal fun TvAuthState.productAnalyticsAnswer(): Pair<Long?, Boolean>? =
     when (this) {
         is TvAuthState.Linking -> null to false

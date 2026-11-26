@@ -29,20 +29,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-/**
- * Where Cast stands on this device; the Cast button shows once a receiver is in reach, or while
- * Android needs the local network allowed to find one.
- */
 internal sealed interface CastAvailability {
-    /** No Google Play services, or Cast failed to start: no button. */
     data object Unsupported : CastAvailability
 
     data object NoDevices : CastAvailability
 
-    /**
-     * Android 17 hides the receivers until the user allows the local network: the button shows, and
-     * its tap asks.
-     */
     data object NeedsLocalNetwork : CastAvailability
 
     data object Available : CastAvailability
@@ -63,7 +54,6 @@ internal val CastAvailability.casting: Boolean
 
 internal enum class CastRemoteState { Idle, Buffering, Playing, Paused, Ended, Failed }
 
-/** What the receiver last said about its media; [fileId] is null for media this app did not send. */
 internal data class CastRemoteStatus(
     val fileId: Long?,
     val state: CastRemoteState,
@@ -72,16 +62,11 @@ internal data class CastRemoteStatus(
     val speed: Float = 1f,
     val speedSupported: Boolean = false,
     val seekable: Boolean = true,
-    /** The clock reading the position was taken at; a playing position moves on from it. */
     val sampledAtMillis: Long,
-    /** Whether play was last asked for; a loading or buffering receiver plays only if so. */
     val playIntent: Boolean? = null,
-    /** The title and kind the media was sent with, so the app can reopen it without a screen's help. */
     val title: String? = null,
     val audio: Boolean = false,
-    /** When the session ended, for a last status: the position moves on no further than this. */
     val endedAtMillis: Long? = null,
-    /** The tracks the receiver lists for the media, and the ones it plays. */
     val audioTracks: List<CastTrack> = emptyList(),
     val textTracks: List<CastTrack> = emptyList(),
     val activeTrackIds: Set<Long> = emptySet(),
@@ -97,12 +82,10 @@ internal data class CastRemoteStatus(
     }
 }
 
-/** One of the receiver's audio or text tracks; [name] and [language] are what the stream says. */
 internal data class CastTrack(val id: Long, val name: String?, val language: String?)
 
 internal enum class CastDeviceKind { Tv, Speaker, Other }
 
-/** A receiver in the picker: [model] names the device, [audioOnly] one that has no screen. */
 internal data class CastDevice(
     val id: String,
     val name: String,
@@ -112,35 +95,25 @@ internal data class CastDevice(
     val selected: Boolean,
 )
 
-/** Local playback as it hands over: where, whether it plays, and at what speed. */
 internal data class CastHandover(
     val positionMillis: Long,
     val playing: Boolean,
     val speed: Float = 1f,
 )
 
-/** The Cast SDK, behind what the app needs of it. Calls and callbacks run on the main thread. */
 internal interface CastGateway : CastRoutes, CastRemote {
     val availability: StateFlow<CastAvailability>
 
     val movesHere: StateFlow<Boolean>
 
-    /** Ends the session and stops the receiver's playback. */
     fun stopCasting()
 
-    /**
-     * Ends the session for signing out: it hands nothing back, whenever it ends and whatever the
-     * receiver reported by then, so the next account never resumes the last one's.
-     */
     fun endForSignOut()
 
-    /** The user answered the local network prompt, so availability may have changed. */
     fun localNetworkAnswered()
 }
 
-/** The receivers the picker lists. */
 internal interface CastRoutes {
-    /** The receivers in reach while [startDiscovery] runs. */
     val devices: StateFlow<List<CastDevice>>
 
     fun startDiscovery()
@@ -150,15 +123,9 @@ internal interface CastRoutes {
     fun select(deviceId: String)
 }
 
-/** The connected receiver's media: its status, and the commands that drive it. */
 internal interface CastRemote {
-    /** Null without a session. */
     val status: StateFlow<CastRemoteStatus?>
 
-    /**
-     * The last status of the session that ended most recently, set before [status] clears. A
-     * collector may see only the clearing, so the handback reads this instead.
-     */
     val endedStatus: CastRemoteStatus?
 
     fun load(media: PlaybackCastMedia, startMillis: Long, autoplay: Boolean, speed: Float)
@@ -171,7 +138,6 @@ internal interface CastRemote {
 
     fun setSpeed(speed: Float)
 
-    /** Plays exactly [trackIds] among the media's tracks: one audio, and a text track or none. */
     fun setActiveTracks(trackIds: Set<Long>)
 }
 
@@ -240,11 +206,6 @@ internal class CastAutoplay(private val cast: MobileCastController) {
     }
 }
 
-/**
- * Hands playback between this device and a Cast receiver. Process-wide, as the Cast session is: it
- * keeps the receiver's last word on each file, so the local player resumes where the receiver
- * stopped once the session ends, whichever screen is open then.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileCastController(
     val gateway: CastGateway,
@@ -254,7 +215,6 @@ internal class MobileCastController(
     val availability: StateFlow<CastAvailability> get() = gateway.availability
     val status: StateFlow<CastRemoteStatus?> get() = gateway.status
 
-    /** The receiver as a Media3 player, for the player screen's controls and position reporting. */
     val remotePlayer: CastRemotePlayer = CastRemotePlayer(gateway, scope, clock) { startMillis ->
         sentMedia?.takeIf { gateway.status.value?.fileId == it.fileId }?.let { media ->
             loadsSent++
@@ -272,13 +232,10 @@ internal class MobileCastController(
     var loadsSent: Long = 0L
         private set
 
-    /** Set while a session that sign-out ended winds down. */
     private var ending = false
 
-    /** The ended session whose position has been handed back, so it is handed back once. */
     private var handedBack: CastRemoteStatus? = null
 
-    /** The file the receiver was last seen playing; only its finish counts as one. */
     private var playingFileId: Long? = null
 
     private var sending: Long? = null
@@ -298,10 +255,6 @@ internal class MobileCastController(
         onBufferOverflow = BufferOverflow.DROP_OLDEST,
     )
 
-    /**
-     * Each file the receiver played to its end, once per play. A stop, a failure, a sign-out or a
-     * session's end is no finish; one no collector hears is dropped, so none arrives late.
-     */
     val finished: SharedFlow<Long> = mutableFinished
 
     init {
@@ -321,18 +274,9 @@ internal class MobileCastController(
         scope.launch { finished.collect(autoplay::advance) }
     }
 
-    /**
-     * Whether the receiver plays [fileId] now, or is about to, so a screen opened on it attaches
-     * instead of loading. Media that finished or failed there is sent again.
-     */
     fun holds(fileId: Long): Boolean =
         sending == fileId || transferring == fileId || gateway.status.value?.takeIf { it.fileId == fileId }.live
 
-    /**
-     * Sends [media] to the receiver from where local playback stood, unless the receiver already
-     * plays it; [item] is the local item with its reporting lease, so the receiver's positions
-     * reach put.io. Does nothing without a session.
-     */
     fun cast(media: PlaybackCastMedia, item: MediaItem, local: CastHandover, chosen: Boolean = true): Boolean {
         if (gateway.availability.value !is CastAvailability.Connected || ending) return false
         remotePlayer.adopt(item)
@@ -373,20 +317,12 @@ internal class MobileCastController(
         }
     }
 
-    /**
-     * Ties the receiver's controls to [item] without loading it: the receiver already plays it.
-     * [media], when known, is what Play sends again once the file has finished there.
-     */
     fun attach(item: MediaItem, media: PlaybackCastMedia? = null) {
         if (ending) return
         remotePlayer.adopt(item)
         if (media != null) sentMedia = media
     }
 
-    /**
-     * The file the receiver plays for this app, named as it was sent; null without one. Read from the
-     * receiver itself, so it answers in a process that never opened a player.
-     */
     fun castingTarget(): PlaybackTarget? {
         val status = gateway.status.value?.takeIf { gateway.availability.value is CastAvailability.Connected }
         val fileId = status?.fileId ?: return null
@@ -397,7 +333,6 @@ internal class MobileCastController(
         )
     }
 
-    /** Signing out ends the session: the receiver holds the account's download token. */
     fun end() {
         signOuts++
         ending = gateway.availability.value.let {
@@ -412,14 +347,12 @@ internal class MobileCastController(
         gateway.endForSignOut()
     }
 
-    /** Whether [takeHandover] has a place for [fileId]; it takes nothing. */
     fun hasHandover(fileId: Long): Boolean {
         val unclaimed = gateway.endedStatus?.takeIf { it !== handedBack && gateway.status.value == null }
         return gateway.availability.value !is CastAvailability.Connected &&
             (fileId in handovers || unclaimed?.fileId == fileId)
     }
 
-    /** Where the local player picks [fileId] up after a session ended; taken once, null while casting. */
     fun takeHandover(fileId: Long): CastHandover? {
         if (gateway.availability.value is CastAvailability.Connected) return null
         if (gateway.status.value == null && gateway.endedStatus?.fileId == fileId) {
@@ -591,17 +524,11 @@ private const val RECEIVER_LOAD_WAIT_MILLIS = 20_000L
 
 internal val PLAYED_STATES = setOf(CastRemoteState.Playing, CastRemoteState.Paused)
 
-/** Receiver states with the file still playable there. */
 private val LIVE_STATES = setOf(CastRemoteState.Buffering, CastRemoteState.Playing, CastRemoteState.Paused)
 
 private val CastRemoteStatus?.live: Boolean
     get() = this?.state in LIVE_STATES
 
-/**
- * The subtitle the receiver shows first, by the same rules as the local player: none when the
- * account hides subtitles or the viewer turned them off, the viewer's pick, else put.io's default
- * (falling back to the list's first) when the account selects one.
- */
 internal fun castSubtitleKey(
     source: PlaybackSource,
     selection: SubtitleSelection?,
@@ -621,11 +548,6 @@ internal fun castSubtitleKey(
     }
 }
 
-/**
- * The playlist subtitle the receiver shows from HLS, by the same rules as [castSubtitleKey]: the
- * viewer's pick by its language, else the playlist's first when the account selects one. A video is
- * always HLS on the receiver, even when this device plays it from a file with sidecar subtitles.
- */
 internal fun castPlaylistSubtitle(
     source: PlaybackSource,
     mediaType: PlaybackMediaType,
@@ -644,26 +566,18 @@ internal fun castPlaylistSubtitle(
     }
 }
 
-/** A text track the receiver lists, by its id and language tag. */
 internal data class CastTextTrack(val id: Long, val language: String?)
 
-/** The id of the receiver's track for [wanted]: the first in its language, or the first of all; null for none. */
 internal fun playlistSubtitleTrack(tracks: List<CastTextTrack>, wanted: PlaybackCastPlaylistSubtitle): Long? {
     val language = wanted.language?.primaryLanguage() ?: return tracks.firstOrNull()?.id
     return tracks.firstOrNull { it.language?.primaryLanguage() == language }?.id
 }
 
-/** "en", "eng" and "en-US" all name English: compared as ISO 639-2, else as the tag's first part. */
 private fun String.primaryLanguage(): String? {
     val tag = substringBefore('-').substringBefore('_').lowercase().takeUnless { it.isBlank() } ?: return null
     return runCatching { Locale.forLanguageTag(tag).isO3Language }.getOrNull()?.takeUnless { it.isBlank() } ?: tag
 }
 
-/**
- * The receiver as a Media3 [Player]: the player screen's transport, scrubber and speed sheet drive
- * it, and the position observer reports its positions. A command shows at once and settles with
- * the receiver's next status.
- */
 @UnstableApi
 internal class CastRemotePlayer(
     private val gateway: CastGateway,
@@ -677,7 +591,6 @@ internal class CastRemotePlayer(
     private val pending = mutableListOf<SettableFuture<Any?>>()
     private val handler = Handler(Looper.getMainLooper())
 
-    /** A finished file sent again, until the receiver reports on it. */
     private var replaying = false
 
     init {
@@ -692,14 +605,12 @@ internal class CastRemotePlayer(
         }
     }
 
-    /** What the receiver last said of the adopted file, its tracks included; null for other media. */
     val receiverStatus: StateFlow<CastRemoteStatus?> get() = adoptedStatus
 
     fun setActiveTracks(trackIds: Set<Long>) {
         if (adoptedStatus.value != null) gateway.setActiveTracks(trackIds)
     }
 
-    /** Keeps an item that reports positions over a bare one for the same file. */
     fun adopt(item: MediaItem) {
         val current = this.item
         if (current?.mediaId == item.mediaId && current.reportsPositions && !item.reportsPositions) return

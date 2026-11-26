@@ -22,9 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 
-/** Where offline playback resumes, from settings and positions this device kept. */
 internal interface OfflineResume {
-    /** The confirmed `use_start_from`, else the one this device last confirmed, else off. */
     suspend fun enabled(): Boolean
 
     suspend fun position(entry: DownloadEntry): Double
@@ -38,7 +36,6 @@ internal interface OfflineResume {
     }
 }
 
-/** The app's [OfflineResume]: this session's confirmed setting first, then what the device kept. */
 internal class OfflinePositionsResume(
     private val positions: OfflinePlaybackPositions,
     private val userId: Long,
@@ -65,14 +62,6 @@ private fun DownloadEntry.servesNoConvertedStreamFor(target: PlaybackTarget): Bo
 private fun DownloadEntry.servesAnotherMethodThan(target: PlaybackTarget): Boolean =
     target.mediaType == PlaybackMediaType.VIDEO && target.method != null && target.method != artifact.method
 
-/**
- * Serves a completed download without the network. The source URL is the same
- * token-free API URL the download used, read back through [requested], so the
- * cache data source resolves every playlist, segment and file from disk; a cache miss
- * still reaches the network with the download token. A Direct play download offers the
- * subtitle files [requested] finds on disk as sidecars, under the same token-free URLs.
- * A row whose bytes turn out to be gone is marked missing by [localCopyAvailable] and streams instead.
- */
 internal class OfflinePlaybackRepository(
     private val downloads: StateFlow<DownloadsState>,
     private val delegate: PlaybackRepository,

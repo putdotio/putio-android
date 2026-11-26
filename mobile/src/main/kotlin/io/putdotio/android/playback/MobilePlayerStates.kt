@@ -66,11 +66,6 @@ import io.putdotio.android.mobileUnknownMessage
 import io.putdotio.sdk.files.PlaybackConversionState
 import kotlin.math.roundToInt
 
-/**
- * A video that fails takes the empty-state voice over the player. One that needs another player
- * offers Open in VLC, which reads the original; a download would keep the same HLS rendition. One a
- * retry can fix offers Try again. Audio keeps its own screen.
- */
 @Composable
 internal fun MobilePlaybackFailureState(
     title: String,
@@ -134,14 +129,6 @@ private fun PlaybackFailure.formattedMessage(fallback: String, includeUnreported
     }
 }
 
-/**
- * Converting to MP4 over the player: a line that it keeps going, a bar with its percentage while it
- * runs, and the one action the state allows. Opening a video with no conversion requested starts
- * one; queued and running conversions poll, and Cancel leaves them running on the server. After a
- * failure the viewer converts again, and checks again where the status waits or a status read lost
- * the network. With VLC on the phone, Play in VLC plays the original now, while the conversion goes
- * on for this player.
- */
 @Composable
 internal fun MobileConversionState(
     conversion: PlaybackContent.Conversion,
@@ -367,7 +354,6 @@ private fun MobilePlaybackStalledState(
 
 private val BUFFERING_LABEL_OFFSET = MOBILE_TRANSPORT_RING / 2 + 24.dp
 
-/** Centred on the player, clear of its top bar, scrolling when the window is short. */
 @Composable
 private fun MobilePlayerStateBox(content: @Composable () -> Unit) {
     Box(
@@ -380,7 +366,6 @@ private fun MobilePlayerStateBox(content: @Composable () -> Unit) {
     ) { content() }
 }
 
-/** The state's one tonal action. */
 @Composable
 private fun MobilePlayerStateAction(
     label: String,

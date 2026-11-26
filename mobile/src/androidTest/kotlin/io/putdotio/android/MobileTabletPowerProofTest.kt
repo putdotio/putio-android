@@ -116,13 +116,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Synthetic tablet proof on a large-screen emulator through the production shell and player over
- * faked repositories and a local video: hardware-keyboard navigation and shortcuts, then drag and
- * drop with another app in split screen (the test package's drag probe, its own process) while the
- * playing video and the shell keep their state through the split. The drag-out export downloads from
- * an in-process source under a controlled session. No API calls, no sign-in.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileTabletPowerProofTest {
     private val compose = createAndroidComposeRule<MobileTabletProofActivity>()
@@ -345,10 +338,6 @@ class MobileTabletPowerProofTest {
 
     private fun tagExists(tag: String): Boolean = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
 
-    /**
-     * Enter plays a video below 840dp; from 840dp it selects the file into the detail pane, whose Play
-     * starts it.
-     */
     private fun playVideo(name: String) {
         focusRow(name)
         press(KeyEvent.KEYCODE_ENTER)
@@ -360,7 +349,6 @@ class MobileTabletPowerProofTest {
         if (inDetail()) compose.onNodeWithTag(MOBILE_FILES_DETAIL_PRIMARY_TAG).performClick()
     }
 
-    /** Arrows walk the listing to [name]; the order is Shows, Harbor film.mp4, poster.jpg, notes.txt. */
     private fun focusRow(name: String) {
         repeat(MAX_TABS) { if (ROOT_ORDER.none(::rowFocused)) press(KeyEvent.KEYCODE_TAB) }
         repeat(ROOT_ORDER.size * 2) {
@@ -379,7 +367,6 @@ class MobileTabletPowerProofTest {
         SystemClock.sleep(pauseMs)
     }
 
-    /** A finger held past the long-press timeout, then moved across windows and lifted. */
     private fun touchDrag(from: PointF, to: PointF, beforeRelease: () -> Unit = {}) {
         val downTime = SystemClock.uptimeMillis()
         inject(MotionEvent.ACTION_DOWN, downTime, from)
@@ -428,7 +415,6 @@ class MobileTabletPowerProofTest {
         return PointF(origin[0] + offset.x, origin[1] + offset.y)
     }
 
-    /** Android's first-use full-screen hint takes key focus from the player; the proof answers it once. */
     private fun dismissFullScreenHint() {
         SystemClock.sleep(SETTLE_MS)
         uiAutomation.windows.filter { it.root?.packageName != context.packageName }
@@ -471,7 +457,6 @@ class MobileTabletPowerProofTest {
         saveProofScreenshot(proofDirectory("tablet-proof-${runId()}"), label)
     }
 
-    /** The probe's reports, which it broadcasts to this app after each drop. */
     private inner class ProbeReports : Closeable {
         private val queue = LinkedBlockingQueue<Intent>()
         private val receiver = object : BroadcastReceiver() {
@@ -543,7 +528,6 @@ class MobileTabletPowerProofTest {
         }
     }
 
-    /** Root and one folder; Trash removes an item, and an exact-ID read then reports it gone. */
     private class ProofFiles(posterSize: Long) : FilesRepository {
         val loads = AtomicInteger()
         private val root = mutableListOf(SHOWS, FILM, POSTER.copy(sizeBytes = posterSize), NOTES)
@@ -616,10 +600,6 @@ class MobileTabletPowerProofTest {
         override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
     }
 
-    /**
-     * The production renderers on a player that reads local files; the production player streams
-     * through the download cache's HTTP source. It never attaches to a real audio session.
-     */
     private class ProofPlayers : MobilePlayerFactory {
         val created = AtomicInteger()
 
@@ -643,7 +623,6 @@ class MobileTabletPowerProofTest {
         override fun stopAudio(context: Context) = Unit
     }
 
-    /** Serves poster.jpg for the drag-out reads, whole or from a range; the session travels only in the header. */
     private class PosterSource(private val body: ByteArray) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val request = chain.request()

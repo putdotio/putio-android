@@ -12,18 +12,11 @@ import androidx.media3.exoplayer.offline.DownloadIndex
 import io.putdotio.android.files.FilesItemId
 import java.io.InputStream
 
-/** One completed original-file download: its length and a reader from any offset, both from disk. */
 internal class OfflineOriginal(
     val length: Long,
     val open: (offset: Long) -> InputStream,
 )
 
-/**
- * Finds a completed download that holds a file's original bytes. Audio downloads store the original, and so do
- * Direct play video downloads of an accepted original; HLS and converted MP4 downloads never qualify. The app's
- * index must read the row as completed, Media3's index must agree, and every byte must be in the cache under the
- * owner's keys. Reads have no upstream, so a span missing on disk fails instead of reaching the network.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class OfflineOriginals(
     private val cache: Cache,

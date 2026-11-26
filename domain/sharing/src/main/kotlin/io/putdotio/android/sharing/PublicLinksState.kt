@@ -9,7 +9,6 @@ public sealed interface PublicLinksContent {
 
     public data object Loading : PublicLinksContent
 
-    /** The account's links, newest first. */
     public data class Ready(val links: List<PublicLink>) : PublicLinksContent
 
     public data class Failed(val failure: PutioFailure) : PublicLinksContent
@@ -21,7 +20,6 @@ public sealed interface PublicLinksMutation {
     public data class Revoking(val link: PublicLink) : PublicLinksMutation
 }
 
-/** How the last create or revoke ended; it stays until dismissed or the links are read again. */
 public sealed interface PublicLinksOutcome {
     public val fileId: FilesItemId
 
@@ -33,7 +31,6 @@ public sealed interface PublicLinksOutcome {
         override val fileId: FilesItemId,
         val failure: PutioFailure,
     ) : PublicLinksOutcome {
-        /** Web's own wording applies to these; anything else reads as [failure]. */
         val refusal: PublicLinkRefusal? get() = failure.publicLinkRefusal
     }
 
@@ -53,24 +50,17 @@ public data class PublicLinksState(
     val content: PublicLinksContent = PublicLinksContent.Idle,
     val mutation: PublicLinksMutation? = null,
     val outcome: PublicLinksOutcome? = null,
-    /** The links are read again behind the ones shown, after a revoke failed. */
     val refreshing: Boolean = false,
 ) {
-    /**
-     * put.io issues a new link on every create, so one waits for the account's links to load:
-     * the viewer sees what already exists before making another.
-     */
     val canCreate: Boolean
         get() = content is PublicLinksContent.Ready && mutation == null && !refreshing
 
     val canRevoke: Boolean
         get() = canCreate
 
-    /** [fileId]'s links, newest first; null until the account's links have loaded. */
     public fun linksFor(fileId: FilesItemId): List<PublicLink>? =
         (content as? PublicLinksContent.Ready)?.links?.filter { it.fileId == fileId }
 
-    /** A rejected session; the shell signs out and nothing else runs. */
     val authenticationFailure: PutioFailure?
         get() = listOfNotNull(
             (content as? PublicLinksContent.Failed)?.failure,
@@ -80,7 +70,6 @@ public data class PublicLinksState(
 }
 
 public sealed interface PublicLinksEvent {
-    /** Reads the account's links again; ignored while a request runs. */
     public data object Load : PublicLinksEvent
 
     public data class Create(val fileId: FilesItemId) : PublicLinksEvent
@@ -93,7 +82,6 @@ public sealed interface PublicLinksEvent {
 internal sealed interface PublicLinksRequest {
     val id: Long
 
-    /** A [refresh] keeps the links shown if it fails. */
     data class Load(override val id: Long, val refresh: Boolean = false) : PublicLinksRequest
 
     data class Create(override val id: Long, val fileId: FilesItemId) : PublicLinksRequest
@@ -101,7 +89,6 @@ internal sealed interface PublicLinksRequest {
     data class Revoke(override val id: Long, val link: PublicLink) : PublicLinksRequest
 }
 
-/** One request at a time; a stale completion never lands because the controller matches its request. */
 internal data class PublicLinksMachine(
     val state: PublicLinksState = PublicLinksState(),
     val request: PublicLinksRequest? = null,

@@ -27,7 +27,6 @@ public interface FilesRepository : FilesCopyRepository {
         cursor: FilesCursor? = null,
     ): PutioResult<FilesPage>
 
-    /** Moves [itemIds] into [destinationId] in one request; put.io answers with the items it refused. */
     public suspend fun move(itemIds: List<FilesItemId>, destinationId: FilesItemId): PutioResult<List<FileMoveError>>
 
     public suspend fun persistSort(
@@ -37,22 +36,18 @@ public interface FilesRepository : FilesCopyRepository {
 
     public suspend fun rename(itemId: FilesItemId, name: String): PutioResult<Unit>
 
-    /** Deletes [itemIds] in one request. */
     public suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode): PutioResult<FileDeleteResult>
 
     public suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem>
 }
 
 public interface FilesCopyRepository {
-    /** Starts copying an item shared with the viewer into [destinationId]; put.io copies in the background. */
     public suspend fun startCopy(itemId: FilesItemId, destinationId: FilesItemId): PutioResult<FilesCopyId>
 
     public suspend fun checkCopy(copyId: FilesCopyId): PutioResult<FilesCopyProgress>
 }
 
-/** Creates folders; the Files browser offers it from a folder's overflow and its empty state. */
 public interface FilesFolderCreator {
-    /** Creates [name] in [parentId] and returns the new folder. */
     public suspend fun createFolder(parentId: FilesItemId, name: String): PutioResult<FilesItem>
 }
 

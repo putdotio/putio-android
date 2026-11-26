@@ -23,7 +23,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Player errors by type, and which of them a retry can fix. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])

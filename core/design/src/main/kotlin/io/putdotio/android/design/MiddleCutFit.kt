@@ -61,7 +61,6 @@ private fun TextLayoutResult.middleCutLayout(measurer: TextMeasurer, style: Text
     return MiddleCutLayout(size.width, ellipsisWidth, leftToRight) { getHorizontalPosition(it, true) }
 }
 
-/** Whether [text] wraps into [maxLines] lines of [maxWidth] without losing any of it. */
 private fun TextMeasurer.fitsLines(text: String, style: TextStyle, maxWidth: Int, maxLines: Int): Boolean =
     !measure(text, style, maxLines = maxLines, constraints = Constraints(maxWidth = maxWidth)).hasVisualOverflow
 

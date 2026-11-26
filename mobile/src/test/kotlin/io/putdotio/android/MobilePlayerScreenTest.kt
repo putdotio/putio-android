@@ -2581,7 +2581,6 @@ class MobilePlayerAudioTest {
     }
 }
 
-/** Hardware keys through the real input stages, and a split-screen window pausing around the player. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS")
@@ -2788,7 +2787,6 @@ private class SessionPlayerFactory(
     }
 }
 
-/** Counts listeners around a session player; SimpleBasePlayer's own hooks are final. */
 @UnstableApi
 internal class ListenerCountingPlayer(
     delegate: Media3Player,
@@ -2938,7 +2936,6 @@ internal class RecordingPlayer(
         return Futures.immediateVoidFuture()
     }
 
-    /** Tracks the next parameter change reports at once, as a reselecting player can. */
     var tracksOnNextSelection: Tracks? = null
 
     override fun handleSetTrackSelectionParameters(

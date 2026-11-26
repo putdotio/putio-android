@@ -5,10 +5,6 @@ import android.text.format.DateUtils
 import io.putdotio.android.parsePutioTimestamp
 import java.util.Locale
 
-/**
- * Decimal units as put.io's web app counts them: one decimal below 100 ("3.2 GB", "19.4 GB"), none
- * from 100 or when it is a zero ("31 MB"). Android's short formatter drops the decimal from 10.
- */
 public fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): String {
     var value = bytes.coerceAtLeast(0L).toDouble()
     var unit = 0
@@ -22,7 +18,6 @@ public fun formatFileSize(bytes: Long, locale: Locale = Locale.getDefault()): St
     return "$rounded ${SIZE_UNITS[unit]}"
 }
 
-/** "Oct 13" this year, "Oct 13, 2024" before it. */
 public fun String.toDisplayDate(context: Context): String? =
     parsePutioTimestamp(this)?.toEpochMilli()?.toDisplayDate(context)
 
@@ -38,10 +33,8 @@ public fun String.toFullDate(context: Context): String? =
         )
     }
 
-/** A folder's last change, "3 days ago"; null for a file, or a folder put.io sent no time for. */
 public fun FilesItem.updatedAgo(nowMillis: Long): String? = updatedAt?.takeIf { isFolder }?.toAgo(nowMillis)
 
-/** "3 hr. ago" from a put.io timestamp, "Oct 7" after a week; a time ahead of now reads as now. */
 public fun String.toAgo(nowMillis: Long): String? =
     parsePutioTimestamp(this)?.toEpochMilli()?.let { time ->
         DateUtils.getRelativeTimeSpanString(

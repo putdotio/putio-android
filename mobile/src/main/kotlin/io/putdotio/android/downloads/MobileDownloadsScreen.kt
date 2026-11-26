@@ -89,10 +89,6 @@ internal const val MOBILE_DOWNLOADS_REMOVE_ACTION_TAG = "mobile-downloads-remove
 internal const val MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG = "mobile-downloads-remove-confirm"
 internal const val MOBILE_DOWNLOADS_NOTIFICATIONS_TAG = "mobile-downloads-notifications"
 
-/**
- * The Downloads tab's list. Its title, overflow and selection bar sit in the shell's top bar
- * ([MobileDownloadsTopBar]); both read the same [selection].
- */
 @Composable
 internal fun MobileDownloadsScreen(
     state: DownloadsState,
@@ -196,10 +192,8 @@ internal fun MobileDownloadsScreen(
 
 private class DownloadSection(val key: String, val title: Int, val entries: List<DownloadEntry>)
 
-/** What each row needs from the screen, so every section draws rows the same way. */
 private class DownloadRows(
     val state: DownloadsState,
-    /** Null outside selection. */
     val selection: Set<FilesItemId>?,
     val onEvent: (DownloadsEvent) -> Boolean,
     val onPlay: (FilesItem) -> Unit,
@@ -258,7 +252,6 @@ private fun MobileDownloadRow(
     entry: DownloadEntry,
     meta: AnnotatedString,
     removing: Boolean,
-    /** Null outside selection; otherwise whether this row is selected. */
     selected: Boolean?,
     onOpen: (() -> Unit)?,
     onActions: () -> Unit,
@@ -296,7 +289,6 @@ private fun MobileDownloadRow(
     )
 }
 
-/** The ring while unfinished, Retry or Download again when stuck, and the actions on a local copy. */
 @Composable
 private fun DownloadRowTrailing(
     entry: DownloadEntry,
@@ -329,7 +321,6 @@ private fun DownloadRowTrailing(
     }
 }
 
-/** In selection a tap toggles the row; otherwise it plays or opens the row, and a long press selects. */
 @OptIn(ExperimentalFoundationApi::class)
 private fun Modifier.downloadRowInteraction(
     selected: Boolean?,
@@ -350,10 +341,6 @@ private fun Modifier.downloadRowInteraction(
     else -> this
 }
 
-/**
- * One line of meta, its numbers in mono: progress and speed while running, the reason while
- * waiting or paused, place in line while queued, why it failed, or size and date on this device.
- */
 @Composable
 private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: Boolean): AnnotatedString {
     val context = LocalContext.current
@@ -397,7 +384,6 @@ private fun downloadMeta(entry: DownloadEntry, state: DownloadsState, removing: 
 }
 
 private class DownloadMetaParts(private val context: Context, private val mono: SpanStyle) {
-    /** "Queued · #1 in line", its place in mono since it is a count; without a place, the wait alone. */
     fun queued(builder: AnnotatedString.Builder, place: Int?) {
         val text = place?.let { context.getString(R.string.mobile_downloads_status_queued_position, it) }
             ?: context.getString(R.string.mobile_downloads_status_queued)
@@ -412,10 +398,6 @@ private class DownloadMetaParts(private val context: Context, private val mono: 
         }
     }
 
-    /**
-     * "1.4 GB of 3.3 GB" over a known size. An HLS rendition counts its percentage in segments,
-     * not bytes, so it shows the percentage alone, as its ring does; with neither, the bytes.
-     */
     fun progress(builder: AnnotatedString.Builder, bytes: Long, contentLength: Long?, percent: Float?) {
         val done = formatFileSize(bytes)
         when {
@@ -564,7 +546,6 @@ private fun RemovalDialog(removal: DownloadRemoval, onConfirm: () -> Unit, onCan
     )
 }
 
-/** The full sentence for a row's state, as the actions sheets show it. */
 internal fun DownloadStatus.description(context: Context, queuePosition: Int? = null): String =
     when (this) {
         DownloadStatus.Queued -> queuePosition?.let {
@@ -591,7 +572,6 @@ internal fun DownloadStatus.description(context: Context, queuePosition: Int? = 
         DownloadStatus.Missing -> context.getString(R.string.mobile_downloads_status_missing)
     }
 
-/** The player route needs a Files item shape; downloads keep the fields it reads. */
 internal fun DownloadEntry.toFilesItem(): FilesItem =
     FilesItem(
         id = fileId,

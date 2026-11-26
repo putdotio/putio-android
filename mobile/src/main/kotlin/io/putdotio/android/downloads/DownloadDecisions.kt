@@ -40,10 +40,6 @@ internal val DirectPlayDownload.artifact: DownloadArtifact?
 internal val DirectPlayDownload?.unavailable: Boolean
     get() = this?.source == DirectPlayDownloadSource.Unavailable
 
-/**
- * Standard video is the converted HLS rendition; Direct play video starts as the converted MP4 until its lookup
- * answers, and stays so when the lookup fails. Audio has only the original.
- */
 internal fun PutioFileType.downloadArtifact(method: StreamingMethod): DownloadArtifact? =
     when (this) {
         PutioFileType.VIDEO -> if (method == StreamingMethod.File) DownloadArtifact.MP4 else DownloadArtifact.HLS

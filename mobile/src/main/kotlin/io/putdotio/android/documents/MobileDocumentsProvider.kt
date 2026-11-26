@@ -32,12 +32,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import io.putdotio.android.design.R as DesignR
 
-/**
- * Lists the signed-in account's put.io Files in the system file picker, read-only. Signed out there is no root.
- * Listings arrive a page at a time with [DocumentsContract.EXTRA_LOADING] and a change notification per page, and
- * an opened document is a seekable proxy descriptor over its bytes: a completed download of the original from disk,
- * otherwise the share-out download from put.io. No credential reaches a URI, column or log.
- */
 class MobileDocumentsProvider : DocumentsProvider() {
     private val production: MobileDocuments by lazy { productionDocuments(checkNotNull(context)) }
 
@@ -118,10 +112,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
             .add(Document.COLUMN_FLAGS, 0)
     }
 
-    /**
-     * The cursor listens before [listing] reads, so a page that lands during the read still notifies it; a listing
-     * that throws closes it.
-     */
     private fun listingCursor(
         projection: Array<out String>?,
         notificationUri: Uri,
@@ -148,7 +138,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
     }
 
     companion object {
-        /** Replaces the provider's documents, session and network included; tests reset it. */
         @VisibleForTesting
         @Volatile
         internal var documentsForTest: MobileDocuments? = null
@@ -178,13 +167,8 @@ class MobileDocumentsProvider : DocumentsProvider() {
 
         internal fun authority(context: Context): String = "${context.packageName}.documents"
 
-        /** A session started: pickers read the roots again, so the account's root appears. */
         fun sessionStarted(context: Context) = notifyRoots(context)
 
-        /**
-         * A session ended: every grant other apps hold on put.io documents goes, persisted ones included, and pickers
-         * read the roots again, so the account's root disappears.
-         */
         fun sessionLeft(context: Context) {
             val everyDocument = Uri.Builder()
                 .scheme(ContentResolver.SCHEME_CONTENT)
@@ -209,7 +193,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
                     DocumentsContract.buildSearchDocumentsUri(authority(context), key.rootId, key.query)
             }
 
-        /** The documents over [backend], notifying listings through [context]'s resolver. */
         internal fun documents(
             context: Context,
             backend: MobileDocumentsBackend,

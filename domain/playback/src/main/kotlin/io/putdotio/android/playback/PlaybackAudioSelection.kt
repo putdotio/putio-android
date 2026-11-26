@@ -71,10 +71,6 @@ public fun Tracks.playbackAudioTracks(): List<PlaybackAudioTrack> =
                 }
         }
 
-/**
- * The track's language, or null when it has none. MP4 and Matroska extractors pass an
- * undetermined `und` tag through as is, and it names no language.
- */
 public fun Format.knownLanguage(): String? =
     language?.takeUnless { it.isBlank() || it == C.LANGUAGE_UNDETERMINED }
 

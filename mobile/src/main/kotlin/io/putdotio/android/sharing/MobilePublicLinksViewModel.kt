@@ -12,7 +12,6 @@ import io.putdotio.android.auth.sessionKey
 import io.putdotio.android.session.SessionScopedHolder
 import kotlinx.coroutines.flow.StateFlow
 
-/** One public links controller per signed-in session, shared by Files and Account. */
 internal class MobilePublicLinksViewModel(
     authState: StateFlow<MobileAuthState>,
 ) : ViewModel() {

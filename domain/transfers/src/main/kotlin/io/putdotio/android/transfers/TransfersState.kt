@@ -47,7 +47,6 @@ public sealed interface TransferAction {
     public data class ClearFailed(val ids: Set<TransferId>) : TransferAction
     public data class Retry(val id: TransferId) : TransferAction
     public data object Clean : TransferAction
-    /** Takes one finished transfer off the list; the file stays in put.io. */
     public data class Remove(val id: TransferId) : TransferAction
 }
 
@@ -79,7 +78,6 @@ public sealed interface TransferNotice {
     ) : TransferNotice
 }
 
-/** The last retry's result, held until the screen has reported it. */
 public sealed interface TransferRetryOutcome {
     public val requestId: TransfersRequestId
 
@@ -107,7 +105,6 @@ public data class TransfersState internal constructor(
     val lastSuccessfulAddRequestId: TransfersRequestId? get() = lastAddReceipt?.requestId
 }
 
-/** The last accepted add: how many transfers put.io started and which links it refused. */
 public data class TransferAddReceipt(
     val requestId: TransfersRequestId,
     val addedCount: Int,
@@ -123,7 +120,6 @@ public sealed interface TransfersEvent {
     public data object Refresh : TransfersEvent
     public data object Poll : TransfersEvent
     public data class VisibilityChanged(val visible: Boolean) : TransfersEvent
-    /** Whitespace-separated links; [saveParentId] null saves to the account's default download folder. */
     public data class Add(val input: String, val saveParentId: Long? = null) : TransfersEvent {
         override fun toString(): String = "Add(<redacted>, saveParentId=$saveParentId)"
     }
@@ -136,7 +132,6 @@ public sealed interface TransfersEvent {
     public data object DismissMutationFailure : TransfersEvent
     public data class DismissRetryOutcome(val requestId: TransfersRequestId) : TransfersEvent
     public data class Open(val id: TransferId) : TransfersEvent
-    /** Opens the folder the transfer saves into, through the same resolution as [Open]. */
     public data class OpenFolder(val id: TransferId) : TransfersEvent
     public data class OpenSucceeded(val requestId: TransfersRequestId) : TransfersEvent
     public data class OpenFailed(val requestId: TransfersRequestId, val failure: FilesFailure) : TransfersEvent

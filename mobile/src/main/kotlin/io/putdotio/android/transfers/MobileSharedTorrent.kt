@@ -29,7 +29,6 @@ internal fun ContentResolver.readMobileTorrent(uri: Uri, ownPackage: String): Mo
     }
 }
 
-/** Android drops a `<userId>@` prefix when it resolves a provider, so ownership ignores it too. */
 internal fun isOwnProviderAuthority(authority: String?, ownPackage: String): Boolean {
     val resolved = authority?.substringAfterLast('@') ?: return true
     return resolved == ownPackage || resolved.startsWith("$ownPackage.")
@@ -48,7 +47,6 @@ internal fun readMobileTorrent(displayName: String?, open: () -> InputStream?): 
     }
 }
 
-/** Returns at most [limit] + 1 bytes so an oversized stream is detected without reading it all. */
 private fun InputStream.readBounded(limit: Int): ByteArray {
     val buffer = ByteArrayOutputStream()
     val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
@@ -68,7 +66,6 @@ private fun ByteArray.looksLikeTorrent(): Boolean =
 private fun ByteArray.containsBytes(needle: ByteArray): Boolean =
     (0..size - needle.size).any { start -> needle.indices.all { this[start + it] == needle[it] } }
 
-/** put.io starts a transfer only for a `.torrent` name, so the name always ends with one. */
 internal fun torrentFileName(displayName: String?): String {
     val base = displayName.orEmpty()
         .substringAfterLast('/')

@@ -22,7 +22,6 @@ import io.putdotio.android.R
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.design.PutioTypeScale
 
-/** "Resume from 18:42?" over the dimmed player, with the time in mono, Start over and a filled Resume. */
 @Composable
 internal fun MobileResumePlaybackDialog(
     startFromSeconds: Double,

@@ -45,7 +45,6 @@ internal enum class SeekDirection {
     Forward,
 }
 
-/** How far one press moves each way. */
 internal data class SeekIntervals(val backMillis: Long, val forwardMillis: Long) {
     fun millis(direction: SeekDirection): Long =
         if (direction == SeekDirection.Backward) backMillis else forwardMillis
@@ -68,7 +67,6 @@ internal fun PendingSeek.accumulatesAt(nowMillis: Long): Boolean = nowMillis < a
 internal data class PlayerSeekWindow(
     val available: Boolean,
     val durationMillis: Long,
-    /** How far one press moves in this window: video's or Now Playing's steps. */
     val intervals: SeekIntervals = VideoSeekIntervals,
 )
 
@@ -227,7 +225,6 @@ internal fun MobileSeekButton(
     }
 }
 
-/** "Back 15 seconds", "Forward 30 seconds": a seek button's name and its feedback. */
 @Composable
 internal fun seekDescription(direction: SeekDirection, seconds: Int): String =
     pluralStringResource(

@@ -50,7 +50,6 @@ import io.putdotio.android.files.FilesRepository
 
 internal const val MOBILE_TRANSFER_ACTIONS_TAG = "mobile-transfer-actions"
 
-/** What Transfer actions can do; each is offered only when the transfer allows it. */
 internal class MobileTransferActions(
     val onOpenFile: () -> Unit,
     val onOpenFolder: () -> Unit,
@@ -60,12 +59,6 @@ internal class MobileTransferActions(
     val onRemove: () -> Unit,
 )
 
-/**
- * Transfer actions: the full name, the state, put.io's whole reason when it gave one, and a progress
- * bar, the facts in mono, then Open folder
- * and Copy source link when put.io returned a link. A running transfer ends with Stop transfer in red;
- * a failed one offers Retry and Delete transfer, which confirms; a finished one Open file and Remove from list.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileTransferActionsSheet(
@@ -308,5 +301,4 @@ private fun Color.dimmed(enabled: Boolean): Color = if (enabled) this else copy(
 
 private const val DISABLED_ALPHA = 0.38f
 
-/** The sheet already pads for the navigation bar; together they make the board's 28dp. */
 internal val SHEET_BOTTOM_PADDING = 4.dp

@@ -2,7 +2,6 @@ package io.putdotio.android.files
 
 import io.putdotio.android.PutioFailure
 
-/** The newest 401 anywhere in the stack or the copy; a session verdict that outranks every other failure. */
 public fun FilesBrowserState.authoritativeSessionFailure(): PutioFailure? =
     stack.asReversed().firstNotNullOfOrNull { folder ->
         val contentFailure = folder.content.authoritativeSessionFailure()

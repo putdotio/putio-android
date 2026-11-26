@@ -73,7 +73,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/** Real video, tracks, cues, window rotation and insets; saved-state recreation uses the Compose test harness. */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileFullscreenVideoProofTest {
@@ -261,7 +260,6 @@ class MobileFullscreenVideoProofTest {
         compose.onNode(probe).assertIsDisplayed()
     }
 
-    /** How the side sheet names a track: its language in its own words, else its label. */
     private fun PlaybackAudioTrack.rowName(): String = languageName(identity.language) ?: checkNotNull(label)
     private fun PlaybackSubtitleTrack.rowName(): String = languageName(identity.language) ?: checkNotNull(label)
 

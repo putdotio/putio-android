@@ -15,7 +15,6 @@ import io.putdotio.sdk.files.FilesApi
 import java.io.Closeable
 import kotlinx.coroutines.flow.StateFlow
 
-/** Owns one downloads controller per signed-in user; the index and cache outlive sign-out. */
 internal class MobileDownloadsViewModel(
     authState: StateFlow<MobileAuthState>,
 ) : ViewModel() {

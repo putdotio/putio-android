@@ -17,7 +17,6 @@ public fun filesMoveDestinationState(
 ): FilesMoveDestinationState =
     FilesMoveDestinationState(listOfNotNull(sourceItem), sourceFolderId, stack, nextRequestValue)
 
-/** [copy] for tests outside this module; request ids keep counting from this state. */
 public fun FilesBrowserState.copyForTest(
     stack: List<FilesFolderState> = this.stack,
     copyOutcome: FilesCopyOutcome? = this.copyOutcome,

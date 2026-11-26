@@ -65,11 +65,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The production Downloads screen, controller and engine over a real Media3
- * manager and progressive downloader. The source is a generated local file read
- * at about 1 MB/s, so no API call, account or session is involved.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
 class MobileDownloadsProgressProofTest {
@@ -196,7 +191,6 @@ class MobileDownloadsProgressProofTest {
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
     }
 
-    /** Local bytes at a steady rate, so the transfer spans several poll ticks. */
     private class ThrottledFileSource : DataSource {
         private val file = FileDataSource()
 

@@ -15,12 +15,6 @@ import androidx.annotation.VisibleForTesting
 import java.io.FileNotFoundException
 import java.io.IOException
 
-/**
- * Serves a file dragged out of Files to the app it was dropped on. Not exported: only the drop's read
- * grant reaches it. Opening hands out a read-only proxy descriptor at once; reads stream the original
- * from put.io with ranges, as the system file picker's documents do, only while the session that
- * started the drag is the signed-in one.
- */
 class MobileDragProvider : ContentProvider() {
     private val dependencies by lazy { MobileFileShareService.shareDependencies(requireNotNull(context)) }
 

@@ -7,16 +7,10 @@ import io.putdotio.android.auth.MobileSessionKey
 import java.io.IOException
 import java.io.InputStream
 
-/**
- * Serves one opened document to a proxy file descriptor. A read that continues where the last one stopped keeps the
- * open stream, a short jump ahead skips on it, and any other offset reopens the bytes there. The reader belongs to
- * the session that opened it: once that session ends, or [revoke] runs, every read fails.
- */
 internal class DocumentReader(
     private val bytes: DocumentBytes,
     val session: MobileSessionKey,
     private val isCurrent: () -> Boolean,
-    /** Runs once the descriptor's last holder closes it. */
     private val onReleased: () -> Unit,
 ) : ProxyFileDescriptorCallback() {
     @Volatile
@@ -51,7 +45,6 @@ internal class DocumentReader(
         onReleased()
     }
 
-    /** The session ended: a read blocked on the network stops now, and nothing reads again. */
     fun revoke() {
         revoked = true
         opened?.interrupt?.invoke()
@@ -72,7 +65,6 @@ internal class DocumentReader(
         return next.input
     }
 
-    /** A refused read also releases the stream, so an ended session holds no connection open. */
     private fun ensureReadable() {
         if (revoked || !isCurrent()) {
             closeStream()
@@ -87,12 +79,10 @@ internal class DocumentReader(
     }
 
     private companion object {
-        /** Forward gaps up to this size read through the open stream rather than starting a new request. */
         const val SKIP_LIMIT = 256L * 1024L
     }
 }
 
-/** Fills up to [wanted] bytes, stopping early only at the end of the stream; a short read would read as EOF. */
 internal fun InputStream.readUpTo(data: ByteArray, wanted: Int): Int {
     var count = 0
     while (count < wanted) {

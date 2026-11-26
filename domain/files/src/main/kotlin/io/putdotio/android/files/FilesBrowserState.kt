@@ -75,7 +75,6 @@ public sealed interface FilesFolderOperationIntent {
         val name: String,
     ) : FilesFolderOperationIntent
 
-    /** Moves [itemIds], all listed in the folder, into [destinationId] in one request. */
     public data class Move(
         val itemIds: List<FilesItemId>,
         val destinationId: FilesItemId,
@@ -87,7 +86,6 @@ public sealed interface FilesFolderOperationIntent {
         }
     }
 
-    /** Deletes [itemIds], all listed in the folder, in one request. */
     public data class Delete(
         val itemIds: List<FilesItemId>,
         val mode: FilesDeleteMode,
@@ -139,16 +137,10 @@ public data class FilesFolderState(
     val renameCompletion: FilesRenameCompletion? = null,
     val deleteOutcome: FilesDeleteOutcome? = null,
     val moveOutcome: FilesMoveOutcome? = null,
-    /** Set on the folder an outside open pushed; Back from it returns to that origin. */
     val openedFrom: FilesOpenOrigin? = null,
-    /**
-     * The file this folder opens at: the one an outside open came for, or one the folder was asked
-     * to show. Pages past the first are read for it, up to [MAX_REVEAL_PAGES].
-     */
     val revealItemId: FilesItemId? = null,
     internal val revealSearch: FilesRevealSearch? = null,
     val needsReload: Boolean = false,
-    /** The folder's count and size from its latest first page; null until one has loaded. */
     val summary: FilesFolderSummary? = null,
     internal val consumedCursors: Set<FilesCursor> = emptySet(),
 )
@@ -179,7 +171,6 @@ public sealed interface FilesBrowserEvent {
         val itemId: FilesItemId,
     ) : FilesBrowserEvent
 
-    /** A folder opens itself and any other item its parent, on top of the current location. */
     public data class OpenExternalItem(
         val item: FilesItem,
         val origin: FilesOpenOrigin,
@@ -191,7 +182,6 @@ public sealed interface FilesBrowserEvent {
 
     public data object LoadNextPage : FilesBrowserEvent
 
-    /** Shows [itemId] when [folderId] is the current folder, reading later pages for it when needed. */
     public data class RevealItem(
         val folderId: FilesItemId,
         val itemId: FilesItemId,
@@ -199,19 +189,16 @@ public sealed interface FilesBrowserEvent {
 
     public data object Refresh : FilesBrowserEvent
 
-    /** Staleness signals from other surfaces; they never navigate or mutate on their own. */
     public sealed interface InvalidationEvent : FilesBrowserEvent
 
     public data class InvalidateRestoredItem(val item: FilesItem) : InvalidationEvent
 
     public data object InvalidateAllFolders : InvalidationEvent
 
-    /** The account default order changed; every cached listing may now be in the wrong order. */
     public data object InvalidateSortOrder : InvalidationEvent
 
     public data object ReloadIfStale : InvalidationEvent
 
-    /** A saved position for [itemId]; cached rows update in place so leaving playback shows the new progress. */
     public data class PlaybackPositionReported(val itemId: FilesItemId, val seconds: Double) : InvalidationEvent
 
     public data class SelectSort(
@@ -233,7 +220,6 @@ public sealed interface FilesBrowserEvent {
 
     public sealed interface DeleteEvent : ItemMutationEvent
 
-    /** Deletes [itemIds] from [folderId], which must be the current folder and list each of them. */
     public data class Delete(
         val folderId: FilesItemId,
         val itemIds: List<FilesItemId>,
@@ -248,7 +234,6 @@ public sealed interface FilesBrowserEvent {
         val result: PutioResult<FileDeleteResult>,
     ) : DeleteEvent
 
-    /** One read per deleted item, in the delete's order. */
     public data class DeleteChecked(
         val requestId: FilesRequestId,
         val results: List<PutioResult<FilesItem>>,
@@ -257,25 +242,16 @@ public sealed interface FilesBrowserEvent {
             this(requestId, listOf(result))
     }
 
-    /**
-     * The screen announced this settled outcome on its own, so it is not announced again. An
-     * outcome a later page corrected is no longer the one announced and is left as it is.
-     */
     public data class DeleteOutcomeAnnounced(
         val outcome: FilesDeleteOutcome,
     ) : DeleteEvent
 
-    /**
-     * put.io accepted restoring this Trash move from Trash: the outcome leaves its folder, so a page
-     * that lists the item again is not read as a failed delete, and the folder reads again.
-     */
     public data class TrashUndone(
         val outcome: FilesDeleteOutcome,
     ) : DeleteEvent
 
     public sealed interface MoveEvent : ItemMutationEvent
 
-    /** Moves [itemIds] from [folderId], which must be the current folder and list each of them. */
     public data class Move(
         val folderId: FilesItemId,
         val itemIds: List<FilesItemId>,
@@ -290,7 +266,6 @@ public sealed interface FilesBrowserEvent {
         val result: PutioResult<List<FileMoveError>>,
     ) : MoveEvent
 
-    /** One read per moved item, in the move's order. */
     public data class MoveChecked(
         val requestId: FilesRequestId,
         val results: List<PutioResult<FilesItem>>,
@@ -299,10 +274,8 @@ public sealed interface FilesBrowserEvent {
             this(requestId, listOf(result))
     }
 
-    /** Copies are put.io's background work, so they live beside the folder stack, not on a folder. */
     public sealed interface CopyEvent : ItemMutationEvent
 
-    /** Copies [itemId], shared with the viewer and listed in [folderId], into [destination]. */
     public data class Copy(
         val folderId: FilesItemId,
         val itemId: FilesItemId,
@@ -319,7 +292,6 @@ public sealed interface FilesBrowserEvent {
         val result: PutioResult<FilesCopyProgress>,
     ) : CopyEvent
 
-    /** Clears a settled copy's status line; a running copy keeps it. */
     public data object DismissCopyOutcome : CopyEvent
 
     public data object Retry : FilesBrowserEvent
@@ -390,13 +362,11 @@ public sealed interface FilesBrowserEffect {
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    /** Reads each moved item back, to learn where it is now. */
     public data class CheckMove(
         val itemIds: List<FilesItemId>,
         override val requestId: FilesRequestId,
     ) : FilesBrowserEffect
 
-    /** Reads each deleted item back, to learn whether it is gone. */
     public data class CheckDelete(
         val itemIds: List<FilesItemId>,
         override val requestId: FilesRequestId,
@@ -410,7 +380,6 @@ public sealed interface FilesBrowserEffect {
         override val requestId: FilesRequestId,
     ) : CopyEffect
 
-    /** Waits [COPY_CHECK_INTERVAL_MILLIS] before asking, as web does between checks. */
     public data class CheckCopy(
         val copyId: FilesCopyId,
         override val requestId: FilesRequestId,
@@ -521,10 +490,6 @@ internal suspend fun FilesRepository.execute(effect: FilesBrowserEffect): FilesB
             }
     }
 
-/**
- * put.io has no batch read, so each item is read on its own, a few at a time; the results keep the
- * items' order.
- */
 private suspend fun FilesRepository.resolveItems(itemIds: List<FilesItemId>): List<PutioResult<FilesItem>> {
     val permits = Semaphore(CHECK_CONCURRENCY)
     return coroutineScope {

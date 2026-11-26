@@ -12,11 +12,6 @@ import io.putdotio.android.R
 import io.putdotio.android.pendingIntent
 import java.util.Date
 
-/**
- * The widget's views for [content]. Every text is set on every push, and a hidden row's name is
- * emptied: a launcher reapplies new views onto the old ones, so a row left untouched would keep
- * the previous account's name. Intents carry token-free product links only.
- */
 internal fun transfersWidgetViews(context: Context, content: TransfersWidgetContent): RemoteViews {
     val views = RemoteViews(context.packageName, R.layout.widget_transfers)
     views.setOnClickPendingIntent(android.R.id.background, MobileDeepLink.Transfers.pendingIntent(context))
@@ -57,13 +52,11 @@ private fun RemoteViews.showRow(context: Context, ids: RowViews, row: TransfersW
     setProgressBar(ids.seedingProgress, PROGRESS_MAX, row?.percent ?: PROGRESS_MAX, false)
 }
 
-/** "Updated 10:41", the time in mono. */
 private fun TransfersWidgetContent.Ready.updated(context: Context): CharSequence {
     val time = DateFormat.getTimeFormat(context).format(Date(updatedAtMillis))
     return monoSlot(context.getString(R.string.mobile_widget_transfers_updated, MONO_SLOT), time)
 }
 
-/** "2 more running", the count in mono; nothing when every running transfer has a row. */
 private fun TransfersWidgetContent.Ready.more(context: Context): CharSequence =
     if (more > 0) {
         val template = context.resources.getQuantityString(R.plurals.mobile_widget_transfers_more, more, MONO_SLOT)
@@ -72,7 +65,6 @@ private fun TransfersWidgetContent.Ready.more(context: Context): CharSequence =
         ""
     }
 
-/** [template] with its one slot replaced by [value] in the monospace face; spans travel through RemoteViews. */
 private fun monoSlot(template: String, value: String): CharSequence {
     val start = template.indexOf(MONO_SLOT)
     if (start < 0) return template

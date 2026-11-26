@@ -245,7 +245,6 @@ private fun LazyListScope.loadedTrashItems(
     }
 }
 
-/** Size in mono, then how long Trash keeps it; Restore sits on the row, the rest in its sheet. */
 @Composable
 private fun MobileTrashRow(
     item: TrashItem,
@@ -354,7 +353,6 @@ private fun rememberTrashRowText(items: List<TrashItem>): RowText<TrashItem, Tra
     ) { it.rowText(context, LocalDate.now()) }
 }
 
-/** The section line: what Trash holds in mono, then how long it keeps items. */
 @Composable
 private fun MobileTrashSummary(content: TrashContent.Loaded) {
     val style = MaterialTheme.typography.titleSmall

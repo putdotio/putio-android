@@ -20,11 +20,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import kotlinx.coroutines.flow.first
 
-/**
- * Which section of a pane focus should return to. Sections register themselves while
- * they hold focus and hand the target back to the pane's home section when they leave
- * composition. `home` is read at that moment, so it may depend on the pane's content.
- */
 internal class TvPaneFocusOwner(
     private val entryTarget: MutableState<FocusRequester>,
     private val paneHasFocus: State<Boolean>,
@@ -34,25 +29,16 @@ internal class TvPaneFocusOwner(
 ) {
     private val sections = mutableMapOf<Long, FocusRequester>()
 
-    /** True while the pane holds focus and this section was the last to have it. */
     fun owns(requester: FocusRequester): Boolean = paneHasFocus.value && entryTarget.value === requester
 
     fun focusHome() = home().requestFocus()
 
-    /**
-     * Makes the requester the next entry point without moving focus, but only while
-     * [from] still is: a section that has since taken the target keeps it.
-     */
     fun claim(requester: FocusRequester, from: FocusRequester) {
         if (entryTarget.value === from) entryTarget.value = requester
     }
 
     private val refocusRequests = mutableIntStateOf(0)
 
-    /**
-     * Moves focus to the entry point a frame after a section that held it left composition,
-     * unless the user has left the pane or [blocked] holds focus over it.
-     */
     @Composable
     fun RefocusAfterLeave(blocked: State<Boolean>) {
         val requests = refocusRequests.intValue
@@ -63,7 +49,6 @@ internal class TvPaneFocusOwner(
         }
     }
 
-    /** Records that the section behind [requester] holds focus, making it the entry point. */
     fun enter(requester: FocusRequester, section: Long? = null) {
         restorePending = false
         entryTarget.value = requester
@@ -91,10 +76,6 @@ internal class TvPaneFocusOwner(
         restorePending = section == null && lastSection.value != null
     }
 
-    /**
-     * Hands the entry point to [fallback] (or the pane's home) when the leaving section holds
-     * it, and requests a refocus if the pane had focus.
-     */
     fun leave(requester: FocusRequester, fallback: (() -> FocusRequester)?) {
         if (entryTarget.value === requester) {
             entryTarget.value = fallback?.invoke() ?: home()
@@ -129,11 +110,6 @@ internal class TvPickedRow {
     }
 }
 
-/**
- * Tracks focus for a section of [owner]'s pane; the requester itself is attached where focus
- * should land. When the section leaves composition while it is the entry point, [fallback] (or
- * the pane's home) becomes the entry point and a refocus is requested if the pane had focus.
- */
 @Composable
 internal fun Modifier.paneSection(
     owner: TvPaneFocusOwner,
@@ -151,12 +127,6 @@ internal fun Modifier.paneSection(
     return onFocusChanged { if (it.hasFocus) owner.enter(requester, section) }
 }
 
-/**
- * Lets a control hand focus back to its pane when it leaves composition while focused; the pane
- * runs [Refocus] to place focus on its entry point a frame later, unless the user has left the
- * pane or a dialog blocks it. A focused node reports losing focus before its effects dispose, so
- * the pane checks a frame later that the control is gone.
- */
 internal class TvFocusHandBack {
     private val requests = mutableIntStateOf(0)
     private var lost: TvHandBackControl? = null
@@ -200,10 +170,6 @@ internal fun Modifier.handsBackFocus(handBack: TvFocusHandBack): Modifier {
 internal fun Modifier.focusRequesterIf(condition: Boolean, requester: FocusRequester): Modifier =
     if (condition) focusRequester(requester) else this
 
-/**
- * Scrolls to [index] unless the item keyed [key] is composed, then waits until it is: a lazy
- * row that is not composed has no focus requester to answer.
- */
 internal suspend fun LazyListState.bringIntoComposition(key: Any, index: Int) {
     if (!composes(key)) scrollToItem(index)
     snapshotFlow { composes(key) }.first { it }
@@ -212,10 +178,6 @@ internal suspend fun LazyListState.bringIntoComposition(key: Any, index: Int) {
 internal fun LazyListState.composes(key: Any?): Boolean =
     key != null && layoutInfo.visibleItemsInfo.any { it.key == key }
 
-/**
- * Runs as a pane's `LaunchedEffect(dialogOpen)`. A closing dialog's window takes focus with it,
- * so a frame later the pane's entry target takes it back, unless the user left the pane meanwhile.
- */
 internal suspend fun refocusAfterDialog(
     dialogOpen: Boolean,
     dialogWasOpen: MutableState<Boolean>,

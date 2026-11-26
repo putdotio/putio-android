@@ -20,7 +20,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Drives the real PostHog SDK and reads what it puts on the wire; only the network is faked. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class PostHogAnalyticsSdkTest {

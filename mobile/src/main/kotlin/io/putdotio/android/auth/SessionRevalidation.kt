@@ -7,12 +7,6 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
-/**
- * Asks put.io again about a session it could not answer for: when a session opens offline, and
- * each time a validated network returns. A session that opened offline is confirmed in place, and
- * `Couldn’t check your session` retries. Each start makes at most [delays] attempts and replaces
- * the previous start's; nothing runs on a timer while the network stays as it is.
- */
 internal class SessionRevalidation(
     private val authController: MobileAuthController,
     private val scope: CoroutineScope,
@@ -20,7 +14,6 @@ internal class SessionRevalidation(
 ) {
     private var attempts: Job? = null
 
-    /** A return that came while a session check was still running; its failure starts attempts. */
     private var returnedDuringCheck = false
 
     init {
@@ -40,7 +33,6 @@ internal class SessionRevalidation(
         }
     }
 
-    /** The default network validated after it was missing or unvalidated. */
     fun onNetworkReturned() {
         val state = authController.state.value
         if (state.awaitsPutio()) {
@@ -61,7 +53,6 @@ internal class SessionRevalidation(
         }
     }
 
-    /** True once nothing is left to ask put.io. */
     private suspend fun attempt(): Boolean =
         when (authController.state.value) {
             is MobileAuthState.SignedIn -> authController.revalidate()

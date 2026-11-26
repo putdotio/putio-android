@@ -66,7 +66,6 @@ import io.putdotio.android.playback.DefaultMobilePlayerFactory
 import io.putdotio.android.playback.MOBILE_AUDIO_COVER_TAG
 import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TAG
 
-/** Real service playback with a controlled shell request; no notification tap, auth runtime, or API calls. */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileLiveAudioAttachmentProofTest {

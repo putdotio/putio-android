@@ -19,9 +19,7 @@ internal data class MobileAccount(
     val avatarUrl: String? = null,
     val storage: AccountStorage = AccountStorage(),
     val inactiveNotice: InactiveAccountNotice? = null,
-    /** The account's `diagnostics_enabled` at sign-in; the settings controller's answers supersede it. */
     val diagnosticsEnabled: Boolean = true,
-    /** The account's `product_analytics_enabled` at sign-in; the settings controller's answers supersede it. */
     val productAnalyticsEnabled: Boolean = false,
 )
 
@@ -49,11 +47,6 @@ internal sealed interface MobileAuthState {
         val source: SessionValidationSource,
     ) : MobileAuthState
 
-    /**
-     * [validated] is false while put.io has not answered for a restored session: the shell runs
-     * offline on the account put.io last confirmed, and [MobileAuthController.revalidate] confirms it
-     * in place, keeping [sessionId].
-     */
     data class SignedIn(
         val account: MobileAccount,
         val sessionId: MobileAuthSessionId,
@@ -81,7 +74,6 @@ internal enum class SessionValidationSource {
     RESTORE,
     OAUTH_CALLBACK,
 
-    /** A token from a device-code grant; only debug builds sign in this way. */
     DEVICE_LINK,
     RETRY,
 }
@@ -101,7 +93,6 @@ internal class MobileAuthController(
     private val oauthAttempts: OAuthAttempts,
     private val sessionGateway: AuthSessionGateway,
     private val tokenRevocations: TokenRevocations,
-    /** Drops what this device keeps for the account, such as the Move picker's remembered folder. */
     private val clearAccountLocalState: () -> Unit = {},
     private val validatedAccounts: ValidatedAccountStore = NoValidatedAccounts,
 ) {
@@ -109,7 +100,6 @@ internal class MobileAuthController(
     private val mutableState = MutableStateFlow<MobileAuthState>(MobileAuthState.Initializing)
     private var sessionSequence = 0L
 
-    /** The token the gateway holds, so sign-out can revoke it even when the store can't be read. */
     private var sessionToken: AccessToken? = null
 
     private var storedSessionUnread = false
@@ -234,11 +224,6 @@ internal class MobileAuthController(
             }
         }
 
-    /**
-     * Signs in with a token a device-code grant produced, through the same storage and validation as
-     * an OAuth callback. Only the debug build's device-code sign-in calls this. False unless signed out
-     * with no browser sign-in pending, including one an earlier process started.
-     */
     internal suspend fun completeDeviceLink(accessToken: AccessToken): Boolean = operationMutex.withLock {
         val signedOutState = mutableState.value as? MobileAuthState.SignedOut ?: return@withLock false
         val browserPending = try {
@@ -345,7 +330,6 @@ internal class MobileAuthController(
         true
     }
 
-    /** Signs out locally without waiting for put.io; the token is revoked in the background. */
     suspend fun logout(): Unit = operationMutex.withLock {
         mutableState.value = MobileAuthState.SigningOut
         withContext(NonCancellable) {

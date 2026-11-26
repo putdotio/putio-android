@@ -177,7 +177,6 @@ class MobileAccountLargeTextTest {
         compose.onNodeWithText("Try again").performClick()
     }
 
-    /** One line per row: the value sits beside its title, takes at most 60% of it, and neither is cut. */
     private fun assertTitleAndValue(title: String, value: String) {
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(title))
         val heading = compose.onNodeWithText(title, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot

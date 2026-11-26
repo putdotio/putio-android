@@ -16,7 +16,6 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-/** A video started on this device and not yet finished, as a Continue watching row shows it. */
 public data class ContinueWatchingEntry(
     val fileId: FilesItemId,
     val name: String,
@@ -30,7 +29,6 @@ public data class ContinueWatchingEntry(
     public val remainingSeconds: Long
         get() = (durationSeconds - positionSeconds).coerceAtLeast(0.0).toLong()
 
-    /** Enough of a Files item to open the player, which offers to resume from the saved position. */
     public fun toFilesItem(): FilesItem =
         FilesItem(
             id = fileId,
@@ -43,13 +41,11 @@ public data class ContinueWatchingEntry(
         )
 }
 
-/** A video is in progress above 0 % and below 95 % of its duration, the player's resume bounds. */
 internal fun isInProgress(positionSeconds: Double, durationSeconds: Double?): Boolean {
     val duration = durationSeconds?.takeIf { it.isFinite() && it > 0.0 } ?: return false
     return positionSeconds.isFinite() && positionSeconds > 0.0 && !playbackFinishedAt(positionSeconds, duration)
 }
 
-/** Where one user's row persists between launches. */
 public interface ContinueWatchingStore {
     public fun read(): List<ContinueWatchingEntry>
 
@@ -70,7 +66,6 @@ public class ContinueWatching(
 ) {
     private data class Media(val name: String, val durationSeconds: Double)
 
-    /** Videos the player resolved this session, for positions put.io accepts later. */
     private val media = mutableMapOf<FilesItemId, Media>()
     private val mutableEntries = MutableStateFlow(store.read())
     private val handledDeletes = mutableSetOf<FilesRequestId>()
@@ -81,7 +76,6 @@ public class ContinueWatching(
 
     public val entries: StateFlow<List<ContinueWatchingEntry>> = mutableEntries.asStateFlow()
 
-    /** The player resolved a video's name and duration. */
     public fun opened(fileId: FilesItemId, name: String, durationSeconds: Double?) {
         val duration = durationSeconds?.takeIf { it.isFinite() && it > 0.0 } ?: return
         media[fileId] = Media(name, duration)
@@ -96,7 +90,6 @@ public class ContinueWatching(
         update(mutableEntries.value.map { if (it.fileId == fileId) it.copy(name = name) else it })
     }
 
-    /** put.io accepted [seconds] for [fileId], from playback or the offline sync. */
     public fun positionSaved(fileId: FilesItemId, seconds: Double) {
         val current = mutableEntries.value
         val existing = current.firstOrNull { it.fileId == fileId }
@@ -110,11 +103,6 @@ public class ContinueWatching(
         }
     }
 
-    /**
-     * Reads each entry's file again, once per session: a file put.io no longer has leaves, and a
-     * position saved on another device moves the entry or, when finished, removes it. Other
-     * failures keep the entry. A 401 stops the pass and is returned for the session to reject.
-     */
     public suspend fun reconcile(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
@@ -124,10 +112,6 @@ public class ContinueWatching(
         return rejected
     }
 
-    /**
-     * The entry leaves: put.io confirmed the file gone, or the user hid it on this device. A save
-     * answered later can't bring it back; only playing the file again does.
-     */
     public fun removed(fileId: FilesItemId): () -> Unit {
         val entry = mutableEntries.value.firstOrNull { it.fileId == fileId }
         val known = media.remove(fileId)
@@ -140,11 +124,6 @@ public class ContinueWatching(
         }
     }
 
-    /**
-     * Deletes Files confirmed, each handled once per session however often the screen replays it.
-     * An entry deleted leaves at once. Any other item may be a folder holding entries, which only a
-     * fresh read of each entry finds: [recheckAfterDeletes] runs it.
-     */
     public fun removed(deletes: List<FilesDeleteOutcome>) {
         val fresh = deletes.filter { handledDeletes.add(it.requestId) }.flatMap { it.confirmedGone() }
         val entryIds = mutableEntries.value.mapTo(mutableSetOf()) { it.fileId }
@@ -152,11 +131,6 @@ public class ContinueWatching(
         if (fresh.any { it !in entryIds }) recheckRequests.value += 1
     }
 
-    /**
-     * Reads every entry again, as [reconcile] does, each time [removed] asks; asks that arrive
-     * during a pass share the next one. A pass cancelled with its screen runs again. Returns a 401
-     * for the session to reject.
-     */
     public suspend fun recheckAfterDeletes(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired? {
@@ -186,7 +160,6 @@ public class ContinueWatching(
         return null
     }
 
-    /** The session ended; nothing it still has in flight writes the row again. */
     public fun close() {
         closed = true
     }
@@ -223,7 +196,6 @@ public class ContinueWatching(
     }
 }
 
-/** One JSON document per user in private SharedPreferences; sign-out clears every user's. */
 public class DeviceContinueWatchingStore internal constructor(
     private val preferences: SharedPreferences,
     private val key: String,
@@ -239,7 +211,6 @@ public class DeviceContinueWatchingStore internal constructor(
             }
         }.orEmpty()
 
-    /** The wipe this store was made after; a later one retires it. */
     private val generation = wipes.get()
 
     override fun write(entries: List<ContinueWatchingEntry>) {
@@ -289,7 +260,6 @@ private fun JSONArray.toEntries(): List<ContinueWatchingEntry> =
         }
     }
 
-/** The items a settled delete's read-back found gone, a partial delete's included. */
 public fun FilesDeleteOutcome.confirmedGone(): List<FilesItemId> = when (status) {
     FilesDeleteStatus.NO_LONGER_AVAILABLE,
     FilesDeleteStatus.STILL_PRESENT,

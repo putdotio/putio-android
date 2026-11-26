@@ -45,18 +45,15 @@ internal const val MOBILE_NAV_DRAWER_TAG = "mobile-navigation-drawer"
 
 internal enum class MobileNavigationLayout { Bar, Rail, Modal }
 
-/** Material's compact window height, a phone in landscape: below 480dp. */
 internal fun isCompactHeight(height: Dp): Boolean = height < 480.dp
 
 internal fun drawsTopBarInContent(filesPane: Boolean, listDetail: Boolean, destination: MobileDestination): Boolean =
     filesPane || listDetail && destination == MobileDestination.Account
 
-/** Whether the app's window is compact in height; its chrome then keeps to one line. */
 @Composable
 internal fun isCompactHeightWindow(): Boolean =
     isCompactHeight(with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() })
 
-/** A window compact in height but at least 600dp wide, such as a phone in landscape, not a narrow split. */
 @Composable
 internal fun isShortWideWindow(): Boolean {
     val size = LocalWindowInfo.current.containerSize

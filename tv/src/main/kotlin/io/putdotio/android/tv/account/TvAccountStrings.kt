@@ -14,7 +14,6 @@ import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.tvLine
 import io.putdotio.android.tv.tvUnknownLine
 
-/** put.io's reason for a refused request, else this failure's copy. */
 @Composable
 internal fun AccountSettingsFailure.tvMessageText(): String =
     when (this) {
@@ -29,7 +28,6 @@ internal fun AccountSettingsFailure.tvMessage(): Int =
         is AccountSettingsFailure.Putio -> failure.tvAppConfigMessage()
     }
 
-/** put.io's reason for a refused request, else this failure's copy. */
 @Composable
 internal fun PutioFailure.tvAppConfigMessageText(): String =
     apiReason ?: takeIf { it.isUnknown }?.tvUnknownLine() ?: stringResource(tvAppConfigMessage())

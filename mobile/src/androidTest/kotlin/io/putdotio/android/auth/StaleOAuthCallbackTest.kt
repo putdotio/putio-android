@@ -100,7 +100,6 @@ class StaleOAuthCallbackTest {
     }
 }
 
-/** This lane never signs out; nothing reaches put.io's logout endpoint. */
 private object UnusedTokenRevocations : TokenRevocations {
     override suspend fun revoke(accessToken: AccessToken) = Unit
 

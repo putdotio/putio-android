@@ -38,12 +38,6 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/**
- * Owns the audio player so playback outlives the player screen: the session
- * drives the foreground notification, lock-screen and headset controls, and
- * audio focus while the app is in the background. While a Cast session runs
- * the session drives the receiver instead, whatever it plays.
- */
 class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var local: Media3Player? = null
@@ -163,7 +157,6 @@ class MobilePlaybackService : MediaSessionService() {
     }
 
     companion object {
-        /** Launcher intent action from the media notification: land on the live player. */
         const val ACTION_OPEN_NOW_PLAYING = "io.putdotio.android.action.OPEN_NOW_PLAYING"
         private const val ACTION_STOP = "io.putdotio.android.action.STOP_PLAYBACK"
 

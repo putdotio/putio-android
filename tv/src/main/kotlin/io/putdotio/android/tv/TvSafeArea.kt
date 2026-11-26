@@ -16,11 +16,6 @@ import kotlin.math.max
 internal val TV_SIDE_MARGIN = 48.dp
 internal val TV_VERTICAL_MARGIN = 24.dp
 
-/**
- * Insets content by the TV overscan safe area: the `tv.overscan` token fractions
- * of the viewport this element fills, so 720p, 1080p and 4K panels keep the same
- * proportion clear. Backgrounds drawn before this modifier still reach the edges.
- */
 internal fun Modifier.tvOverscanPadding(): Modifier = tvInset(minimumX = 0.dp, minimumY = 0.dp)
 
 internal fun Modifier.tvSafeAreaPadding(): Modifier =
@@ -53,6 +48,5 @@ private fun requireBounded(viewport: Constraints) {
     }
 }
 
-/** Rounded up: a partial pixel of inset still belongs to the unsafe edge. */
 private fun tvSafeInset(viewportPx: Int, ratio: Float, minimumPx: Int): Int =
     max(ceil(viewportPx * ratio.toDouble()).toInt(), minimumPx)

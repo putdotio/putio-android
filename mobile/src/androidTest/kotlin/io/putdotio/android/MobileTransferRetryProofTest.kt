@@ -44,7 +44,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/** Synthetic proof of transfer failure reasons and confirm-free retry; the SDK boundary is faked, no API calls. */
 @RunWith(AndroidJUnit4::class)
 class MobileTransferRetryProofTest {
     private val compose = createComposeRule()

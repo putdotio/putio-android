@@ -52,17 +52,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Opt-in, no API calls: the viewer switches a playing original to converted with the D-pad, the
- * converted fixture plays on from that position, the device's switch list opens the file
- * converted next time, and the Stream chip takes it back to the original and off the list.
- * Local fixtures stand in for put.io; the list is the app's own DataStore, emptied before and
- * after.
- *
- * Arguments: `putio.tv.switch.enabled=true`, `putio.tv.switch.runId` (UUID),
- * `putio.tv.switch.original` and `putio.tv.switch.converted` (H.264 MP4s), both under the app's
- * external files directory.
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class TvSwitchToConvertedProofTest {

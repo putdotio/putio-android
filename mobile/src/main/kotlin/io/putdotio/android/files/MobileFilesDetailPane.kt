@@ -75,24 +75,15 @@ internal const val MOBILE_FILES_DETAIL_DOWNLOAD_TAG = "mobile-files-detail-downl
 internal const val MOBILE_FILES_DETAIL_SHARE_TAG = "mobile-files-detail-share"
 internal const val MOBILE_FILES_DETAIL_MORE_TAG = "mobile-files-detail-more"
 
-/** What the detail pane runs: the same callbacks the actions sheet's tiles and rows run. */
 internal class MobileFilesDetailActions(
-    /** Plays media, opens a viewer, or hands the file to another app. */
     val onOpen: (FilesItem) -> Unit,
     val onDownload: ((FilesItem) -> Unit)? = null,
     val onShare: ((FilesItem) -> Unit)? = null,
-    /** Opens the file's actions sheet. */
     val onMore: ((FilesItem) -> Unit)? = null,
-    /** The image's bytes for its preview; null leaves the type glyph. */
     val imageUri: ((Context, FilesItem) -> Uri)? = null,
-    /** The account's confirmed resume setting; off, the player always starts over. */
     val resumePlayback: Boolean = true,
 )
 
-/**
- * The selected file beside the list from 840dp: its preview, full name, primary actions, and the
- * facts that the row's meta leaves out. With nothing selected it says how to pick a file.
- */
 @Composable
 internal fun MobileFilesDetailPane(
     item: FilesItem?,
@@ -101,7 +92,6 @@ internal fun MobileFilesDetailPane(
     subtitleLanguages: FilesSubtitleLanguages?,
     actions: MobileFilesDetailActions,
     modifier: Modifier = Modifier,
-    /** A 401 on the subtitles read rejects the session, as one anywhere else does. */
     onAuthenticationRequired: suspend () -> Unit = {},
 ) {
     Box(
@@ -141,7 +131,6 @@ internal fun MobileFilesDetailPane(
     }
 }
 
-/** A video's still, an image itself, or the type glyph, with Play over what plays. */
 @Composable
 private fun MobileFilesDetailPreview(item: FilesItem, actions: MobileFilesDetailActions) {
     val context = LocalContext.current
@@ -193,10 +182,6 @@ private fun MobileFilesDetailPreview(item: FilesItem, actions: MobileFilesDetail
     }
 }
 
-/**
- * The filled primary action, then Download for media and Share, tonal, then the overflow with the
- * rest of the sheet. They wrap on a narrow pane rather than squeeze.
- */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MobileFilesDetailButtons(
@@ -265,7 +250,6 @@ private fun primaryAction(item: FilesItem, resumePlayback: Boolean): Pair<Int, A
 
 private data class DetailDownload(@param:DrawableRes val icon: Int, val label: String, val enabled: Boolean)
 
-/** A running or finished download names its state and does nothing more, as the sheet's tile does. */
 @Composable
 private fun downloadAction(status: DownloadStatus?): DetailDownload =
     when (status) {
@@ -311,10 +295,6 @@ private fun MobileFilesDetailButtonContent(@DrawableRes icon: Int, label: Annota
     Text(label, modifier = Modifier.padding(start = ButtonDefaults.IconSpacing))
 }
 
-/**
- * Size, Added, Length and Subtitles for media, and Folder, as label and value. Numbers are mono;
- * a fact put.io doesn't know is left out rather than shown blank.
- */
 @Composable
 private fun MobileFilesDetailFacts(
     item: FilesItem,
@@ -378,12 +358,6 @@ private fun MobileFilesDetailFact(fact: DetailFact, style: TextStyle) {
     }
 }
 
-/**
- * The listed folder's path from the root, root left out: "Series / Blue Lights". The stack is where
- * Files has been, not the folder's ancestry: a folder opened from Search or a link sits on the prior
- * location. So the path counts only folders each opened from the listing below it, and it falls back
- * to the folder's own name when that chain doesn't reach the root. Null at the root.
- */
 internal fun FilesBrowserState.folderPath(): String? {
     var start = stack.lastIndex
     while (start > 0 && stack[start - 1].content.items().any { it.id == stack[start].folder.id }) start--
@@ -406,6 +380,5 @@ private val FACT_LABEL_WIDTH = 120.dp
 private val FACT_ROW_GAP = 10.dp
 private val FACT_COLUMN_GAP = 16.dp
 
-/** The board's buttons: even 24dp sides with the glyph, which sits at the label's 14sp. */
 private val DETAIL_BUTTON_PADDING = PaddingValues(horizontal = 24.dp)
 private val DETAIL_BUTTON_ICON_SIZE = 14.dp

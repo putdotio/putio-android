@@ -102,25 +102,15 @@ internal const val MOBILE_FILES_MOVE_ACTION_TAG = "mobile-files-move-action"
 internal const val MOBILE_FILES_PUBLIC_LINK_ACTION_TAG = "mobile-files-public-link-action"
 internal const val MOBILE_FILES_DELETE_ACTION_TAG = "mobile-files-delete-action"
 
-/**
- * What the actions sheet offers beyond the browser's own events; each null action stays hidden.
- * [onSetWatched] is null while the account's resume setting is unknown or off, since "watched" is
- * the saved position that setting keeps.
- */
 internal data class MobileFilesItemActions(
     val onOpenInVlc: ((FilesItem) -> Unit)? = null,
     val onOpen: ((FilesItem) -> Unit)? = null,
     val onOpenWith: ((FilesItem) -> Unit)? = null,
-    /** Starts selection with the item; only a sheet opened from the item's own listing offers it. */
     val onSelect: ((FilesItem) -> Unit)? = null,
-    /** Marks one file from the sheet, or the selection's files, watched or unwatched. */
     val onSetWatched: ((List<FilesItem>, Boolean) -> Unit)? = null,
     val onRemoveFromContinueWatching: ((ContinueWatchingEntry) -> () -> Unit)? = null,
-    /** Restores a confirmed Trash move from the snackbar's Undo. */
     val onUndoTrash: ((FilesDeleteOutcome) -> Unit)? = null,
-    /** Actions that did not go through, and a copied link, for the Files snackbar. */
     val notices: Flow<MobileFilesNotice> = emptyFlow(),
-    /** A link copied from the Exclusive access sheet, which closes so the snackbar can say so. */
     val onLinkCopied: (() -> Unit)? = null,
     val playWith: MobileOtherMethod? = null,
     val downloadWith: MobileOtherMethod? = null,
@@ -128,7 +118,6 @@ internal data class MobileFilesItemActions(
     val onSetPinned: ((FilesItem, Boolean) -> Unit)? = null,
     val pinNotices: Flow<MobileFilesNotice> = emptyFlow(),
 ) {
-    /** The resume setting [onSetWatched] needs is also what makes playback start from a saved position. */
     val resumes: Boolean get() = onSetWatched != null
 
     fun withSelect(onSelect: ((FilesItem) -> Unit)?): MobileFilesItemActions = copy(onSelect = onSelect)
@@ -176,11 +165,6 @@ private val StreamingMethod.downloadWithLabel: Int
 private val DownloadStatus?.startsDownload: Boolean
     get() = this == null || this is DownloadStatus.Failed || this == DownloadStatus.Missing
 
-/**
- * Whether the row's sheet offers anything. Download and Share read the original, and Make a copy
- * reads it into the viewer's own files, so a friend's shared file or folder keeps them; the shared
- * root and each friend's folder offer nothing.
- */
 internal fun FilesItem.hasMobileActions(canDownload: Boolean, canShare: Boolean, canCopy: Boolean): Boolean =
     id.value > 0L &&
         (acceptsOwnerActions || (canDownload && isPlayable) || (canShare && !isFolder) || (canCopy && canMakeCopy))
@@ -203,12 +187,7 @@ internal fun MobileFilesActions(
     onPublicLinkItem: ((FilesItem) -> Unit)? = null,
     onPlayItem: ((FilesItem) -> Unit)? = null,
     itemActions: MobileFilesItemActions = MobileFilesItemActions(),
-    /** The friend whose folder holds a shared item, named in the sheet's meta. */
     sharedBy: String? = null,
-    /**
-     * Rename and the delete action change the listing they run from; a sheet opened outside its
-     * folder, as from Search, leaves them out.
-     */
     listingActions: Boolean = true,
 ) {
     val failed = operation as? FilesFolderOperation.Failed
@@ -314,10 +293,6 @@ internal fun MobileFilesActions(
     }
 }
 
-/**
- * An on-device file while put.io is out of reach: only what works offline, which is playing it.
- * The Download tile reads On this device, so the sheet says why the file is listed.
- */
 @Composable
 internal fun MobileFilesOfflineActions(
     item: FilesItem,
@@ -411,10 +386,6 @@ private fun MobileFilesRenameDialog(
     )
 }
 
-/**
- * The name with its stem selected, so typing replaces the name and keeps the extension; a folder,
- * or a name whose only dot leads it, selects in full.
- */
 internal fun String.withNameSelected(isFolder: Boolean): TextFieldValue =
     TextFieldValue(this, TextRange(0, nameStemEnd(isFolder)))
 
@@ -491,7 +462,6 @@ internal fun MobileFilesSheetMeta(size: String?, detail: String?, detailMaxLines
     }
 }
 
-/** Play or Resume, or Open, then Download and Share as 72dp tiles; the ones the file allows share the row. */
 @Composable
 internal fun MobileFilesActionTiles(
     item: FilesItem,
@@ -614,7 +584,6 @@ private fun RowScope.MobileFilesActionTile(
     }
 }
 
-/** The 56dp rows, in the board's order; each shows only when the item allows it. */
 @Composable
 private fun MobileFilesActionRows(
     item: FilesItem,
@@ -681,10 +650,6 @@ private fun MobileFilesDownloadWithRow(
     }
 }
 
-/**
- * Mark as watched for a video or audio file not started or part-way through, which saves its end;
- * Mark as unwatched once it is finished, or played with no known length, which drops the position.
- */
 @Composable
 private fun MobileFilesWatchedRow(
     item: FilesItem,
@@ -720,7 +685,6 @@ private fun MobileFilesPinRow(item: FilesItem, itemActions: MobileFilesItemActio
     }
 }
 
-/** Rename, Move and Exclusive link, which only the item's owner has. */
 @Composable
 private fun MobileFilesOwnerRows(
     item: FilesItem,
@@ -785,7 +749,6 @@ internal fun MobileFilesActionRow(
     }
 }
 
-/** Last, in red, after a divider: Move to trash, or Delete permanently when the account turns Trash off. */
 @Composable
 private fun MobileFilesDeleteAction(
     item: FilesItem,
@@ -838,11 +801,6 @@ internal fun MobileFilesDestructiveAction(
     )
 }
 
-/**
- * The Delete key on a focused row, acting as the sheet's delete row would: Move to trash goes at once,
- * Delete permanently confirms first. [mode] is the setting when the key was pressed; if the account's
- * Trash setting has changed since, nothing is sent.
- */
 @Composable
 internal fun MobileFilesKeyDelete(
     item: FilesItem,
@@ -873,11 +831,6 @@ internal fun MobileFilesKeyDelete(
     }
 }
 
-/**
- * True when a video or audio file can be marked watched, false when it can be marked unwatched,
- * null when neither: watched is the saved position at the end, so it needs a known length, and a
- * file played with no known length can only be cleared.
- */
 internal fun FilesItem.watchedChoice(): Boolean? {
     if (!isPlayable) return null
     val progress = playback
@@ -900,10 +853,6 @@ internal fun resumeLabel(seconds: Double, style: TextStyle): AnnotatedString = m
     DateUtils.formatElapsedTime(seconds.toLong()),
 )
 
-/**
- * Whether opening the file offers to resume: a saved position short of the player's finished
- * threshold; with no known length, any saved position.
- */
 private fun FilesPlaybackProgress.resumesPlayback(): Boolean =
     startFromSeconds > 0.0 && !playbackFinishedAt(startFromSeconds, durationSeconds)
 
@@ -919,6 +868,5 @@ private val HEADER_ICON_SIZE = 26.dp
 private val META_GAP = 6.dp
 private val TILE_HEIGHT = 72.dp
 private val ROW_HEIGHT = 56.dp
-/** The sheet adds the navigation bar inset itself; over a gesture bar this makes the board's 28dp. */
 private val SHEET_BOTTOM_PADDING = 4.dp
 private const val DISABLED_ALPHA = 0.38f

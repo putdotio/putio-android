@@ -3,10 +3,6 @@ package io.putdotio.android.settings
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
-/**
- * Whether the signed-in shell asks about product analytics, or null until both reads land. Unset
- * reads as off, so an account is asked until it turns analytics on or this app stores an answer.
- */
 public fun productAnalyticsPromptDue(
     settings: AccountSettingsState,
     appConfig: AndroidAppConfigState,
@@ -20,11 +16,6 @@ public fun productAnalyticsPromptDue(
     }
 }
 
-/**
- * Whether a pending answer can be written now: false while the config is unloaded or busy with another
- * write, null once it is recorded or its write failed. A failed write isn't retried; the next launch
- * asks again.
- */
 public fun AndroidAppConfigState.canRecordProductAnalyticsAnswer(): Boolean? {
     val config = (content as? AndroidAppConfigContent.Ready)?.preferences
     return when {
@@ -34,10 +25,6 @@ public fun AndroidAppConfigState.canRecordProductAnalyticsAnswer(): Boolean? {
     }
 }
 
-/**
- * Each product analytics choice put.io accepts, from the prompt or Privacy controls. The account must
- * hold the choice too: a later save can hide a failure the collector missed.
- */
 public fun Flow<AccountSettingsState>.acceptedProductAnalyticsChoices(): Flow<Boolean> =
     flow {
         var previous: SaveStep<AccountSettingsChange>? = null
@@ -50,7 +37,6 @@ public fun Flow<AccountSettingsState>.acceptedProductAnalyticsChoices(): Flow<Bo
         }
     }
 
-/** The prompt's next write: the setting, then, once put.io holds it, the answer. */
 public sealed interface ProductAnalyticsAnswerStep {
     public data class SaveSetting(
         val event: AccountSettingsEvent,
@@ -90,9 +76,7 @@ public fun productAnalyticsAnswerStep(
     }
 }
 
-/** Where the prompt's answer stands once the viewer chose [enabled]. */
 public sealed interface ProductAnalyticsAnswerProgress {
-    /** Nothing in flight, for example after the process died mid-save: the viewer can answer again. */
     public data object Idle : ProductAnalyticsAnswerProgress
 
     public data object Saving : ProductAnalyticsAnswerProgress
@@ -104,10 +88,6 @@ public sealed interface ProductAnalyticsAnswerProgress {
     public data object Answered : ProductAnalyticsAnswerProgress
 }
 
-/**
- * [staleAnswerFailure] skips a failed answer write left from an earlier choice, so a new choice can
- * save its setting and then answer.
- */
 public fun productAnalyticsAnswerProgress(
     enabled: Boolean,
     settings: AccountSettingsState,
@@ -129,7 +109,6 @@ public fun productAnalyticsAnswerProgress(
     }
 }
 
-/** Where the analytics setting stands, once neither the answer nor a failed read decides it. */
 private fun AccountSettingsState.settingProgress(enabled: Boolean): ProductAnalyticsAnswerProgress {
     val settingMutation = mutation
     return when {
@@ -146,7 +125,6 @@ private fun AccountSettingsState.settingProgress(enabled: Boolean): ProductAnaly
     }
 }
 
-/** Whether the last answer write failed; the prompt shows it until a new choice writes again. */
 public fun AndroidAppConfigState.productAnalyticsAnswerFailed(): Boolean =
     (mutation as? AndroidAppConfigMutation.Failed)?.isAnswerWrite() == true
 

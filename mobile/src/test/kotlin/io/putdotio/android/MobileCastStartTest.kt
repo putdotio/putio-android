@@ -15,7 +15,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** What Cast needs to find receivers on a real device, which the fake gateways never exercise. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileCastStartTest {

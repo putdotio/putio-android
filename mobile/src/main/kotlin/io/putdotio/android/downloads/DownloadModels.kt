@@ -4,11 +4,6 @@ import io.putdotio.android.files.FilesItemId
 import io.putdotio.android.settings.StreamingMethod
 import io.putdotio.sdk.files.PutioFileType
 
-/**
- * Which rendition the cache holds. Standard downloads a video's converted HLS rendition; Direct play its original
- * file when the player's original decision accepts it, else its converted [MP4] file. Audio downloads the
- * original file. [ORIGINAL_HLS] rows, originals over HLS from earlier builds, still play but are no longer made.
- */
 internal enum class DownloadArtifact {
     HLS,
     ORIGINAL,
@@ -22,13 +17,8 @@ internal enum class DownloadArtifact {
 }
 
 internal sealed interface DownloadStatus {
-    /** Waiting for a free slot; Media3 starts queued rows oldest first. */
     data object Queued : DownloadStatus
 
-    /**
-     * Partial bytes are kept. Media3 resumes by itself once a network or storage [reason] clears;
-     * a [DownloadPauseReason.USER] pause waits for Resume. [contentLength] is null when unknown.
-     */
     data class Paused(
         val reason: DownloadPauseReason,
         val bytesDownloaded: Long,
@@ -36,14 +26,9 @@ internal sealed interface DownloadStatus {
         val contentLength: Long? = null,
     ) : DownloadStatus
 
-    /**
-     * [percent] is set only when Media3 knows the denominator: the content length of an
-     * original, or the segment count of an HLS rendition. Otherwise only bytes are known.
-     */
     data class Downloading(
         val bytesDownloaded: Long,
         val percent: Float?,
-        /** The whole transfer's size; an HLS rendition has none until every segment length is known. */
         val contentLength: Long? = null,
     ) : DownloadStatus
 
@@ -56,26 +41,20 @@ internal sealed interface DownloadStatus {
         val bytes: Long,
     ) : DownloadStatus
 
-    /** It finished once, but its bytes are no longer on this device; Download again fetches them. */
     data object Missing : DownloadStatus
 }
 
 internal enum class DownloadPauseReason {
     NETWORK,
 
-    /** The system reports low storage; Media3 holds every transfer until it clears. */
     STORAGE,
 
-    /** The viewer paused it; it holds, across restarts and sign-outs, until they resume it. */
     USER,
 }
 
 internal enum class DownloadFailureReason {
-    /** Connection dropped or timed out; a retry resumes from the partial file. */
     NETWORK,
-    /** The session is no longer valid; the shell handles re-authentication. */
     AUTHENTICATION,
-    /** The file is gone, not converted, or the server refused; retry re-checks. */
     UNAVAILABLE,
     STORAGE,
     UNEXPECTED,
@@ -88,26 +67,13 @@ internal data class DownloadEntry(
     val artifact: DownloadArtifact,
     val status: DownloadStatus,
     val createdAt: Long,
-    /** Set once the platform downloader has recorded this request. */
     val accepted: Boolean = false,
-    /** When Media3 last queued the request; it starts requests in this order, oldest first. */
     val queuedAt: Long = createdAt,
-    /** Set when the viewer confirmed Delete; the row leaves once Media3 has removed the bytes. */
     val removing: Boolean = false,
-    /** Rebuilt from Media3's index after this row was lost; its name may be a stand-in. */
     val recovered: Boolean = false,
-    /**
-     * The account's `hide_subtitles` as confirmed when the download started; null when it was
-     * not known. An HLS download made while it was true holds no subtitle rendition.
-     */
     val subtitlesHidden: Boolean? = null,
-    /** The listing's saved position when the download started; offline resume falls back to it. */
     val startFromSeconds: Double = 0.0,
     val durationSeconds: Double? = null,
-    /**
-     * The viewer paused it and has not resumed it. Media3's stop reason can lag behind or be
-     * overwritten by sign-out parking, so the engine holds Media3 to this.
-     */
     val pauseRequested: Boolean = false,
     val subtitles: List<DownloadSubtitle> = emptyList(),
     val directPlayChosen: Boolean = false,
@@ -119,7 +85,6 @@ internal data class DownloadEntry(
         get() = status is DownloadStatus.Queued || status is DownloadStatus.Downloading ||
             status is DownloadStatus.Paused
 
-    /** Running, waiting for a slot, or held by the network or storage: a pause holds it until Resume. */
     val canPause: Boolean get() = isActive && !isPausedByUser
 
     val isPausedByUser: Boolean get() = (status as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER
@@ -143,20 +108,17 @@ internal fun DownloadEntry.convertedFallback(): DownloadEntry? =
         copy(artifact = converted, status = DownloadStatus.Queued, accepted = true, pauseRequested = false)
     }
 
-/** Enough of a Files item to start a download without another API call. */
 internal data class DownloadRequest(
     val fileId: FilesItemId,
     val name: String,
     val type: PutioFileType,
     val sizeBytes: Long,
-    /** The account's confirmed `hide_subtitles`; null while settings are not confirmed. */
     val subtitlesHidden: Boolean? = null,
     val startFromSeconds: Double = 0.0,
     val durationSeconds: Double? = null,
     val method: StreamingMethod? = null,
 )
 
-/** How many transfers Media3 runs at once; iOS offers the same choices and default. */
 internal const val DOWNLOAD_CONCURRENCY_DEFAULT = 3
 private const val DOWNLOAD_CONCURRENCY_MAX = 4
 internal val DOWNLOAD_CONCURRENCY_CHOICES = 1..DOWNLOAD_CONCURRENCY_MAX

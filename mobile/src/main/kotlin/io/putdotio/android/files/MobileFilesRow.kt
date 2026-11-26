@@ -62,13 +62,6 @@ internal const val MOBILE_FILES_DOWNLOAD_TAG = "mobile-files-download"
 internal const val MOBILE_FILES_DOWNLOAD_RING_TAG = "mobile-files-download-ring"
 internal const val MOBILE_FILES_DOWNLOAD_FAILED_TAG = "mobile-files-download-failed"
 
-/**
- * A file row: a fixed 64dp line with the type glyph, the name cut in the middle on one line, and
- * meta (size in mono, date, then the played eye and the download's mark). A row with
- * actions ends in an overflow button, and a folder without them in a chevron. Long-press runs
- * [onLongClick], which starts selection where the list has one, else opens the actions. In
- * selection a checkbox takes the glyph's place, the trailing slot empties, and a tap toggles the row.
- */
 @Composable
 internal fun MobileFilesRow(
     item: FilesItem,
@@ -78,17 +71,12 @@ internal fun MobileFilesRow(
     onClickLabel: String? = null,
     onActions: (() -> Unit)? = null,
     actionsEnabled: Boolean = true,
-    /** Long-press, when it does something other than open the actions: starting selection. */
     onLongClick: (() -> Unit)? = null,
     onLongClickLabel: String? = null,
     downloadStatus: DownloadStatus? = null,
-    /** The file an outside open came for; it has no screen of its own, so its row stands out. */
     highlighted: Boolean = false,
-    /** A folder's listing dates the row; search names the folder it sits in instead. */
     place: MobileFilesRowPlace = MobileFilesRowPlace.Listing,
-    /** The file the tablet's detail pane shows, tinted more faintly than an outside open. */
     selected: Boolean = false,
-    /** Null outside selection; otherwise whether the row is checked. */
     checked: Boolean? = null,
     onCheckedChange: (() -> Unit)? = null,
     playbackBounds: Boolean = true,
@@ -165,10 +153,6 @@ internal fun MobileFilesRow(
     )
 }
 
-/**
- * A row in selection: a checkbox in the glyph's place, nothing trailing, the 9% yellow tint when
- * checked, and a tap that checks or clears it.
- */
 @Composable
 private fun MobileFilesSelectableRow(
     item: FilesItem,
@@ -225,19 +209,12 @@ internal fun rememberFilesRowText(
     }
 }
 
-/** Where a row is listed: in a folder, which dates it, or in search results, which name its folder. */
 internal sealed interface MobileFilesRowPlace {
     data object Listing : MobileFilesRowPlace
 
     data class SearchResult(val folderName: String?) : MobileFilesRowPlace
 }
 
-/**
- * Size in mono, then the date in a folder or the containing folder's name in search, then
- * a grey eye once a video or song is finished, then the download: a ring while it runs or waits, a red
- * mark once it failed, and a yellow mark when on this device. A folder dates
- * itself by its last change, "3 days ago"; the shared folders have no size of their own.
- */
 @Composable
 private fun MobileFilesMeta(
     item: FilesItem,
@@ -327,10 +304,6 @@ private fun MobileFilesDownloadRing(status: DownloadStatus, @StringRes labelRes:
     )
 }
 
-/**
- * Tap runs [onClick], or opens the actions when there is nothing else to do; long-press runs
- * [onLongClick] where the list has one, else opens the actions.
- */
 private fun Modifier.rowInteraction(
     onClick: (() -> Unit)?,
     onClickLabel: String?,

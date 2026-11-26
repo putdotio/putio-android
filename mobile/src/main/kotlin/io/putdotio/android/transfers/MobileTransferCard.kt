@@ -50,12 +50,6 @@ import io.putdotio.android.MobileIconButton
 
 internal fun mobileTransferCardTag(id: TransferId): String = "mobile-transfer-card-${id.value}"
 
-/**
- * A transfer card: its background fills with progress, a state dot with its word leads the meta, and
- * the trailing slot holds the time left and speed while it runs, a retry button when it failed, and a
- * chevron once it finished. A finished card opens its file; any other opens Transfer actions, and a
- * long press always does.
- */
 @Composable
 internal fun MobileTransferCard(
     item: TransferItem,
@@ -172,7 +166,6 @@ private fun MobileTransferSpeed(speed: String) {
     }
 }
 
-/** A state dot and its words; numbers in [meta] set in mono. */
 @Composable
 internal fun MobileTransferMeta(dot: MobileTransferDot, meta: List<MobileTransferPart>, maxLines: Int = 2) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -224,7 +217,6 @@ internal fun List<MobileTransferPart>.annotated(mono: SpanStyle): AnnotatedStrin
         }
     }
 
-/** The card's meta: the state's word, then what matters for that state. */
 internal fun TransferItem.cardMeta(context: Context, nowMillis: Long): List<MobileTransferPart> {
     val details: List<List<MobileTransferPart>> = when {
         status == AppTransferStatus.Failed ->

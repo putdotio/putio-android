@@ -39,7 +39,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** The Transfers widget per session state, against Robolectric's widget host, which reapplies views like a launcher. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS")
 class MobileTransfersWidgetTest {
@@ -234,7 +233,6 @@ class MobileTransfersWidgetTest {
         }
     }
 
-    /** Places one widget; the host sends the update a launcher sends, which runs a refresh. */
     private fun place(): View {
         MobileWidgets.transfersForTest = updater
         val id = widgets.createWidget(MobileTransfersWidgetProvider::class.java, R.layout.widget_transfers)

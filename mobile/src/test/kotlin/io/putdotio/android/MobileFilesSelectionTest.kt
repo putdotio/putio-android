@@ -56,7 +56,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Files selection as the shell draws it: Select from the sheet, the bar, the toolbar and Back. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS-w400dp-h900dp")
 class MobileFilesSelectionTest {

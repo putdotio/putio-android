@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** The signed-in session's public links, shared by the Files sheet and the Account list. */
 public class PublicLinksController(
     private val repository: PublicLinksRepository,
     parentScope: CoroutineScope,
@@ -26,7 +25,6 @@ public class PublicLinksController(
     private var closed = false
     public val state: StateFlow<PublicLinksState> = mutableState.asStateFlow()
 
-    /** Whether the event was accepted; a refused one changes nothing. */
     public fun dispatch(event: PublicLinksEvent): Boolean = synchronized(lock) {
         if (closed || !controllerJob.isActive) return@synchronized false
         val next = machine.transition(event) ?: return@synchronized false

@@ -45,12 +45,6 @@ import io.putdotio.android.files.formatFileSize
 internal const val MOBILE_TAB_TITLE_TAG = "mobile-tab-title"
 internal const val MOBILE_TAB_SUMMARY_TAG = "mobile-tab-summary"
 
-/**
- * History, Transfers, Downloads and Account open on a tab title: an action row when the tab has
- * actions, the title in headline-lg, and an optional one-line summary with its numbers in mono.
- * A compact-height window, such as a phone in landscape, sets all of it on one top-app-bar row,
- * with the title in title-lg, so the content keeps the height.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileTabTitle(
@@ -130,7 +124,6 @@ private fun TabSummaryText(summary: AnnotatedString, modifier: Modifier) {
     )
 }
 
-/** One summary part: a template with one `%1$s` slot whose value sets in mono. */
 internal data class SummaryPart(val template: String, val value: String)
 
 internal fun summaryOf(parts: List<SummaryPart>, mono: SpanStyle): AnnotatedString? =
@@ -153,7 +146,6 @@ internal fun summaryOf(parts: List<SummaryPart>, mono: SpanStyle): AnnotatedStri
 @Composable
 internal fun summaryMonoStyle(): SpanStyle = MaterialTheme.typography.bodyMedium.putioMono().toSpanStyle()
 
-/** Running and failed counts and the combined download speed, over the transfers loaded so far. */
 internal fun transfersSummaryParts(context: Context, state: TransfersState): List<SummaryPart> {
     val items = (state.content as? TransfersContent.Ready)?.items.orEmpty()
     val active = items.filter(TransferItem::isActiveTransfer)
@@ -176,7 +168,6 @@ internal fun transfersSummaryParts(context: Context, state: TransfersState): Lis
     }
 }
 
-/** A transfer put.io is working on now; queued and waiting ones are not active yet. */
 private val TransferItem.isActiveTransfer: Boolean
     get() = when (status) {
         AppTransferStatus.PreparingDownload,
@@ -196,7 +187,6 @@ private val TransferItem.isActiveTransfer: Boolean
         -> false
     }
 
-/** Space the finished downloads take, and what the app's storage volume has free. */
 internal fun downloadsSummaryParts(context: Context, storageBytes: Long, freeBytes: Long?): List<SummaryPart> =
     buildList {
         add(SummaryPart(

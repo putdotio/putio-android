@@ -164,10 +164,6 @@ internal class DiagnosticsFiles(val cache: File, val sentryInstallation: File, v
     }
 }
 
-/**
- * Copies listed fields into a new event, so unlisted ones, including any a Sentry upgrade adds,
- * stay on the device. A throwable's message can quote a media title, so exceptions keep their type.
- */
 private fun allowlisted(event: SentryEvent, installation: String?, surface: String, failure: TelemetryFailure?) =
     SentryEvent(event.timestamp).apply {
         eventId = event.eventId

@@ -56,13 +56,6 @@ internal const val MOBILE_TRANSFER_DROP_TARGET_TAG = "mobile-transfer-drop-targe
 
 internal enum class MobileDropHighlight { None, Available, Over }
 
-/**
- * Takes links, magnet links and `.torrent` files dragged in from another app into the Add transfer
- * sheet, through the same intake as a share. While such a drag is under way the whole signed-in
- * screen shows where to drop it. A torrent's read grant is requested for this drop only and released
- * once its read is over or cancelled. Drags of this app's own files are not taken; their end is
- * reported to [onOwnDragEnded], which forgets a drag nobody received.
- */
 @Composable
 internal fun MobileTransferDropZone(
     enabled: Boolean,
@@ -120,7 +113,6 @@ internal fun MobileTransferDropZone(
     }
 }
 
-/** Reads a drop into the draft; false when it carries nothing the intake takes. */
 internal fun MobileTransferDraft.receiveDrop(activity: Activity, event: DragEvent): Boolean {
     val incoming = event.clipData?.toMobileIncomingTransfer() ?: return false
     val permissions =
@@ -129,10 +121,6 @@ internal fun MobileTransferDraft.receiveDrop(activity: Activity, event: DragEven
     return true
 }
 
-/**
- * One dashed yellow area over the signed-in screen, clear of the system bars and the navigation:
- * "Drop to add a transfer". It fills more while the drag is over it.
- */
 @Composable
 internal fun MobileTransferDropOverlay(over: Boolean) {
     val accent = MaterialTheme.colorScheme.primary

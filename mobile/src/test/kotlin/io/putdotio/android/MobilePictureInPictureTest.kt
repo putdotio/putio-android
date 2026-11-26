@@ -420,7 +420,6 @@ class MobilePictureInPictureTest {
     }
 }
 
-/** Records what the screen asks of the platform; Robolectric has no window manager to enter it. */
 open class PictureInPictureHostActivity : ComponentActivity() {
     val params = mutableListOf<PictureInPictureParams>()
 
@@ -434,10 +433,8 @@ open class PictureInPictureHostActivity : ComponentActivity() {
     }
 }
 
-/** Its manifest entry, as the test registers it, lacks supportsPictureInPicture. */
 class UndeclaredHostActivity : PictureInPictureHostActivity()
 
-/** A device whose narrower limits refuse every shape, as the platform does with an exception. */
 class ShapeRefusingHostActivity : PictureInPictureHostActivity() {
     override fun setPictureInPictureParams(params: PictureInPictureParams) {
         require(params.aspectRatio == null) { "Invalid aspect ratio" }

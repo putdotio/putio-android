@@ -66,10 +66,6 @@ internal fun FilesFolderState.replaceFirstPage(
     )
 }
 
-/**
- * A page that lists a deleted item again: it is still here, whatever the check said. An incomplete
- * request keeps its status and counts the item too.
- */
 internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOutcome {
     val listed = page.items.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf { it in intent.itemIds } }
     return when {
@@ -82,11 +78,9 @@ internal fun FilesDeleteOutcome.afterFolderPage(page: FilesPage): FilesDeleteOut
     }
 }
 
-/** The failure a check reports: a rejected session first, since it decides whether the session stays. */
 internal fun List<PutioFailure>.verdict(): PutioFailure? =
     firstOrNull { it is PutioFailure.AuthenticationRequired } ?: firstOrNull()
 
-/** One read per item, in order; a check that read some other number of items read nothing. */
 internal fun List<FilesItemId>.zipReads(
     results: List<PutioResult<FilesItem>>,
 ): List<Pair<FilesItemId, PutioResult<FilesItem>>> =

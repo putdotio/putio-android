@@ -8,44 +8,26 @@ import java.net.URISyntaxException
 import java.net.URLDecoder
 import java.net.URLEncoder
 
-/**
- * What a Cast receiver plays: the source the app resolved, with every URL carrying the account's
- * download token, never the session's access token. The receiver fetches each URL itself, without
- * the app's headers, so the token rides in the query; only put.io's API host receives it.
- */
 public data class PlaybackCastMedia(
     public val fileId: Long,
     public val title: String,
     public val mediaType: PlaybackMediaType,
     public val url: String,
     public val contentType: String,
-    /**
-     * Whether the receiver may treat the stream as a file of known length. HLS is left to the
-     * receiver: put.io's playlists carry no stable duration, so it reads seekability from the
-     * stream, as iOS sends it.
-     */
     public val buffered: Boolean,
     public val durationMillis: Long?,
     public val posterUrl: String?,
     public val subtitles: List<PlaybackCastSubtitle>,
-    /** The subtitle track to show from the start; null for none. */
     public val activeSubtitleId: Long?,
-    /** The HLS playlist's own subtitle to turn on once the receiver lists it; null for none. */
     public val playlistSubtitle: PlaybackCastPlaylistSubtitle? = null,
-    /** What the put.io receiver loads in place of [url]; null for media only a plain load plays. */
     public val receiverLoad: PlaybackCastReceiverLoad? = null,
 ) {
     override fun toString(): String =
         "PlaybackCastMedia(fileId=$fileId, contentType=$contentType, subtitles=${subtitles.size}, <redacted urls>)"
 }
 
-/**
- * A subtitle an HLS playlist carries itself: the receiver lists it only after loading the stream.
- * [language] names the track to turn on; null takes the playlist's first.
- */
 public data class PlaybackCastPlaylistSubtitle(public val language: String?)
 
-/** A subtitle as a WebVTT text track; [id] is the receiver's track id. */
 public data class PlaybackCastSubtitle(
     public val id: Long,
     public val url: String,
@@ -55,13 +37,6 @@ public data class PlaybackCastSubtitle(
     override fun toString(): String = "PlaybackCastSubtitle(id=$id, languageCode=$languageCode, <redacted url>)"
 }
 
-/**
- * The Cast form of this source, or null when it cannot go to a receiver: a URL that is not put.io's
- * HTTPS API, such as one only this device's cache can answer, or an original video, which the
- * default receiver cannot be trusted to decode. Callers resolve video as Standard, so it goes as
- * HLS; audio as the original. Sidecar subtitles, which MP4 and original sources list, go as WebVTT
- * tracks; HLS carries its own in the playlist.
- */
 public fun PlaybackSource.toCastMedia(
     target: PlaybackTarget,
     downloadToken: String,
@@ -108,11 +83,6 @@ private fun PlaybackSource.castContentType(target: PlaybackTarget): String =
 
 private fun String.extension(): String = substringAfterLast('.', missingDelimiterValue = "").lowercase()
 
-/**
- * This API URL with the download token as its only credential, plus [extra] query values; null for
- * any other host or scheme. Whatever credential the URL held, the session's access token included,
- * is dropped.
- */
 private fun String.withDownloadToken(token: String, vararg extra: Pair<String, String>): String? {
     val uri = apiUri() ?: return null
     val replaced = setOf(OAUTH_TOKEN_QUERY) + extra.map { it.first }
@@ -122,7 +92,6 @@ private fun String.withDownloadToken(token: String, vararg extra: Pair<String, S
     return "https://$PUTIO_API_HOST${uri.rawPath}?" + (kept + added).joinToString("&")
 }
 
-/** This URL when it is put.io's HTTPS API; null for any other host, scheme or a malformed URL. */
 private fun String.apiUri(): URI? =
     try {
         URI(this).takeIf { it.scheme == "https" && it.host == PUTIO_API_HOST && !it.rawPath.isNullOrEmpty() }
@@ -130,7 +99,6 @@ private fun String.apiUri(): URI? =
         null
     }
 
-/** This URL's query names, decoded; empty for a malformed URL. */
 private fun String.queryNames(): Set<String> =
     try {
         URI(this).rawQuery.orEmpty().split('&').map { it.substringBefore('=').decoded() }.toSet()

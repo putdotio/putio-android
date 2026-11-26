@@ -3,18 +3,13 @@ package io.putdotio.android.playback
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.sdk.files.PlaybackSourceKind
 
-/** What the players tell a playback's product analytics beyond the controller's own states. */
 public interface PlaybackAnalyticsReporter {
-    /** The player played the current file to its end, whether or not autoplay moves on. */
     public fun reachedEnd() {}
 
-    /** A receiver took the current file over. */
     public fun castStarted() {}
 
-    /** A receiver couldn't take the current file over. */
     public fun castFailed() {}
 
-    /** The local player shows the current file, such as after a Cast session ends. */
     public fun localShown() {}
 
     public companion object {
@@ -22,12 +17,6 @@ public interface PlaybackAnalyticsReporter {
     }
 }
 
-/**
- * One controller's `playback_started` once per file and player when its source is ready or a
- * receiver takes it over, `playback_failed` once per failed load, and `playback_ended` once per
- * file played to its end. Resumes, seeks and retries don't repeat the start; closing the player
- * first sends no end.
- */
 internal class PlaybackAnalyticsTracker(
     private val capture: (AnalyticsEvent) -> Unit,
     private val now: () -> Long,

@@ -92,7 +92,6 @@ internal class ActiveSearchHistorySession(
         scope,
     )
 
-    /** The folders results sit in, read once per session; a row names its folder once it is known. */
     val folderNames = SearchFolderNames(filesItemResolver, search.state, scope)
 
     val navigation: Flow<FilesExternalOpen> = navigationChannel.receiveAsFlow()
@@ -112,7 +111,6 @@ internal class ActiveSearchHistorySession(
 
     fun dismissNavigationFailure() = historyOpener.dismissFailure()
 
-    /** A product link names a file; resolve it like a history row and open it like one. */
     suspend fun openFile(fileId: FilesItemId) = historyOpener.open(fileId, FilesOpenOrigin.LINK)
 
     fun retryRecentSearches() {

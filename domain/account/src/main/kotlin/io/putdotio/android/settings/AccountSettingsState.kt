@@ -21,7 +21,6 @@ public data class AccountSettingsPreferences(
     val nextEpisode: Boolean = false,
 )
 
-/** Server route identifier. `default` is the direct Amsterdam route and what a null setting means. */
 @JvmInline
 public value class TunnelRouteName(public val value: String) {
     init {
@@ -244,32 +243,20 @@ public val AccountSettingsState.trashOff: Boolean
 public fun AccountSettingsState.confirmedResumePlayback(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ResumePlayback)?.resumePlayback
 
-/** Whether the account shows subtitles (`!hide_subtitles`), or null while unloaded or while that write is unsettled. */
 public fun AccountSettingsState.confirmedShowSubtitles(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ShowSubtitles)?.showSubtitles
 
-/**
- * The default sort the server holds and how many folder sort resets it has accepted, or null while
- * unloaded or while a sort write or reset is unsettled. A refresh failure after an accepted write
- * still counts: the server took the value.
- */
 public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
     val unsettledWrite = mutation.pending in UNSETTLED_SORT_WRITES
     return ConfirmedDefaultSort(ready.preferences.defaultSort, folderSortResets).takeUnless { unsettledWrite }
 }
 
-/**
- * Whether crash and error reports may leave the device, or null while the settings are unloaded.
- * While a Diagnostics write is unsettled or failed, off wins: an opt-out stops reporting before
- * put.io confirms it, and an opt-in waits for the confirmation.
- */
 public fun AccountSettingsState.diagnosticsAllowed(): Boolean? =
     (content as? AccountSettingsContent.Ready)?.let {
         confirmedPreferences(AccountSettingsKey.Diagnostics)?.diagnosticsEnabled == true
     }
 
-/** Whether product analytics may run, or null while the settings are unloaded; off wins like [diagnosticsAllowed]. */
 public fun AccountSettingsState.productAnalyticsAllowed(): Boolean? =
     (content as? AccountSettingsContent.Ready)?.let {
         confirmedPreferences(AccountSettingsKey.ProductAnalytics)?.productAnalyticsEnabled == true

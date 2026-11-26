@@ -113,7 +113,6 @@ internal class MobileDownloadEngine(
         }
     }
 
-    /** Media3's index is the source of truth for states reached while no UI listened. */
     private fun reconcile(indexed: List<Download>, missing: Set<FilesItemId>): Map<FilesItemId, Download> {
         if (closed) return emptyMap()
         val known = mutableMapOf<FilesItemId, Download>()
@@ -142,7 +141,6 @@ internal class MobileDownloadEngine(
         return known
     }
 
-    /** Every app row ends in a state the viewer can act on; only a confirmed delete drops one. */
     private suspend fun recover(known: Map<FilesItemId, Download>) {
         for (entry in store.entries.value) {
             if (closed) return
@@ -184,12 +182,6 @@ internal class MobileDownloadEngine(
         }
     }
 
-    /**
-     * The viewer's intent is on disk before Media3 hears of it; reconcile and every report hold
-     * Media3 to it, so it outlives the process either way. The stop reason is set on the manager
-     * directly, on the main thread like [park]; a closed engine sends nothing, and a sign-out
-     * during the write leaves the next sign-in's reconcile to apply it.
-     */
     override suspend fun setPaused(fileId: FilesItemId, paused: Boolean) {
         if (closed) return
         store.updateStatus(fileId) { it.copy(pauseRequested = paused) }
@@ -201,11 +193,6 @@ internal class MobileDownloadEngine(
         if (!paused) startServiceForResume()
     }
 
-    /**
-     * A resume after every transfer was paused may find no service in this process; the foreground
-     * service keeps the transfer alive in the background. The viewer taps from the app, so the start
-     * is allowed; were it refused, the transfer would still run while the app does.
-     */
     private fun startServiceForResume() {
         try {
             DownloadService.startForeground(appContext, MobileDownloadService::class.java)
@@ -223,22 +210,15 @@ internal class MobileDownloadEngine(
             }
         }
 
-    /** True while Media3 is still deleting this file's bytes; a new download must wait. */
     override fun isRemoving(fileId: FilesItemId): Boolean = synchronized(removing) { fileId in removing }
 
     override val concurrency: Int get() = settings.concurrency
 
-    /** Media3 stops the transfers beyond a lower limit and keeps their bytes; they rejoin the queue. */
     override fun setConcurrency(limit: Int) {
         settings.concurrency = limit
         downloadManager.maxParallelDownloads = limit
     }
 
-    /**
-     * Detaches the UI. Transfers keep running: the service owns them and the token
-     * stays valid while the user is signed in. A sign-in by another user parks them
-     * through that user's reconcile, and a sign-out parks them through [park].
-     */
     fun close() {
         closed = true
         reconcileJob.cancel()
@@ -246,11 +226,6 @@ internal class MobileDownloadEngine(
         if (downloads.onTokenClearing === parkOnTokenClearing) downloads.onTokenClearing = null
     }
 
-    /**
-     * Sign-out: stop this user's transfers before the token disappears; the next sign-in resumes
-     * them. Ones the viewer paused keep their own stop reason, so they stay paused after that
-     * sign-in. The index decides, not Media3's report, which can still lag a Resume.
-     */
     fun park() {
         for (download in downloadManager.currentDownloads) {
             val fileId = fileIdOf(userId, download.request.id) ?: continue
@@ -262,11 +237,6 @@ internal class MobileDownloadEngine(
         }
     }
 
-    /**
-     * Media3 reports state transitions but not byte progress, so the Downloads
-     * screen asks here while visible. Progress stays in memory: Media3's index
-     * holds the bytes, and reconcile restores them after a restart.
-     */
     override fun refreshProgress() {
         if (closed) return
         for (download in downloadManager.currentDownloads) {
@@ -305,18 +275,12 @@ internal class MobileDownloadEngine(
         }
     }
 
-    /**
-     * The viewer's pause, as the app's index keeps it, else no stop reason; null while the index has
-     * no row, so Media3's own pause stands until reconcile rebuilds the row from it.
-     */
     private fun wantedStopReason(fileId: FilesItemId): Int? =
         store.find(fileId)?.let { if (it.pauseRequested) STOP_REASON_PAUSED else Download.STOP_REASON_NONE }
 
     internal companion object {
-        /** Media3 stop reason for requests whose owner is not the signed-in user. */
         const val STOP_REASON_OTHER_USER = 1
 
-        /** Media3 stop reason for a transfer the viewer paused. */
         const val STOP_REASON_PAUSED = 2
     }
 }
@@ -341,18 +305,11 @@ internal val DownloadRequest.fileType: PutioFileType
 @get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal val VIDEO_FILE_MIME_TYPE: String get() = MimeTypes.VIDEO_UNKNOWN
 
-/** This user's file id in a `userId:fileId` request id; null for another account's request. */
 internal fun fileIdOf(userId: Long, contentId: String): FilesItemId? {
     if (contentId.substringBefore(':', missingDelimiterValue = "").toLongOrNull() != userId) return null
     return contentId.substringAfter(':').toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
 }
 
-/**
- * A row rebuilt from Media3's record when the app's own row is gone. The rendition comes from the
- * request: an HLS playlist is a video, original over HLS when it asks for `original`; a file is a
- * video when the request names a video type or the converted MP4, else audio.
- * The name and subtitle files are the ones the request carried, else a neutral stand-in; the status follows Media3.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): DownloadEntry {
     val artifact = request.artifact
@@ -379,12 +336,6 @@ private fun Download.recoveredEntry(fileId: FilesItemId, standInName: String): D
 private fun MobileDownloadStore.markMissing(fileId: FilesItemId) =
     updateStatusBlocking(fileId) { it.copy(status = DownloadStatus.Missing, accepted = true) }
 
-/**
- * The token-free URL of the SDK's media request for this artifact, on [PutioConfig.baseUrl]. Media3 persists it
- * before a session has a download token; the resolver adds the token on fetch. HLS asks for every subtitle
- * rendition, or for none when the account hides subtitles, as streaming does; an original over HLS asks the same.
- * The original and the converted MP4 are the files File stream playback reads.
- */
 internal fun DownloadArtifact.apiUrl(
     fileId: FilesItemId,
     files: FilesApi,
@@ -418,15 +369,10 @@ private fun Download.toStatus(error: Exception?, pause: DownloadPauseReason?): D
         else -> null
     }
 
-/**
- * Media3 reports a percentage only over a known denominator: the content length, or for HLS
- * the segment count once the playlists are read. Without one the row shows bytes alone.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.knownPercent(): Float? =
     percentDownloaded.takeIf { it.isFinite() && it >= 0f }?.coerceAtMost(PERCENT)
 
-/** C.LENGTH_UNSET is negative; an HLS rendition reports none until every segment length is known. */
 @get:androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private val Download.knownContentLength: Long?
     get() = contentLength.takeIf { it > 0L }

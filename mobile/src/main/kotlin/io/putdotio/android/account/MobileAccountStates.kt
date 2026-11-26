@@ -88,7 +88,6 @@ internal fun AndroidAppConfigState.appConfigControlsEnabled(): Boolean =
         is AndroidAppConfigMutation.Failed -> currentMutation.failure !is PutioFailure.AuthenticationRequired
     }
 
-/** A load failure in place of a group: the reason across the row, then Try again under it. */
 @Composable
 private fun MobileLoadFailure(@StringRes title: Int, message: String, onRetry: (() -> Unit)?) {
     ListItem(
@@ -144,7 +143,6 @@ internal fun MobileAccountLoadingRow(@StringRes text: Int) {
     }
 }
 
-/** A save that failed, under its row on the same surface; it scrolls itself into view and announces. */
 @Composable
 private fun MobileSettingsMutationFailure(@StringRes title: Int, message: String, onRetry: (() -> Unit)?) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -248,7 +246,6 @@ private fun AccountSettingsFailure.messageResource(): Int =
         }
     }
 
-/** What this account's downloads hold on the device, finished or not; null when it has none. */
 internal fun DownloadsState.bytesOnDevice(): Long? =
     entries.takeIf { it.isNotEmpty() }?.sumOf { entry ->
         when (val status = entry.status) {

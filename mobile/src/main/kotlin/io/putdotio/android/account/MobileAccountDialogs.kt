@@ -57,7 +57,6 @@ internal const val MOBILE_TUNNEL_ROUTE_RETRY_TAG = "mobile-tunnel-route-retry"
 internal const val MOBILE_SIGN_OUT_DIALOG_TAG = "mobile-sign-out-dialog"
 internal const val MOBILE_SIGN_OUT_REMOVE_DOWNLOADS_TAG = "mobile-sign-out-remove-downloads"
 
-/** Account's dialogs sit 24dp from the window's sides, as [MobileChoiceDialog] does; the platform's are narrower. */
 private val AccountDialogProperties = DialogProperties(usePlatformDefaultWidth = false)
 
 private fun Modifier.accountDialogWidth(): Modifier =
@@ -150,7 +149,6 @@ internal fun MobileTunnelRouteDialog(
     )
 }
 
-/** A setting change that can't be undone, such as turning off Trash or Resume, confirms in red. */
 @Composable
 internal fun MobileConfirmDialog(
     @StringRes title: Int,
@@ -187,10 +185,6 @@ internal fun MobileConfirmDialog(
     )
 }
 
-/**
- * Sign out confirms. Downloads stay unless the viewer ticks Remove downloads, which shows only when this
- * account has some on the device, with what they take in mono.
- */
 @Composable
 internal fun MobileSignOutDialog(
     downloadsOnDeviceBytes: Long?,
@@ -244,7 +238,6 @@ internal fun MobileSignOutDialog(
     )
 }
 
-/** "Remove downloads from this device", then their size in parentheses, mono and secondary; no size at 0. */
 @Composable
 private fun removeDownloadsLabel(bytes: Long): AnnotatedString {
     val label = stringResource(R.string.mobile_account_sign_out_remove_downloads)

@@ -33,10 +33,6 @@ import io.putdotio.android.files.MOBILE_FILES_LIST_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_FIELD_TAG
 import io.putdotio.android.files.MOBILE_FILES_RENAME_CONFIRM_TAG
 
-/**
- * Live-API rename proof against an existing signed-in session; opts in with
- * `putio.rename.enabled=true` and Base64 JSON `putio.rename.fixture`.
- */
 @RunWith(AndroidJUnit4::class)
 class AuthenticatedFilesRenameProofTest {
     private val compose = createAndroidComposeRule<MainActivity>()

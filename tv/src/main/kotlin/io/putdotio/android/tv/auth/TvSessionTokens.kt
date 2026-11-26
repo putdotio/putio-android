@@ -5,12 +5,10 @@ import io.putdotio.android.auth.AuthTokenStorageException
 import io.putdotio.android.auth.AuthTokenStore
 import kotlinx.coroutines.CancellationException
 
-/** The session's access token: kept in Keystore-backed storage and configured on the gateway. */
 internal class TvSessionTokens(
     private val tokenStore: AuthTokenStore,
     private val sessionGateway: TvSessionGateway,
 ) {
-    /** The token the gateway holds; sign-out revokes it without rereading the store. */
     var configured: AccessToken? = null
         private set
 
@@ -21,7 +19,6 @@ internal class TvSessionTokens(
             StoredToken.Unreadable
         }
 
-    /** False when storage refused the token. */
     suspend fun write(accessToken: AccessToken): Boolean =
         try {
             tokenStore.write(accessToken)
@@ -40,7 +37,6 @@ internal class TvSessionTokens(
         sessionGateway.clearAccessToken()
     }
 
-    /** Forgets the token on the gateway and in storage; false when storage could not be cleared. */
     suspend fun clear(): Boolean {
         clearConfigured()
         return try {

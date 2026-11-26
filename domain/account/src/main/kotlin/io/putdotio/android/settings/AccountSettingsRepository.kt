@@ -25,7 +25,6 @@ public sealed interface AccountSettingsRepositoryResult<out T> {
 public sealed interface AccountSettingsFailure {
     public val cause: Throwable
 
-    /** A put.io failure, classified by [toScopedFailure]. */
     public data class Putio(
         val failure: PutioFailure,
     ) : AccountSettingsFailure {
@@ -33,17 +32,14 @@ public sealed interface AccountSettingsFailure {
             get() = failure.cause
     }
 
-    /** The server refused the chosen proxy for this account (403 `UNAVAILABLE_VALUE`). */
     public data class RouteUnavailable(
         override val cause: PutioException,
     ) : AccountSettingsFailure
 }
 
-/** The put.io failure behind this one; null for a refusal only account settings explains. */
 public val AccountSettingsFailure.putioFailure: PutioFailure?
     get() = (this as? AccountSettingsFailure.Putio)?.failure
 
-/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
 public val AccountSettingsFailure.apiReason: String?
     get() = putioFailure?.apiReason
 
@@ -52,7 +48,6 @@ public interface AccountSettingsRepository {
 
     public suspend fun save(change: AccountSettingsChange): AccountSettingsRepositoryResult<Unit>
 
-    /** Selectable tunnel routes for this account; `default` is always first. */
     public suspend fun loadTunnelRoutes(): AccountSettingsRepositoryResult<List<TunnelRouteOption>>
 }
 

@@ -77,7 +77,6 @@ internal class PostHogAnalyticsSdk(
         addBeforeSend(::allowlisted)
     }
 
-    /** Read once per start. */
     private fun commonProperties(): Map<String, Any> {
         val tablet = context.resources.configuration.smallestScreenWidthDp >= TABLET_MIN_WIDTH_DP
         val deviceClass = when {
@@ -101,7 +100,6 @@ internal class PostHogAnalyticsSdk(
     }
 
     private companion object {
-        /** put.io's forward-only proxy to PostHog Cloud EU. */
         const val HOST = "https://burrow.put.io"
         const val TABLET_MIN_WIDTH_DP = 600
 

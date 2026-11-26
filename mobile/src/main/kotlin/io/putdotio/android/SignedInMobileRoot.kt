@@ -579,10 +579,6 @@ private fun SignedInMobileSession(
     )
 }
 
-/**
- * A choice put.io accepts, from the prompt or Privacy controls, answers the prompt. The answer waits
- * while the config is unloaded or busy rather than being dropped.
- */
 @Composable
 private fun ProductAnalyticsAnswerEffect(
     sessionId: MobileAuthSessionId,
@@ -607,10 +603,6 @@ private fun ProductAnalyticsAnswerEffect(
     }
 }
 
-/**
- * Asks once per launch, decided when the account settings and app config first land. A launch that
- * opens a link or a shared transfer skips the ask, so the sheet never covers what the viewer came for.
- */
 @Composable
 internal fun ProductAnalyticsPromptHost(
     sessionId: MobileAuthSessionId,
@@ -640,10 +632,6 @@ internal fun ProductAnalyticsPromptHost(
     }
 }
 
-/**
- * Positions put.io accepted update the cached Files rows and Continue watching, whose entries are
- * read again once per session. A 401 from that read is as authoritative as one from Files.
- */
 @Composable
 private fun SavedPositionEffects(
     runtime: MobileOAuthRuntime,
@@ -685,12 +673,6 @@ private fun SavedPositionEffects(
     }
 }
 
-/**
- * One confirmed sign-out per session; a second confirmation while the first runs is ignored. It first
- * deletes [downloads] when the viewer asked: deletes reach Media3 before the session ends, so they run
- * even though sign-out parks this account's transfers next. It finishes even if the screen is recreated
- * meanwhile, and leaves a session that already ended, or was replaced, alone.
- */
 private class MobileSignOut(
     private val authController: MobileAuthController,
     private val sessionId: MobileAuthSessionId,
@@ -710,7 +692,6 @@ private class MobileSignOut(
     }
 }
 
-/** Offline playback falls back to the resume setting this device last confirmed. */
 @Composable
 private fun RememberResumeSettingEffect(
     runtime: MobileOAuthRuntime,
@@ -728,7 +709,6 @@ private fun RememberResumeSettingEffect(
     }
 }
 
-/** Completed downloads play from this device, resuming where this device last left them. */
 private fun DownloadsController.offlineFirstPlayback(
     downloads: MobileDownloadCache,
     runtime: MobileOAuthRuntime,
@@ -782,7 +762,6 @@ internal fun TransfersState.authoritativeSessionFailure(): PutioFailure? =
         (retryOutcome as? TransferRetryOutcome.Failed)?.failure,
     ).firstOrNull { it is PutioFailure.AuthenticationRequired }
 
-/** What the Transfers screen reads reaches the home-screen widget without another request. */
 @Composable
 private fun TransfersWidgetEffect(states: State<TransfersState>, session: MobileSessionKey) {
     val appContext = LocalContext.current.applicationContext

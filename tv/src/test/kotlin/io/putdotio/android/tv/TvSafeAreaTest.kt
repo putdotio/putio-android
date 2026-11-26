@@ -29,10 +29,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/**
- * The signed-in shell keeps every label and focus target inside the overscan
- * safe area, the `tv.overscan` fractions of whatever viewport it fills.
- */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -118,7 +114,6 @@ class TvSafeAreaTest {
     }
 }
 
-/** Fails unless every one of [nodes] lies inside the `tv.overscan` fractions of the root viewport. */
 internal fun SemanticsNodeInteractionsProvider.assertInsideTvSafeArea(nodes: List<SemanticsNode>) {
     val viewport = onRoot().fetchSemanticsNode().boundsInRoot
     val safe = Rect(
@@ -140,5 +135,4 @@ internal fun SemanticsNodeInteractionsProvider.assertInsideTvSafeArea(nodes: Lis
     }
 }
 
-/** Sub-pixel float noise from scaled focus targets, not a layout tolerance. */
 private const val SAFE_AREA_EPSILON = 0.5f

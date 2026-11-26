@@ -37,7 +37,6 @@ import io.putdotio.android.design.PutioSwitch
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
 
-/** A settings group's place in its segmented column: the ends round to 16dp, the joins to 4dp. */
 internal enum class SettingsSegment { Only, First, Middle, Last }
 
 internal fun settingsSegment(index: Int, count: Int): SettingsSegment =
@@ -59,7 +58,6 @@ private fun SettingsSegment.shape(): RoundedCornerShape {
     }
 }
 
-/** DESIGN.md's `label-md` group label over a segmented group. */
 @Composable
 internal fun MobileSettingsLabel(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -73,7 +71,6 @@ internal fun MobileSettingsLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** A segmented group: rows one step above the page, `hairline` (2dp) apart. */
 @Composable
 internal fun MobileSettingsGroup(
     modifier: Modifier = Modifier,
@@ -88,10 +85,6 @@ internal fun MobileSettingsGroup(
     )
 }
 
-/**
- * One segment of a group. [interaction] carries the row's click or toggle, so the whole segment is the
- * target; [below] sits under the line on the same surface, for a save failure.
- */
 @Composable
 internal fun MobileSettingsSegment(
     segment: SettingsSegment,
@@ -114,17 +107,14 @@ internal fun MobileSettingsSegment(
     }
 }
 
-/** What a one-line row shows at its end. */
 internal sealed interface SettingsTrailing {
     data object None : SettingsTrailing
 
-    /** [color] defaults to `on-surface-variant`. */
     data class Value(val text: AnnotatedString, val color: Color? = null) : SettingsTrailing
 
     data class Switch(val checked: Boolean, val enabled: Boolean) : SettingsTrailing
 }
 
-/** Plain text in a value slot; [mono] sets it in Berkeley Mono, for a number with its unit. */
 @Composable
 internal fun settingsValue(text: String, mono: Boolean = false, color: Color? = null): SettingsTrailing.Value =
     SettingsTrailing.Value(
@@ -136,10 +126,6 @@ internal fun settingsValue(text: String, mono: Boolean = false, color: Color? = 
         color,
     )
 
-/**
- * DESIGN.md's settings row: a leading glyph, the title on one line and a trailing value or switch,
- * 56dp tall. Large text wraps rather than cuts.
- */
 @Composable
 internal fun MobileSettingsLine(
     title: String,
@@ -195,10 +181,6 @@ internal fun MobileSettingsLine(
     }
 }
 
-/**
- * The title takes what the trailing slot leaves; the trailing slot takes what it needs, up to 60% of the
- * line, so a long value wraps beside a readable title instead of squeezing it.
- */
 @Composable
 private fun TitleAndTrailing(
     title: @Composable () -> Unit,

@@ -49,16 +49,11 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.putioMono
 
-/**
- * A list's multi-selection by row ID. Select can open it empty; a row that leaves the list leaves
- * the selection too, and an empty list ends it.
- */
 @Stable
 internal class MobileSelection(selecting: Boolean = false, selected: List<Long> = emptyList()) {
     private var selecting by mutableStateOf(selecting)
     private var selectedIds by mutableStateOf(selected)
 
-    /** The selected rows still in [selectable], in the order they were selected. */
     fun selected(selectable: Set<Long>): Set<Long> = selectedIds.filterTo(linkedSetOf()) { it in selectable }
 
     fun isActive(selectable: Set<Long>): Boolean =
@@ -83,7 +78,6 @@ internal class MobileSelection(selecting: Boolean = false, selected: List<Long> 
         selectedIds = emptyList()
     }
 
-    /** Forgets rows no longer in [selectable], so one that comes back is not checked again. */
     fun retain(selectable: Set<Long>) {
         val kept = selectedIds.filter { it in selectable }
         if (kept.size != selectedIds.size) selectedIds = kept
@@ -100,10 +94,6 @@ internal class MobileSelection(selecting: Boolean = false, selected: List<Long> 
     }
 }
 
-/**
- * The bar that replaces a list's top bar in selection: close, the count in mono and select all, on
- * `surface-container-high`, status bar included.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileSelectionBar(
@@ -139,7 +129,6 @@ internal fun MobileSelectionBar(
     }
 }
 
-/** "3 selected", its count in mono. */
 @Composable
 private fun mobileSelectedCount(count: Int): AnnotatedString {
     val text = pluralStringResource(R.plurals.mobile_selection_count, count, count)
@@ -157,7 +146,6 @@ private fun mobileSelectedCount(count: Int): AnnotatedString {
     }
 }
 
-/** A selectable row's checkbox in place of its leading glyph: yellow checked, `solid` outline unchecked. */
 @Composable
 internal fun MobileSelectionCheckbox(checked: Boolean, modifier: Modifier = Modifier) {
     Checkbox(
@@ -168,13 +156,8 @@ internal fun MobileSelectionCheckbox(checked: Boolean, modifier: Modifier = Modi
     )
 }
 
-/** A selected row's 9% yellow tint. */
 internal val MobileSelectedRowTint: Color = PutioDesignTokens.yellowSolid.copy(alpha = 0.09f)
 
-/**
- * The selection's floating toolbar: Material 3's floating toolbar is still internal here, so this
- * is its tonal container, without a shadow, holding [MobileToolbarTile]s.
- */
 @Composable
 internal fun MobileSelectionToolbar(modifier: Modifier = Modifier, tiles: @Composable RowScope.() -> Unit) {
     Surface(
@@ -191,7 +174,6 @@ internal fun MobileSelectionToolbar(modifier: Modifier = Modifier, tiles: @Compo
     }
 }
 
-/** An icon over a label-md word, in a target of at least 64x52dp. */
 @Composable
 internal fun MobileToolbarTile(
     @DrawableRes icon: Int,
@@ -218,10 +200,8 @@ internal fun MobileToolbarTile(
     }
 }
 
-/** How far the floating toolbar sits above the bottom of its list. */
 internal val MobileSelectionToolbarOffset = 8.dp
 
-/** Space under the toolbar's own height, so a list's last row ends above it with a gap. */
 internal val MobileSelectionToolbarClearance = MobileSelectionToolbarOffset + 16.dp
 
 private const val DISABLED_ALPHA = 0.38f

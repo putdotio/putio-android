@@ -81,7 +81,6 @@ internal fun TvShell(
     accountPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvAccountFallbackPane(account, onSignOut, it) },
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
-    /** Files' own Back step, such as leaving a folder; null when Files has none. */
     onFilesBack: (() -> Unit)? = null,
     showHome: Boolean = true,
     showHistory: Boolean = true,
@@ -365,7 +364,6 @@ private fun TvPlaceholderPane(
     )
 }
 
-/** The default Account pane: who is signed in, and Sign out. */
 @Composable
 private fun TvAccountFallbackPane(
     account: TvAccount,

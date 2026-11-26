@@ -66,7 +66,6 @@ import io.putdotio.android.playback.languageName
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 
-/** Real local media and production players; lifecycle and saved-state transitions use a controlled host. */
 @RunWith(AndroidJUnit4::class)
 class MobilePlaybackOptionsProofTest {
     private val compose = createAndroidComposeRule<MobileFullscreenProofActivity>()
@@ -236,7 +235,6 @@ class MobilePlaybackOptionsProofTest {
         it.config.getOrElse(SemanticsProperties.Focused) { false }
     }
 
-    /** The audio choices: the video's Audio side sheet, or Now Playing's sheet under More. */
     private fun showOptions() {
         showControls()
         if (proofMediaType == PlaybackMediaType.VIDEO) {
@@ -260,7 +258,6 @@ class MobilePlaybackOptionsProofTest {
         showOptions()
     }
 
-    /** The speed sheet stays open for speed choices, and the chips return once it closes. */
     private fun closeVideoSheet() {
         if (proofMediaType == PlaybackMediaType.VIDEO) {
             tapThroughAndroid(compose.onNodeWithContentDescription("Close"))

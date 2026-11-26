@@ -621,11 +621,6 @@ class TvPlayerProofTest {
         screenshot(label)
     }
 
-    /**
-     * On the base fixture: the Audio, Subtitles and Speed sheets pick a track, turn subtitles off
-     * (they stay off after a seek) and set the speed, and Back closes an open sheet before the
-     * controls.
-     */
     @Test
     fun audioSubtitlesAndSpeedSheetsJoinTheBackStack() {
         val factory = mountFilesWithPlayer(SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))

@@ -334,7 +334,6 @@ class OfflinePlaybackPositionsTest {
         }
     }
 
-    /** Opened offline, then played to 250 s while put.io could not take it. */
     private suspend fun TestScope.playedOffline(): OfflinePlaybackPositions {
         remote.online = false
         val positions = positions(backgroundScope)
@@ -368,13 +367,10 @@ class OfflinePlaybackPositionsTest {
 internal class FakePositionRemote : PositionRemote {
     var online = true
     var resume = true
-    /** The server stores the position, but the reply never arrives. */
     var landButFail = false
     var readFailure: PlaybackFailure? = null
-    /** Runs after a read has taken its value, as a concurrent request would. */
     var afterRead: () -> Unit = {}
     var duringWrite: () -> Unit = {}
-    /** Holds the next write until completed, as a slow request would. */
     var writeGate: CompletableDeferred<Unit>? = null
     val positions = mutableMapOf<Long, Double>()
     val writes = mutableListOf<Pair<Long, Double>>()

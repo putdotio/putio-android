@@ -53,10 +53,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/**
- * Drives the engine against a real Media3 manager and index; only the byte
- * transfer is scripted, so stop reasons, reconcile and progress go through Media3.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -653,7 +649,6 @@ class MobileDownloadEngineTest {
         return MobileDownloadEngine(context, account, scope, manager, io).also { engines += it }
     }
 
-    /** Writes a few bytes under the request's own cache key, as a finished download leaves them. */
     private fun cacheBytes(download: Download) {
         val keys = UserScopedCacheKeys(checkNotNull(download.request.ownerUserId()))
         CacheWriter(
@@ -677,7 +672,6 @@ class MobileDownloadEngineTest {
     private fun DownloadManager.running(): List<String> =
         currentDownloads.filter { it.state == Download.STATE_DOWNLOADING }.map { it.request.id }.sorted()
 
-    /** Each row with its place in line, in the order the Downloads screen lists the queue. */
     private fun queueOf(store: MobileDownloadStore): List<Pair<Long, Int?>> {
         val state = DownloadsState().withEntries(store.entries.value)
         return state.queue.map { it.fileId.value to state.queuePosition(it.fileId) }
@@ -694,7 +688,6 @@ class MobileDownloadEngineTest {
 
     private fun DownloadManager.stateOf(id: String): Int? = currentDownloads.firstOrNull { it.request.id == id }?.state
 
-    /** Media3 answers on the main looper after its own thread works, so idle it until the condition holds. */
     private fun awaitMain(condition: () -> Boolean) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_SECONDS)
         while (true) {
@@ -752,7 +745,6 @@ class MobileDownloadEngineTest {
     }
 }
 
-/** One transfer per request id: it reports only the bytes the test feeds and blocks until cancelled or finished. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class ScriptedDownloaders : DownloaderFactory {
     private val transfers = ConcurrentHashMap<String, LinkedBlockingQueue<ScriptedTransfer>>()

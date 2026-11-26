@@ -32,7 +32,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** TV start-from write-back on the shared writer and observer, with a fake position repository. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 @UnstableApi
@@ -174,7 +173,6 @@ class TvPlaybackReportingTest {
             onSaved = { fileId, seconds -> saved += fileId to seconds },
         )
 
-        /** What the TV screen does: the item carries the playback's lease. */
         fun play(positionMillis: Long, playing: Boolean = true): ReportingPlayer {
             val lease = checkNotNull(reporting.lease(FILE_ID))
             return ReportingPlayer().apply {

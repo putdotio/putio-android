@@ -37,11 +37,6 @@ import io.putdotio.android.design.PutioRadius
 internal const val MOBILE_FILES_COPY_STATUS_TAG = "mobile-files-copy-status"
 internal const val MOBILE_FILES_COPY_DISMISS_TAG = "mobile-files-copy-dismiss"
 
-/**
- * A copy runs on put.io after the picker closes, so its card stays under the bar of every folder:
- * a small yellow spinner while it runs, a red dot and the reason when it fails, and a close button
- * once it has settled. A running copy keeps its card, so a second copy never starts unseen.
- */
 @Composable
 internal fun MobileFilesCopyStatus(outcome: FilesCopyOutcome, onDismiss: () -> Unit) {
     val destination = outcome.destination.name ?: stringResource(R.string.mobile_destination_files)
@@ -110,7 +105,6 @@ internal fun MobileFilesCopyStatus(outcome: FilesCopyOutcome, onDismiss: () -> U
     }
 }
 
-/** Web's wording for put.io's copy limits wins over put.io's reason, as other specific copy does. */
 @Composable
 private fun PutioFailure.copyMessage(): String = when ((this as? PutioFailure.ApiRejected)?.errorType) {
     "SharedFileCloneConcurrentLimit" -> stringResource(R.string.mobile_files_copy_concurrent_limit)

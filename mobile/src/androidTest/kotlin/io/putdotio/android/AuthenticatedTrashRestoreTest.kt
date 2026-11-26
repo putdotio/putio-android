@@ -288,7 +288,6 @@ class AuthenticatedTrashRestoreTest {
     private companion object { const val TIMEOUT = 30_000L }
 }
 
-/** Counts at the real app boundary; never stores responses, request URLs or credentials. */
 private class TrashRestoreCountingRepository(
     private val delegate: TrashRepository,
     private val ownedRestoreId: Long,

@@ -6,7 +6,6 @@ import java.io.StringReader
 import java.util.Base64
 import java.util.UUID
 
-/** The host ledger owns mutation state; this input names only its four disposable items. */
 internal data class TrashRestoreFixture(
     val runId: String,
     val expectedAccountId: Long,

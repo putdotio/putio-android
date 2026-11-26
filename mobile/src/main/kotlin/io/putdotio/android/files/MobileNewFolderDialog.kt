@@ -45,17 +45,12 @@ import kotlinx.coroutines.launch
 internal const val MOBILE_NEW_FOLDER_FIELD_TAG = "mobile-new-folder-field"
 internal const val MOBILE_NEW_FOLDER_CREATE_TAG = "mobile-new-folder-create"
 
-/** The folder New folder was asked for; it survives rotation and belongs to one session. */
 @Stable
 internal class MobileNewFolderRequest(private val folderId: MutableState<Long?>) {
     fun ask(folder: FilesItemId) {
         folderId.value = folder.value
     }
 
-    /**
-     * New folder's action for the bars and the empty state; none without a way to create one or in
-     * a shared folder, which takes no new items.
-     */
     fun action(creator: FilesFolderCreator?, folder: FilesFolderState): (() -> Unit)? =
         if (creator == null || !(folder.folder.id == FilesFolder.Root.id || folder.summary?.acceptsNewItems == true)) {
             null
@@ -76,7 +71,6 @@ internal fun rememberNewFolderRequest(session: Any): MobileNewFolderRequest {
     return remember(folderId) { MobileNewFolderRequest(folderId) }
 }
 
-/** Shows the dialog while the folder it was asked for is the one on screen. */
 @Composable
 internal fun MobileNewFolderHost(
     request: MobileNewFolderRequest,
@@ -103,10 +97,6 @@ internal fun MobileNewFolderHost(
     )
 }
 
-/**
- * New folder: one outlined field under the parent's name, then Cancel and a filled Create. put.io
- * refuses names it can't take (a slash, a duplicate) and the dialog shows its reason.
- */
 @Composable
 internal fun MobileNewFolderDialog(
     parentId: FilesItemId,

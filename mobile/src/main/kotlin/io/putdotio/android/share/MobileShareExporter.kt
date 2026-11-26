@@ -22,15 +22,10 @@ internal const val EXPORT_PROGRESS_MAX = 100
 private const val BUFFER_SIZE = 64 * 1024
 private const val HTTP_UNAUTHORIZED = 401
 
-/** Downloads one original file into its session's share directory, replacing every earlier export. */
 internal class MobileShareExporter(
     private val context: Context,
     private val dependencies: MobileShareDependencies,
 ) {
-    /**
-     * [onProgress] receives each new whole percent, with the bytes copied and the size, on the IO
-     * dispatcher, only when the size is known.
-     */
     suspend fun export(
         fileId: FilesItemId,
         name: String,
@@ -60,11 +55,6 @@ internal class MobileShareExporter(
     }
 }
 
-/**
- * Runs the blocking [Call] and [block] on its response; cancelling the coroutine cancels the call at once,
- * even while it blocks in `execute()` or a body read. A completion handler would wait for that block to end.
- * The watcher resumes on another thread of the caller's dispatcher, so that dispatcher must not be single-threaded.
- */
 private suspend fun <T> Call.executeCancellable(block: suspend (Response) -> T): T = coroutineScope {
     val call = this@executeCancellable
     val canceller = launch(start = CoroutineStart.UNDISPATCHED) {

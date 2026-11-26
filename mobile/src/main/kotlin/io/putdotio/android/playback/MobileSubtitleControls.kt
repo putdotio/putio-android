@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.SubtitleView
 import io.putdotio.sdk.files.PlaybackSubtitles
 
-/** The track the viewer picked, else the one showing; null when subtitles are off. */
 private fun PlayerOptionsSnapshot.currentSubtitle(): PlaybackSubtitleTrack? {
     if (C.TRACK_TYPE_TEXT in parameters.disabledTrackTypes) return null
     return subtitleTracks.singleOrNull { track ->
@@ -81,11 +80,6 @@ internal fun MobileSubtitlesChip(
     )
 }
 
-/**
- * Subtitles: Off, then the tracks in the file, then the ones put.io found, then the Size and timing
- * row. A choice is recorded before the player gets it: the new parameters can change the tracks,
- * whose listeners read it.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobileSubtitlesSheetContent(
@@ -198,10 +192,6 @@ private fun MobileSubtitleAppearanceRow(textSize: SubtitleTextSize, offsetMillis
     }
 }
 
-/**
- * Size and timing: text size S to XL over Android's caption size, and a timing offset in 0.1 s
- * steps. Font and colours stay with Android's caption settings.
- */
 @Composable
 internal fun MobileSubtitleAppearanceContent(
     textSize: SubtitleTextSize,
@@ -302,11 +292,6 @@ private fun OffsetStepButton(label: String, description: String, enabled: Boolea
 private val OFFSET_VALUE_SIZE = 20.sp
 private val OFFSET_VALUE_LINE = 28.sp
 
-/**
- * The bottom padding, as a fraction of the video's height, that keeps bottom-placed subtitles
- * above [clearance] of controls: Android's caption margin, or more where the controls reach into
- * the picture past the letterbox.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun subtitleBottomPadding(frame: DpSize, aspectRatio: Float?, clearance: Dp): Float {
     val default = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
@@ -321,14 +306,8 @@ internal fun subtitleBottomPadding(frame: DpSize, aspectRatio: Float?, clearance
 
 private const val MAX_SUBTITLE_BOTTOM_PADDING = 0.5f
 
-/** The uncovered part of the video: from [left], [width] wide and the video's full height. */
 internal data class SubtitleArea(val left: Dp, val width: Dp, val height: Dp)
 
-/**
- * Where subtitles lay out beside a sheet covering [coveredWidth] at the end: the part of the
- * centred video the sheet leaves, at the video's full height. Null when nothing covers it or the
- * video has no shape yet.
- */
 internal fun subtitleArea(frame: DpSize, aspectRatio: Float?, coveredWidth: Dp): SubtitleArea? {
     val ratio = aspectRatio?.takeIf { it.isFinite() && it > 0f && coveredWidth > 0.dp } ?: return null
     val videoHeight = minOf(frame.height, frame.width / ratio)

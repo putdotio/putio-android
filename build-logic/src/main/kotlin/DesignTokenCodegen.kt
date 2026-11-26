@@ -4,16 +4,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/**
- * Generates the put.io Compose color schemes and TV safe-area ratios from the
- * vendored DTCG token graph (`design/tokens.dtcg.json`, from @putdotio/design),
- * and the type and corner scales from the root DESIGN.md's front matter.
- * The M3-role map below is the tier-2 binding contract; the root DESIGN.md
- * carries it as a generated `colors` block. The app never hand-writes a design value.
- */
 object DesignTokenCodegen {
 
-    /** Kotlin property name → DTCG `$extensions.putio.cssName`. */
     val TOKEN_BINDINGS: List<Pair<String, String>> = listOf(
         "yellowSolid" to "yellow-solid",
         "primaryForeground" to "primary-foreground",
@@ -33,18 +25,9 @@ object DesignTokenCodegen {
         "sheetScrim" to "sheet-scrim",
     )
 
-    /**
-     * Token properties the apps read directly, so the generated object makes them `public`. Every
-     * other color reaches the apps only through the color schemes and stays `internal` to
-     * `core/design`. The overscan ratios are always public: the TV shell pads by them.
-     */
     val APP_TOKENS: Set<String> =
         setOf("yellowSolid", "redTextSecondary", "greenSolid", "solid", "componentBgHover", "componentBgActive")
 
-    /**
-     * Tokens Android XML reads as `@color/putio_<css-name>`: RemoteViews layouts, which Compose
-     * colors cannot reach, and adaptive shortcut icons. Add a token here before an XML surface uses it.
-     */
     val RESOURCE_TOKENS: Set<String> =
         setOf(
             "appBg",
@@ -57,18 +40,6 @@ object DesignTokenCodegen {
             "greenSolid",
         )
 
-    /**
-     * M3 role → token property (optionally `property:alpha`). These are the
-     * contracted roles from DESIGN.md. The container and background entries
-     * keep stock components from falling back to M3 baseline purple:
-     * background/onBackground mirror surface/onSurface;
-     * primaryContainer/onPrimaryContainer carry the FAB spec from the
-     * android-s00-shell card (--yellow-solid / --primary-foreground);
-     * secondary/secondaryContainer/onSecondaryContainer carry the card's nav
-     * label and indicator; inverse roles carry the snackbar contract;
-     * surfaceContainerLow carries the stock bottom-sheet surface; and onError
-     * carries the destructive button's dark label on the `error` fill.
-     */
     val M3_ROLES: List<Pair<String, String>> = listOf(
         "primary" to "yellowSolid",
         "onPrimary" to "primaryForeground",
@@ -95,14 +66,6 @@ object DesignTokenCodegen {
         "onError" to "appBg",
     )
 
-    /**
-     * androidx.tv.material3 role → token property. The TV ColorScheme predates
-     * the surfaceContainer tiers and names its outline roles border/borderVariant.
-     * Its stock components still read the container and inverse roles: notably,
-     * a focused ListItem fills inverseSurface and takes contentColorFor(inverseSurface),
-     * which matches secondary first. While both are `text`, onSecondary must equal
-     * inverseOnSurface.
-     */
     val TV_ROLES: List<Pair<String, String>> = listOf(
         "primary" to "yellowSolid",
         "onPrimary" to "primaryForeground",
@@ -128,13 +91,10 @@ object DesignTokenCodegen {
         "scrim" to "sheetScrim",
     )
 
-    /** Token cssNames DESIGN.md lists after the M3 roles: put.io colors with no M3 role. */
     val DESIGN_MD_EXTRA_COLORS: List<String> = listOf("red-text-secondary", "green-solid", "solid")
 
-    /** A unitless `tv` token that platform adapters multiply by one viewport axis. */
     data class ViewportRatioBinding(val property: String, val cssName: String, val basis: String)
 
-    /** The TV overscan safe area; the shell pads each viewport axis by these fractions. */
     val VIEWPORT_RATIO_BINDINGS: List<ViewportRatioBinding> = listOf(
         ViewportRatioBinding("tvOverscanX", "tv-overscan-x", basis = "viewport-width"),
         ViewportRatioBinding("tvOverscanY", "tv-overscan-y", basis = "viewport-height"),
@@ -157,7 +117,6 @@ object DesignTokenCodegen {
         return render(resolved, ratios, designVersion)
     }
 
-    /** `values/putio_design_colors.xml`: the [RESOURCE_TOKENS] colors, resolved like the Kotlin ones. */
     fun generateColorResources(dtcgJson: String, designVersion: String): String {
         val tokens = parse(dtcgJson)
         return buildString {
@@ -174,7 +133,6 @@ object DesignTokenCodegen {
         }
     }
 
-    /** DESIGN.md's `colors` YAML: each M3 role kebab-cased, then [DESIGN_MD_EXTRA_COLORS], each naming its token. */
     fun generateDesignMdColors(dtcgJson: String): String {
         val tokens = parse(dtcgJson)
         val cssNames = TOKEN_BINDINGS.toMap()
@@ -194,7 +152,6 @@ object DesignTokenCodegen {
         }
     }
 
-    /** [designMd] with its one ```yaml block that starts with `colors:` replaced by [generateDesignMdColors]. */
     fun withDesignMdColors(designMd: String, dtcgJson: String): String {
         val block = Regex("""(?m)^```yaml\n(colors:\n(?:(?!```).*\n)*)```$""")
         val matches = block.findAll(designMd).toList()
@@ -203,7 +160,6 @@ object DesignTokenCodegen {
         return designMd.replaceRange(range, generateDesignMdColors(dtcgJson))
     }
 
-    /** The system face a DESIGN.md family falls back to when the build lacks its licensed files. */
     val SYSTEM_FACES: Map<String, String> = mapOf(
         "GT America" to "FontFamily.Default",
         "Berkeley Mono" to "FontFamily.Monospace",
@@ -212,7 +168,6 @@ object DesignTokenCodegen {
     private val TYPOGRAPHY_KEYS =
         setOf("fontFamily", "fontSize", "fontWeight", "lineHeight", "letterSpacing", "fontFeature")
 
-    /** A DESIGN.md family: its generated property, its locked faces, and whether all of them are installed. */
     private data class Family(
         val name: String,
         val property: String,
@@ -220,11 +175,6 @@ object DesignTokenCodegen {
         val embedded: Boolean,
     )
 
-    /**
-     * Each family DESIGN.md's typography names, with the locked face for every weight it sets. A
-     * weight no locked face covers fails, and so does a locked face DESIGN.md never uses: the lock
-     * holds exactly the faces the contract sets. A family embeds only when all its faces are installed.
-     */
     private fun families(typography: Map<*, *>, fonts: BrandFonts.Lock, installed: Set<String>): List<Family> {
         val weights = linkedMapOf<String, MutableSet<Int>>()
         for ((name, value) in typography) {
@@ -255,13 +205,6 @@ object DesignTokenCodegen {
         (style["fontWeight"] as? String)?.toIntOrNull()?.takeIf { it in 1..1000 }
             ?: error("typography.$name.fontWeight must be 1..1000")
 
-    /**
-     * `PutioScales.kt`: DESIGN.md's `typography` front matter as public `TextStyle`s and its
-     * `rounded` front matter as public `Dp` radii, plus `PutioFontFamily`, its font families. A
-     * family embeds the locked faces in [installed] (file names from [fonts]) and otherwise falls
-     * back to [SYSTEM_FACES]. DESIGN.md owns these values, not the token graph, so a change lands
-     * there and regenerates here.
-     */
     fun generateScales(designMd: String, fonts: BrandFonts.Lock, installed: Set<String>): String {
         val front = frontMatter(designMd)
         val typography = front.section("typography")
@@ -361,7 +304,6 @@ object DesignTokenCodegen {
         appendLine("    )")
     }
 
-    /** `28px` → `28`; DESIGN.md writes dp and sp as `px` because the format has no Android units. */
     private fun pixels(value: Any?, path: String): String {
         val text = value as? String ?: error("$path must be a scalar")
         check(text.endsWith("px")) { "$path must be in px, got '$text'" }
@@ -376,10 +318,6 @@ object DesignTokenCodegen {
     private fun Map<String, Any>.section(name: String): Map<*, *> =
         (this[name] as? Map<*, *>)?.takeIf { it.isNotEmpty() } ?: error("DESIGN.md front matter has no $name section")
 
-    /**
-     * The YAML front matter between the leading `---` lines, for the subset DESIGN.md uses:
-     * nested `key:` maps and `key: value` scalars, optionally quoted once. Anything else fails loudly.
-     */
     fun frontMatter(designMd: String): Map<String, Any> {
         val lines = designMd.lines()
         check(lines.firstOrNull() == "---") { "DESIGN.md must start with YAML front matter" }
@@ -419,7 +357,6 @@ object DesignTokenCodegen {
 
     private fun String.kebab(): String = replace(Regex("([a-z])([A-Z])"), "$1-$2").lowercase()
 
-    /** `#RRGGBB`, or `#RRGGBBAA` when translucent: the CSS order DESIGN.md uses, not Android's ARGB. */
     private fun yamlHex(argb: Long): String {
         val rgb = "%06X".format(argb and 0xFFFFFFL)
         val alpha = (argb ushr 24) and 0xFFL
@@ -453,7 +390,6 @@ object DesignTokenCodegen {
         return out
     }
 
-    /** Dark mode wins; `global` tokens are mode-independent. Light-only is an error: the binding is dark only. */
     private fun resolve(tokens: Map<String, RawToken>, cssName: String): Long {
         val candidates = tokens.values.filter { it.cssName == cssName }
         val token = candidates.firstOrNull { it.mode == "dark" }
@@ -462,7 +398,6 @@ object DesignTokenCodegen {
         return hslToArgb(dereference(tokens, token.value, depth = 0))
     }
 
-    /** A ratio of the wrong axis or outside [0, 0.5) would pad the wrong edge or swallow the viewport. */
     private fun resolveViewportRatio(tokens: Map<String, RawToken>, binding: ViewportRatioBinding): Double {
         val token = tokens.values.firstOrNull { it.cssName == binding.cssName && it.mode == "tv" }
             ?: error("token graph has no tv token for cssName '${binding.cssName}'")

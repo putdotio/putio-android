@@ -173,7 +173,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** JVM proof for the mobile Material 3 shell; LaunchSmokeTest owns device launch proof. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35])
@@ -849,7 +848,6 @@ class MobileShellShareTest {
         }
     }
 
-    /** Transfers is resolving request 3's file until [resolved] completes. */
     private fun setResolvingTransferShell(
         draft: MobileTransferDraft,
         resolved: CompletableDeferred<PutioResult<FilesItem>>,
@@ -2525,7 +2523,6 @@ class MobileShellPlaybackTest {
     }
 }
 
-/** The audio session plays file 9, as the playback service would after a tap on song.mp3. */
 private fun Media3Player.playSong() {
     setMediaItem(
         MediaItem.Builder()

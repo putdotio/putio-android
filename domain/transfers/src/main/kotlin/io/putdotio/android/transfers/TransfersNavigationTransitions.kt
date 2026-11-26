@@ -2,7 +2,6 @@ package io.putdotio.android.transfers
 
 import io.putdotio.android.FilesFailure
 
-/** A mutation, another resolution or a foreground read is running, so nothing may open now. */
 private val TransfersState.navigationBlocked: Boolean
     get() {
         val readInFlight = refresh is TransfersRefresh.Refreshing || content.isPaging
@@ -35,7 +34,6 @@ internal fun TransfersState.open(id: TransferId): TransfersTransition {
     }
 }
 
-/** Resolves the folder a transfer saves into; the shell opens it in Files like a transfer's file. */
 internal fun TransfersState.openFolder(id: TransferId): TransfersTransition {
     val folderId = content.items().firstOrNull { it.id == id }?.saveParentId
     if (navigationBlocked || folderId == null) return TransfersTransition(this, consumed = false)

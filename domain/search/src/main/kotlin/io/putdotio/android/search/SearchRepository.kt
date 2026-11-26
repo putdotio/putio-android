@@ -12,7 +12,6 @@ import io.putdotio.sdk.files.FilesSearchQuery
 public interface SearchRepository {
     public suspend fun search(term: SearchTerm): PutioResult<SearchPage>
 
-    /** A search limited to [filter]'s put.io types; a repository that can't filter searches everything. */
     public suspend fun search(
         term: SearchTerm,
         filter: SearchFilter,

@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 
-/** A centred title, optional message, and optional single action that takes focus. */
 @Composable
 internal fun TvStatusScreen(
     title: String,
@@ -26,7 +25,6 @@ internal fun TvStatusScreen(
     action: String? = null,
     onAction: () -> Unit = {},
     actionFocus: FocusRequester = remember { FocusRequester() },
-    /** False while D-pad focus is elsewhere, so the action does not pull it back. */
     claimFocus: Boolean = true,
 ) {
     LaunchedEffect(action, claimFocus) { if (action != null && claimFocus) actionFocus.requestFocus() }

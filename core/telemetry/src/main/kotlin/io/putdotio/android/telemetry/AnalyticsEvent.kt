@@ -1,10 +1,5 @@
 package io.putdotio.android.telemetry
 
-/**
- * The events from the Analytics event contract (Notion, Frontend → Analytics) that this app has a
- * hook for. Every value is a fixed vocabulary, so a call site can't send free text, except
- * `app_opened`'s route, which [AnalyticsAllowlist] checks by shape.
- */
 public sealed interface AnalyticsEvent {
     public enum class Screen(internal val value: String) {
         Home("home"),
@@ -17,7 +12,6 @@ public sealed interface AnalyticsEvent {
         Player("player"),
     }
 
-    /** Account and app settings this app saves, minus the privacy controls: consent stays out of events. */
     public enum class Setting(internal val value: String) {
         HistoryEnabled("history_enabled"),
         TrashEnabled("trash_enabled"),
@@ -30,7 +24,6 @@ public sealed interface AnalyticsEvent {
         AutoplayNextVideo("autoplay_next_video"),
     }
 
-    /** A switch's state or a streaming method, else `changed`, so a sort or route never leaves the device. */
     public enum class SettingValue(internal val value: String) {
         On("on"),
         Off("off"),
@@ -71,7 +64,6 @@ public sealed interface AnalyticsEvent {
         }
     }
 
-    /** `source` is a deleted, unpaid or throttled file, `unsupported` one the player can't play as it is. */
     public enum class PlaybackError(internal val value: String) {
         Network("network"),
         Media("media"),
@@ -80,10 +72,8 @@ public sealed interface AnalyticsEvent {
         Unknown("unknown"),
     }
 
-    /** Media3 ExoPlayer plays locally; a Cast receiver is `chromecast`. */
     public enum class Player(internal val value: String) { ExoPlayer("exoplayer"), Chromecast("chromecast") }
 
-    /** A failed load may have no stream yet. */
     public data class Playback(val media: Media, val streamMethod: StreamMethod?, val player: Player)
 
     public data class ScreenViewed(val screen: Screen) : AnalyticsEvent
@@ -119,7 +109,6 @@ internal enum class SessionDuration(val value: String) {
     }
 }
 
-/** [route] is the account's tunnel route name, null while settings aren't loaded. */
 internal data class AppOpened(val entry: Entry, val route: String? = null) : AnalyticsEvent
 
 internal data class AppBackgrounded(val duration: SessionDuration) : AnalyticsEvent
@@ -160,11 +149,6 @@ private val AnalyticsEvent.Playback.properties: Map<String, String>
     get() = mapOf("media" to media.value, "player" to player.value) +
         streamMethod?.let { mapOf("stream_method" to it.value) }.orEmpty()
 
-/**
- * The contract's allowlist, written out apart from [AnalyticsEvent] so a new event, key or value is
- * dropped until it is listed here too. Everything the SDK adds, its device census included, is
- * dropped unless [sdkProperties] keeps it.
- */
 internal object AnalyticsAllowlist {
     private val playback = mapOf(
         "media" to setOf("video", "audio"),
@@ -199,7 +183,6 @@ internal object AnalyticsAllowlist {
         "release_channel" to setOf("stable", "beta"),
     )
 
-    /** Free-form short strings that only one event carries. */
     private val eventPatternProperties: Map<String, Map<String, Regex>> = mapOf(
         "app_opened" to mapOf("route" to Regex("""[A-Za-z0-9_ .()-]{1,64}""")),
     )
@@ -212,7 +195,6 @@ internal object AnalyticsAllowlist {
     private val VERSION = Regex("""[0-9]+(\.[0-9]+){1,3}""")
     private val UUID = Regex("""[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}""")
 
-    /** The SDK's own keys that ingestion needs, each checked for its shape. */
     private val sdkProperties: Map<String, (Any) -> Boolean> = mapOf(
         "\$lib" to { it == "posthog-android" },
         "\$lib_version" to { it is String && VERSION.matches(it) },
@@ -221,7 +203,6 @@ internal object AnalyticsAllowlist {
         "\$geoip_disable" to { it == true },
     )
 
-    /** Null drops the whole event. */
     fun allowedProperties(event: String, properties: Map<String, Any>): Map<String, Any>? {
         val eventValues = eventProperties[event] ?: return null
         return properties.filter { (key, value) ->

@@ -60,10 +60,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The real app, signed in as devs-auto, casting to a real receiver: the live API resolves every file
- * the receiver plays. Reads only; the Cast session it starts is stopped at the end.
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileCastRaceProofTest {

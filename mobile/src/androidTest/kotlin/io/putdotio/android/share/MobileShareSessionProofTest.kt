@@ -44,10 +44,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The real share service and MainActivity with a controlled session and an in-process download source;
- * no API call, credential or sign-in UI. A control run proves the lane sees a chooser when one opens.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileShareSessionProofTest {
     @get:Rule val optIn = TestRule { base, _ ->
@@ -138,7 +134,6 @@ class MobileShareSessionProofTest {
     private val instrumentation: Instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
 
-    /** Holds each download until released, so the session can end while the export is running. */
     private class GatedSource(private val body: ByteArray) : Interceptor {
         @Volatile private var requested = CountDownLatch(1)
         @Volatile private var gate = CountDownLatch(1)

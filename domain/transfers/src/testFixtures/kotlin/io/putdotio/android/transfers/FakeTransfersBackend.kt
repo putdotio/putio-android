@@ -14,12 +14,6 @@ import io.putdotio.sdk.transfers.TransfersListResponse
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 
-/**
- * Serves a history the way the put.io API does: `/transfers/list` returns the newest
- * 10,000 transfers only, newest first, and continuation pages follow the cursor. Each
- * response is JSON-encoded once and decoded per request, as the SDK transport would.
- * JVM tests count its requests and rows; device benchmarks replay it for CPU time.
- */
 internal class FakeTransfersBackend(historySize: Int, activePositions: Set<Int>) {
     val history: List<Transfer> =
         (0 until historySize).map { position ->

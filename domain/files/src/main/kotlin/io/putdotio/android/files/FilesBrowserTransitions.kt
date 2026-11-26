@@ -20,10 +20,6 @@ internal fun FilesBrowserState.openFolder(itemId: FilesItemId): FilesBrowserTran
     }
 }
 
-/**
- * Pushes the item's folder above the current location, so Back returns to it. An earlier outside
- * open is replaced rather than stacked, which keeps one location to come back to.
- */
 internal fun FilesBrowserState.openExternalItem(
     item: FilesItem,
     origin: FilesOpenOrigin,

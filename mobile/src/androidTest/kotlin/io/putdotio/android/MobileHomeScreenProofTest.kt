@@ -60,11 +60,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The Transfers widget on the real launcher and the download notifications' actions in the real shade,
- * over a controlled session and synthetic rows: no API call, credential or sign-in. Run it on an
- * emulator you booted: the widget it places stays on that home screen.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileHomeScreenProofTest {
     @get:Rule val optIn = TestRule { base, _ ->
@@ -213,7 +208,6 @@ class MobileHomeScreenProofTest {
         instrumentation.runOnMainSync { activity.finish() }
     }
 
-    /** A notification action; the shade may show the notification collapsed, so it is expanded first. */
     private fun awaitAction(label: String): AccessibilityNodeInfo {
         val action = { node: AccessibilityNodeInfo -> node.text?.toString() == label && node.isClickable }
         nodes().firstOrNull(action)?.let { return it }
@@ -252,11 +246,9 @@ class MobileHomeScreenProofTest {
         SystemClock.sleep(SETTLE_MS)
     }
 
-    /** An expanded notification reads its title, the name and the reason as one text. */
     private fun awaitNotification(name: String) =
         awaitNode("the notification for $name") { it.text?.toString()?.lines()?.contains(name) == true }
 
-    /** The launcher may have placed the widget on a later home page. */
     private fun showWidgetPage() {
         home()
         repeat(HOME_PAGES) {
@@ -283,7 +275,6 @@ class MobileHomeScreenProofTest {
         return checkNotNull(found)
     }
 
-    /** Every visible node of every window: the shade and the launcher are not this app's windows. */
     private fun nodes(): List<AccessibilityNodeInfo> {
         val roots = instrumentation.uiAutomation.windows.mapNotNull { it.root } +
             listOfNotNull(instrumentation.uiAutomation.rootInActiveWindow)
