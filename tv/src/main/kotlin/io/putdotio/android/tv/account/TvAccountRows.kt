@@ -188,6 +188,7 @@ internal fun TvSettingRow(
     @DrawableRes icon: Int,
     segment: TvSegment,
     modifier: Modifier = Modifier,
+    styledTitle: AnnotatedString? = null,
     description: String? = null,
     onClick: (() -> Unit)? = null,
     focusable: Boolean = true,
@@ -213,7 +214,7 @@ internal fun TvSettingRow(
             Icon(painterResource(icon), contentDescription = null, tint = secondary, modifier = Modifier.size(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    title,
+                    styledTitle ?: AnnotatedString(title),
                     style = if (description == null) TvAccountType.row else TvAccountType.rowTitle,
                     color = content,
                     maxLines = 1,

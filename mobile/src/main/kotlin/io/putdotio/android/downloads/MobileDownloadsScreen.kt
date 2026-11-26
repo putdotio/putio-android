@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
@@ -527,8 +529,16 @@ private fun DownloadSheetMeta(entry: DownloadEntry, removing: Boolean, queuePosi
         removing -> MobileFilesSheetMeta(null, stringResource(R.string.mobile_downloads_status_removing))
         status is DownloadStatus.Completed ->
             MobileFilesSheetMeta(formatFileSize(status.bytes), entry.createdAt.toDisplayDate(context))
-        else ->
-            MobileFilesSheetMeta(null, status.description(context, queuePosition), detailMaxLines = Int.MAX_VALUE)
+        else -> {
+            val style = MaterialTheme.typography.bodySmall
+            Text(
+                text = status.styledDescription(context, queuePosition, style.putioMono().toSpanStyle()),
+                style = style,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = Int.MAX_VALUE,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -544,13 +554,15 @@ private fun RemovalDialog(removal: DownloadRemoval, onConfirm: () -> Unit, onCan
     AlertDialog(
         onDismissRequest = onCancel,
         title = {
-            Text(
-                if (removal.name != null) {
-                    stringResource(R.string.mobile_downloads_remove_title)
-                } else {
-                    pluralStringResource(R.plurals.mobile_downloads_remove_many_title, count, count)
-                },
-            )
+            if (removal.name != null) {
+                Text(stringResource(R.string.mobile_downloads_remove_title))
+            } else {
+                val locale = LocalConfiguration.current.locales[0]
+                val label = pluralStringResource(R.plurals.mobile_downloads_remove_many_title, count, count)
+                val number = String.format(locale, "%d", count)
+                val mono = LocalTextStyle.current.putioMono().toSpanStyle()
+                Text(monoSpan(label, number, mono))
+            }
         },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -577,30 +589,53 @@ private fun RemovalDialog(removal: DownloadRemoval, onConfirm: () -> Unit, onCan
 }
 
 internal fun DownloadStatus.description(context: Context, queuePosition: Int? = null): String =
+    styledDescription(context, queuePosition, SpanStyle()).text
+
+internal fun DownloadStatus.styledDescription(
+    context: Context,
+    queuePosition: Int? = null,
+    mono: SpanStyle,
+): AnnotatedString =
     when (this) {
         DownloadStatus.Queued -> queuePosition?.let {
-            context.getString(R.string.mobile_downloads_status_queued_position, it)
-        } ?: context.getString(R.string.mobile_downloads_status_queued)
-        is DownloadStatus.Paused -> context.getString(
-            when (reason) {
-                DownloadPauseReason.NETWORK -> R.string.mobile_downloads_status_waiting_network
-                DownloadPauseReason.STORAGE -> R.string.mobile_downloads_status_waiting_storage
-                DownloadPauseReason.USER -> R.string.mobile_downloads_status_paused
-            },
-            formatFileSize(bytesDownloaded),
-        )
-        is DownloadStatus.Downloading -> percent?.let {
-            val rounded = it.roundToInt().coerceIn(0, PERCENT.toInt())
-            context.getString(R.string.mobile_downloads_status_downloading, rounded)
-        } ?: context.getString(
-            R.string.mobile_downloads_status_downloading_unknown,
-            formatFileSize(bytesDownloaded),
-        )
-        is DownloadStatus.Completed ->
-            context.getString(R.string.mobile_downloads_status_completed, formatFileSize(bytes))
-        is DownloadStatus.Failed -> context.getString(reason.message())
-        DownloadStatus.Missing -> context.getString(R.string.mobile_downloads_status_missing)
+            val number = String.format(context.resources.configuration.locales[0], "%d", it)
+            monoSpan(context.getString(R.string.mobile_downloads_status_queued_position, it), number, mono)
+        } ?: AnnotatedString(context.getString(R.string.mobile_downloads_status_queued))
+        is DownloadStatus.Paused -> formatFileSize(bytesDownloaded).let { size ->
+            monoSpan(context.getString(reason.statusTemplate, size), size, mono)
+        }
+        is DownloadStatus.Downloading -> downloadingDescription(context, mono)
+        is DownloadStatus.Completed -> formatFileSize(bytes).let { size ->
+            monoSpan(context.getString(R.string.mobile_downloads_status_completed, size), size, mono)
+        }
+        is DownloadStatus.Failed -> AnnotatedString(context.getString(reason.message()))
+        DownloadStatus.Missing -> AnnotatedString(context.getString(R.string.mobile_downloads_status_missing))
     }
+
+private fun DownloadStatus.Downloading.downloadingDescription(context: Context, mono: SpanStyle): AnnotatedString =
+    percent?.let {
+        val rounded = it.roundToInt().coerceIn(0, PERCENT.toInt())
+        val percentText = String.format(context.resources.configuration.locales[0], "%d%%", rounded)
+        monoSpan(context.getString(R.string.mobile_downloads_status_downloading, rounded), percentText, mono)
+    } ?: formatFileSize(bytesDownloaded).let { size ->
+        monoSpan(context.getString(R.string.mobile_downloads_status_downloading_unknown, size), size, mono)
+    }
+
+private val DownloadPauseReason.statusTemplate: Int
+    @StringRes get() = when (this) {
+        DownloadPauseReason.NETWORK -> R.string.mobile_downloads_status_waiting_network
+        DownloadPauseReason.STORAGE -> R.string.mobile_downloads_status_waiting_storage
+        DownloadPauseReason.USER -> R.string.mobile_downloads_status_paused
+    }
+
+private fun monoSpan(text: String, value: String, mono: SpanStyle): AnnotatedString {
+    val start = text.indexOf(value)
+    if (start < 0 || value.isEmpty()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        append(text)
+        addStyle(mono, start, start + value.length)
+    }
+}
 
 internal fun DownloadEntry.toFilesItem(): FilesItem =
     FilesItem(

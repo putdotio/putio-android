@@ -10,6 +10,7 @@ import io.putdotio.android.R
 import io.putdotio.android.apiReason
 import io.putdotio.android.settings.AccountSettingsFailure
 import io.putdotio.android.settings.StreamingMethod
+import io.putdotio.android.tv.TV_MONO_RUN
 import io.putdotio.android.tv.isUnknown
 import io.putdotio.android.tv.tvLine
 import io.putdotio.android.tv.tvUnknownLine
@@ -64,5 +65,16 @@ internal fun tvMonoArguments(@StringRes template: Int, vararg values: String): A
                 from = start + value.length
             }
         }
+    }
+}
+
+@Composable
+internal fun tvOpenSourceName(name: String, version: String): AnnotatedString {
+    val text = stringResource(R.string.tv_account_open_source_name, name, version)
+    val start = text.lastIndexOf(version)
+    if (start < 0 || version.isEmpty()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        append(text)
+        addStyle(TV_MONO_RUN, start, start + version.length)
     }
 }

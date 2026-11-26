@@ -63,6 +63,8 @@ import coil3.compose.SubcomposeAsyncImageScope
 import io.putdotio.android.R
 import io.putdotio.android.files.formatFileSize
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.putioMono
+import io.putdotio.android.monoArguments
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesPdfDocument
 import io.putdotio.android.files.FilesPdfUnreadable
@@ -307,7 +309,7 @@ internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
 }
 
 @Composable
-private fun MobileTextLines(preview: FilesTextPreview, onOpenWithAnotherApp: () -> Unit) {
+internal fun MobileTextLines(preview: FilesTextPreview, onOpenWithAnotherApp: () -> Unit) {
     val chunks = remember(preview) {
         preview.lines.chunked(TEXT_LINES_PER_ITEM).map { it.joinToString("\n") }
     }
@@ -326,9 +328,14 @@ private fun MobileTextLines(preview: FilesTextPreview, onOpenWithAnotherApp: () 
             }
             if (preview.truncated) {
                 item(key = "truncated", contentType = "truncated") {
+                    val noticeStyle = MaterialTheme.typography.bodyMedium
                     Text(
-                        text = stringResource(R.string.mobile_viewer_text_truncated, TEXT_LIMIT_LABEL),
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = monoArguments(
+                            stringResource(R.string.mobile_viewer_text_truncated),
+                            noticeStyle.putioMono().toSpanStyle(),
+                            TEXT_LIMIT_LABEL,
+                        ),
+                        style = noticeStyle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 16.dp),
                     )

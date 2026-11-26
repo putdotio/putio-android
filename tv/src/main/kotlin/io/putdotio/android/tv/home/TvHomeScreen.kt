@@ -41,7 +41,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -702,7 +701,9 @@ private fun TvHomeProgress(progress: Float?, focused: Boolean) {
             .fillMaxWidth()
             .height(PROGRESS_HEIGHT)
             .clip(shape)
-            .background(if (focused) FocusedTrack else PutioDesignTokens.componentBgActive),
+            .background(
+                if (focused) TvFocus.content.copy(alpha = FOCUSED_TRACK_ALPHA) else PutioDesignTokens.componentBgActive,
+            ),
     ) {
         Box(
             Modifier
@@ -731,8 +732,7 @@ private fun TvHomeAddFilesQr() {
     )
 }
 
-private val FocusedTrack = Color(FOCUSED_TRACK)
-private const val FOCUSED_TRACK = 0x24000000
+private const val FOCUSED_TRACK_ALPHA = 0.14f
 private val HOME_TOP = 4.dp
 private val SECTION_GAP = 21.dp
 private val LABEL_GAP = 9.dp

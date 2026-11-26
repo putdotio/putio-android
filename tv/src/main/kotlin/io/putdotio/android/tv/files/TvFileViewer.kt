@@ -48,6 +48,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -424,8 +426,17 @@ private fun TvTextLines(preview: FilesTextPreview, keys: TvViewerKeys) {
             ) { _, chunk -> Text(chunk, style = style) }
             if (preview.truncated) {
                 item(key = "truncated", contentType = "truncated") {
+                    val label = stringResource(R.string.tv_viewer_text_truncated, TEXT_LIMIT_LABEL)
+                    val start = label.indexOf(TEXT_LIMIT_LABEL)
                     Text(
-                        text = stringResource(R.string.tv_viewer_text_truncated, TEXT_LIMIT_LABEL),
+                        text = if (start < 0) {
+                            AnnotatedString(label)
+                        } else {
+                            buildAnnotatedString {
+                                append(label)
+                                addStyle(PutioTypeScale.tvMono.toSpanStyle(), start, start + TEXT_LIMIT_LABEL.length)
+                            }
+                        },
                         style = PutioTypeScale.tvMeta,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = margins.vertical),

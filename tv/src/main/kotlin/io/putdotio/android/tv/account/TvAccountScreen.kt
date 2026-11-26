@@ -559,8 +559,10 @@ private fun TvAccountSheets(
             returnFocus = returnFocus(RowKey.SERVICES),
         )
         TvAccountSheet.OpenSourceNotice -> OPEN_SOURCE_NOTICES.getOrNull(notice)?.let {
+            val styledTitle = tvOpenSourceName(it.name, it.version)
             TvQrSheet(
-                title = stringResource(R.string.tv_account_open_source_name, it.name, it.version),
+                title = styledTitle.text,
+                styledTitle = styledTitle,
                 url = it.sourceUrl,
                 onDismiss = onClose,
                 returnFocus = returnFocus(RowKey.notice(notice)),
@@ -577,8 +579,10 @@ private fun TvAccountSheets(
         }
         TvAccountSheet.LibraryLicense -> libraries.getOrNull(library)?.let { notice ->
             notice.url?.let { url ->
+                val styledTitle = tvOpenSourceName(notice.name, notice.version)
                 TvQrSheet(
-                    title = stringResource(R.string.tv_account_open_source_name, notice.name, notice.version),
+                    title = styledTitle.text,
+                    styledTitle = styledTitle,
                     url = url,
                     onDismiss = onCloseLibrary,
                     returnFocus = null,
@@ -971,8 +975,10 @@ private class TvAccountRowsScope(
         val rows = OPEN_SOURCE_NOTICES.size + 1
         TvSegments {
             OPEN_SOURCE_NOTICES.forEachIndexed { index, notice ->
+                val styledTitle = tvOpenSourceName(notice.name, notice.version)
                 TvSettingRow(
-                    title = stringResource(R.string.tv_account_open_source_name, notice.name, notice.version),
+                    title = styledTitle.text,
+                    styledTitle = styledTitle,
                     icon = R.drawable.ic_ph_file_text,
                     segment = segmentOf(index, rows),
                     description = stringResource(

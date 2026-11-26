@@ -57,6 +57,7 @@ internal class TvPlaybackQueue(
     private val defaultAnalytics: PlaybackAnalyticsReporter,
     private val onFailure: (PlaybackFailure, Long) -> Unit,
     private val onQueueFinished: (() -> Unit)? = null,
+    private val onStopRequested: (() -> Unit)? = onQueueFinished,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var started = false
@@ -66,6 +67,7 @@ internal class TvPlaybackQueue(
     private var screen: Screen? = null
     private var ui: UiBinding? = null
     private var advancedFrom: Player? = null
+    private val stopSession: () -> Unit = { ui?.onExit?.invoke() ?: onStopRequested?.invoke() ?: drop() }
     private val lifecycleObserver = LifecycleEventObserver { _, event ->
         when (event) {
             Lifecycle.Event.ON_START, Lifecycle.Event.ON_STOP -> syncSession(controller.state.value)
@@ -133,9 +135,10 @@ internal class TvPlaybackQueue(
         lifecycle: Lifecycle,
         analytics: PlaybackAnalyticsReporter,
         onFailure: (PlaybackFailure, Long) -> Unit,
+        onExit: (() -> Unit)? = null,
     ): Closeable {
         ui?.detach()
-        val binding = UiBinding(lifecycle, analytics, onFailure)
+        val binding = UiBinding(lifecycle, analytics, onFailure, onExit)
         ui = binding
         lifecycle.addObserver(lifecycleObserver)
         if (started) syncSession(controller.state.value)
@@ -155,7 +158,12 @@ internal class TvPlaybackQueue(
         player.addListener(listener)
         val queued = Queued(source, target.fileId, player, reporter.observe(player))
         current = queued
-        val published = tvSessionPlayer(player, onSkipRequested = ::skip, onPlayingRequested = queued::setPlaying)
+        val published = tvSessionPlayer(
+            player,
+            onSkipRequested = ::skip,
+            onStopRequested = stopSession,
+            onPlayingRequested = queued::setPlaying,
+        )
         val activeSession = session
         when {
             activeSession != null -> activeSession.swap(published)
@@ -197,6 +205,7 @@ internal class TvPlaybackQueue(
                     val published = tvSessionPlayer(
                         held.player,
                         onSkipRequested = ::skip,
+                        onStopRequested = stopSession,
                         onPlayingRequested = held::setPlaying,
                     )
                     session = factory.publishQueue(context, published)
@@ -209,6 +218,7 @@ internal class TvPlaybackQueue(
                         val published = tvSessionPlayer(
                             placeholder,
                             onSkipRequested = null,
+                            onStopRequested = stopSession,
                             onPlayingRequested = { placeholder.playWhenReady = it },
                         )
                         session = factory.publishQueue(context, published)
@@ -291,6 +301,7 @@ internal class TvPlaybackQueue(
         val lifecycle: Lifecycle,
         val analytics: PlaybackAnalyticsReporter,
         val onFailure: (PlaybackFailure, Long) -> Unit,
+        val onExit: (() -> Unit)?,
     ) {
         fun detach() = lifecycle.removeObserver(lifecycleObserver)
     }

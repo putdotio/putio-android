@@ -27,6 +27,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.BuildConfig
 import io.putdotio.android.LibraryNotice
@@ -34,8 +36,10 @@ import io.putdotio.android.OpenSourceNotice
 import io.putdotio.android.R
 import io.putdotio.android.appSourceNotice
 import io.putdotio.android.design.PutioTypeScale
+import io.putdotio.android.design.putioMono
 import io.putdotio.android.libraryNotices
 import io.putdotio.android.playback.playbackNotices
+import io.putdotio.android.styledTemplate
 import io.putdotio.android.telemetry.telemetryNotices
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -109,7 +113,7 @@ private fun LibraryRow(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        stringResource(R.string.mobile_settings_open_source_name, library.name, library.version),
+                        openSourceName(library.name, library.version),
                         style = PutioTypeScale.bodyMd,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -142,7 +146,7 @@ private fun NoticeGroup(notice: OpenSourceNotice, onOpen: (String) -> Unit) {
         ) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
                 Text(
-                    stringResource(R.string.mobile_settings_open_source_name, notice.name, notice.version),
+                    openSourceName(notice.name, notice.version),
                     style = PutioTypeScale.bodyMd,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
@@ -190,6 +194,12 @@ private fun NoticeLink(segment: SettingsSegment, @StringRes title: Int, onClick:
         }
     }
 }
+
+@Composable
+private fun openSourceName(name: String, version: String): AnnotatedString = styledTemplate(
+    template = stringResource(R.string.mobile_settings_open_source_name),
+    slots = listOf(name to SpanStyle(), version to PutioTypeScale.bodyMd.putioMono().toSpanStyle()),
+)
 
 private const val INTRO_KEY = "open-source-licenses-intro"
 private const val LIBRARIES_KEY = "open-source-licenses-libraries"

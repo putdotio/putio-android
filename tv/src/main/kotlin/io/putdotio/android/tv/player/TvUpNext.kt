@@ -24,12 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,7 +140,7 @@ private fun TvUpNextCard(
                 .padding(bottom = UP_NEXT_ABOVE_CONTROLS)
                 .width(UP_NEXT_WIDTH)
                 .clip(RoundedCornerShape(PutioRadius.large))
-                .background(UP_NEXT_FILL)
+                .background(PutioDesignTokens.componentBgHover.copy(alpha = UP_NEXT_FILL_ALPHA))
                 .padding(UP_NEXT_PADDING)
                 .testTag(TV_UP_NEXT_TAG),
         ) {
@@ -217,12 +215,12 @@ private fun countdown(text: String, seconds: String): AnnotatedString {
     if (start < 0) return AnnotatedString(text)
     return buildAnnotatedString {
         append(text)
-        addStyle(SpanStyle(fontFamily = PutioTypeScale.tvMono.fontFamily), start, start + seconds.length)
+        addStyle(PutioTypeScale.tvMono.toSpanStyle(), start, start + seconds.length)
     }
 }
 
 private const val MILLIS_PER_SECOND = 1_000.0
-private val UP_NEXT_FILL = Color(red = 30, green = 30, blue = 30, alpha = 235)
+private const val UP_NEXT_FILL_ALPHA = 0.92f
 private const val UP_NEXT_TRACK_ALPHA = 0.2f
 private val UP_NEXT_WIDTH = 280.dp
 private val UP_NEXT_PADDING = 14.dp

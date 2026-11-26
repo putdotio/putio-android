@@ -115,6 +115,7 @@ internal fun TvPlaybackRoute(
         onSessionRejected = onSessionRejected,
         analytics = analytics,
         onPlayerFailure = onPlayerFailure,
+        onStopRequested = onExit,
     )
     val neighbours = rememberNeighbours(state, queue, findUpNext, onSessionRejected)
     val vlcScope = rememberCoroutineScope()
@@ -195,11 +196,13 @@ private fun rememberPlaybackQueue(
     onSessionRejected: suspend () -> Unit,
     analytics: PlaybackAnalyticsReporter,
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
+    onStopRequested: () -> Unit,
 ): TvPlaybackQueue? {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val currentOnSessionRejected by rememberUpdatedState(onSessionRejected)
     val currentOnPlayerFailure by rememberUpdatedState(onPlayerFailure)
+    val currentOnStopRequested by rememberUpdatedState(onStopRequested)
     val hosted = TvPlaybackService.audioHost.queueFor(controller)
     val local = remember(backgrounds, mediaType, controller, playerFactory, reporter, findUpNext, analytics, hosted) {
         if (!backgrounds || mediaType != PlaybackMediaType.AUDIO || hosted != null) return@remember null
@@ -211,6 +214,7 @@ private fun rememberPlaybackQueue(
             folder = TvFolderLookup(controller.state, findUpNext) { currentOnSessionRejected() },
             defaultAnalytics = analytics,
             onFailure = { failure, positionMillis -> currentOnPlayerFailure(failure, positionMillis) },
+            onStopRequested = { currentOnStopRequested() },
         )
     }
     DisposableEffect(local) {
@@ -219,9 +223,12 @@ private fun rememberPlaybackQueue(
     }
     val queue = hosted ?: local
     DisposableEffect(queue, lifecycle, analytics) {
-        val binding = queue?.bindUi(lifecycle, analytics) { failure, positionMillis ->
-            currentOnPlayerFailure(failure, positionMillis)
-        }
+        val binding = queue?.bindUi(
+            lifecycle = lifecycle,
+            analytics = analytics,
+            onFailure = { failure, positionMillis -> currentOnPlayerFailure(failure, positionMillis) },
+            onExit = { currentOnStopRequested() },
+        )
         onDispose { binding?.close() }
     }
     return queue

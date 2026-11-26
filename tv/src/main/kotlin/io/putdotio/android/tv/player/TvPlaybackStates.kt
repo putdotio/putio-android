@@ -153,7 +153,7 @@ private fun TvConversionProgress(percent: Double?, queued: Boolean) {
         modifier = Modifier.padding(bottom = ACTION_EXTRA_GAP),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        val track = Color.White.copy(alpha = PROGRESS_TRACK_ALPHA)
+        val track = MaterialTheme.colorScheme.onSurface.copy(alpha = PROGRESS_TRACK_ALPHA)
         val bar = Modifier
             .padding(top = PROGRESS_TOP)
             .width(PROGRESS_WIDTH)
@@ -185,15 +185,11 @@ private fun TvConversionProgress(percent: Double?, queued: Boolean) {
             else -> null
         }
         if (line != null) {
-            val lineStyle = MaterialTheme.typography.bodySmall
+            val lineStyle = if (percent != null) PutioTypeScale.tvMono else MaterialTheme.typography.bodySmall
             Text(
                 text = line,
                 style = lineStyle
-                    .copy(
-                        fontFamily = if (percent != null) PutioTypeScale.tvMono.fontFamily else lineStyle.fontFamily,
-                        fontSize = PERCENT_SIZE,
-                        lineHeight = PERCENT_LINE,
-                    )
+                    .copy(fontSize = PERCENT_SIZE, lineHeight = PERCENT_LINE)
                     .withFullLineBox(),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier
