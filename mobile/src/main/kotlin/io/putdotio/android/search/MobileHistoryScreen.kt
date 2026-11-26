@@ -59,6 +59,7 @@ import io.putdotio.android.MobileRow
 import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.R
 import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.Built
 import io.putdotio.android.design.buildReusing
 import io.putdotio.android.design.rememberBuiltOffMain
@@ -155,6 +156,7 @@ private fun MobileHistoryContent(
                             title = stringResource(R.string.mobile_history_empty_title),
                             message = stringResource(R.string.mobile_history_empty_message),
                             modifier = Modifier.fillMaxWidth().height(viewportHeight),
+                            glyph = PutioEmptyGlyph.NothingYet,
                         )
                     }
                 }

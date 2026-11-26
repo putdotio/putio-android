@@ -193,7 +193,7 @@ class TvTrashScreenTest {
 
         compose.runOnIdle { state = state.copy(actionConfirmation = TrashAction.Empty, actionConfirmationId = 5L) }
         compose.onNodeWithText("Empty trash?").assertIsDisplayed()
-        compose.onNodeWithText("2 items are deleted permanently. This can't be undone.").assertIsDisplayed()
+        compose.onNodeWithText("2 items are deleted permanently. This can’t be undone.").assertIsDisplayed()
         compose.onNode(focusedInDialog("Cancel")).performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }

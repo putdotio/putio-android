@@ -112,7 +112,7 @@
     <string name="tv_files_loading_more">Loading more files</string>
     <string name="tv_files_paging_error">Couldn’t load more files.</string>
     <string name="tv_files_retry">Try again</string>
-    <string name="tv_files_error_title">Couldn\'t load your files.</string>
+    <string name="tv_files_error_title">Couldn’t load your files.</string>
     <string name="tv_files_open_folder">Open %1$s</string>
     <string name="tv_files_play_media">Play %1$s</string>
     <string name="tv_files_watched">Watched</string>
@@ -300,7 +300,7 @@
     <string name="tv_account_proxy">Proxy</string>
     <string name="tv_account_tunnel_route">Choose your proxy</string>
     <string name="tv_account_tunnel_route_default">Amsterdam (Direct)</string>
-    <string name="tv_account_tunnel_route_default_description">Straight from put.io\'s servers in Amsterdam.</string>
+    <string name="tv_account_tunnel_route_default_description">Straight from put.io’s servers in Amsterdam.</string>
     <string name="tv_account_tunnel_route_loading">Loading proxies</string>
     <string name="tv_account_tunnel_route_error">Couldn’t load proxies</string>
     <string name="tv_account_resume_playback">Resume where you left off</string>
@@ -372,10 +372,10 @@
     <string name="tv_trash_delete_title">Delete permanently?</string>
     <string name="tv_trash_delete_message">%1$s will be removed from trash right away. This cannot be undone.</string>
     <string name="tv_trash_empty_title_confirm">Empty trash?</string>
-    <string name="tv_trash_empty_message_confirm">Every item in trash is deleted permanently. This can\'t be undone.</string>
+    <string name="tv_trash_empty_message_confirm">Every item in trash is deleted permanently. This can’t be undone.</string>
     <plurals name="tv_trash_empty_count_message">
-        <item quantity="one">%1$d item is deleted permanently. This can\'t be undone.</item>
-        <item quantity="other">%1$d items are deleted permanently. This can\'t be undone.</item>
+        <item quantity="one">%1$d item is deleted permanently. This can’t be undone.</item>
+        <item quantity="other">%1$d items are deleted permanently. This can’t be undone.</item>
     </plurals>
     <plurals name="tv_trash_days_left">
         <item quantity="one">%1$d day left</item>
@@ -441,7 +441,7 @@
     <string name="tv_player_buffering">Buffering…</string>
     <string name="tv_player_stalled">Playback stalled</string>
     <string name="tv_player_seek_bar">%1$s of %2$s</string>
-    <string name="tv_player_error_title">Couldn\'t play this file.</string>
+    <string name="tv_player_error_title">Couldn’t play this file.</string>
     <string name="tv_player_error_crash">Playback error</string>
     <string name="tv_player_connection_lost">Connection lost</string>
     <string name="tv_player_error_link_expired_title">Playback link expired</string>
