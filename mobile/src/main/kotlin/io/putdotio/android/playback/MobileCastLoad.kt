@@ -35,18 +35,22 @@ internal fun PlaybackCastMedia.loadRequest(
     putioReceiver: Boolean,
 ): MediaLoadRequestData {
     val receiverLoad = receiverLoad?.takeIf { putioReceiver }
-    val mediaInfo = toMediaInfo(sendsUrl = receiverLoad == null)
-    // The custom data fills what the media's own description leaves of one Cast message.
-    val budget = CAST_MESSAGE_MAX_BYTES - CAST_ENVELOPE_BYTES - mediaInfo.toJson().toString().toByteArray().size
-    return MediaLoadRequestData.Builder()
-        .setMediaInfo(mediaInfo)
+    val plain = loadBuilder(startMillis, autoplay, speed, sendsUrl = receiverLoad == null).build()
+    receiverLoad ?: return plain
+    // The custom data fills what the rest of the LOAD leaves of one Cast message.
+    val budget = CAST_MESSAGE_MAX_BYTES - CAST_ENVELOPE_BYTES - plain.toJson().toString().toByteArray().size
+    return loadBuilder(startMillis, autoplay, speed, sendsUrl = false)
+        .setCustomData(JSONObject(receiverLoad.customData(startMillis, budget)))
+        .build()
+}
+
+private fun PlaybackCastMedia.loadBuilder(startMillis: Long, autoplay: Boolean, speed: Float, sendsUrl: Boolean) =
+    MediaLoadRequestData.Builder()
+        .setMediaInfo(toMediaInfo(sendsUrl))
         .setAutoplay(autoplay)
         .setCurrentTime(startMillis)
         .setPlaybackRate(speed.castRate())
         .setActiveTrackIds(activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
-        .apply { receiverLoad?.let { setCustomData(JSONObject(it.customData(startMillis, budget))) } }
-        .build()
-}
 
 /**
  * The put.io file this media belongs to; null for media another sender sent. The put.io receiver

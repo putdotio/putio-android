@@ -1,20 +1,12 @@
 package io.putdotio.android.playback
 
 import io.putdotio.android.playback.R as PlaybackR
-import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.putdotio.android.R
-
-/** The Cast video's option sheets. */
-internal enum class CastVideoSheet(@StringRes val title: Int) {
-    Audio(R.string.mobile_playback_audio_control),
-    Subtitles(R.string.mobile_playback_subtitles_title),
-    Speed(R.string.mobile_playback_speed),
-}
 
 /** What each of these tracks shows as: its name, else its language, numbered where two match. */
 internal fun castTrackLabels(tracks: List<CastTrack>, fallback: String): List<String> {

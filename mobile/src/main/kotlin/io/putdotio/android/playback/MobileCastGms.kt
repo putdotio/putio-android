@@ -1002,7 +1002,8 @@ internal class GmsCastRemote : CastRemote {
         val now = SystemClock.elapsedRealtime()
         val shown = mutableStatus.value?.takeIf { it.fileId == fileId }
         val loaded = lastLoad?.takeIf { (media, _) -> media.fileId == fileId }
-        val failure = shown?.copy(state = CastRemoteState.Failed, positionMillis = shown.positionAt(now), sampledAtMillis = now)
+        val failure = shown
+            ?.copy(state = CastRemoteState.Failed, positionMillis = shown.positionAt(now), sampledAtMillis = now)
             ?: loaded?.let { (media, start) -> media.failedAt(start) }
             ?: return
         receiverFailure = failure

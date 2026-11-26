@@ -330,6 +330,13 @@ private fun FollowCastFinish(
     }
 }
 
+/** The Cast video's option sheets. */
+internal enum class CastVideoSheet(@StringRes val title: Int) {
+    Audio(R.string.mobile_playback_audio_control),
+    Subtitles(R.string.mobile_playback_subtitles_title),
+    Speed(R.string.mobile_playback_speed),
+}
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileCastVideo(
