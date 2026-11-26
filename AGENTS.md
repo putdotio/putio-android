@@ -1,9 +1,9 @@
 # Agent Guide
 
-Ground-up native rewrite of the put.io Android app: Kotlin and Compose for
-phones and tablets (`mobile`) and Android TV / Fire TV (`tv`) from one
-codebase. It is not on Google Play yet; [#14](https://github.com/putdotio/putio-android/issues/14)
-tracks the rollout. [Architecture](docs/architecture.md) maps the modules, and
+The native put.io Android app: Kotlin and Compose for phones and tablets
+(`mobile`) and Android TV / Fire TV (`tv`) from one codebase. It ships on
+Google Play; [#14](https://github.com/putdotio/putio-android/issues/14) tracks
+what is left of the rollout. [Architecture](docs/architecture.md) maps the modules, and
 [Design](DESIGN.md) is the Android design contract. Tests pin the product rules;
 script headers and `--help` own the harness.
 

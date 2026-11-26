@@ -254,8 +254,8 @@ only, no dynamic colour. The platform owns pressed, disabled, selected and
 focused states, except TV focus below.
 
 The app reads as a quiet file manager and player: neutral surfaces, dense rows,
-mono numbers, and yellow only where it marks content or the one action that
-matters.
+mono numbers, and yellow only where it marks content or the screen's primary
+action.
 
 ## Colors
 
@@ -295,8 +295,8 @@ colors:
   solid: "#707070" # --solid
 ```
 
-- **Neutral** does the work: surfaces, switches, transport buttons, status
-  glyphs and every button but one.
+- **Neutral** colours surfaces, switches, transport buttons, status glyphs and
+  every button but one.
 - **Content yellow** marks content: file-type glyphs, progress, the on-device
   marker, state dots, the selected tab, checkboxes and radios.
 - **Action yellow** is the one primary action of a screen or dialog.

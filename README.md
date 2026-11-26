@@ -15,10 +15,24 @@
   </p>
 </div>
 
-> [!NOTE]
-> Work in progress and not on Google Play yet. The current put.io TV app stays
-> until this one replaces it; [#14](https://github.com/putdotio/putio-android/issues/14)
-> tracks the rollout. Open an issue before sending a pull request.
+<p align="center">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/1.png" width="24%" alt="Files on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/2.png" width="24%" alt="Video playback on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/3.png" width="24%" alt="Search on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/4.png" width="24%" alt="Downloads on a phone">
+</p>
+
+<p align="center">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/tv-screenshots/1.png" width="98%" alt="Files on Android TV">
+</p>
+
+<p align="center">
+  <sub>Sintel © copyright Blender Foundation | durian.blender.org</sub>
+</p>
+
+## Install
+
+Get the app from [Google Play](https://play.google.com/store/apps/details?id=io.put.putio).
 
 ## Use
 
