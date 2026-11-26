@@ -288,7 +288,9 @@ private fun MobileContinueWatchingRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        items(entries, key = { it.fileId.value }) { entry -> MobileContinueWatchingCard(entry, onPlay, onRemove) }
+        items(entries, key = { it.fileId.value }, contentType = { "continue-watching" }) { entry ->
+            MobileContinueWatchingCard(entry, onPlay, onRemove)
+        }
     }
 }
 

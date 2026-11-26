@@ -308,28 +308,28 @@ internal fun MobilePublicLinksScreen(
     val actions = rememberPublicLinkActions(state) { snackbarHostState.showSnackbar(copiedMessage) }
     Box(modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().testTag(MOBILE_PUBLIC_LINKS_LIST_TAG)) {
-            item(key = "summary") {
+            item(key = "summary", contentType = "summary") {
                 MobileSectionLabel(stringResource(R.string.mobile_public_links_summary), first = true)
             }
             state.outcome?.let { outcome ->
-                item(key = "outcome") {
+                item(key = "outcome", contentType = "outcome") {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                         PublicLinksOutcomeLine(outcome, onDismiss = { onEvent(PublicLinksEvent.DismissOutcome) })
                     }
                 }
             }
             when (val content = state.content) {
-                PublicLinksContent.Idle, PublicLinksContent.Loading -> item(key = "loading") {
+                PublicLinksContent.Idle, PublicLinksContent.Loading -> item(key = "loading", contentType = "loading") {
                     Column(Modifier.fillMaxWidth().padding(16.dp)) { PublicLinksInlineLoading() }
                 }
-                is PublicLinksContent.Failed -> item(key = "failed") {
+                is PublicLinksContent.Failed -> item(key = "failed", contentType = "failed") {
                     Column(Modifier.fillMaxWidth().padding(16.dp)) {
                         PublicLinksInlineFailure(content.failure) { onEvent(PublicLinksEvent.Load) }
                     }
                 }
                 is PublicLinksContent.Ready -> {
                     if (content.links.isEmpty()) {
-                        item(key = "empty") {
+                        item(key = "empty", contentType = "empty") {
                             MobileEmptyState(
                                 title = stringResource(R.string.mobile_public_links_empty_title),
                                 message = stringResource(R.string.mobile_public_links_empty),
@@ -338,7 +338,9 @@ internal fun MobilePublicLinksScreen(
                             )
                         }
                     }
-                    items(content.links, key = { it.id.value }) { link -> PublicLinkListRow(link, state, actions) }
+                    items(content.links, key = { it.id.value }, contentType = { "link" }) { link ->
+                        PublicLinkListRow(link, state, actions)
+                    }
                 }
             }
         }

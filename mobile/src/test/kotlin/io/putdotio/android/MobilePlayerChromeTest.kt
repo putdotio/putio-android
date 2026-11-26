@@ -5,6 +5,10 @@ import android.view.View
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalDensity
@@ -18,10 +22,12 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.LocalInputModeManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -55,9 +61,11 @@ import io.putdotio.android.playback.MobileAudioChip
 import io.putdotio.android.playback.MobilePictureInPictureButton
 import io.putdotio.android.playback.MobilePlayerChip
 import io.putdotio.android.playback.MobilePlayerChrome
+import io.putdotio.android.playback.MobilePlayerChromeLayout
 import io.putdotio.android.playback.MobileProgressSlider
 import io.putdotio.android.playback.MobileSpeedChip
 import io.putdotio.android.playback.MobileSubtitlesChip
+import io.putdotio.android.playback.MobileVideoStage
 import io.putdotio.android.playback.TabletopFold
 import io.putdotio.android.playback.rememberPlayerOptionsSnapshot
 import io.putdotio.sdk.files.PlaybackSubtitles
@@ -143,6 +151,155 @@ class MobilePlayerChromeTest {
             }
         }
         controls.first().performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun shortVideoWindowScrollsOnTheFirstFrameWithoutLayoutWriteback() {
+        val player = readyPlayer().apply { updateTracks(englishAudio()) }
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            val density = LocalDensity.current.density
+            CompositionLocalProvider(LocalDensity provides Density(density, fontScale = 2f)) {
+                PutioTheme {
+                    Box(Modifier.size(width = 320.dp, height = 180.dp)) {
+                        MobilePlayerChrome(
+                            player = player,
+                            title = "Video with a long filename.mp4",
+                            visible = true,
+                            seekEnabled = true,
+                            onSeek = {},
+                            onScrub = {},
+                            settings = {
+                                val options = rememberPlayerOptionsSnapshot(player)
+                                MobileAudioChip(options, {})
+                                MobileSubtitlesChip(options, PlaybackSubtitles.None, {})
+                                MobileSpeedChip(options, {})
+                            },
+                            topActions = { MobilePictureInPictureButton({}, Modifier) },
+                            trailingChip = { MobilePlayerChip("Next episode", null, {}) },
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNode(hasScrollAction()).assertExists()
+    }
+
+    @Test
+    fun videoStageClearsFooterAndRejectsUnfittingFoldOnTheFirstFrame() {
+        val player = readyPlayer()
+        val chromeLayout = MobilePlayerChromeLayout()
+        val fold = TabletopFold(top = 420.dp, bottom = 420.dp)
+        var recordedFrameHeight = 0.dp
+        var recordedClearance = 0.dp
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            PutioTheme {
+                MobileVideoStage(
+                    modifier = Modifier.size(width = 320.dp, height = 460.dp),
+                    fold = fold,
+                    chromeLayout = chromeLayout,
+                    chromeLayerShown = true,
+                    chromeVisible = true,
+                    pictureInPicture = false,
+                    buffering = false,
+                    contentFrame = { Box(Modifier.size(1.dp)) },
+                    gestures = {},
+                    lowerFoldTap = {},
+                    chrome = {
+                        MobilePlayerChrome(
+                            player = player,
+                            title = "Tabletop.mp4",
+                            visible = true,
+                            seekEnabled = true,
+                            onSeek = {},
+                            onScrub = {},
+                            settings = {},
+                            chromeLayout = chromeLayout,
+                            fold = fold,
+                        )
+                    },
+                    upNext = { Box(Modifier.size(120.dp, 40.dp).testTag("stage-up-next")) },
+                    sheets = {},
+                    seekFeedback = {},
+                    subtitles = { frame, clearance ->
+                        recordedFrameHeight = frame.height
+                        recordedClearance = clearance
+                    },
+                    pipProgress = {},
+                    notices = { Box(Modifier.size(120.dp, 32.dp).testTag("stage-notice")) },
+                    stallLayer = {},
+                )
+            }
+        }
+        val timelineTop = compose.onNodeWithTag(TIMELINE_TAG).getUnclippedBoundsInRoot().top
+        val upNextBottom = compose.onNodeWithTag("stage-up-next").getUnclippedBoundsInRoot().bottom
+        val noticeBottom = compose.onNodeWithTag("stage-notice").getUnclippedBoundsInRoot().bottom
+        assertTrue("Up Next must clear footer: $upNextBottom <= $timelineTop", upNextBottom <= timelineTop)
+        assertTrue("Notices must clear footer: $noticeBottom <= $timelineTop", noticeBottom <= timelineTop)
+        assertEquals(460.dp, recordedFrameHeight)
+        assertTrue("Subtitles must get clearance: $recordedClearance", recordedClearance > 0.dp)
+    }
+
+    @Test
+    fun videoStageUpdatesOverlayClearanceWhenFooterWrapsWithinFixedViewport() {
+        val player = readyPlayer()
+        val chromeLayout = MobilePlayerChromeLayout()
+        var extraChips by mutableStateOf(false)
+        compose.setBuiltContent {
+            PutioTheme {
+                MobileVideoStage(
+                    modifier = Modifier.size(width = 320.dp, height = 460.dp),
+                    fold = null,
+                    chromeLayout = chromeLayout,
+                    chromeLayerShown = true,
+                    chromeVisible = true,
+                    pictureInPicture = false,
+                    buffering = false,
+                    contentFrame = { Box(Modifier.size(1.dp)) },
+                    gestures = {},
+                    lowerFoldTap = {},
+                    chrome = {
+                        MobilePlayerChrome(
+                            player = player,
+                            title = "Wrap.mp4",
+                            visible = true,
+                            seekEnabled = true,
+                            onSeek = {},
+                            onScrub = {},
+                            settings = {
+                                MobilePlayerChip("Audio", null, {})
+                                if (extraChips) {
+                                    MobilePlayerChip("Subtitles: English", null, {})
+                                    MobilePlayerChip("Playback speed 1.5x", null, {})
+                                    MobilePlayerChip("Next episode", null, {})
+                                }
+                            },
+                            chromeLayout = chromeLayout,
+                        )
+                    },
+                    upNext = { Box(Modifier.size(120.dp, 40.dp).testTag("stage-up-next")) },
+                    sheets = {},
+                    seekFeedback = {},
+                    subtitles = { _, _ -> },
+                    pipProgress = {},
+                    notices = {},
+                    stallLayer = {},
+                )
+            }
+        }
+        val initialUpNextBottom = compose.onNodeWithTag("stage-up-next").getUnclippedBoundsInRoot().bottom
+        compose.runOnIdle { extraChips = true }
+        val wrappedTimelineTop = compose.onNodeWithTag(TIMELINE_TAG).getUnclippedBoundsInRoot().top
+        val wrappedUpNextBottom = compose.onNodeWithTag("stage-up-next").getUnclippedBoundsInRoot().bottom
+        assertTrue(
+            "Up Next must move up on wrap: $wrappedUpNextBottom < $initialUpNextBottom",
+            wrappedUpNextBottom < initialUpNextBottom,
+        )
+        assertTrue(
+            "Up Next must clear wrapped timeline: $wrappedUpNextBottom <= $wrappedTimelineTop",
+            wrappedUpNextBottom <= wrappedTimelineTop,
+        )
     }
 
     @Test

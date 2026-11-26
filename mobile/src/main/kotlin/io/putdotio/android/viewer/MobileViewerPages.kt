@@ -215,7 +215,7 @@ private fun MobilePdfPages(
             contentPadding = viewerContentPadding(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(count = document.pageCount) { index ->
+            items(count = document.pageCount, key = { it }, contentType = { "page" }) { index ->
                 MobilePdfPageImage(document, index, widthPx, onOpenWithAnotherApp)
             }
         }
