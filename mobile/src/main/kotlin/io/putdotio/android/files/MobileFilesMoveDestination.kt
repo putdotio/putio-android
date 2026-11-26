@@ -132,13 +132,17 @@ internal fun MobileFilesMoveDestination(
             modifier = Modifier.fillMaxSize().testTag(MOBILE_FILES_MOVE_PICKER_TAG),
             color = MaterialTheme.colorScheme.background,
         ) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(
-                WindowInsetsSides.Horizontal + WindowInsetsSides.Top,
-            ))) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
                 MobileMovePickerBar(title, onCancel, rememberTarget, onRememberTargetChange)
                 MobileMoveCrumbs(state, onEvent)
                 key(state.current.folder.id.value) {
-                    MobileMoveFolderContent(state, onEvent, Modifier.weight(1f))
+                    MobileMoveFolderContent(
+                        state,
+                        onEvent,
+                        Modifier
+                            .weight(1f)
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+                    )
                 }
                 val target = state.current.folder.name ?: stringResource(R.string.mobile_destination_files)
                 MobileMovePickerDock(
@@ -181,7 +185,11 @@ private fun MobileMovePickerBar(
     onRememberTargetChange: (Boolean) -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().height(BAR_HEIGHT).padding(horizontal = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .height(BAR_HEIGHT)
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -243,7 +251,11 @@ private fun MobileMoveCrumbs(state: FilesMoveDestinationState, onEvent: (FilesMo
     val scroll = rememberScrollState()
     LaunchedEffect(path.size) { scroll.scrollTo(scroll.maxValue) }
     Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(scroll).padding(start = 12.dp, end = 12.dp, bottom = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+            .horizontalScroll(scroll)
+            .padding(start = 12.dp, end = 12.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -311,8 +323,10 @@ private fun MobileMovePickerDock(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+            .windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal),
+            )
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
