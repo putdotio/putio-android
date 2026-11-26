@@ -37,4 +37,16 @@ class SettingsAnalyticsTest {
             AndroidAppConfigChange.PlaybackMethod(StreamingMethod.File).analyticsEvent(),
         )
     }
+
+    @Test
+    fun putioCastReceiverReportsOnAndOff() {
+        assertEquals(
+            AnalyticsEvent.SettingsChanged(Setting.PutioCastReceiver, SettingValue.On),
+            AndroidAppConfigChange.PutioCastReceiver(enabled = true).analyticsEvent(),
+        )
+        assertEquals(
+            AnalyticsEvent.SettingsChanged(Setting.PutioCastReceiver, SettingValue.Off),
+            AndroidAppConfigChange.PutioCastReceiver(enabled = false).analyticsEvent(),
+        )
+    }
 }

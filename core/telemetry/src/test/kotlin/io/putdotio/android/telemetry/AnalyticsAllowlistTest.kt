@@ -13,4 +13,26 @@ class AnalyticsAllowlistTest {
             )
         }
     }
+
+    @Test
+    fun everySettingValueLeaves() {
+        AnalyticsEvent.Setting.entries.forEach { setting ->
+            assertEquals(
+                mapOf("setting" to setting.value, "value" to "on"),
+                AnalyticsAllowlist.allowedProperties(
+                    "settings_changed",
+                    mapOf("setting" to setting.value, "value" to "on"),
+                ),
+            )
+        }
+        listOf("on", "off").forEach { value ->
+            assertEquals(
+                mapOf("setting" to "beta.putio_cast_receiver", "value" to value),
+                AnalyticsAllowlist.allowedProperties(
+                    "settings_changed",
+                    mapOf("setting" to "beta.putio_cast_receiver", "value" to value),
+                ),
+            )
+        }
+    }
 }
