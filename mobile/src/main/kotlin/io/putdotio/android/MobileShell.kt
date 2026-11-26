@@ -31,6 +31,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldLayout
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
@@ -91,8 +92,10 @@ import io.putdotio.android.files.ContinueWatching
 import io.putdotio.android.files.MobilePinnedFiles
 import io.putdotio.android.files.MobileFilesActionsController
 import io.putdotio.android.files.FilesSelection
+import io.putdotio.android.files.LocalMobileFilesCreatedFolder
 import io.putdotio.android.files.MOBILE_FILES_SELECTION_BAR_TAG
 import io.putdotio.android.files.MobileFilesBarActions
+import io.putdotio.android.files.MobileFilesCreatedFolder
 import io.putdotio.android.files.MobileFilesSearchBar
 import io.putdotio.android.files.MobileFolderTopBar
 import io.putdotio.android.files.rememberFilesSelection
@@ -265,6 +268,8 @@ internal fun MobileShell(
     val openSearch = { openScopedSearch(null) }
     val newFolder = rememberNewFolderRequest(sessionId)
     val filesFolder by remember(filesStates) { derivedStateOf(FolderChrome) { filesStates.value.current } }
+    val createdFolder = remember(sessionId) { MobileFilesCreatedFolder() }
+    LaunchedEffect(filesFolder.folder.id) { createdFolder.clearIfOutside(filesFolder.folder.id) }
     val requestNewFolder = newFolder.action(folderCreator, filesFolder)
     val leaveSearch = { forward: Boolean ->
         searchForward = forward
@@ -478,67 +483,69 @@ internal fun MobileShell(
                         },
                         pageTopBar = { page -> topBarAt(MobileDestination.Account, page.route, null, null) },
                     ).takeIf { listDetail }
-                    MobileChrome(
-                        visible = !isPlayback,
-                        layout = navigationLayout,
-                        navController = navController,
-                        selectedDestination = selectedDestination,
-                        destinations = destinations,
-                        onDestination = selectDestination,
-                        playbackPlayerFactory = playbackPlayerFactory,
-                        inactiveNotice = account.inactiveNotice,
-                        topBarInContent = drawsTopBarInContent(topBarInFilesPane, listDetail, selectedDestination),
-                        topBar = topBar,
-                    ) { contentModifier ->
-                        MobileNavHost(
-                            transferDraft = transferDraft,
+                    CompositionLocalProvider(LocalMobileFilesCreatedFolder provides createdFolder) {
+                        MobileChrome(
+                            visible = !isPlayback,
+                            layout = navigationLayout,
                             navController = navController,
-                            filesStates = filesStates,
-                            filesRepository = filesRepository,
-                            trashController = trashController,
-                            trashSelection = trashSelection,
-                            downloadsController = downloadsController,
-                            downloadsStates = downloadsStates,
-                            downloadsSelection = downloadsSelection,
-                            onShareItem = onShareItem,
-                            accountSettingsState = accountSettingsState,
-                            appConfigState = appConfigState,
-                            searchHistoryState = searchHistoryState,
-                            transfersStates = transfersStates,
-                            transfersSessionId = transfersSessionId,
-                            account = account,
-                            playbackRepository = playbackRepository,
+                            selectedDestination = selectedDestination,
+                            destinations = destinations,
+                            onDestination = selectDestination,
                             playbackPlayerFactory = playbackPlayerFactory,
-                            sessionId = sessionId,
-                            onFilesEvent = onFilesEvent,
-                            onAccountSettingsEvent = onAccountSettingsEvent,
-                            loadTunnelRoutes = loadTunnelRoutes,
-                            deviceClass = rememberDisplayDeviceClass(),
-                            onAppConfigEvent = onAppConfigEvent,
-                            onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
-                            onFilesAuthenticationRequired = onFilesAuthenticationRequired,
-                            searchHistoryActions = searchActions,
-                            onTransfersEvent = onTransfersEvent,
-                            onSignOut = onSignOut,
-                            modifier = contentModifier,
-                            publicLinks = publicLinks,
-                            loggedInAppsController = loggedInAppsController,
-                            searchOpen = searchOpen,
-                            searchForward = searchForward,
-                            filesBackPreview = filesBackPreview,
-                            fileDragOut = fileDragOut,
-                            continueWatching = continueWatching,
-                            pinnedFiles = pinnedFiles,
-                            onNewFolder = requestNewFolder,
-                            filesListPaneTopBar = paneTopBar.takeIf { listDetail },
-                            linkedFile = linkedFile?.let(::FilesItemId),
-                            onLinkedFileLanded = { linkedFile = null },
-                            subtitleLanguages = subtitleLanguages,
-                            filesActions = filesActions,
-                            folderCreator = folderCreator,
-                            filesSelection = filesSelection,
-                            accountPanes = accountPanes,
-                        )
+                            inactiveNotice = account.inactiveNotice,
+                            topBarInContent = drawsTopBarInContent(topBarInFilesPane, listDetail, selectedDestination),
+                            topBar = topBar,
+                        ) { contentModifier ->
+                            MobileNavHost(
+                                transferDraft = transferDraft,
+                                navController = navController,
+                                filesStates = filesStates,
+                                filesRepository = filesRepository,
+                                trashController = trashController,
+                                trashSelection = trashSelection,
+                                downloadsController = downloadsController,
+                                downloadsStates = downloadsStates,
+                                downloadsSelection = downloadsSelection,
+                                onShareItem = onShareItem,
+                                accountSettingsState = accountSettingsState,
+                                appConfigState = appConfigState,
+                                searchHistoryState = searchHistoryState,
+                                transfersStates = transfersStates,
+                                transfersSessionId = transfersSessionId,
+                                account = account,
+                                playbackRepository = playbackRepository,
+                                playbackPlayerFactory = playbackPlayerFactory,
+                                sessionId = sessionId,
+                                onFilesEvent = onFilesEvent,
+                                onAccountSettingsEvent = onAccountSettingsEvent,
+                                loadTunnelRoutes = loadTunnelRoutes,
+                                deviceClass = rememberDisplayDeviceClass(),
+                                onAppConfigEvent = onAppConfigEvent,
+                                onPlaybackAuthenticationRequired = onPlaybackAuthenticationRequired,
+                                onFilesAuthenticationRequired = onFilesAuthenticationRequired,
+                                searchHistoryActions = searchActions,
+                                onTransfersEvent = onTransfersEvent,
+                                onSignOut = onSignOut,
+                                modifier = contentModifier,
+                                publicLinks = publicLinks,
+                                loggedInAppsController = loggedInAppsController,
+                                searchOpen = searchOpen,
+                                searchForward = searchForward,
+                                filesBackPreview = filesBackPreview,
+                                fileDragOut = fileDragOut,
+                                continueWatching = continueWatching,
+                                pinnedFiles = pinnedFiles,
+                                onNewFolder = requestNewFolder,
+                                filesListPaneTopBar = paneTopBar.takeIf { listDetail },
+                                linkedFile = linkedFile?.let(::FilesItemId),
+                                onLinkedFileLanded = { linkedFile = null },
+                                subtitleLanguages = subtitleLanguages,
+                                filesActions = filesActions,
+                                folderCreator = folderCreator,
+                                filesSelection = filesSelection,
+                                accountPanes = accountPanes,
+                            )
+                        }
                     }
                 }
             }
@@ -552,6 +559,7 @@ internal fun MobileShell(
         searchOpen = searchOpen,
         creator = folderCreator,
         onCreated = {
+            createdFolder.created(it)
             onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it))
             onFilesEvent(FilesBrowserEvent.Refresh)
         },
