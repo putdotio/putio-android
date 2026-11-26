@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -52,6 +51,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.layout.SubcomposeLayout
+import androidx.compose.ui.layout.SubcomposeMeasureScope
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -81,6 +83,155 @@ import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.R as DesignR
 import io.putdotio.android.MobileIconButton
 
+internal class MobilePlayerChromeLayout {
+    var footerHeightPx by mutableIntStateOf(0)
+    var fitsFold by mutableStateOf(true)
+}
+
+private enum class VideoStageSlot {
+    Chrome,
+    ContentFrame,
+    Gestures,
+    LowerFoldTap,
+    Subtitles,
+    PipProgress,
+    SeekFeedback,
+    UpNext,
+    Sheets,
+    Notices,
+    StallLayer,
+}
+
+private class VideoStageMetrics(
+    val shownFooterPx: Int,
+    val effectiveFold: TabletopFold?,
+    val videoHeightPx: Int,
+    val videoConstraints: Constraints,
+    val subtitleClearance: Dp,
+    val frameSize: DpSize,
+)
+
+private fun SubcomposeMeasureScope.measureSlot(
+    slot: VideoStageSlot,
+    constraints: Constraints,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit,
+): List<Placeable> = if (enabled) subcompose(slot, content).map { it.measure(constraints) } else emptyList()
+
+private fun SubcomposeMeasureScope.stageMetrics(
+    constraints: Constraints,
+    fold: TabletopFold?,
+    chromeLayout: MobilePlayerChromeLayout,
+    chromeVisible: Boolean,
+    pictureInPicture: Boolean,
+): VideoStageMetrics {
+    val shownFooterPx = if (chromeVisible) chromeLayout.footerHeightPx else 0
+    val effectiveFold = fold?.takeIf { chromeLayout.fitsFold }
+    val videoHeightPx = effectiveFold?.top?.roundToPx()?.coerceIn(0, constraints.maxHeight)
+        ?: constraints.maxHeight
+    return VideoStageMetrics(
+        shownFooterPx = shownFooterPx,
+        effectiveFold = effectiveFold,
+        videoHeightPx = videoHeightPx,
+        videoConstraints = constraints.copy(minHeight = videoHeightPx, maxHeight = videoHeightPx),
+        subtitleClearance = if (effectiveFold == null && !pictureInPicture) shownFooterPx.toDp() else 0.dp,
+        frameSize = DpSize(constraints.maxWidth.toDp(), videoHeightPx.toDp()),
+    )
+}
+
+@Composable
+internal fun MobileVideoStage(
+    modifier: Modifier,
+    fold: TabletopFold?,
+    chromeLayout: MobilePlayerChromeLayout,
+    chromeLayerShown: Boolean,
+    chromeVisible: Boolean,
+    pictureInPicture: Boolean,
+    buffering: Boolean,
+    contentFrame: @Composable () -> Unit,
+    gestures: @Composable () -> Unit,
+    lowerFoldTap: @Composable () -> Unit,
+    chrome: @Composable () -> Unit,
+    upNext: @Composable () -> Unit,
+    sheets: @Composable () -> Unit,
+    seekFeedback: @Composable () -> Unit,
+    subtitles: @Composable (DpSize, Dp) -> Unit,
+    pipProgress: @Composable () -> Unit,
+    notices: @Composable () -> Unit,
+    stallLayer: @Composable () -> Unit,
+) {
+    SubcomposeLayout(modifier) { constraints ->
+        val chromePlaceables = measureSlot(VideoStageSlot.Chrome, constraints, chromeVisible, chrome)
+        val metrics = stageMetrics(constraints, fold, chromeLayout, chromeVisible, pictureInPicture)
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val upNextGapPx = UP_NEXT_BOTTOM_GAP.roundToPx()
+        val lowerHeight = (constraints.maxHeight - metrics.videoHeightPx).coerceAtLeast(0)
+        val lowerConstraints = constraints.copy(minHeight = lowerHeight, maxHeight = lowerHeight)
+        val maxUpNextHeight = (constraints.maxHeight - metrics.shownFooterPx - upNextGapPx).coerceAtLeast(0)
+        val noticeMaxHeight = (constraints.maxHeight - metrics.shownFooterPx).coerceAtLeast(0)
+
+        val contentPlaceables = measureSlot(
+            VideoStageSlot.ContentFrame,
+            metrics.videoConstraints,
+            content = contentFrame,
+        )
+        val gesturePlaceables = measureSlot(VideoStageSlot.Gestures, metrics.videoConstraints, content = gestures)
+        val lowerFoldPlaceables = measureSlot(
+            VideoStageSlot.LowerFoldTap,
+            lowerConstraints,
+            metrics.effectiveFold != null,
+            lowerFoldTap,
+        )
+        val upNextPlaceables = measureSlot(
+            VideoStageSlot.UpNext,
+            loose.copy(maxHeight = maxUpNextHeight),
+            chromeLayerShown,
+            upNext,
+        )
+        val sheetPlaceables = measureSlot(VideoStageSlot.Sheets, constraints, !pictureInPicture, sheets)
+        val seekPlaceables = measureSlot(
+            VideoStageSlot.SeekFeedback,
+            metrics.videoConstraints,
+            chromeLayerShown,
+            seekFeedback,
+        )
+        val subtitlePlaceables = measureSlot(VideoStageSlot.Subtitles, metrics.videoConstraints) {
+            subtitles(metrics.frameSize, metrics.subtitleClearance)
+        }
+        val pipPlaceables = measureSlot(VideoStageSlot.PipProgress, loose, pictureInPicture, pipProgress)
+        val noticePlaceables = measureSlot(
+            VideoStageSlot.Notices,
+            loose.copy(maxHeight = noticeMaxHeight),
+            content = notices,
+        )
+        val stallConstraints = if (buffering) metrics.videoConstraints else constraints
+        val stallPlaceables = measureSlot(VideoStageSlot.StallLayer, stallConstraints, content = stallLayer)
+
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            contentPlaceables.forEach { it.placeRelative(0, 0, zIndex = 0f) }
+            lowerFoldPlaceables.forEach { it.placeRelative(0, metrics.videoHeightPx, zIndex = 0.5f) }
+            gesturePlaceables.forEach { it.placeRelative(0, 0, zIndex = 0.5f) }
+            chromePlaceables.forEach { it.placeRelative(0, 0, zIndex = 2f) }
+            upNextPlaceables.forEach {
+                val y = (constraints.maxHeight - it.height - metrics.shownFooterPx - upNextGapPx)
+                    .coerceAtLeast(0)
+                it.placeRelative(constraints.maxWidth - it.width, y, zIndex = 2.25f)
+            }
+            sheetPlaceables.forEach { it.placeRelative(0, 0, zIndex = 2.5f) }
+            subtitlePlaceables.forEach { it.placeRelative(0, 0, zIndex = 3f) }
+            seekPlaceables.forEach { it.placeRelative(0, 0, zIndex = 3f) }
+            pipPlaceables.forEach { it.placeRelative(0, constraints.maxHeight - it.height, zIndex = 3f) }
+            noticePlaceables.forEach {
+                val y = (constraints.maxHeight - it.height - metrics.shownFooterPx).coerceAtLeast(0)
+                it.placeRelative((constraints.maxWidth - it.width) / 2, y, zIndex = 3.5f)
+            }
+            stallPlaceables.forEach { it.placeRelative(0, 0, zIndex = 4f) }
+        }
+    }
+}
+
+private val UP_NEXT_BOTTOM_GAP = 8.dp
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobilePlayerChrome(
@@ -95,14 +246,14 @@ internal fun MobilePlayerChrome(
     onBack: () -> Unit = {},
     topActions: @Composable RowScope.() -> Unit = {},
     trailingChip: @Composable () -> Unit = {},
-    onFooterHeight: (Dp) -> Unit = {},
+    chromeLayout: MobilePlayerChromeLayout? = null,
     fold: TabletopFold? = null,
     onFoldFits: (Boolean) -> Unit = {},
 ) {
     if (visible) {
         MobileVideoLayout(
             player, title, seekEnabled, onSeek, onScrub, settings, modifier, onBack, topActions, trailingChip,
-            onFooterHeight, fold, onFoldFits,
+            chromeLayout, fold, onFoldFits,
         )
     }
 }
@@ -120,7 +271,7 @@ private fun MobileVideoLayout(
     onBack: () -> Unit,
     topActions: @Composable RowScope.() -> Unit,
     trailingChip: @Composable () -> Unit,
-    onFooterHeight: (Dp) -> Unit,
+    chromeLayout: MobilePlayerChromeLayout?,
     fold: TabletopFold?,
     onFoldFits: (Boolean) -> Unit,
 ) {
@@ -134,17 +285,10 @@ private fun MobileVideoLayout(
     BoxWithConstraints(
         modifier.fillMaxSize().shareVideoPointerInputWithSiblings().background(videoShade(scrim)),
     ) {
-        var contentHeight by remember { mutableIntStateOf(0) }
         val viewportHeight = constraints.maxHeight
         val scrollState = rememberScrollState()
-        val overflow = if (contentHeight > constraints.maxHeight) {
-            Modifier.verticalScroll(scrollState)
-        } else {
-            Modifier.wrapContentHeight(Alignment.Top, unbounded = true)
-        }
         Layout(
-            modifier = Modifier.fillMaxWidth().then(overflow).heightIn(min = maxHeight)
-                .onSizeChanged { contentHeight = it.height },
+            modifier = Modifier.fillMaxWidth().verticalScroll(scrollState).heightIn(min = maxHeight),
             content = {
                 Row(
                     Modifier.fillMaxWidth()
@@ -162,7 +306,6 @@ private fun MobileVideoLayout(
                 }
                 MobileVideoFooter(
                     modifier = Modifier.fillMaxWidth()
-                        .onSizeChanged { onFooterHeight(with(density) { it.height.toDp() }) }
                         .windowInsetsPadding(safeDrawing.only(WindowInsetsSides.Bottom))
                         .padding(start = sidePadding, end = sidePadding, bottom = 8.dp),
                     times = { MobileVideoTimes(player) },
@@ -197,8 +340,10 @@ private fun MobileVideoLayout(
                 ?.takeIf { header.height <= it.top.roundToPx() }
                 ?.bottom?.roundToPx()
                 ?.takeIf { height <= viewportHeight && it + transport.height + footer.height <= height }
+            chromeLayout?.footerHeightPx = footer.height
+            chromeLayout?.fitsFold = fold == null || controlsTop != null
+            if (fold != null) onFoldFits(controlsTop != null)
             layout(limits.maxWidth, height) {
-                if (fold != null) onFoldFits(controlsTop != null)
                 header.placeRelative(0, 0)
                 transport.placeRelative(
                     0,

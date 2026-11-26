@@ -273,7 +273,11 @@ internal fun TvLibrariesSheet(
             state = rememberLazyListState(initialFirstVisibleItemIndex = start),
             modifier = Modifier.weight(1f, fill = false),
         ) {
-            itemsIndexed(libraries, key = { _, library -> library.id }) { index, library ->
+            itemsIndexed(
+                libraries,
+                key = { _, library -> library.id },
+                contentType = { _, _ -> "library" },
+            ) { index, library ->
                 TvSheetOption(
                     label = stringResource(R.string.tv_account_open_source_name, library.name, library.version),
                     detail = AnnotatedString(library.license),

@@ -259,8 +259,10 @@ private fun MobileRecentSearches(
     }
     val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
     LazyColumn(modifier = modifier.fillMaxWidth()) {
-        item(key = "recent-header") { MobileRecentHeader(onClear = { onEdit(RecentSearchEdit.Clear) }) }
-        items(terms, key = SearchTerm::value) { term ->
+        item(key = 0, contentType = "header") {
+            MobileRecentHeader(onClear = { onEdit(RecentSearchEdit.Clear) })
+        }
+        items(terms, key = SearchTerm::value, contentType = { "recent" }) { term ->
             MobileRow(
                 leading = {
                     Icon(

@@ -25,6 +25,31 @@ internal data class TvHistoryDay(val date: LocalDate?, val raw: String?)
 internal fun HistoryItem.day(zone: ZoneId): TvHistoryDay =
     localDate(zone)?.let { TvHistoryDay(it, null) } ?: TvHistoryDay(null, createdAt)
 
+private class LocaleDayFormats(
+    val locale: Locale,
+    val sameYear: DateTimeFormatter,
+    val withYear: DateTimeFormatter,
+)
+
+@Volatile
+private var cachedDayFormats: LocaleDayFormats? = null
+
+internal fun tvHistoryDayFormatter(locale: Locale, skeleton: String): DateTimeFormatter {
+    val formats = cachedDayFormats?.takeIf { it.locale == locale } ?: LocaleDayFormats(
+        locale = locale,
+        sameYear = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, SAME_YEAR_SKELETON), locale),
+        withYear = DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, WITH_YEAR_SKELETON), locale),
+    ).also { cachedDayFormats = it }
+    return when (skeleton) {
+        SAME_YEAR_SKELETON -> formats.sameYear
+        WITH_YEAR_SKELETON -> formats.withYear
+        else -> DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale)
+    }
+}
+
+private const val SAME_YEAR_SKELETON = "MMMd"
+private const val WITH_YEAR_SKELETON = "MMMdyyyy"
+
 internal fun TvHistoryDay.label(today: LocalDate, resources: Resources, locale: Locale): String =
     when (date) {
         null -> raw.orEmpty()
@@ -32,7 +57,7 @@ internal fun TvHistoryDay.label(today: LocalDate, resources: Resources, locale: 
         today.minusDays(1) -> resources.getString(R.string.tv_history_yesterday)
         else -> {
             val skeleton = if (date.year == today.year) "MMMd" else "MMMdyyyy"
-            date.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, skeleton), locale))
+            date.format(tvHistoryDayFormatter(locale, skeleton))
         }
     }
 

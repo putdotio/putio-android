@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -417,9 +417,13 @@ private fun TvTextLines(preview: FilesTextPreview, keys: TvViewerKeys) {
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = margins.side, vertical = margins.vertical),
         ) {
-            items(chunks) { chunk -> Text(chunk, style = style) }
+            itemsIndexed(
+                items = chunks,
+                key = { index, _ -> index },
+                contentType = { _, _ -> "chunk" },
+            ) { _, chunk -> Text(chunk, style = style) }
             if (preview.truncated) {
-                item {
+                item(key = "truncated", contentType = "truncated") {
                     Text(
                         text = stringResource(R.string.tv_viewer_text_truncated, TEXT_LIMIT_LABEL),
                         style = PutioTypeScale.tvMeta,

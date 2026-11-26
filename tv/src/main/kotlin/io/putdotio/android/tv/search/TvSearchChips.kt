@@ -222,7 +222,11 @@ internal fun TvRecentSearches(
                 .focusGroup(),
             horizontalArrangement = Arrangement.spacedBy(CHIP_GAP),
         ) {
-            itemsIndexed(terms, key = { _, term -> term.value }) { index, term ->
+            itemsIndexed(
+                terms,
+                key = { _, term -> term.value },
+                contentType = { _, _ -> "recent" },
+            ) { index, term ->
                 val label = stringResource(R.string.tv_search_recent_term, term.value)
                 TvSearchChip(
                     label = term.value,

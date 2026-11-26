@@ -8,7 +8,6 @@ import androidx.activity.compose.LocalActivity
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.absoluteOffset
@@ -19,7 +18,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.media3.ui.compose.state.rememberProgressStateWithTickInterval
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -1344,7 +1342,6 @@ private fun MobileReadyPlayerContent(
         playerState.audioSwitching(preferences)
         preferences.audioSelection = selection
     }
-    var footerHeight by remember { mutableStateOf(0.dp) }
     val appearance = rememberSubtitleAppearanceStore()
     val sheetState = rememberSaveable(fileId) { mutableStateOf<MobileVideoSheet?>(null) }
     var sheet by sheetState
@@ -1354,8 +1351,7 @@ private fun MobileReadyPlayerContent(
     val optionModifier = Modifier.observeControlNavigation(onPointerNavigation, onKeyboardNavigation)
     var contentInWindow by remember { mutableStateOf(Rect.Zero) }
     val fold = tabletopFoldIn(contentInWindow, enabled = !pictureInPicture)
-    var chromeFitsFold by remember(fold, contentInWindow.size) { mutableStateOf(true) }
-    val videoFold = fold?.takeIf { chromeFitsFold }
+    val chromeLayout = remember(fold, contentInWindow.size) { MobilePlayerChromeLayout() }
     val stalled = stall.coversPlayer(pictureInPicture)
     MobileStallEffect(
         stalled = stalled,
@@ -1370,143 +1366,195 @@ private fun MobileReadyPlayerContent(
             playerState.refreshKeepScreenOn(isAudio)
         },
     )
-    val shownFooterHeight = footerHeight.takeIf { controlsVisible.value && sheet == null } ?: 0.dp
-
-    Box(
-        Modifier
-            .fillMaxSize()
-            .onGloballyPositioned { contentInWindow = it.boundsInWindow() }
-            .onPlayerKeyEvent(enabled = !stalled) { event ->
-                videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
-                    player.runKeyCommand(command, ::seek, onBack)
-                }
+    val stageModifier = Modifier
+        .fillMaxSize()
+        .onGloballyPositioned { contentInWindow = it.boundsInWindow() }
+        .onPlayerKeyEvent(enabled = !stalled) { event ->
+            videoKeyCommand(event.nativeKeyEvent, sheet, { sheet = sheet.parentSheet() }) { command ->
+                player.runKeyCommand(command, ::seek, onBack)
             }
-            .focusRequester(keyFocus)
-            .focusTarget()
-            .focusGroup()
-            .testTag(MOBILE_PLAYER_TAG)
-            .observePlayerControlInteraction(
-                onInteractionChanged = {
-                    controlsInteracting.value = it
-                    if (it) onPointerNavigation()
-                },
-                onActivity = { controlsActivity.intValue += 1 },
-            )
-            .observePlayerControlKeyActivity {
-                onKeyboardNavigation()
-                controlsVisible.value = true
-                controlsActivity.intValue += 1
+        }
+        .focusRequester(keyFocus)
+        .focusTarget()
+        .focusGroup()
+        .testTag(MOBILE_PLAYER_TAG)
+        .observePlayerControlInteraction(
+            onInteractionChanged = {
+                controlsInteracting.value = it
+                if (it) onPointerNavigation()
             },
-    ) {
-        if (!isAudio) {
-            MobileVideoLayers(
-                playerState = playerState,
-                fileId = fileId,
-                touchExplorationEnabled = touchExplorationEnabled,
-                controlsVisible = controlsVisible,
-                onSeek = ::seek,
-                onPointerNavigation = onPointerNavigation,
-                pictureInPicture = pictureInPicture,
-                subtitleTextScale = appearance.textSize.scale,
-                subtitlesBesideSheet = sheet != null,
-                subtitleClearance = videoFold.videoClearance(shownFooterHeight),
-                subtitleDelayMillis = preferences.subtitleOffsetMillis,
-                fold = videoFold,
-            )
-        }
-        if (isAudio.unless(stalled)) {
-            MobileNowPlayingScreen(
-                player = player,
-                title = title,
-                neighbours = neighbours,
-                seekEnabled = playerState.seekWindow.available,
-                onSeek = ::seek,
-                onScrub = { pendingSeek.value = null },
-                onPlay = onPlay,
-                onAudioSelectionChanged = onAudioSelectionChanged,
-                castButton = castButton,
-                modifier = Modifier.zIndex(2f).observeControlNavigation(onPointerNavigation, onKeyboardNavigation),
-            )
-            MobileSeekFeedbackLayer(pendingSeek.value)
-        } else if (stall.allowsChrome(pictureInPicture) && sheet == null) {
-            MobilePlayerChrome(
-                player = player,
-                title = title,
-                visible = controlsVisible.value,
-                seekEnabled = playerState.seekWindow.available,
-                onSeek = ::seek,
-                onScrub = { pendingSeek.value = null },
-                onBack = onBack,
-                modifier = Modifier.zIndex(2f),
-                topActions = {
-                    castButton(optionModifier)
-                    MobilePictureInPictureButton(enterPictureInPicture, optionModifier)
-                },
-                settings = {
-                    MobileVideoChips(
-                        options = options,
-                        playerSubtitles = playerSubtitles,
-                        subtitleStartupPolicy = subtitleStartupPolicy,
-                        stream = stream?.current,
-                        onSheet = { sheet = it },
-                        modifier = optionModifier,
-                    )
-                },
-                trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
-                onFooterHeight = { footerHeight = it },
-                fold = fold,
-                onFoldFits = { chromeFitsFold = it },
-            )
-            MobileSeekFeedbackLayer(pendingSeek.value, videoFold)
-            MobileUpNextCard(
-                upNext = upNextCard,
-                remainingMillis = upNextRemainingMillis,
-                onPlayNow = onPlayUpNext,
-                onCancel = onCancelUpNext,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .zIndex(2.25f)
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
-                    .padding(end = 24.dp, bottom = shownFooterHeight + 8.dp)
-                    .then(optionModifier),
-            )
-        }
-        if (!isAudio && !pictureInPicture) {
-            MobileVideoSheets(
-                sheet = sheet,
-                onSheet = { sheet = it },
-                player = player,
-                options = options,
-                defaultTrackSelection = playerState.defaultTrackSelection,
-                playerSubtitles = playerSubtitles,
-                appearance = appearance,
-                preferences = preferences,
-                onSubtitleSelectionChanged = onSubtitleSelectionChanged,
-                onAudioSelectionChanged = onAudioSelectionChanged,
-                stream = stream,
-                modifier = Modifier.zIndex(2.5f),
-                panelModifier = optionModifier,
-            )
-        }
-        MobilePlayerNotices(
-            playerState.notices,
-            shown = !pictureInPicture,
-            Modifier
-                .align(Alignment.BottomCenter)
-                .zIndex(3.5f)
-                .padding(bottom = shownFooterHeight),
+            onActivity = { controlsActivity.intValue += 1 },
         )
-        MobilePlaybackStallLayer(
-            stall = stall,
+        .observePlayerControlKeyActivity {
+            onKeyboardNavigation()
+            controlsVisible.value = true
+            controlsActivity.intValue += 1
+        }
+    if (isAudio) {
+        Box(stageModifier) {
+            if (!stalled) {
+                MobileNowPlayingScreen(
+                    player = player,
+                    title = title,
+                    neighbours = neighbours,
+                    seekEnabled = playerState.seekWindow.available,
+                    onSeek = ::seek,
+                    onScrub = { pendingSeek.value = null },
+                    onPlay = onPlay,
+                    onAudioSelectionChanged = onAudioSelectionChanged,
+                    castButton = castButton,
+                    modifier = Modifier.zIndex(2f).observeControlNavigation(onPointerNavigation, onKeyboardNavigation),
+                )
+                MobileSeekFeedbackLayer(pendingSeek.value, Modifier.zIndex(3f))
+            }
+            MobilePlayerNotices(
+                playerState.notices,
+                shown = !pictureInPicture,
+                Modifier.align(Alignment.BottomCenter).zIndex(3.5f),
+            )
+            MobilePlaybackStallLayer(
+                stall = stall,
+                pictureInPicture = pictureInPicture,
+                title = title,
+                video = false,
+                controlsShown = controlsVisible.value,
+                sheetOpen = sheet != null,
+                fold = null,
+                onRetry = stallWatch::retry,
+                onBack = onBack,
+                modifier = Modifier.zIndex(4f),
+            )
+        }
+    } else {
+        val chromeLayerShown = stall.allowsChrome(pictureInPicture) && sheet == null
+        val toggleControls = {
+            onPointerNavigation()
+            controlsVisible.value = controlsVisibleAfterTap(
+                controlsVisible = controlsVisible.value,
+                playbackState = playerState.playbackState,
+                touchExplorationEnabled = touchExplorationEnabled,
+            )
+        }
+        MobileVideoStage(
+            modifier = stageModifier,
+            fold = fold,
+            chromeLayout = chromeLayout,
+            chromeLayerShown = chromeLayerShown,
+            chromeVisible = chromeLayerShown && controlsVisible.value,
             pictureInPicture = pictureInPicture,
-            title = title,
-            video = !isAudio,
-            controlsShown = controlsVisible.value,
-            sheetOpen = sheet != null,
-            fold = videoFold,
-            onRetry = stallWatch::retry,
-            onBack = onBack,
-            modifier = Modifier.zIndex(4f),
+            buffering = stall == PlaybackStall.Buffering,
+            contentFrame = {
+                MobileVideoContentFrame(playerState, pictureInPicture)
+            },
+            gestures = {
+                MobileVideoGestures(
+                    playerState = playerState,
+                    fileId = fileId,
+                    touchExplorationEnabled = touchExplorationEnabled,
+                    controlsVisible = controlsVisible,
+                    onSeek = ::seek,
+                    onPointerNavigation = onPointerNavigation,
+                    onToggleControls = toggleControls,
+                )
+            },
+            lowerFoldTap = {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(player, touchExplorationEnabled) {
+                            detectVideoTapGestures(onDoubleTap = { toggleControls() }, onTap = { toggleControls() })
+                        },
+                )
+            },
+            chrome = {
+                MobilePlayerChrome(
+                    player = player,
+                    title = title,
+                    visible = true,
+                    seekEnabled = playerState.seekWindow.available,
+                    onSeek = ::seek,
+                    onScrub = { pendingSeek.value = null },
+                    onBack = onBack,
+                    topActions = {
+                        castButton(optionModifier)
+                        MobilePictureInPictureButton(enterPictureInPicture, optionModifier)
+                    },
+                    settings = {
+                        MobileVideoChips(
+                            options = options,
+                            playerSubtitles = playerSubtitles,
+                            subtitleStartupPolicy = subtitleStartupPolicy,
+                            stream = stream?.current,
+                            onSheet = { sheet = it },
+                            modifier = optionModifier,
+                        )
+                    },
+                    trailingChip = { MobileNextEpisodeChip(nextEpisode, onNextEpisode, optionModifier) },
+                    chromeLayout = chromeLayout,
+                    fold = fold,
+                )
+            },
+            upNext = {
+                MobileUpNextCard(
+                    upNext = upNextCard,
+                    remainingMillis = upNextRemainingMillis,
+                    onPlayNow = onPlayUpNext,
+                    onCancel = onCancelUpNext,
+                    modifier = Modifier
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(end = 24.dp)
+                        .then(optionModifier),
+                )
+            },
+            sheets = {
+                MobileVideoSheets(
+                    sheet = sheet,
+                    onSheet = { sheet = it },
+                    player = player,
+                    options = options,
+                    defaultTrackSelection = playerState.defaultTrackSelection,
+                    playerSubtitles = playerSubtitles,
+                    appearance = appearance,
+                    preferences = preferences,
+                    onSubtitleSelectionChanged = onSubtitleSelectionChanged,
+                    onAudioSelectionChanged = onAudioSelectionChanged,
+                    stream = stream,
+                    modifier = Modifier,
+                    panelModifier = optionModifier,
+                )
+            },
+            seekFeedback = { MobileSeekFeedbackLayer(pendingSeek.value) },
+            subtitles = { frame, clearance ->
+                MobileSubtitleLayer(
+                    playerState = playerState,
+                    frame = frame,
+                    textScale = appearance.textSize.scale,
+                    besideSheet = sheet != null,
+                    clearance = clearance,
+                    delayMillis = preferences.subtitleOffsetMillis,
+                )
+            },
+            pipProgress = { MobilePictureInPictureProgress(player, Modifier) },
+            notices = {
+                MobilePlayerNotices(
+                    playerState.notices,
+                    shown = !pictureInPicture,
+                    Modifier,
+                )
+            },
+            stallLayer = {
+                MobilePlaybackStallLayer(
+                    stall = stall,
+                    pictureInPicture = pictureInPicture,
+                    title = title,
+                    video = true,
+                    controlsShown = controlsVisible.value,
+                    sheetOpen = sheet != null,
+                    fold = null,
+                    onRetry = stallWatch::retry,
+                    onBack = onBack,
+                )
+            },
         )
     }
 }
@@ -1561,9 +1609,9 @@ private fun SheetFocusEffect(open: Boolean, controlsMenuOpen: MutableState<Boole
 }
 
 @Composable
-private fun MobileSeekFeedbackLayer(request: PendingSeek?, fold: TabletopFold? = null) {
+private fun MobileSeekFeedbackLayer(request: PendingSeek?, modifier: Modifier = Modifier) {
     if (request == null) return
-    Box(Modifier.videoArea(fold).zIndex(3f)) {
+    Box(modifier.fillMaxSize()) {
         key(request.requestId) {
             MobileSeekFeedback(
                 request = request,
@@ -1607,55 +1655,38 @@ private fun Media3Player.runKeyCommand(command: MobileKeyCommand, seek: (SeekDir
 
 @UnstableApi
 @Composable
-private fun BoxScope.MobileVideoLayers(
+private fun MobileVideoContentFrame(
     playerState: ReadyPlayerState,
-    fileId: Long,
-    touchExplorationEnabled: Boolean,
-    controlsVisible: MutableState<Boolean>,
-    onSeek: (SeekDirection) -> Unit,
-    onPointerNavigation: () -> Unit,
     pictureInPicture: Boolean,
-    subtitleTextScale: Float,
-    subtitlesBesideSheet: Boolean,
-    subtitleClearance: Dp,
-    subtitleDelayMillis: Long,
-    fold: TabletopFold?,
 ) {
-    val player = playerState.player
     val currentPictureInPicture by rememberUpdatedState(pictureInPicture)
     ContentFrame(
-        player = player,
+        player = playerState.player,
         modifier = Modifier
-            .videoArea(fold)
+            .fillMaxSize()
             .background(Color.Black)
             .onGloballyPositioned {
                 if (!currentPictureInPicture) playerState.videoFrame = it.boundsInWindow()
             },
         surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
     )
-    val toggleControls = {
-        onPointerNavigation()
-        controlsVisible.value = controlsVisibleAfterTap(
-            controlsVisible = controlsVisible.value,
-            playbackState = playerState.playbackState,
-            touchExplorationEnabled = touchExplorationEnabled,
-        )
-    }
-    if (fold != null) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(top = fold.top)
-                .zIndex(0.5f)
-                .pointerInput(player, touchExplorationEnabled) {
-                    detectVideoTapGestures(onDoubleTap = { toggleControls() }, onTap = { toggleControls() })
-                },
-        )
-    }
+}
+
+@UnstableApi
+@Composable
+private fun MobileVideoGestures(
+    playerState: ReadyPlayerState,
+    fileId: Long,
+    touchExplorationEnabled: Boolean,
+    controlsVisible: MutableState<Boolean>,
+    onSeek: (SeekDirection) -> Unit,
+    onPointerNavigation: () -> Unit,
+    onToggleControls: () -> Unit,
+) {
+    val player = playerState.player
     Box(
         Modifier
-            .videoArea(fold)
-            .zIndex(0.5f)
+            .fillMaxSize()
             .testTag(MOBILE_PLAYER_GESTURE_TAG),
     ) {
         for (direction in SeekDirection.entries) {
@@ -1687,53 +1718,41 @@ private fun BoxScope.MobileVideoLayers(
                                 onSeek(direction)
                                 if (!playerState.seekWindow.available) controlsVisible.value = true
                             },
-                            onTap = { toggleControls() },
+                            onTap = { onToggleControls() },
                         )
                     },
             )
         }
     }
-    MobileSubtitleLayer(
-        playerState = playerState,
-        textScale = subtitleTextScale,
-        besideSheet = subtitlesBesideSheet,
-        clearance = subtitleClearance.takeUnless { pictureInPicture } ?: 0.dp,
-        delayMillis = subtitleDelayMillis,
-        fold = fold,
-    )
-    if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileSubtitleLayer(
     playerState: ReadyPlayerState,
+    frame: DpSize,
     textScale: Float,
     besideSheet: Boolean,
     clearance: Dp,
     delayMillis: Long,
-    fold: TabletopFold?,
 ) {
-    BoxWithConstraints(Modifier.videoArea(fold).zIndex(3f)) {
-        val frame = DpSize(maxWidth, maxHeight)
-        val aspectRatio = playerState.videoSize.displayAspectRatioOrNull()
-        val bottomPadding by animateFloatAsState(
-            subtitleBottomPadding(frame, aspectRatio, clearance),
-            label = "subtitle-clearance",
+    val aspectRatio = playerState.videoSize.displayAspectRatioOrNull()
+    val bottomPadding by animateFloatAsState(
+        subtitleBottomPadding(frame, aspectRatio, clearance),
+        label = "subtitle-clearance",
+    )
+    val sheetWidth = if (besideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(frame.width) else 0.dp
+    val area = subtitleArea(frame, aspectRatio, sheetWidth)
+    if (sheetWidth > 0.dp && area == null) return
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
+        SubtitleCueOverlay(
+            cues = rememberShownCues(playerState, delayMillis),
+            videoAspectRatio = area?.let { it.width / it.height } ?: aspectRatio,
+            modifier = area?.let { Modifier.absoluteOffset(x = it.left).size(it.width, it.height) }
+                ?: Modifier.fillMaxSize(),
+            textScale = textScale,
+            bottomPaddingFraction = bottomPadding,
         )
-        val sheetWidth = if (besideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
-        val area = subtitleArea(frame, aspectRatio, sheetWidth)
-        if (sheetWidth > 0.dp && area == null) return@BoxWithConstraints
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-            SubtitleCueOverlay(
-                cues = rememberShownCues(playerState, delayMillis),
-                videoAspectRatio = area?.let { it.width / it.height } ?: aspectRatio,
-                modifier = area?.let { Modifier.absoluteOffset(x = it.left).size(it.width, it.height) }
-                    ?: Modifier.fillMaxSize(),
-                textScale = textScale,
-                bottomPaddingFraction = bottomPadding,
-            )
-        }
     }
 }
 

@@ -58,7 +58,7 @@ internal fun MobileOpenSourceLicensesScreen(modifier: Modifier = Modifier) {
             .fillMaxSize()
             .testTag(MOBILE_OPEN_SOURCE_LICENSES_LIST_TAG),
     ) {
-        item(key = INTRO_KEY) {
+        item(key = INTRO_KEY, contentType = "intro") {
             Text(
                 text = stringResource(R.string.mobile_settings_open_source_licenses_description),
                 style = MaterialTheme.typography.bodyMedium,
@@ -66,15 +66,19 @@ internal fun MobileOpenSourceLicensesScreen(modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(start = 32.dp, end = 32.dp, top = 4.dp, bottom = 8.dp),
             )
         }
-        items(OPEN_SOURCE_NOTICES, key = { it.name }) { notice ->
+        items(OPEN_SOURCE_NOTICES, key = { it.name }, contentType = { "notice" }) { notice ->
             NoticeGroup(notice, onOpen = { uriHandler.openSafely(it) })
         }
         if (libraries.isNotEmpty()) {
-            item(key = LIBRARIES_KEY) {
+            item(key = LIBRARIES_KEY, contentType = "section") {
                 MobileSettingsLabel(stringResource(R.string.mobile_settings_open_source_libraries))
             }
         }
-        itemsIndexed(libraries, key = { _, library -> library.id }) { index, library ->
+        itemsIndexed(
+            libraries,
+            key = { _, library -> library.id },
+            contentType = { _, _ -> "library" },
+        ) { index, library ->
             LibraryRow(
                 library = library,
                 segment = settingsSegment(index, libraries.size),

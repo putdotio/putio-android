@@ -137,17 +137,17 @@ private fun LoggedInAppsList(
             ),
         ) {
             state.outcome?.let { outcome ->
-                item(key = "outcome") {
+                item(key = "outcome", contentType = "outcome") {
                     LoggedInAppsOutcomeLine(outcome) { onEvent(LoggedInAppsEvent.DismissOutcome) }
                 }
             }
-            itemsIndexed(apps, key = { _, app -> app.id.value }) { index, app ->
+            itemsIndexed(apps, key = { _, app -> app.id.value }, contentType = { _, _ -> "app" }) { index, app ->
                 Box(Modifier.padding(horizontal = 16.dp).padding(top = if (index == 0) 0.dp else 2.dp)) {
                     LoggedInAppRow(app, settingsSegment(index, apps.size), state, onEvent)
                 }
             }
             if (state.othersSignedIn) {
-                item(key = "sign-out-others") {
+                item(key = "sign-out-others", contentType = "sign-out-others") {
                     SignOutOthersButton(
                         enabled = state.canSignOutOthers,
                         working = state.work is LoggedInAppsWork.SigningOutOthers,
