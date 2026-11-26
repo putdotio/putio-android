@@ -8,9 +8,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -32,6 +35,8 @@ internal const val TV_MINI_PLAYER_TAG = "tv-mini-player"
 internal class TvMiniPlayerState {
     var paused by mutableStateOf(true)
         private set
+    internal var returnFocus: Boolean = false
+        private set
     private var setPlaying: ((Boolean) -> Unit)? = null
 
     fun togglePlaying(): Boolean {
@@ -39,6 +44,20 @@ internal class TvMiniPlayerState {
         control(paused)
         return true
     }
+
+    internal fun openedFromMiniPlayer() {
+        returnFocus = true
+    }
+
+    internal fun returnFocusHandled() {
+        returnFocus = false
+    }
+
+    internal fun returnFocusRequester(
+        playback: PlaybackController?,
+        inBackground: Boolean,
+        openFocus: FocusRequester,
+    ): FocusRequester? = openFocus.takeIf { playback != null && inBackground && returnFocus }
 
     internal fun show(paused: Boolean) {
         this.paused = paused
@@ -52,14 +71,20 @@ internal class TvMiniPlayerState {
         if (setPlaying !== control) return
         setPlaying = null
         paused = true
+        returnFocus = false
     }
 }
 
 @Composable
-internal fun TvMiniPlayer(playback: PlaybackController?, state: TvMiniPlayerState, onOpen: () -> Unit) {
+internal fun TvMiniPlayer(
+    playback: PlaybackController?,
+    state: TvMiniPlayerState,
+    onOpen: () -> Unit,
+    openFocus: FocusRequester = remember { FocusRequester() },
+) {
     if (playback == null) return
     val playing by playback.state.collectAsStateWithLifecycle()
-    TvMiniPlayer(title = playing.target.name, state = state, onOpen = onOpen)
+    TvMiniPlayer(title = playing.target.name, state = state, onOpen = onOpen, openFocus = openFocus)
 }
 
 @Composable
@@ -68,6 +93,7 @@ internal fun TvMiniPlayer(
     state: TvMiniPlayerState,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    openFocus: FocusRequester = remember { FocusRequester() },
 ) {
     val size = TvButtonSize.Header
     Row(
@@ -75,7 +101,15 @@ internal fun TvMiniPlayer(
         horizontalArrangement = Arrangement.spacedBy(MINI_PLAYER_GAP),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TvButton(onClick = { if (!state.togglePlaying()) onOpen() }, size = size) {
+        TvButton(
+            onClick = {
+                if (!state.togglePlaying()) {
+                    state.openedFromMiniPlayer()
+                    onOpen()
+                }
+            },
+            size = size,
+        ) {
             Icon(
                 painter = painterResource(
                     if (state.paused) DesignR.drawable.ic_ph_play_fill else DesignR.drawable.ic_ph_pause_fill,
@@ -86,7 +120,15 @@ internal fun TvMiniPlayer(
                 modifier = Modifier.size(size.icon),
             )
         }
-        TvButton(onClick = onOpen, size = size, hugsLabel = true) {
+        TvButton(
+            onClick = {
+                state.openedFromMiniPlayer()
+                onOpen()
+            },
+            modifier = Modifier.focusRequester(openFocus),
+            size = size,
+            hugsLabel = true,
+        ) {
             Icon(
                 painter = painterResource(fileTypeIconRes(PutioFileType.AUDIO)),
                 contentDescription = stringResource(R.string.tv_mini_player_open),

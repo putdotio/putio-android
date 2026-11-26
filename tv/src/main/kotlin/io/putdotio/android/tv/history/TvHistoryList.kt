@@ -121,6 +121,26 @@ private fun List<TvHistoryEntry>.indexOfPick(id: Long?): Int =
         indexOfFirst { it is TvHistoryEntry.Event && it.item.id.value == id }
     }
 
+private class TvHistoryRowRequesters(
+    val rows: TvItemRequesters,
+    val last: FocusRequester,
+    val restore: FocusRequester,
+)
+
+private fun LazyListState.historyRestoreTarget(
+    focus: TvHistoryFocus,
+    requesters: TvHistoryRowRequesters,
+    lastKey: Any?,
+    liveKey: Any?,
+    restoreKey: Any?,
+): FocusRequester = when {
+    focus.clearHadFocus.value -> focus.clear
+    lastKey != null && composes(lastKey) -> requesters.last
+    liveKey != null && composes(liveKey) -> requesters.rows.of(liveKey)
+    composes(restoreKey) -> requesters.restore
+    else -> requesters.rows.firstComposed(this) { it is Long }
+}
+
 private suspend fun LazyListState.awaitMountRow(
     entries: List<TvHistoryEntry>,
     restoreIndex: Int,
@@ -153,15 +173,17 @@ internal fun TvHistoryList(
     val rowFocus = remember { TvItemRequesters() }
     val lastRow = remember { FocusRequester() }
     val restoreRow = remember { FocusRequester() }
+    val lastFocused = remember { TvFocusedItem() }
     val built = history.isBuiltFrom(content.items)
     val handOff = rememberLastRowHandOff(built, content.paging)
     val pagingFailed by rememberUpdatedState(content.paging is HistoryPaging.Failed)
-    val entryActions = remember(actions, handOff) {
+    val entryActions = remember(actions, handOff, lastFocused) {
         TvHistoryListActions(
             onOpen = actions.onOpen,
             onClear = actions.onClear,
             onRowFocused = {
                 handOff.focusTaken()
+                lastFocused.key = it.id.value
                 actions.onRowFocused(it)
             },
             onClearFocused = {
@@ -197,12 +219,13 @@ internal fun TvHistoryList(
                 .focusRequester(listFocus)
                 .keepsHeldFocusInView(listState, focused)
                 .focusRestorer {
-                    when {
-                        focus.clearHadFocus.value -> focus.clear
-                        built && handOff.pending.value && listState.composes(entries.last().key) -> lastRow
-                        listState.composes(entries.getOrNull(restoreIndex)?.key) -> restoreRow
-                        else -> rowFocus.firstComposed(listState) { it is Long }
-                    }
+                    listState.historyRestoreTarget(
+                        focus = focus,
+                        requesters = TvHistoryRowRequesters(rowFocus, lastRow, restoreRow),
+                        lastKey = entries.last().key.takeIf { built && handOff.pending.value },
+                        liveKey = focused.key?.takeIf { it is Long } ?: lastFocused.key,
+                        restoreKey = entries.getOrNull(restoreIndex)?.key,
+                    )
                 }
                 .focusGroup()
                 .testTag(TV_HISTORY_LIST_TAG),

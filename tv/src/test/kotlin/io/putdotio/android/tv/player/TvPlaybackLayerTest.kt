@@ -4,13 +4,16 @@ import androidx.activity.ComponentActivity
 import io.putdotio.android.tv.setTvContent
 import io.putdotio.android.tv.pressCenter
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.platform.testTag
@@ -180,6 +183,47 @@ class TvPlaybackLayerTest {
         compose.onTab("Home").assertIsFocused()
     }
 
+    @Test
+    fun backFromNowPlayingOpenedViaMiniPlayerReturnsFocusToOpenPlayer() {
+        val player = FakePlayer()
+        val audio = playAudioWithMiniPlayer(player)
+        compose.back()
+        compose.onNodeWithContentDescription("Open player").requestFocus().assertIsFocused().performKeyInput {
+            pressCenter()
+        }
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
+        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertDoesNotExist()
+
+        compose.back()
+
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Open player").assertIsFocused()
+        compose.runOnIdle {
+            assertTrue(audio.background)
+            assertTrue(player.playWhenReady)
+        }
+    }
+
+    @Test
+    fun stoppingAudioFromNowPlayingOpenedViaMiniPlayerFallsBackToFilesRow() {
+        val player = FakePlayer()
+        val audio = playAudioWithMiniPlayer(player)
+        compose.back()
+        compose.onNodeWithContentDescription("Open player").requestFocus().assertIsFocused().performKeyInput {
+            pressCenter()
+        }
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertIsDisplayed()
+        compose.runOnIdle { player.playWhenReady = false }
+
+        compose.back()
+
+        compose.onNodeWithTag(TV_NOW_PLAYING_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(TV_MINI_PLAYER_TAG).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Play song.mp3").assertIsFocused()
+        compose.runOnIdle { assertNull(audio.playing.value) }
+    }
+
     private fun playAudioWithMiniPlayer(player: FakePlayer): BackgroundAudio {
         val files = filesBrowserState(
             stack = listOf(
@@ -266,6 +310,10 @@ class TvPlaybackLayerTest {
         background: BackgroundAudio? = null,
     ) {
         compose.setTvContent {
+            val miniPlayerFocus = remember { FocusRequester() }
+            LaunchedEffect(playing.value == null) {
+                if (playing.value == null) background?.miniPlayer?.returnFocusHandled()
+            }
             TvPlaybackLayer(
                 playing = playing.value != null,
                 background = background?.background == true,
@@ -298,6 +346,11 @@ class TvPlaybackLayerTest {
                             focusMemory = focusMemory,
                         )
                     },
+                    trailingFocus = miniPlayerFocus.takeIf {
+                        background != null && background.background && playing.value != null &&
+                            background.miniPlayer.returnFocus
+                    },
+                    onTrailingFocusHandled = { background?.miniPlayer?.returnFocusHandled() },
                     trailing = {
                         val item = playing.value
                         if (background != null && background.background && item != null) {
@@ -305,6 +358,7 @@ class TvPlaybackLayerTest {
                                 title = item.name,
                                 state = background.miniPlayer,
                                 onOpen = { background.background = false },
+                                openFocus = miniPlayerFocus,
                             )
                         }
                     },

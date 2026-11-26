@@ -46,6 +46,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -100,7 +103,8 @@ internal fun TvListDetail(
                 modifier = Modifier
                     .offset(x = -ROW_BLEED)
                     .fillMaxWidth()
-                    .weight(1f),
+                    .weight(1f)
+                    .onPreviewKeyEvent { detailFocus === FocusRequester.Cancel && it.key == Key.DirectionRight },
                 content = list,
             )
         }
