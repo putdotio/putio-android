@@ -44,6 +44,10 @@ android {
         }
     }
 
+    sourceSets.named("debug") {
+        kotlin.directories.add("src/deviceSignIn/kotlin")
+    }
+
     playConfigs {
         register("productionRelease") {
             enabled.set(true)
@@ -78,6 +82,14 @@ androidComponents {
         val profiles = checkNotNull(variant.sources.baselineProfiles) { "${variant.name} has no baseline profile sources" }
         profiles.addStaticSourceDirectory(layout.projectDirectory.dir("src/main/generated/baselineProfiles").asFile.absolutePath)
     }
+    onVariants(selector().withBuildType("nonMinifiedRelease")) { variant ->
+        variant.sources.kotlin?.addStaticSourceDirectory(
+            layout.projectDirectory.dir("src/deviceSignIn/kotlin").asFile.absolutePath,
+        )
+        variant.sources.manifests.addStaticManifestFile(
+            layout.projectDirectory.file("src/nonMinifiedRelease/AndroidManifest.xml").asFile.absolutePath,
+        )
+    }
     onVariants { variant ->
         val shortcuts = tasks.register<GenerateShortcutsTask>(
             "generate${variant.name.replaceFirstChar(Char::titlecase)}Shortcuts",
@@ -92,10 +104,10 @@ androidComponents {
             "verify${variant.name.replaceFirstChar(Char::titlecase)}DebugSignInManifest",
         ) {
             group = "verification"
-            description = "Require the device-code sign-in in debug manifests and its absence from release"
+            description = "Require the device-code sign-in in debug and baseline-profile manifests and its absence from release"
             mergedManifest.set(variant.artifacts.get(SingleArtifact.MERGED_MANIFEST))
             activity.set("io.putdotio.android.auth.DebugDeviceSignInActivity")
-            present.set(variant.buildType == "debug")
+            present.set(variant.buildType == "debug" || variant.buildType == "nonMinifiedRelease")
         }
         tasks.named("check") { dependsOn(debugSignIn) }
     }
