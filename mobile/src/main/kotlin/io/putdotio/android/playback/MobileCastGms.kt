@@ -856,7 +856,7 @@ internal class GmsCastRemote : CastRemote {
     private val showPendingSubtitle = {
         val remote = client
         if (!latestLoad.inFlight && remote != null) {
-            pendingSubtitle = pendingSubtitle?.let { remote.showPlaylistSubtitle(it) }
+            pendingSubtitle = pendingSubtitle?.let { remote.showPlaylistSubtitle(it, keepAudio = putioReceiver) }
         }
     }
 
@@ -934,7 +934,9 @@ internal class GmsCastRemote : CastRemote {
         val state = media.castRemoteState()
         noteReport(fileId, state)
         // Media another sender loaded since is no longer the file that failed.
-        receiverFailure = receiverFailure?.takeIf { info == null || it.fileId == fileId }
+        receiverFailure = receiverFailure?.takeIf {
+            info == null || it.fileId == fileId || it.fileId == lastLoad?.first?.fileId
+        }
         // Only the put.io receiver's tracks are switched from here; Google's receiver keeps main's controls.
         val tracks = info?.mediaTracks.orEmpty().takeIf { putioReceiver }.orEmpty()
         val status = CastRemoteStatus(
@@ -1114,13 +1116,15 @@ private fun MediaStatus.castRemoteState(): CastRemoteState =
  */
 private fun RemoteMediaClient.showPlaylistSubtitle(
     pending: Pair<Long, PlaybackCastPlaylistSubtitle>,
+    keepAudio: Boolean,
 ): Pair<Long, PlaybackCastPlaylistSubtitle>? {
     val (fileId, wanted) = pending
     val tracks = mediaInfo?.takeIf { it.putioFileId() == fileId }
         ?.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
     if (tracks.isEmpty()) return pending
-    // The audio track playing stays; only the text track changes.
-    val kept = mediaStatus?.activeTrackIds?.toSet().orEmpty() - tracks.map { it.id }.toSet()
+    // On the put.io receiver the audio track playing stays; only the text track changes.
+    val kept = mediaStatus?.activeTrackIds?.toSet().orEmpty().takeIf { keepAudio }.orEmpty() -
+        tracks.map { it.id }.toSet()
     playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)
         ?.let { setActiveMediaTracks((kept + it).toLongArray()) }
     return null
