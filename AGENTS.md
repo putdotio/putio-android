@@ -1,10 +1,9 @@
 # Agent Guide
 
 The native put.io Android app: Kotlin and Compose for phones and tablets
-(`mobile`) and Android TV (`tv`) from one codebase. It ships on
-Google Play; [#14](https://github.com/putdotio/putio-android/issues/14) tracks
-what is left of the rollout. [Architecture](docs/architecture.md) maps the modules, and
-[Design](DESIGN.md) is the Android design contract. Tests pin the product rules;
+(`mobile`) and Android TV (`tv`) from one codebase.
+[Architecture](docs/architecture.md) maps the modules, and [Design](DESIGN.md)
+is the Android design contract. Tests pin the product rules;
 script headers and `--help` own the harness.
 
 ## Conventions
@@ -31,9 +30,8 @@ script headers and `--help` own the harness.
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
   API boundary. Close an SDK gap there.
 - Derive every `OkHttpClient` from `PutioHttpClient.newBuilder()` outside
-  `core/common`, and use `PutioHttpClient.shared` (`callTimeout = 0`) for
-  multipart uploads because a custom SDK client drops the SDK's
-  upload-timeout exemption (`MobileNetworkingPoolTest`).
+  `core/common`, and use `PutioHttpClient.shared` for multipart uploads
+  because a custom SDK client drops the SDK's upload-timeout exemption.
 - A change to TV startup, sign-in or Home regenerates the TV baseline profile
   with `scripts/generate-baseline-profile.sh` on an emulator you booted.
 - Design values and icons are generated: change the locks in `design/`, then
@@ -47,10 +45,10 @@ script headers and `--help` own the harness.
 ## Hazards
 
 - **The app id is live on Google Play.** `mobile` and `tv` both build
-  `io.put.putio` in production, the id of the put.io TV app users run today, so
+  `io.put.putio` in production, the id of the legacy put.io TV app, so
   a release replaces it in place and TV imports its session. Keep the
   id unless product owners choose a new listing. Only the
-  [Google Play delivery](docs/google-play-delivery.md) workflows upload.
+  Google Play workflows upload.
 - **Shared test account.** Live proof uses the `devs-auto` put.io CLI profile
   that the web, iOS, and TV harnesses share. Create uniquely named fixtures,
   record their ids, and remove only those. Never empty Trash, use ID zero, or
@@ -147,6 +145,4 @@ feature list, and a token or design-rule change updates DESIGN.md.
 ## Delivery and CI
 
 Open pull requests against `main`. A merge runs only
-[CI](.github/workflows/ci.yml); a Google Play dispatch ships a build. Every
-dispatch needs Altay's OK; open [Google Play delivery](docs/google-play-delivery.md)
-before one.
+[CI](.github/workflows/ci.yml); a Google Play dispatch ships a build.

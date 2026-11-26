@@ -96,18 +96,18 @@ playback method picks the stream, and Standard is the default.
 flowchart TD
   open[Open a video] --> method{Playback method}
   method -- Standard --> hls[HLS]
-  method -- Direct play --> check{OriginalPlaybackDecision}
-  check -- device decodes it --> original[Original file]
-  check -- fallback reason --> converted[Converted copy]
-  original -- OriginalRejected --> converted
-  converted -- OriginalChosen --> original
+  method -- Direct play --> check{Device decodes it?}
+  check -- yes --> original[Original file]
+  check -- no --> converted[Converted copy]
+  original -- rejected --> converted
+  converted -- viewer picks original --> original
   original -- Cast starts --> hls
   hls -- Cast ends --> check
 ```
 
-`OriginalRejected` fires for tracks the device can't play, a failure before
-the first frame, or the viewer's switch; the converted copy starts at the same
-position. Direct play can decode audio with bundled FFmpeg after MediaCodec,
+The player rejects an original for tracks the device can't play, a failure
+before the first frame, or the viewer's switch; the converted copy starts at
+the same position. Direct play can decode audio with bundled FFmpeg after MediaCodec,
 and devices with the memory for it draw ASS/SSA subtitles with libass. Play
 positions sync to put.io, throttled and flushed on exit.
 
