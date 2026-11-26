@@ -337,6 +337,7 @@ internal fun TvSessionShell(
     val playback by session.playback.collectAsStateWithLifecycle()
     val playbackInBackground by session.playbackInBackground.collectAsStateWithLifecycle()
     val miniPlayer = remember(session) { TvMiniPlayerState() }
+    val miniPlayerFocus = remember { FocusRequester() }
     val context = LocalContext.current
 
     TvPlaybackLayer(
@@ -371,11 +372,14 @@ internal fun TvSessionShell(
             showHistory = settingsState.historyTabShown(),
             focusHomePane = homeReturn != null,
             offline = !online,
+            trailingFocus = miniPlayer.returnFocusRequester(playback, playbackInBackground, miniPlayerFocus),
+            onTrailingFocusHandled = miniPlayer::returnFocusHandled,
             trailing = {
                 TvMiniPlayer(
                     playback = playback.takeIf { playbackInBackground },
                     state = miniPlayer,
                     onOpen = session::foregroundPlayback,
+                    openFocus = miniPlayerFocus,
                 )
             },
             homePane = { paneFocus ->

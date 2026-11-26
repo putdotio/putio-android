@@ -86,6 +86,8 @@ internal fun TvShell(
     showHistory: Boolean = true,
     focusHomePane: Boolean = false,
     offline: Boolean = false,
+    trailingFocus: FocusRequester? = null,
+    onTrailingFocusHandled: () -> Unit = {},
     trailing: @Composable () -> Unit = {},
 ) {
     val start = if (showHome) TvDestination.Home else TvDestination.Files
@@ -93,7 +95,7 @@ internal fun TvShell(
     var tabsHaveFocus by remember { mutableStateOf(false) }
     var trailingHasFocus by remember { mutableStateOf(false) }
     val tabBarHasFocus = tabsHaveFocus || trailingHasFocus
-    val paneReleased = remember { mutableStateOf(false) }
+    val paneReleased = remember { mutableStateOf(trailingFocus != null) }
     var focusPaneOf by remember { mutableStateOf<TvDestination?>(destination) }
     val tabFocus = remember { TvDestination.entries.associateWith { FocusRequester() } }
     val paneFocus = remember { FocusRequester() }
@@ -178,7 +180,7 @@ internal fun TvShell(
     LaunchedEffect(shown, focusWanted) {
         if (focusWanted && focusPaneOf == shown) {
             focusPaneOf = null
-            shown.entryFocus(focusHomePane, tabFocus, paneFocus).requestFocus()
+            shown.entryFocus(focusHomePane, tabFocus, paneFocus, trailingFocus, onTrailingFocusHandled).requestFocus()
         }
     }
 }
@@ -216,7 +218,15 @@ private fun TvDestination.entryFocus(
     focusHomePane: Boolean,
     tabFocus: Map<TvDestination, FocusRequester>,
     paneFocus: FocusRequester,
-): FocusRequester = if (this == TvDestination.Home && !focusHomePane) tabFocus.getValue(this) else paneFocus
+    trailingFocus: FocusRequester?,
+    onTrailingFocusHandled: () -> Unit,
+): FocusRequester {
+    if (trailingFocus != null) {
+        onTrailingFocusHandled()
+        return trailingFocus
+    }
+    return if (this == TvDestination.Home && !focusHomePane) tabFocus.getValue(this) else paneFocus
+}
 
 private fun tabBarEntry(direction: FocusDirection, selectedTab: FocusRequester): FocusRequester =
     if (direction == FocusDirection.Enter) FocusRequester.Default else selectedTab
