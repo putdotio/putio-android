@@ -15,11 +15,13 @@ internal object TvFocus {
         @Composable @ReadOnlyComposable
         get() = MaterialTheme.colorScheme.inverseOnSurface
 
-    val secondaryContent: Color = Color(ON_FOCUS_SECONDARY)
+    val secondaryContent: Color
+        @Composable @ReadOnlyComposable
+        get() = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = ON_FOCUS_SECONDARY_ALPHA)
 }
 
 @Composable
 @ReadOnlyComposable
 internal fun tvAccent(focused: Boolean): Color = if (focused) TvFocus.content else PutioDesignTokens.yellowSolid
 
-private const val ON_FOCUS_SECONDARY = 0xFF4D4D4D
+private const val ON_FOCUS_SECONDARY_ALPHA = 0.74f

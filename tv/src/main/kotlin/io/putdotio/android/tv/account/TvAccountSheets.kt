@@ -217,11 +217,13 @@ internal fun TvQrSheet(
     url: String,
     onDismiss: () -> Unit,
     returnFocus: FocusRequester?,
+    styledTitle: AnnotatedString? = null,
 ) {
     TvSideSheet(
         onDismiss = onDismiss,
         returnFocus = returnFocus,
         title = title,
+        styledTitle = styledTitle,
         bottomPadding = SHEET_BOTTOM,
     ) { initialFocus ->
         val light = MaterialTheme.colorScheme.inverseSurface
@@ -278,13 +280,15 @@ internal fun TvLibrariesSheet(
                 key = { _, library -> library.id },
                 contentType = { _, _ -> "library" },
             ) { index, library ->
+                val styledLabel = tvOpenSourceName(library.name, library.version)
                 TvSheetOption(
-                    label = stringResource(R.string.tv_account_open_source_name, library.name, library.version),
+                    label = styledLabel.text,
                     detail = AnnotatedString(library.license),
                     selected = false,
                     onClick = { onOpen(index) },
                     enabled = library.url != null,
                     role = Role.Button,
+                    styledLabel = styledLabel,
                     modifier = Modifier.focusRequesterIf(index == start, initialFocus),
                 )
             }

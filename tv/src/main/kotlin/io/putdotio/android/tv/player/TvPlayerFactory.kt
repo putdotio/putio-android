@@ -121,11 +121,13 @@ internal fun tvMediaSession(context: Context, player: Player, queue: Boolean = f
 internal fun tvSessionPlayer(
     player: Player,
     onSkipRequested: ((forward: Boolean) -> Unit)? = null,
+    onStopRequested: (() -> Unit)? = null,
     onPlayingRequested: (Boolean) -> Unit,
 ): Player = TvSessionPlayer(
     if (onSkipRequested == null) player else SkipCommandsPlayer(player),
     onPlayingRequested,
     onSkipRequested,
+    onStopRequested,
 )
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -133,14 +135,27 @@ private class TvSessionPlayer(
     player: Player,
     private val onPlayingRequested: (Boolean) -> Unit,
     private val onSkipRequested: ((Boolean) -> Unit)?,
+    private val onStopRequested: (() -> Unit)?,
 ) : ForwardingPlayer(player) {
     val skipsTracks: Boolean get() = onSkipRequested != null
+
+    override fun getAvailableCommands(): Player.Commands =
+        if (onStopRequested == null) {
+            super.getAvailableCommands()
+        } else {
+            super.getAvailableCommands().buildUpon().add(Player.COMMAND_STOP).build()
+        }
+
+    override fun isCommandAvailable(command: Int): Boolean =
+        (command == Player.COMMAND_STOP && onStopRequested != null) || super.isCommandAvailable(command)
 
     override fun play() = onPlayingRequested(true)
 
     override fun pause() = onPlayingRequested(false)
 
     override fun setPlayWhenReady(playWhenReady: Boolean) = onPlayingRequested(playWhenReady)
+
+    override fun stop() = onStopRequested?.invoke() ?: super.stop()
 
     override fun seekToNext() = onSkipRequested?.invoke(true) ?: super.seekToNext()
 
@@ -171,6 +186,7 @@ internal class LoadingAudioPlayer(target: PlaybackTarget) : SimpleBasePlayer(Loo
             Player.Commands.Builder()
                 .addAll(
                     COMMAND_PLAY_PAUSE,
+                    COMMAND_STOP,
                     COMMAND_GET_CURRENT_MEDIA_ITEM,
                     COMMAND_GET_METADATA,
                 )
@@ -206,6 +222,11 @@ internal class LoadingAudioPlayer(target: PlaybackTarget) : SimpleBasePlayer(Loo
             .build()
         return Futures.immediateVoidFuture()
     }
+
+    override fun handleStop(): ListenableFuture<*> {
+        state = state.buildUpon().setPlaybackState(STATE_IDLE).build()
+        return Futures.immediateVoidFuture()
+    }
 }
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
@@ -224,6 +245,7 @@ private fun tvSessionPlayerCommands(): Player.Commands = Player.Commands.Builder
     .addAll(
         Player.COMMAND_PLAY_PAUSE,
         Player.COMMAND_PREPARE,
+        Player.COMMAND_STOP,
         Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
         Player.COMMAND_SEEK_TO_DEFAULT_POSITION,
         Player.COMMAND_SEEK_BACK,

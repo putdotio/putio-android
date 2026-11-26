@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -28,10 +29,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import io.putdotio.android.MobileSelection
 import io.putdotio.android.MobileSelectionBar
@@ -250,7 +253,17 @@ private fun ConcurrencyDialog(current: Int, onChoose: (Int) -> Unit, onDismiss: 
                     ) {
                         RadioButton(selected = limit == current, onClick = null)
                         Spacer(Modifier.size(16.dp))
-                        Text(stringResource(R.string.mobile_downloads_concurrency_value, limit))
+                        val locale = LocalConfiguration.current.locales[0]
+                        val label = stringResource(R.string.mobile_downloads_concurrency_value, limit)
+                        val number = String.format(locale, "%d", limit)
+                        val mono = LocalTextStyle.current.putioMono().toSpanStyle()
+                        Text(
+                            buildAnnotatedString {
+                                append(label)
+                                val at = label.indexOf(number)
+                                if (at >= 0) addStyle(mono, at, at + number.length)
+                            },
+                        )
                     }
                 }
             }

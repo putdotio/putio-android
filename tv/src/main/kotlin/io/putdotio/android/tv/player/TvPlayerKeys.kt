@@ -19,6 +19,7 @@ private val TV_PLAYER_KEYS = setOf(
     Key.MediaPlayPause,
     Key.MediaPlay,
     Key.MediaPause,
+    Key.MediaStop,
     Key.MediaFastForward,
     Key.MediaRewind,
 )
@@ -71,28 +72,32 @@ private fun TvPlayerOverlay.keyDown(
 
 private fun TvPlayerOverlay.keyUp(key: Key, player: Player, focused: TvPlayerControl): TvPlayerTransition? =
     when (key) {
-        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> when (focused) {
-            TvPlayerControl.SeekBar, TvPlayerControl.PlayPause -> select(player.playWhenReady)
-            TvPlayerControl.Back, TvPlayerControl.Forward ->
-                if (player.canSeek()) {
-                    skip(
-                        forward = focused == TvPlayerControl.Forward,
-                        positionMillis = player.currentPosition.coerceAtLeast(0L),
-                        durationMillis = player.duration,
-                    )
-                } else {
-                    reveal()
-                }
-            TvPlayerControl.NextEpisode -> chooseNext()
-            TvPlayerControl.Previous, TvPlayerControl.Next -> skipTrack(forward = focused == TvPlayerControl.Next)
-            else -> openSheet(focused)
-        }
+        Key.DirectionCenter, Key.Enter, Key.NumPadEnter -> selectControl(player, focused)
         Key.MediaPlayPause -> select(player.playWhenReady)
         Key.MediaPlay -> setPlaying(play = true)
         Key.MediaPause -> setPlaying(play = false)
+        Key.MediaStop -> exit()
         Key.MediaPrevious, Key.MediaNext -> skipTrack(forward = key == Key.MediaNext)
         Key.DirectionLeft, Key.DirectionRight, Key.MediaRewind, Key.MediaFastForward -> skipReleased()
         else -> null
+    }
+
+private fun TvPlayerOverlay.selectControl(player: Player, focused: TvPlayerControl): TvPlayerTransition =
+    when (focused) {
+        TvPlayerControl.SeekBar, TvPlayerControl.PlayPause -> select(player.playWhenReady)
+        TvPlayerControl.Back, TvPlayerControl.Forward ->
+            if (player.canSeek()) {
+                skip(
+                    forward = focused == TvPlayerControl.Forward,
+                    positionMillis = player.currentPosition.coerceAtLeast(0L),
+                    durationMillis = player.duration,
+                )
+            } else {
+                reveal()
+            }
+        TvPlayerControl.NextEpisode -> chooseNext()
+        TvPlayerControl.Previous, TvPlayerControl.Next -> skipTrack(forward = focused == TvPlayerControl.Next)
+        else -> openSheet(focused)
     }
 
 private fun Key.skipDirection(onSeekBar: Boolean): TvSkipDirection? =

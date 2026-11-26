@@ -24,6 +24,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ internal fun TvSideSheet(
     returnFocus: FocusRequester?,
     modifier: Modifier = Modifier,
     title: String? = null,
+    styledTitle: AnnotatedString? = null,
     bottomPadding: Dp? = null,
     backdrop: (@Composable BoxScope.() -> Unit)? = null,
     scrim: Color? = null,
@@ -88,9 +90,10 @@ internal fun TvSideSheet(
                     )
                     .focusGroup(),
             ) {
-                if (title != null) {
+                val heading = styledTitle ?: title?.let(::AnnotatedString)
+                if (heading != null) {
                     Text(
-                        text = title,
+                        text = heading,
                         style = MaterialTheme.typography.headlineSmall.copy(lineHeight = TITLE_LINE),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 2,

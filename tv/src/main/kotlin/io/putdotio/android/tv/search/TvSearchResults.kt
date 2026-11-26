@@ -34,6 +34,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
@@ -347,8 +349,17 @@ private fun LazyListScope.resultGroup(
 @Composable
 private fun TvSearchTotal(total: SearchTotal) {
     val shown = total.shown(LocalConfiguration.current.locales[0])
+    val label = pluralStringResource(R.plurals.tv_search_total, total.count, shown)
+    val start = label.indexOf(shown)
     Text(
-        text = pluralStringResource(R.plurals.tv_search_total, total.count, shown),
+        text = if (start < 0) {
+            AnnotatedString(label)
+        } else {
+            buildAnnotatedString {
+                append(label)
+                addStyle(PutioTypeScale.tvMono.toSpanStyle(), start, start + shown.length)
+            }
+        },
         style = PutioTypeScale.tvLabel,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier

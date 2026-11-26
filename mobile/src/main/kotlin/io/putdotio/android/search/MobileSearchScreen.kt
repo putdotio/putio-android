@@ -61,9 +61,11 @@ import io.putdotio.android.MobileSectionLabel
 import io.putdotio.android.PutioFailure
 import io.putdotio.android.R
 import io.putdotio.android.design.RowText
+import io.putdotio.android.design.putioMono
 import io.putdotio.android.design.shown
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.PutioEmptyState
+import io.putdotio.android.monoArguments
 import io.putdotio.android.downloads.DownloadStatus
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesItem
@@ -417,15 +419,19 @@ private fun MobileSearchResultList(
 @Composable
 private fun MobileSearchTotal(total: SearchTotal) {
     val shown = total.shown(LocalConfiguration.current.locales[0])
+    val style = MaterialTheme.typography.bodySmall
+    val template = pluralStringResource(R.plurals.mobile_search_total, total.count, VALUE_SLOT)
     Text(
-        text = pluralStringResource(R.plurals.mobile_search_total, total.count, shown),
-        style = MaterialTheme.typography.bodySmall,
+        text = monoArguments(template, style.putioMono().toSpanStyle(), shown),
+        style = style,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 8.dp),
     )
 }
+
+private const val VALUE_SLOT = "%1\$s"
 
 private fun LazyListScope.resultGroup(
     @StringRes title: Int,

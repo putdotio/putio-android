@@ -49,6 +49,7 @@ import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.shown
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.RowText
@@ -822,7 +823,7 @@ internal fun TvFilesNotice(
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (error) PutioDesignTokens.redTextSecondary else MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),

@@ -319,9 +319,11 @@ class TvPlayerMediaSessionTest {
 
     @Test
     fun queueSessionGrantsSkipCommandsToExistingControllerOnceTrackTakesOver() {
+        var stopped = 0
         val loading = tvSessionPlayer(
             player = LoadingAudioPlayer(PlaybackTarget(FilesItemId(9), "01 Track.mp3", PlaybackMediaType.AUDIO)),
             onSkipRequested = null,
+            onStopRequested = { stopped += 1 },
             onPlayingRequested = {},
         )
         val real = FakePlayer().apply {
@@ -335,19 +337,37 @@ class TvPlayerMediaSessionTest {
             idleSession()
             assertFalse(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
             assertFalse(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_STOP))
+            assertTrue((platformPlaybackState(hosted)!!.actions and PlatformPlaybackState.ACTION_STOP) != 0L)
 
-            queue.swap(tvSessionPlayer(real, onSkipRequested = {}, onPlayingRequested = {}))
+            controller.stop()
+            idleSession()
+            assertEquals(1, stopped)
+
+            queue.swap(tvSessionPlayer(real, onSkipRequested = {}, onStopRequested = { stopped += 1 }) {})
             idleSession()
 
             assertTrue(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_NEXT))
             assertTrue(controller.isCommandAvailable(Player.COMMAND_SEEK_TO_PREVIOUS))
+            assertTrue(controller.isCommandAvailable(Player.COMMAND_STOP))
             val actions = platformPlaybackState(hosted)!!.actions
             assertTrue((actions and PlatformPlaybackState.ACTION_SKIP_TO_NEXT) != 0L)
             assertTrue((actions and PlatformPlaybackState.ACTION_SKIP_TO_PREVIOUS) != 0L)
+            assertTrue((actions and PlatformPlaybackState.ACTION_STOP) != 0L)
         } finally {
             controller.release()
             queue.close()
         }
+    }
+
+    @Test
+    fun mediaStopKeyInForegroundPlayerExitsPlayback() {
+        val player = FakePlayer()
+        var exited = 0
+        compose.showReady(player, onBack = { exited += 1 })
+        compose.onNodeWithTag(TV_PLAYER_TAG).performKeyInput { pressKey(Key.MediaStop) }
+        compose.settle()
+        compose.runOnIdle { assertEquals(1, exited) }
     }
 
     private fun platformPlaybackState(session: MediaSession): PlatformPlaybackState? {

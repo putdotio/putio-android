@@ -619,7 +619,13 @@ private fun TvActiveReadyPlayer(
             val positions = reporter.observe(player)
             val session = playerFactory.publishSession(
                 context,
-                lifecycle.sessionPlayer(player, keepsPlaying, onSkip = skip.takeIf { nowPlaying }, sessionPlaying),
+                lifecycle.sessionPlayer(
+                    player = player,
+                    keepsPlaying = keepsPlaying,
+                    onSkip = skip.takeIf { nowPlaying },
+                    onStop = { apply(overlay.exit()) },
+                    onPlaying = sessionPlaying,
+                ),
                 inBackground = keepsPlaying,
             )
             Closeable {

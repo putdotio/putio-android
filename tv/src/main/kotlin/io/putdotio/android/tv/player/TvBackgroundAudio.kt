@@ -48,8 +48,13 @@ internal fun Lifecycle.sessionPlayer(
     player: Player,
     keepsPlaying: Boolean,
     onSkip: ((Boolean) -> Unit)?,
+    onStop: (() -> Unit)?,
     onPlaying: (Boolean) -> Unit,
-): Player = tvSessionPlayer(player, onSkipRequested = onSkip?.let(::whileStarted)) { play ->
+): Player = tvSessionPlayer(
+    player,
+    onSkipRequested = onSkip?.let(::whileStarted),
+    onStopRequested = onStop,
+) { play ->
     if (!play || keepsPlaying || currentState.isAtLeast(Lifecycle.State.STARTED)) onPlaying(play)
 }
 

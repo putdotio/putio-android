@@ -34,6 +34,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import io.putdotio.android.FilesFailure
 import io.putdotio.android.R
+import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.history.HistoryClearing
 import io.putdotio.android.history.HistoryContent
@@ -376,7 +377,7 @@ private fun TvHistoryNotice(notice: FilesFailure) {
         } else {
             stringResource(R.string.tv_history_open_error, notice.tvMessageText())
         },
-        color = MaterialTheme.colorScheme.error,
+        color = PutioDesignTokens.redTextSecondary,
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.padding(start = NOTICE_INSET, end = NOTICE_INSET, bottom = 8.dp),
     )
