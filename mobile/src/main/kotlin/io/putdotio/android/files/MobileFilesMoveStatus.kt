@@ -42,17 +42,20 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome, onRetry: (() -> Un
 }
 
 @Composable
+internal fun FilesMoveOutcome.movedMessage(): String =
+    if (itemCount > 1) {
+        pluralStringResource(R.plurals.mobile_files_move_moved_many, itemCount, itemCount)
+    } else {
+        stringResource(R.string.mobile_files_move_moved, itemName)
+    }
+
+@Composable
 private fun FilesMoveOutcome.statusMessage(retryable: Boolean): String? {
     val collision = errors?.singleOrNull()?.takeIf { error ->
         intent.itemIds.any { it.value == error.id } && error.errorType == "NAME_ALREADY_EXIST"
     }
     val many = itemCount > 1
     return when (status) {
-        FilesMoveStatus.MOVED -> if (many) {
-            pluralStringResource(R.plurals.mobile_files_move_moved_many, itemCount, itemCount)
-        } else {
-            stringResource(R.string.mobile_files_move_moved, itemName)
-        }
         FilesMoveStatus.STILL_PRESENT -> if (retryable) {
             pluralStringResource(R.plurals.mobile_files_move_still_present_retry_many, remainingCount, remainingCount)
         } else if (many) {
@@ -61,7 +64,7 @@ private fun FilesMoveOutcome.statusMessage(retryable: Boolean): String? {
             stringResource(R.string.mobile_files_move_still_present, itemName)
         }
         FilesMoveStatus.REJECTED -> rejectedMessage(collision, many)
-        FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
+        FilesMoveStatus.MOVED, FilesMoveStatus.CHECKING, FilesMoveStatus.UNKNOWN -> null
     }
 }
 

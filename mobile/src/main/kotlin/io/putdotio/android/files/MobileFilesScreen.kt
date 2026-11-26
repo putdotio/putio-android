@@ -40,10 +40,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -105,6 +107,54 @@ internal const val MOBILE_FILES_PAGING_ACTION_TAG = "mobile-files-paging-action"
 internal const val MOBILE_FILES_REFRESH_TAG = "mobile-files-refresh"
 internal const val MOBILE_FILES_SNACKBAR_TAG = "mobile-files-snackbar"
 
+@Stable
+internal class MobileFilesCreatedFolder {
+    var pending: FilesItem? by mutableStateOf(null)
+        private set
+    private var revealRequestedId: FilesItemId? = null
+
+    fun created(item: FilesItem) {
+        pending = item
+        revealRequestedId = null
+    }
+
+    fun revealMissing(
+        folderId: FilesItemId,
+        createdId: FilesItemId,
+        paging: FilesPaging,
+        operation: FilesFolderOperation,
+        onEvent: (FilesBrowserEvent) -> Unit,
+    ) {
+        if (operation is FilesFolderOperation.Loading) {
+            if (revealRequestedId == createdId) revealRequestedId = null
+            return
+        }
+        if (operation != FilesFolderOperation.Idle) return
+        if (paging is FilesPaging.Available && revealRequestedId != createdId) {
+            revealRequestedId = createdId
+            onEvent(FilesBrowserEvent.RevealItem(folderId, createdId))
+        } else if (paging !is FilesPaging.Loading && revealRequestedId == createdId) {
+            consume(createdId)
+        }
+    }
+
+    fun consume(itemId: FilesItemId) {
+        if (pending?.id == itemId) clear()
+    }
+
+    fun clearIfOutside(folderId: FilesItemId) {
+        val target = pending?.parentId ?: return
+        if (target != folderId) clear()
+    }
+
+    private fun clear() {
+        pending = null
+        revealRequestedId = null
+    }
+}
+
+internal val LocalMobileFilesCreatedFolder = staticCompositionLocalOf<MobileFilesCreatedFolder?> { null }
+
 @Composable
 internal fun MobileFilesScreen(
     state: FilesBrowserState,
@@ -129,6 +179,7 @@ internal fun MobileFilesScreen(
 ) {
     val current = state.current
     val atRoot = current.folder.id == FilesFolder.Root.id
+    val announcedMoveRequests = rememberSaveable(saver = LongSetSaver) { mutableSetOf() }
     var offline by remember(state.stack.size, current.folder.id.value) { mutableStateOf(false) }
     val content = current.content
     LaunchedEffect(content) {
@@ -187,6 +238,7 @@ internal fun MobileFilesScreen(
                 itemActions = itemActions,
                 selection = selection,
                 onMoveItems = onMoveItems,
+                announcedMoveRequests = announcedMoveRequests,
             )
         }
     }
@@ -281,6 +333,7 @@ private fun MobileRefreshableFilesContent(
     itemActions: MobileFilesItemActions,
     selection: FilesSelection?,
     onMoveItems: ((List<FilesItem>) -> Unit)?,
+    announcedMoveRequests: MutableSet<Long>,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -373,7 +426,11 @@ private fun MobileRefreshableFilesContent(
     var toolbarHeight by remember { mutableIntStateOf(0) }
     val toolbarClearance = selectionToolbarClearance(toolbarHeight)
     val snackbarHostState = remember { SnackbarHostState() }
+    var showingMoveSnackbar by remember { mutableStateOf(false) }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
+    MobileFilesMoveAnnouncement(state.current, snackbarHostState, selecting, announcedMoveRequests) {
+        showingMoveSnackbar = it
+    }
     MobileFilesNotices(itemActions.notices, snackbarHostState)
     MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
     MobileFilesNotices(itemActions.pinNotices, snackbarHostState)
@@ -436,6 +493,7 @@ private fun MobileRefreshableFilesContent(
                                 shownGeneration,
                             ) {
                                 MobileFilesList(
+                                    folderId = state.current.folder.id,
                                     content = shownContent,
                                     headers = shownHeaders,
                                     onPlayEntry = { onPlayMedia(it.toFilesItem()) },
@@ -496,11 +554,12 @@ private fun MobileRefreshableFilesContent(
             onHeightChanged = { toolbarHeight = it },
             modifier = Modifier.align(Alignment.BottomCenter),
         )
-        MobileSnackbarHost(
+        MobileFilesSnackbarSlot(
             hostState = snackbarHostState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .testTag(MOBILE_FILES_SNACKBAR_TAG),
+            selecting = selecting,
+            toolbarClearance = toolbarClearance,
+            showingMoveOutcome = showingMoveSnackbar,
+            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 }
@@ -554,7 +613,7 @@ private fun MobileFilesFolderStatus(
                 )
             }
         }
-        state.current.moveOutcome?.let { outcome ->
+        state.current.moveOutcome?.takeUnless { it.status == FilesMoveStatus.MOVED }?.let { outcome ->
             MobileFilesMoveStatus(outcome, outcome.retry(state)?.let { event -> { onEvent(event) } })
         }
     }
@@ -629,6 +688,67 @@ private fun MobileFilesTrashedAnnouncement(
         }
     }
 }
+
+@Composable
+private fun MobileFilesSnackbarSlot(
+    hostState: SnackbarHostState,
+    selecting: Boolean,
+    toolbarClearance: androidx.compose.ui.unit.Dp,
+    showingMoveOutcome: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .padding(bottom = if (selecting) toolbarClearance else 0.dp)
+            .then(if (showingMoveOutcome) Modifier.testTag(MOBILE_FILES_MOVE_OUTCOME_TAG) else Modifier),
+    ) {
+        MobileSnackbarHost(
+            hostState = hostState,
+            modifier = Modifier.testTag(MOBILE_FILES_SNACKBAR_TAG),
+        )
+    }
+}
+
+@Composable
+private fun MobileFilesMoveAnnouncement(
+    current: FilesFolderState,
+    snackbarHostState: SnackbarHostState,
+    selecting: Boolean,
+    announcedRequestIds: MutableSet<Long>,
+    onShowingChange: (Boolean) -> Unit,
+) {
+    var showing by remember { mutableStateOf(false) }
+    val moved = current.moveOutcome?.takeIf {
+        current.operation == FilesFolderOperation.Idle && it.status == FilesMoveStatus.MOVED
+    }
+    val message = moved?.movedMessage()
+    val currentOnShowingChange by rememberUpdatedState(onShowingChange)
+    LaunchedEffect(selecting, showing) {
+        if (selecting && showing) snackbarHostState.currentSnackbarData?.dismiss()
+    }
+    LaunchedEffect(moved?.requestId) {
+        val outcome = moved ?: return@LaunchedEffect
+        if (!announcedRequestIds.add(outcome.requestId.value)) return@LaunchedEffect
+        val text = message ?: return@LaunchedEffect
+        snackbarHostState.currentSnackbarData?.dismiss()
+        showing = true
+        currentOnShowingChange(true)
+        try {
+            snackbarHostState.showSnackbar(
+                message = text,
+                duration = SnackbarDuration.Short,
+            )
+        } finally {
+            showing = false
+            currentOnShowingChange(false)
+        }
+    }
+}
+
+private val LongSetSaver: Saver<MutableSet<Long>, LongArray> = Saver(
+    save = { it.toLongArray() },
+    restore = { it.toMutableSet() },
+)
 
 @Composable
 private fun MobileFilesMissingFolderAnnouncement(
@@ -940,6 +1060,7 @@ private fun FilesDeleteOutcome.statusMessage(retryable: Boolean): String? {
 
 @Composable
 private fun MobileFilesList(
+    folderId: FilesItemId,
     content: FilesContent.Ready,
     headers: MobileFilesHeaders,
     onPlayEntry: (ContinueWatchingEntry) -> Unit,
@@ -969,6 +1090,15 @@ private fun MobileFilesList(
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
     RevealAsyncHeadersAtTopEffect(listState, headerCount, revealItemId)
+    RevealCreatedFolderEffect(
+        listState = listState,
+        folderId = folderId,
+        content = content,
+        operation = operation,
+        headerCount = headerCount,
+        createdFolder = LocalMobileFilesCreatedFolder.current,
+        onEvent = onEvent,
+    )
     val currentHeaderCount by rememberUpdatedState(headerCount)
     val keyboardFocus = rememberFilesKeyboardFocus(content.items, viewport.firstVisibleItemIndex)
     val currentOnEvent by rememberUpdatedState(onEvent)
@@ -1091,6 +1221,39 @@ private fun RevealAsyncHeadersAtTopEffect(
 
 private class AsyncHeaderTopState(var previousHeaderCount: Int) {
     var pendingRevealDelta: Int = 0
+}
+
+@Composable
+private fun RevealCreatedFolderEffect(
+    listState: LazyListState,
+    folderId: FilesItemId,
+    content: FilesContent.Ready,
+    operation: FilesFolderOperation,
+    headerCount: Int,
+    createdFolder: MobileFilesCreatedFolder?,
+    onEvent: (FilesBrowserEvent) -> Unit,
+) {
+    val pending = createdFolder?.pending
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    LaunchedEffect(listState, folderId, content.items, content.paging, operation, headerCount, pending) {
+        val created = pending ?: return@LaunchedEffect
+        if (created.parentId != null && created.parentId != folderId) return@LaunchedEffect
+        val itemIndex = content.items.indexOfFirst { it.id == created.id }
+        if (itemIndex < 0) {
+            createdFolder.revealMissing(folderId, created.id, content.paging, operation, currentOnEvent)
+            return@LaunchedEffect
+        }
+        withFrameNanos {}
+        val targetIndex = itemIndex + headerCount
+        val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == targetIndex }
+        val fullyVisible = visible != null &&
+            visible.offset >= listState.layoutInfo.viewportStartOffset &&
+            visible.offset + visible.size <= listState.layoutInfo.viewportEndOffset
+        if (!fullyVisible) {
+            listState.scrollToItem(targetIndex)
+        }
+        createdFolder.consume(created.id)
+    }
 }
 
 private fun rowClick(
