@@ -2,7 +2,6 @@ package io.putdotio.android.playback
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.gms.cast.CastMediaControlIntent
-import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -116,13 +115,11 @@ class MobileCastReceiverTest {
             receiverLoad = PlaybackCastReceiverLoad(fileId = 42L, token = TOKEN),
         )
 
-        val PLAIN_LOAD = JSONObject(
-            """
-            {"media":{"contentId":"42","streamType":"NONE","contentType":"application\/x-mpegURL",
-            "metadata":{"metadataType":0,"title":"episode.mkv"},"duration":60,"tracks":[],
-            "customData":{"putioFileId":42},"contentUrl":"$URL"},
-            "autoplay":true,"currentTime":12,"playbackRate":1,"activeTrackIds":[]}
-            """.trimIndent(),
-        ).toString()
+        const val PLAIN_LOAD =
+            """{"media":{"contentId":"42","contentUrl":"https:\/\/api.put.io\/v2\/files\/42\/hls\/media.m3u8?""" +
+                """subtitle_key=all&oauth_token=download-token","streamType":"NONE","contentType":"application\/x-mpegURL",""" +
+                """"metadata":{"metadataType":1,"title":"episode.mkv"},"duration":60,"tracks":[],""" +
+                """"customData":{"putioFileId":42}},"autoplay":true,"currentTime":12,"playbackRate":1,""" +
+                """"activeTrackIds":[],"requestId":0}"""
     }
 }
