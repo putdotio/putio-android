@@ -38,11 +38,20 @@ internal fun PlaybackCastMedia.loadRequest(
     val plain = loadBuilder(startMillis, autoplay, speed, sendsUrl = receiverLoad == null).build()
     receiverLoad ?: return plain
     // The custom data fills what the rest of the LOAD leaves of one Cast message.
-    val budget = CAST_MESSAGE_MAX_BYTES - CAST_ENVELOPE_BYTES - plain.toJson().toString().toByteArray().size
-    return loadBuilder(startMillis, autoplay, speed, sendsUrl = false)
-        .setCustomData(JSONObject(receiverLoad.customData(startMillis, budget)))
-        .build()
+    val room = CAST_MESSAGE_MAX_BYTES - CAST_ENVELOPE_BYTES
+    val withCustomData = { budget: Int ->
+        loadBuilder(startMillis, autoplay, speed, sendsUrl = false)
+            .setCustomData(JSONObject(receiverLoad.customData(startMillis, budget)))
+            .build()
+    }
+    val budget = room - plain.jsonSize()
+    val first = withCustomData(budget)
+    // Android's JSON escapes what Kotlin's leaves bare, so the sent LOAD can outgrow the first guess.
+    val over = first.jsonSize() - room
+    return if (over > 0) withCustomData(budget - over) else first
 }
+
+private fun MediaLoadRequestData.jsonSize(): Int = toJson().toString().toByteArray().size
 
 private fun PlaybackCastMedia.loadBuilder(startMillis: Long, autoplay: Boolean, speed: Float, sendsUrl: Boolean) =
     MediaLoadRequestData.Builder()
@@ -52,13 +61,8 @@ private fun PlaybackCastMedia.loadBuilder(startMillis: Long, autoplay: Boolean, 
         .setPlaybackRate(speed.castRate())
         .setActiveTrackIds(activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
 
-/**
- * The put.io file this media belongs to; null for media another sender sent. The put.io receiver
- * names it in the content id as well.
- */
-internal fun MediaInfo.putioFileId(putioReceiver: Boolean): Long? =
-    customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
-        ?: contentId?.toLongOrNull()?.takeIf { putioReceiver && it > 0L }
+/** The put.io file this media belongs to; null for media another sender sent. */
+internal fun MediaInfo.putioFileId(): Long? = customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
 
 /** The Cast form of [PlaybackCastMedia], tagged with its file id. */
 internal fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean = true): MediaInfo {

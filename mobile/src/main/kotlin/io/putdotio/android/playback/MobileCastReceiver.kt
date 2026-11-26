@@ -43,6 +43,11 @@ internal class CastReceiverSelection(applied: String) {
     /** The session ended or never started: a waiting change applies now. */
     fun sessionGone(): String? = apply()
 
+    /** The Cast context refused [applicationId]: it still runs [previous], and a later ask retries. */
+    fun refused(applicationId: String, previous: String) {
+        if (applied == applicationId) applied = previous
+    }
+
     private fun apply(): String? {
         if (wanted == applied) return null
         applied = wanted
@@ -91,8 +96,13 @@ internal class CastReceiverSwitch(
 
     private fun apply(applicationId: String) {
         val cast = cast ?: return
+        val previous = cast.receiverApplicationId
+        runCatching { cast.setReceiverApplicationId(applicationId) }
+            .onFailure {
+                selection?.refused(applicationId, previous)
+                return
+            }
         runCatching {
-            cast.setReceiverApplicationId(applicationId)
             // Stored once applied, so a fresh process resumes the session with the receiver it runs.
             CastReceiverStore.save(context, applicationId == PUTIO_RECEIVER_APPLICATION_ID)
             reselect(cast.mergedSelector)

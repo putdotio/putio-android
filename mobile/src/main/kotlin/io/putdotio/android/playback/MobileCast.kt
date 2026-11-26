@@ -21,6 +21,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -683,6 +684,7 @@ internal class CastRemotePlayer(
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var item: MediaItem? = null
     private var status: CastRemoteStatus? = gateway.status.value
+    private val adoptedStatus = MutableStateFlow<CastRemoteStatus?>(null)
     private val pending = mutableListOf<SettableFuture<Any?>>()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -693,6 +695,7 @@ internal class CastRemotePlayer(
         scope.launch {
             gateway.status.collect {
                 status = it
+                adoptedStatus.value = adopted(it)
                 replaying = false
                 settle()
                 invalidateState()
@@ -700,18 +703,24 @@ internal class CastRemotePlayer(
         }
     }
 
-    /** What the receiver last said, its tracks included. */
-    val receiverStatus: StateFlow<CastRemoteStatus?> get() = gateway.status
+    /** What the receiver last said of the adopted file, its tracks included; null for other media. */
+    val receiverStatus: StateFlow<CastRemoteStatus?> get() = adoptedStatus
 
-    fun setActiveTracks(trackIds: Set<Long>) = gateway.setActiveTracks(trackIds)
+    fun setActiveTracks(trackIds: Set<Long>) {
+        if (adoptedStatus.value != null) gateway.setActiveTracks(trackIds)
+    }
 
     /** Keeps an item that reports positions over a bare one for the same file. */
     fun adopt(item: MediaItem) {
         val current = this.item
         if (current?.mediaId == item.mediaId && current.reportsPositions && !item.reportsPositions) return
         this.item = item
+        adoptedStatus.value = adopted(status)
         invalidateState()
     }
+
+    private fun adopted(status: CastRemoteStatus?): CastRemoteStatus? =
+        status?.takeIf { it.fileId != null && item?.mediaId == it.fileId.toString() }
 
     override fun getState(): State {
         val current = status

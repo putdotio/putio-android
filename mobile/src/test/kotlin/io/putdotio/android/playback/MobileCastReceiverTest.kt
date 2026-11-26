@@ -2,6 +2,9 @@ package io.putdotio.android.playback
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.android.gms.cast.CastMediaControlIntent
+import io.putdotio.sdk.files.PutioMediaFormat
+import io.putdotio.sdk.files.PutioMediaInfo
+import io.putdotio.sdk.files.PutioMediaStream
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -33,6 +36,33 @@ class MobileCastReceiverTest {
         assertNull(selection.want(DEFAULT, sessionLive = true))
         assertNull(selection.want(PUTIO_RECEIVER_APPLICATION_ID, sessionLive = true))
         assertNull(selection.sessionGone())
+    }
+
+    @Test
+    fun aRefusedSwitchIsAskedForAgain() {
+        val selection = CastReceiverSelection(DEFAULT)
+
+        assertEquals(PUTIO_RECEIVER_APPLICATION_ID, selection.want(PUTIO_RECEIVER_APPLICATION_ID, sessionLive = false))
+        selection.refused(PUTIO_RECEIVER_APPLICATION_ID, DEFAULT)
+
+        assertEquals(DEFAULT, selection.applied)
+        assertEquals(PUTIO_RECEIVER_APPLICATION_ID, selection.want(PUTIO_RECEIVER_APPLICATION_ID, sessionLive = false))
+    }
+
+    @Test
+    fun theSentLoadFitsOneCastMessageWhenAndroidEscapesTheCustomData() {
+        val streams = List(2_000) { PutioMediaStream(codecType = "subtitle", codecName = "a/b/c/d/e/f/g/h/$it") }
+        val info = PutioMediaInfo(
+            mimeType = "video/x-matroska",
+            format = PutioMediaFormat(name = "matroska,webm", duration = 60.0, bitRate = 1_000L),
+            streams = streams,
+        )
+        val media = Media.copy(receiverLoad = PlaybackCastReceiverLoad(fileId = 42L, token = TOKEN, mediaInfo = info))
+
+        val request = media.loadRequest(12_000L, autoplay = true, speed = 1f, putioReceiver = true).toJson()
+
+        assertTrue(request.toString().toByteArray().size <= 64 * 1024 - 1024)
+        assertTrue(request.getJSONObject("customData").getJSONObject("media_info").getJSONArray("streams").length() > 0)
     }
 
     @Test
