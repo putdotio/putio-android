@@ -137,7 +137,6 @@ internal fun MobileDownloadsScreen(
     Box(modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().testTag(MOBILE_DOWNLOADS_LIST_TAG),
-            // The last row scrolls clear of the floating toolbar, however tall large fonts make it.
             contentPadding = PaddingValues(bottom = if (inSelection) toolbarClearance else 0.dp),
         ) {
             if (!notifications.enabled) {
@@ -156,7 +155,6 @@ internal fun MobileDownloadsScreen(
                 DownloadSection("attention", R.string.mobile_downloads_section_attention, state.needsAttention),
                 DownloadSection("on-device", R.string.mobile_downloads_section_on_device, state.onDevice),
             ).filter { it.entries.isNotEmpty() }
-            // Under the tab title the first label sits closer; the selection bar has no title spacing.
             sections.forEachIndexed { index, section ->
                 section(section, rows, first = index == 0 && notifications.enabled && !inSelection)
             }
@@ -211,7 +209,6 @@ private class DownloadRows(
 
 private fun LazyListScope.section(section: DownloadSection, rows: DownloadRows, first: Boolean) {
     item(key = "header-${section.key}", contentType = "header") {
-        // In selection the tab title and its storage summary give way to the selection bar.
         val storage = rows.state.storageBytes.takeIf { section.key == "on-device" && rows.selection != null }
         MobileSectionLabel(
             text = stringResource(section.title),
@@ -284,7 +281,6 @@ private fun MobileDownloadRow(
             null
         },
         containerColor = if (selected == true) MobileSelectedRowTint else Color.Transparent,
-        // A completed copy plays from its row, so the row is the player's starting bounds.
         modifier = Modifier.playbackContainer(entry.fileId.value, playable = entry.isCompleted)
             .downloadRowInteraction(
                 selected = selected,

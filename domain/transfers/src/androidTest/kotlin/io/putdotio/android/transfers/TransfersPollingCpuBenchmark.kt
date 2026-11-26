@@ -109,8 +109,6 @@ class TransfersPollingCpuBenchmark {
                 Case("50k, 1 deleted", 50_000, missing = 1),
             )
 
-        // The refresh before by-id reads, as on main at a706f68: map every row of each 1,000-row
-        // page, then keep the requested ids, until all are found or the list ends.
         suspend fun listWalkRefresh(reads: TransfersReadOperations, ids: List<TransferId>): TransfersRowRefresh {
             val requestedIds = ids.distinct()
             val requestedSet = requestedIds.toSet()

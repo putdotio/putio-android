@@ -21,8 +21,6 @@ public fun PlaybackConversionPolling(conversion: PlaybackContent.Conversion, onR
         foreground.isAtLeast(Lifecycle.State.STARTED)
     val refresh by rememberUpdatedState(onRefresh)
     LaunchedEffect(conversion, polling) {
-        // A read that starts and settles between frames can leave `conversion` equal to the last
-        // one (Queued again, the same percent), so the wait repeats rather than relying on a change.
         while (polling) {
             delay(PLAYBACK_CONVERSION_POLL_MILLIS)
             refresh()

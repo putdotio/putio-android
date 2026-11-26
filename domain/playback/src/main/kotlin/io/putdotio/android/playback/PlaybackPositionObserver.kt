@@ -109,7 +109,6 @@ public class PlaybackPositionObserver(
     }
 
     private fun updateTicker() {
-        // Buffering and transient suppression must not keep postponing the next sample.
         if (!player.playWhenReady || player.playbackState == Media3Player.STATE_IDLE ||
             player.playbackState == Media3Player.STATE_ENDED
         ) {

@@ -41,7 +41,6 @@ class PostHogAnalyticsSdkTest {
         sdk.capture("search_performed", mapOf("query" to LEAK), 1_000L)
         sdk.capture("app_opened", mapOf("entry" to LEAK), 2_000L)
 
-        // Each event goes in its own batch; whatever else the SDK sends would show up here too.
         val sent = generateSequence { requests.poll(5, TimeUnit.SECONDS) }.take(2).toList() +
             generateSequence { requests.poll(1, TimeUnit.SECONDS) }.toList()
         assertEquals(listOf("/batch", "/batch"), sent.map { it.first.trimEnd('/') })

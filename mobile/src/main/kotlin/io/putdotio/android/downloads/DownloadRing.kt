@@ -111,7 +111,6 @@ private fun RingProgress(percent: Float?, color: Color, track: Color, box: Dp) {
     }
 }
 
-// Glyph geometry in the board's 36-unit ring box.
 private fun DrawScope.unit(value: Float): Float = value * size.width / RING_UNITS
 
 private fun DrawScope.drawDashedTrack(color: Color) {

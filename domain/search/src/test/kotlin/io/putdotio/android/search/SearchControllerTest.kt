@@ -129,7 +129,6 @@ class SearchControllerTest {
                 )
 
             controller.use {
-                // Each keystroke lands after the debounce has settled, as D-pad typing on TV does.
                 listOf("m", "ma", "map").forEach { query ->
                     controller.updateQuery(query)
                     controller.awaitContent<SearchContent.Ready> { it.term == SearchTerm(query) }
@@ -209,7 +208,6 @@ class SearchControllerTest {
                 controller.updateQuery("movie")
                 controller.awaitContent<SearchContent.Ready>()
 
-                // Marked unwatched from its actions sheet: the result reads unwatched without a new search.
                 assertTrue(controller.positionSaved(FilesItemId(9L), 0.0))
                 val items = (controller.state.value.content as SearchContent.Ready).items
                 assertEquals(FilesPlaybackProgress(0.0, null), items.single { it.id.value == 9L }.playback)
@@ -301,7 +299,6 @@ class SearchControllerTest {
                 assertEquals(listOf(SearchTerm("S04")), store.recorded)
                 assertEquals(SearchTerm("S04"), (controller.state.value.content as SearchContent.Ready).term)
 
-                // Leaving the folder's scope starts over, so results never mix scopes.
                 controller.scope = null
                 assertEquals("", controller.state.value.query)
                 assertTrue(controller.state.value.content is SearchContent.Idle)
@@ -324,7 +321,6 @@ class SearchControllerTest {
             val controller = controller(repository, store)
 
             controller.use {
-                // With an empty field a chip only waits for the query.
                 controller.filter = SearchFilter.Folders
                 assertEquals(SearchFilter.Folders, controller.state.value.filter)
                 assertTrue(controller.state.value.content is SearchContent.Idle)
@@ -332,10 +328,8 @@ class SearchControllerTest {
 
                 controller.updateQuery("movie")
                 assertTrue(controller.submit())
-                // The only result is a video, so Folders finds nothing.
                 controller.awaitContent<SearchContent.Empty>()
                 controller.filter = SearchFilter.Videos
-                // The chip in force is no change, so it searches no third time.
                 controller.filter = SearchFilter.Videos
                 controller.awaitContent<SearchContent.Ready>()
 
@@ -367,7 +361,6 @@ class SearchControllerTest {
                 controller.filter = SearchFilter.Subtitles
                 controller.updateQuery("sintel")
                 controller.submit()
-                // Nothing on the first page is a subtitle, so it reads as empty with a next page.
                 assertTrue(controller.awaitContent<SearchContent.Empty>().paging is SearchPaging.Available)
                 yield()
                 assertTrue(controller.loadNextPage())

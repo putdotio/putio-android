@@ -50,7 +50,6 @@ internal class AppSessionAnalytics(
 
     override fun onActivityStopped(activity: Activity) {
         started--
-        // Rotation stops and restarts the activity; that is no background.
         if (started > 0 || activity.isChangingConfigurations) return
         openedFromLink = false
         val since = activeSince ?: return

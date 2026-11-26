@@ -55,8 +55,6 @@ internal object MobileShareProgress {
     private val mutableState = MutableStateFlow<MobileShareProgressState?>(null)
     val state: StateFlow<MobileShareProgressState?> = mutableState.asStateFlow()
 
-    // Cancel reaches the service asynchronously; until the export ends, its progress stays hidden.
-    // Progress arrives on IO and Cancel on Main, so the check and the write happen under one lock.
     private val lock = Any()
     private var dismissed = false
 

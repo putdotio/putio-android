@@ -70,7 +70,6 @@ internal fun MobileTabTitle(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // The actions keep their width; the title and then the summary give way in a narrow window.
             Row(
                 Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -215,8 +214,6 @@ internal fun downloadsSummaryParts(context: Context, storageBytes: Long, freeByt
 @Composable
 internal fun downloadsSummary(state: DownloadsState, mono: SpanStyle): AnnotatedString? {
     val context = LocalContext.current
-    // Downloads live in the app's files directory, so its volume's free space is what they can use.
-    // Every downloads update, progress included, can change what is free, so each one samples again.
     val freeBytes by produceState<Long?>(null, state) {
         value = withContext(Dispatchers.IO) {
             runCatching { StatFs(context.filesDir.path).availableBytes }.getOrNull()

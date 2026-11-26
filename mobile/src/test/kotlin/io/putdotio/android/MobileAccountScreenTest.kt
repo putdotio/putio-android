@@ -777,7 +777,6 @@ class MobileAccountPlaybackSettingsTest {
         compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).assertTextContains("Direct").performClick()
         compose.onNodeWithText("Couldn’t load proxies").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_RETRY_TAG).performClick()
-        // Direct reads put.io's own line, not the route's API description; other routes keep theirs.
         compose.onNodeWithText("Straight from put.io, no proxy.", substring = true).assertIsDisplayed()
         compose.onAllNodesWithText("Amsterdam (Direct)", substring = true).assertCountEquals(0)
         compose.onNodeWithText("cdn77", substring = true).assertTextContains("CDN").performClick()
@@ -817,7 +816,6 @@ class MobileAccountPlaybackSettingsTest {
         val unavailable = "That proxy isn’t available for your account. Choose another one."
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText(unavailable))
         compose.onNodeWithText(unavailable).assertIsDisplayed()
-        // The failure sits under the Proxy row it belongs to.
         val proxy = compose.onNodeWithTag(MOBILE_TUNNEL_ROUTE_ROW_TAG).fetchSemanticsNode().boundsInRoot
         val failureTop = compose.onNodeWithText(unavailable).fetchSemanticsNode().boundsInRoot.top
         assertTrue(failureTop >= proxy.bottom && failureTop - proxy.bottom < 1f)
@@ -858,8 +856,6 @@ class MobileAccountAboutTest {
         compose.waitUntil(2_000L) {
             clipboard.primaryClip?.getItemAt(0)?.text?.toString()?.startsWith("app: android") == true
         }
-        // The confirmation replaces the button label, so it is visible without scrolling.
-        // The button merges its descendants; read the label through the unmerged tree.
         compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertIsDisplayed().assertTextEquals("Copied to clipboard")
         compose.onNodeWithTag(MOBILE_ABOUT_COPIED_TAG, useUnmergedTree = true)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
@@ -883,7 +879,6 @@ class MobileAccountAboutTest {
         }
         compose.onNodeWithTag(MOBILE_ABOUT_COPY_TAG).assertTextEquals("Copied to clipboard")
 
-        // Config settles to Direct play after the copy: the clipboard still says hls, so the label must revert.
         compose.runOnIdle {
             appConfigState = readyAndroidAppConfigState(
                 preferences = DefaultAndroidAppConfigPreferences.copy(streamingMethod = StreamingMethod.File),
@@ -896,7 +891,6 @@ class MobileAccountAboutTest {
     @Test
     fun appInfoReportsTheEffectivePlayerNotAnUnconfirmedSave() {
         val directPlay = DefaultAndroidAppConfigPreferences.copy(streamingMethod = StreamingMethod.File)
-        // Optimistic Ready shows Direct play, but the save is still pending: playback keeps HLS.
         val pending = androidAppConfigState(
             content = AndroidAppConfigContent.Ready(directPlay),
             mutation = AndroidAppConfigMutation.Saving(
@@ -942,7 +936,6 @@ class MobileAccountSignOutAndLibraryTest {
         compose.onNodeWithText("Sign out of put.io?").assertIsDisplayed()
         compose.onNodeWithText("Downloads stay on this device and come back when you sign in again.")
             .assertIsDisplayed()
-        // No downloads on the device: nothing to remove, so no checkbox.
         compose.onAllNodesWithTag(MOBILE_SIGN_OUT_REMOVE_DOWNLOADS_TAG).assertCountEquals(0)
         compose.onNodeWithText("Cancel").performClick()
         compose.onAllNodesWithTag(MOBILE_SIGN_OUT_DIALOG_TAG).assertCountEquals(0)
@@ -1071,7 +1064,6 @@ private class AccountPages(
     val downloadsOnDeviceBytes: Long? = null,
 )
 
-// State arguments are read during composition, so tests can drive them from mutableStateOf.
 private fun ComposeContentTestRule.setAccountContent(
     state: () -> AccountSettingsState = { readyAccountSettingsState() },
     events: MutableList<AccountSettingsEvent> = mutableListOf(),

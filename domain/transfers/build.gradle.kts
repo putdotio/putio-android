@@ -5,7 +5,6 @@ plugins {
 android {
     namespace = "io.putdotio.android.transfers"
 
-    // Fakes and state builders other modules' tests reuse.
     testFixtures.enable = true
 }
 

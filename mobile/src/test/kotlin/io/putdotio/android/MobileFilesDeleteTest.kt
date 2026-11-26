@@ -281,7 +281,6 @@ class MobileFilesDeleteTest {
         }
         compose.onAllNodesWithText("Moved to trash").assertCountEquals(0)
 
-        // Once announced, the kept outcome is neither announced again nor shown as a line.
         compose.runOnIdle {
             state = state.copyForTest(
                 stack = listOf(state.current.copy(deleteOutcome = outcome.copy(announced = true))),
@@ -290,7 +289,6 @@ class MobileFilesDeleteTest {
         compose.onAllNodesWithText("Moved to trash").assertCountEquals(0)
         compose.onAllNodesWithText("“Harbor film.mp4” is no longer available in Files.").assertCountEquals(0)
 
-        // Permanent deletion keeps its line in the folder and is not announced as a Trash move.
         compose.runOnIdle {
             state = state.copyForTest(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
                 requestId = FilesRequestId(5L), intent = intent.copy(mode = FilesDeleteMode.PERMANENT),
@@ -299,7 +297,6 @@ class MobileFilesDeleteTest {
         compose.onNodeWithText("“Harbor film.mp4” is no longer available in Files.").assertIsDisplayed()
         compose.onAllNodesWithText("Moved to trash").assertCountEquals(0)
 
-        // A failed Trash request whose item is gone anyway proves no Trash move either.
         compose.runOnIdle {
             state = state.copyForTest(stack = listOf(state.current.copy(deleteOutcome = outcome.copy(
                 requestId = FilesRequestId(6L), failure = PutioFailure.Unexpected(IllegalStateException("rejected")),
@@ -346,14 +343,12 @@ class MobileFilesDeleteTest {
         }
         compose.onAllNodesWithText(message).assertCountEquals(0)
 
-        // A rename keeps the outcome; the confirmation names the folder as it is listed now.
         compose.runOnIdle { state = withOutcome(listOf(folder.copy(name = "Renamed folder"))) }
         compose.onNodeWithText("Delete permanently").performClick()
         compose.onAllNodesWithText("Renamed folder").assertCountEquals(2)
         compose.onAllNodesWithText("Sample folder").assertCountEquals(0)
         compose.onNodeWithText("Cancel").performClick()
 
-        // A refresh that no longer lists the folder keeps the explanation but offers nothing to delete.
         compose.runOnIdle { state = withOutcome(emptyList()) }
         compose.onNodeWithText("We couldn’t send these files to trash").assertIsDisplayed()
         compose.onAllNodesWithText("Delete permanently").assertCountEquals(0)

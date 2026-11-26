@@ -75,9 +75,7 @@ public class FilesPdfDocument private constructor(
          */
         public suspend fun open(context: Context, sizeBytes: Long, openStream: () -> InputStream?): FilesPdfDocument {
             if (sizeBytes > PDF_MAX_BYTES) throw FilesPdfUnreadable("Too large to view in the app")
-            // One renderer may run one page at a time, so every call on it shares one thread.
             val dispatcher = Dispatchers.IO.limitedParallelism(1)
-            // A caller cancelled as the document opens never receives it, so it is closed here instead.
             val opened = AtomicReference<FilesPdfDocument?>(null)
             try {
                 return withContext(dispatcher) {
@@ -115,7 +113,6 @@ public class FilesPdfDocument private constructor(
                 descriptor.close()
                 throw FilesPdfUnreadable("Unreadable document", error)
             } catch (error: SecurityException) {
-                // A password-protected document.
                 descriptor.close()
                 throw FilesPdfUnreadable("Protected document", error)
             }
@@ -152,7 +149,6 @@ internal data class PdfBitmapSize(val width: Int, val height: Int)
  */
 internal fun pdfBitmapSize(pageWidth: Int, pageHeight: Int, widthPx: Int): PdfBitmapSize {
     val ratio = pageHeight.toDouble() / pageWidth.coerceAtLeast(1)
-    // A strip taller than this can't be laid out at the frame's width; it fails as a page that won't render.
     require(ratio <= PDF_MAX_PAGE_RATIO) { "Page too tall to show" }
     var width = widthPx.coerceAtLeast(1).toDouble()
     var height = width * ratio
@@ -162,7 +158,6 @@ internal fun pdfBitmapSize(pageWidth: Int, pageHeight: Int, widthPx: Int): PdfBi
         width *= scale
         height *= scale
     }
-    // A sliver of a page keeps one pixel of width, so its height is bounded again from that.
     val finalWidth = width.toInt().coerceAtLeast(1)
     val finalHeight = height.toInt().coerceIn(1, (PDF_MAX_PIXELS / finalWidth).toInt().coerceAtLeast(1))
     return PdfBitmapSize(finalWidth, finalHeight)

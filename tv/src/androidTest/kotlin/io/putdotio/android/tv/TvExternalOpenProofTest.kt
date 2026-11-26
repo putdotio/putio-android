@@ -71,18 +71,15 @@ class TvExternalOpenProofTest {
     fun searchPicksPlayOrOpenTheItemAndBackReturnsToTheResults() {
         val session = mount()
 
-        // The prior Files location, which the outside opens must keep.
         compose.onNodeWithContentDescription("Open Movies").assertIsFocused()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { hasContentDescription("Play Old clip.mp4") }
         screenshot("01-files-prior-location")
 
         compose.openTvTab("Search")
-        // Typed into the field, as `adb shell input text` does; the pane owns the field's text.
         compose.onNodeWithContentDescription("Search files").assertIsFocused().performTextInput("proof")
         compose.waitUntil(5_000) { hasContentDescription("Play $VIDEO") }
 
-        // A video result plays at once from its saved position, without asking.
         focus("Play $VIDEO")
         screenshot("02-search-results")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -90,14 +87,12 @@ class TvExternalOpenProofTest {
         assertEquals(0, compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().size)
         Thread.sleep(PLAY_MILLIS)
         screenshot("04-playing")
-        // Back hides the controls, then leaves playback.
         press(KeyEvent.KEYCODE_BACK)
         if (compose.runOnIdle { session.playback.value != null }) press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { compose.runOnIdle { session.playback.value == null } }
         compose.waitUntil(10_000) { isFocused("Play $VIDEO") }
         screenshot("05-back-on-the-played-result")
 
-        // Any other file opens its folder, titled and focused on it; Back returns to the results.
         focus("Open $DOCUMENT")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { hasContentDescription(DOCUMENT) }
@@ -108,7 +103,6 @@ class TvExternalOpenProofTest {
         compose.waitUntil(5_000) { isFocused("Open $DOCUMENT") }
         screenshot("07-back-on-the-document-result")
 
-        // A folder opens under its name; Back returns to the results.
         focus("Open $FOLDER")
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { hasContentDescription(DOCUMENT) }
@@ -117,7 +111,6 @@ class TvExternalOpenProofTest {
         press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { isFocused("Open $FOLDER") }
 
-        // Files still holds the location the viewer left.
         compose.openTvTab("Files")
         compose.waitUntil(5_000) { hasContentDescription("Play Old clip.mp4") }
         compose.onNodeWithTag(io.putdotio.android.tv.files.TV_FILES_LIST_TAG).assertExists()
@@ -197,7 +190,6 @@ class TvExternalOpenProofTest {
         focus("Open $PAGED_DOCUMENT")
         screenshot("22-paged-result")
 
-        // Back while later pages are read leaves the folder and cancels the reads.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(5_000) { hasContentDescription(LOADING) }
         screenshot("23-reading-later-pages")
@@ -206,7 +198,6 @@ class TvExternalOpenProofTest {
         assertEquals(listOf(FilesFolder.Root), compose.runOnIdle { session.files.state.value.path })
         screenshot("24-back-cancels-the-reads")
 
-        // Left alone, the folder reads on to the document's page and opens focused on it.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { isFocused(PAGED_DOCUMENT) }
         assertEquals(1, compose.onAllNodesWithText(PAGED_FOLDER).fetchSemanticsNodes().size)
@@ -239,10 +230,8 @@ class TvExternalOpenProofTest {
                 null,
                 parent = folder,
             ),
-            // Listing a file returns it as the parent with its duration, as put.io does.
             video.id to FilesPage(emptyList(), null, parent = video.copy(playback = FilesPlaybackProgress(0.0, 90.0))),
         )
-        // Only the playback proof reads the fixture.
         return tvProofDependencies(
             listings = listings,
             searchResults = listOf(video, folder, document),
@@ -312,7 +301,6 @@ class TvExternalOpenProofTest {
             .executeShellCommand("cp $pushed ${file.absolutePath}")
         ParcelFileDescriptor.AutoCloseInputStream(copy).use { it.readBytes() }
         require(file.isFile && file.canRead()) { "Fixture is not readable: $file (pushed as $pushed)" }
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         return PlaybackSource(
@@ -365,7 +353,6 @@ class TvExternalOpenProofTest {
         const val PAGED_DOCUMENT = "Harbor notes.zip"
         const val PAGE_COUNT = 3
         const val PAGE_SIZE = 50
-        // The third page's 13th row.
         const val PAGED_DOCUMENT_INDEX = 112
         const val PAGE_DELAY_MILLIS = 1_500L
         const val LOADING = "Loading"

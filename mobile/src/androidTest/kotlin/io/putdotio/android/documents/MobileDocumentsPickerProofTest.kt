@@ -130,7 +130,6 @@ class MobileDocumentsPickerProofTest {
                 showRoots()
                 awaitText(ROOT_SUMMARY)
                 screenshot("01-picker-lists-putio")
-                // The root's title also names other nodes; its summary, the account name, is unique.
                 tap(ROOT_SUMMARY)
                 awaitText(FOLDER.name)
                 screenshot("02-putio-root")
@@ -175,7 +174,6 @@ class MobileDocumentsPickerProofTest {
                 picker.show("${AUDIO.name}: ${LOCAL_COPY.size} bytes read from this device, no request", null)
                 screenshot("06-picked-local-copy")
 
-                // What the auth runtime runs when a session ends.
                 auth.value = MobileAuthState.SignedOut()
                 MobileDocumentsProvider.sessionLeft(context)
                 awaitCondition("root removed") { rootCount() == 0 }
@@ -187,7 +185,6 @@ class MobileDocumentsPickerProofTest {
                 SystemClock.sleep(SETTLE_MS)
                 assertFalse("The put.io root must be gone", hasText(ROOT_SUMMARY))
                 screenshot("08-signed-out-no-root")
-                // Back closes the roots drawer first, then cancels the picker.
                 repeat(2) { if (activeWindowPackage() != context.packageName) back() }
                 assertNull(picker.await())
             }
@@ -335,7 +332,6 @@ class MobileDocumentsPickerProofTest {
             PutioResult.Success(listOf(FOLDER, POSTER, AUDIO).first { it.id == itemId })
 
         private suspend fun page(number: Int): PutioResult<FilesPage> {
-            // Slow enough that the picker shows each page arriving.
             delay(PAGE_DELAY_MS)
             val first = (number - 1) * PAGE_SIZE + 1
             val items = (first until first + PAGE_SIZE).filter { it <= FOLDER_ITEMS }.map { index ->

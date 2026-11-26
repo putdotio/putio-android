@@ -141,7 +141,6 @@ class MobileAuthControllerTest {
         val awaitingBrowser = AuthControllerFixture()
         awaitingBrowser.controller.restoreSession()
         awaitingBrowser.controller.beginSignIn()
-        // The browser attempt outlives the process that started it; the restored process is signed out.
         val pendingStore = FakePendingOAuthAttemptStore()
         AuthControllerFixture(pendingAttemptStore = pendingStore).run {
             controller.restoreSession()

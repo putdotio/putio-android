@@ -90,7 +90,6 @@ class DownloadsControllerTest {
             assertTrue(controller.dispatch(DownloadsEvent.ConfirmRemoval))
             engine.await { it.removed == listOf(video.fileId) }
             assertNull(controller.state.value.removal)
-            // The row stays until the engine confirms; re-download and retry are refused meanwhile.
             assertEquals(1, controller.state.value.entries.size)
             assertTrue(controller.state.value.removing.contains(video.fileId))
             assertFalse(controller.dispatch(DownloadsEvent.Start(video)))
@@ -117,11 +116,9 @@ class DownloadsControllerTest {
             val all = setOf(video.fileId, audio.fileId, third.fileId)
 
             assertTrue(controller.dispatch(DownloadsEvent.RequestRemoval(all + FilesItemId(404L))))
-            // Several rows have no single name to show; an unknown id is not part of the question.
             assertEquals(DownloadRemoval(all, null), controller.state.value.removal)
             assertTrue(controller.dispatch(DownloadsEvent.ConfirmRemoval))
 
-            // The local copies stop counting at once, before Media3 confirms.
             val removing = controller.state.value
             assertTrue(all.none { removing.isAvailableOffline(it) || removing.rowStatus(it) != null })
             engine.await { it.removed.toSet() == all }
@@ -136,10 +133,8 @@ class DownloadsControllerTest {
         DownloadsController(store, engine, this).use { controller ->
             for (request in listOf(video, audio)) assertTrue(controller.dispatch(DownloadsEvent.Start(request)))
 
-            // The starts are still queued: removal must wait for them, or their rows outlive sign-out.
             controller.removeAll()
 
-            // Sign-out ends the session right after, so nothing may be left for the controller's own queue.
             assertEquals(setOf(video.fileId, audio.fileId), engine.removed.toSet())
             assertTrue(store.entries.value.all { it.removing })
             assertEquals(setOf(video.fileId, audio.fileId), controller.state.value.removing)
@@ -254,7 +249,6 @@ class DownloadsControllerTest {
             assertEquals(listOf(video.fileId), engine.paused)
             assertEquals(listOf(audio.fileId), engine.resumed)
 
-            // Nothing in the set allows the action: the controller turns it down.
             assertFalse(controller.dispatch(DownloadsEvent.Pause(setOf(audio.fileId, third.fileId))))
             assertFalse(controller.dispatch(DownloadsEvent.Resume(setOf(video.fileId, third.fileId))))
         }
@@ -290,7 +284,6 @@ class DownloadsControllerTest {
         runCurrent()
         assertNull(controller.state.value.speeds[video.fileId])
 
-        // Another row finishing between ticks moves nothing.
         advanceTimeBy(500L)
         store.complete(audio.fileId, 10L)
         runCurrent()
@@ -299,7 +292,6 @@ class DownloadsControllerTest {
         runCurrent()
         assertEquals(2_000L, controller.state.value.speeds[video.fileId])
 
-        // After a gap longer than five seconds, such as the screen being hidden, it measures afresh.
         assertTrue(controller.dispatch(DownloadsEvent.Hidden))
         advanceTimeBy(60_000L)
         store.report(video.fileId, DownloadStatus.Downloading(90_000L, null))
@@ -307,7 +299,6 @@ class DownloadsControllerTest {
         runCurrent()
         assertNull(controller.state.value.speeds[video.fileId])
 
-        // A row that stops running drops its speed at once.
         advanceTimeBy(1_000L)
         store.report(video.fileId, DownloadStatus.Downloading(100_000L, null))
         runCurrent()
@@ -332,7 +323,6 @@ class DownloadsControllerTest {
         runCurrent()
         assertEquals(2_000L, controller.state.value.speeds[video.fileId])
 
-        // The store does not re-emit unchanged bytes; the tick still measures them.
         advanceTimeBy(1_000L)
         runCurrent()
         assertEquals(0L, controller.state.value.speeds[video.fileId])

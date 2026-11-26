@@ -38,7 +38,6 @@ class FilesManyItemsReducerTest {
         }
         val deleting = FilesBrowserReducer.reduce(root, deleteBoth())
         assertEquals(ids, (deleting.effect as FilesBrowserEffect.Delete).itemIds)
-        // Neither item opens while the delete settles.
         ids.forEach {
             assertFalse(FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.OpenFolder(it)).consumed)
         }
@@ -58,7 +57,6 @@ class FilesManyItemsReducerTest {
         assertEquals(FilesDeleteStatus.STILL_PRESENT, partly?.status)
         assertEquals(1, partly?.remainingCount)
 
-        // A check that answered for some other number of items proves nothing, so it can be retried.
         val mismatched = checkDelete(checking, listOf(notFound()))
         assertTrue(mismatched.state.current.operation is FilesFolderOperation.Failed)
     }

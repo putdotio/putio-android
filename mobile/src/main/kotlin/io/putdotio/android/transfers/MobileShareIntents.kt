@@ -64,7 +64,6 @@ private fun Intent.incomingKind(viewedUri: Uri?): IncomingKind? =
     when {
         action == Intent.ACTION_SEND && type == "text/plain" -> IncomingKind.Text
         viewedUri?.scheme.equals(MAGNET_SCHEME, ignoreCase = true) -> IncomingKind.Magnet
-        // The manifest routes VIEW content URIs here only for the BitTorrent type.
         viewedUri?.scheme == ContentResolver.SCHEME_CONTENT -> IncomingKind.Torrent
         action == Intent.ACTION_SEND && type == TORRENT_MEDIA_TYPE -> IncomingKind.Torrent
         else -> null

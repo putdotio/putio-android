@@ -59,7 +59,6 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 @UnstableApi
 class MobileCastControllerTest {
-    // MainScope's dispatcher, as the app's controller runs on: collectors run on the next looper turn.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var now = 10_000L
     private val gateway = FakeCastGateway { now }
@@ -96,7 +95,6 @@ class MobileCastControllerTest {
         assertTrue(gateway.loads.isEmpty())
         assertEquals(Media3Player.STATE_READY, cast.remotePlayer.playbackState)
 
-        // Once it finishes there, Play sends the held file again.
         gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
         cast.remotePlayer.seekTo(0L)
         assertEquals(listOf(Load(42L, 0L, autoplay = true, speed = 1f)), gateway.loads)
@@ -238,7 +236,6 @@ class MobileCastControllerTest {
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
 
-        // The session ends; the player recomposes before the status collector runs.
         gateway.end()
 
         assertEquals(CastHandover(positionMillis = 60_000L, playing = true), cast.takeHandover(42L))
@@ -251,7 +248,6 @@ class MobileCastControllerTest {
         gateway.connect()
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
-        // The viewer paused on the TV; that status and the session's end arrive in one looper turn.
         now += 10_000L
         gateway.status.value = gateway.remote(CastRemoteState.Paused, positionMillis = 70_000L)
         gateway.disconnect()
@@ -263,7 +259,6 @@ class MobileCastControllerTest {
     fun aPausedFileStillLoadingHandsBackPaused() {
         gateway.connect()
         cast.cast(Media, Item, CastHandover(positionMillis = 5_000L, playing = false))
-        // Loading reads as buffering; only the play intent says it waits paused.
         gateway.status.value =
             gateway.remote(CastRemoteState.Buffering, positionMillis = 5_000L).copy(playIntent = false)
         gateway.disconnect()
@@ -277,7 +272,6 @@ class MobileCastControllerTest {
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
         gateway.end()
-        // The screen asks half a minute later; the receiver stopped at the end.
         now += 30_000L
 
         assertEquals(CastHandover(positionMillis = 60_000L, playing = true), cast.takeHandover(42L))
@@ -351,7 +345,6 @@ class MobileCastControllerTest {
         assertEquals("42", player.currentMediaItem?.mediaId)
         assertEquals(600_000L, player.duration)
         assertEquals(30_000L, player.currentPosition)
-        // The Default Media Receiver says whether it takes a playback rate.
         assertFalse(player.isCommandAvailable(Media3Player.COMMAND_SET_SPEED_AND_PITCH))
 
         player.pause()
@@ -372,7 +365,6 @@ class MobileCastControllerTest {
         cast.remotePlayer.seekTo(0L)
         cast.remotePlayer.play()
 
-        // Play's own seek to the start sends it; play does not send it twice.
         assertEquals(2, gateway.loads.size)
         assertEquals(Load(42L, 0L, autoplay = true, speed = 1f), gateway.loads.last())
     }
@@ -385,13 +377,11 @@ class MobileCastControllerTest {
         gateway.report(CastRemoteState.Buffering, positionMillis = 0L)
         gateway.report(CastRemoteState.Playing, positionMillis = 590_000L, durationMillis = 600_000L)
 
-        // The receiver keeps reporting its finished file until something else loads.
         gateway.report(CastRemoteState.Ended, positionMillis = 600_000L, durationMillis = 600_000L)
         now += 1_000L
         gateway.report(CastRemoteState.Ended, positionMillis = 600_000L, durationMillis = 600_000L)
         assertEquals(listOf(42L), finished)
 
-        // Played again, it finishes again.
         cast.remotePlayer.seekTo(0L)
         gateway.report(CastRemoteState.Playing, positionMillis = 0L, durationMillis = 600_000L)
         gateway.report(CastRemoteState.Ended, positionMillis = 600_000L, durationMillis = 600_000L)
@@ -404,23 +394,19 @@ class MobileCastControllerTest {
         gateway.connect()
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
 
-        // Stopped from the TV's remote: the receiver idles without finishing.
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
         gateway.report(CastRemoteState.Idle, positionMillis = 60_000L)
         gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
-        // A failure is no finish either.
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
         gateway.report(CastRemoteState.Failed, positionMillis = 60_000L)
         gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
-        // A seek toward the end, taken back before the file got there.
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L, durationMillis = 600_000L)
         cast.remotePlayer.seekTo(599_000L)
         gateway.report(CastRemoteState.Playing, positionMillis = 599_000L, durationMillis = 600_000L)
         cast.remotePlayer.seekTo(60_000L)
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L, durationMillis = 600_000L)
-        // Stopped from the phone, which ends the session and hands the file back.
         gateway.stopCasting()
 
         assertTrue(finished.isEmpty())
@@ -432,7 +418,6 @@ class MobileCastControllerTest {
         val finished = collectFinished()
         gateway.connect()
         gateway.report(CastRemoteState.Playing, positionMillis = 599_000L)
-        // The receiver ends the session; the next one finds the file finished without having seen it play.
         gateway.disconnect()
         gateway.connect()
         gateway.report(CastRemoteState.Ended, positionMillis = 600_000L)
@@ -455,7 +440,6 @@ class MobileCastControllerTest {
         assertNull(castSubtitleKey(sidecar, SubtitleSelection.Off, Shown))
         assertEquals("other", castSubtitleKey(sidecar, SubtitleSelection.Track(identity("0:other")), Shown))
         assertNull(castSubtitleKey(source(emptyList()), SubtitleSelection.Automatic, Shown))
-        // Settings still loading: none unless the viewer picked one, as the local player.
         assertNull(castSubtitleKey(sidecar, null, null))
         assertEquals("default", castSubtitleKey(sidecar, SubtitleSelection.Automatic, null))
     }

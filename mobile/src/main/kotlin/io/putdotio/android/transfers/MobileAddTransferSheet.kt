@@ -224,8 +224,6 @@ private fun MobileAddTransferSheet(
     ModalBottomSheet(
         onDismissRequest = actions.onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        // A compact-height window, such as a phone in landscape, scrolls this sheet's content
-        // under the handle, so it gives the handle's 48dp to the content; Cancel and Back close it.
         dragHandle = if (isCompactHeightWindow()) null else {
             { MobileSheetHandle() }
         },
@@ -367,7 +365,6 @@ private fun MobileAddTransferChips(enabled: Boolean, value: String, actions: Mob
         AssistChip(
             onClick = {
                 scope.launch {
-                    // Text and link items only: coerceToText would read a content URI on the main thread.
                     val item = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)
                     val link = item?.uri?.takeIf { it.scheme in PASTE_SCHEMES }?.toString()
                     val pasted = (item?.text?.toString() ?: link)?.trim()

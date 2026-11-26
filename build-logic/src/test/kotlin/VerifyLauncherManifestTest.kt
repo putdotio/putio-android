@@ -22,8 +22,6 @@ class VerifyLauncherManifestTest {
 
     @Test
     fun rejectsLeanbackFilterWithoutMainAction() {
-        // The merger keeps a flavor filter apart from main's {MAIN, LAUNCHER}; without its own
-        // MAIN action the TV home query never matches it.
         writeManifest(filter(LEANBACK) + filter(MAIN, LAUNCHER))
         verify(LAUNCHER)
         assertThrows(GradleException::class.java) { verify(LAUNCHER, LEANBACK) }

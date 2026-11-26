@@ -70,8 +70,6 @@ internal fun MobileFilesTrashLimitStatus(
     onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     var confirming by rememberSaveable(outcome.requestId.value) { mutableStateOf(false) }
-    // A refresh that no longer lists an item leaves nothing for the reducer to delete; a rename
-    // keeps the outcome, so the dialog names the items as they are listed now.
     val listed = folder.content.items().filter { it.id in outcome.intent.itemIds }.takeIf { it.isNotEmpty() }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Text(

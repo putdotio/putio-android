@@ -110,7 +110,6 @@ class MobileFilesMoveLayoutTest {
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_HERE_TAG).performClick()
         compose.runOnIdle {
-            // A 15-folder page ends inside the paging margin, so it asks for the next one on open.
             assertEquals(listOf(FilesMoveDestinationEvent.LoadNextPage,
                 FilesMoveDestinationEvent.OpenFolder(folders.last().id)), events)
             assertEquals(1, cancellations)

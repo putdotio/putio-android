@@ -56,8 +56,6 @@ class MobileDragProvider : ContentProvider() {
         }
         val key = uri.pathSegments.firstOrNull() ?: throw FileNotFoundException("No such drag")
         val storage = requireNotNull(context).getSystemService(StorageManager::class.java)
-        // One thread per open file, so a read waiting on the network holds up no other; it starts only once
-        // the drag opened, so a refused open leaves no thread behind.
         val thread = HandlerThread("putio-drag")
         val reader = MobileFileDrags.open(key, dependencies) { thread.quitSafely() }
         var opened = false

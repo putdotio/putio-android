@@ -61,7 +61,6 @@ class ProductAnalyticsPromptTest {
 
     @Test
     fun aChoiceRestoredWithNothingInFlightCanBeAnsweredAgain() {
-        // The process died after Allow, before put.io took the setting.
         assertEquals(
             ProductAnalyticsAnswerProgress.Idle,
             productAnalyticsAnswerProgress(true, settings(enabled = false), config(answered = false)),
@@ -81,12 +80,10 @@ class ProductAnalyticsPromptTest {
             productAnalyticsAnswerProgress(true, failed, unanswered),
         )
         assertEquals(emptyList<Boolean>(), choices(off, saving, failed))
-        // A later save after a failure the collector missed doesn't count as the choice landing.
         val otherSaving = failed.on(
             AccountSettingsEvent.ChangeRequested(AccountSettingsChange(AccountSettingsKey.History, false)),
         )
         assertEquals(emptyList<Boolean>(), choices(off, saving, otherSaving))
-        // Trying again saves the setting again rather than skipping to the answer.
         assertEquals(
             ProductAnalyticsAnswerStep.SaveSetting(allow),
             productAnalyticsAnswerStep(enabled = true, failed, unanswered),
@@ -160,7 +157,6 @@ class ProductAnalyticsPromptTest {
 
     @Test
     fun aNewChoiceSetsAsideThePreviousAnswerFailure() {
-        // Don't allow on an account already off failed to record; the viewer then taps Allow.
         val answering = config(answered = false).on(markAnswered.event)
         val failed = answering.on(
             AndroidAppConfigEvent.SaveFailed(answering.savingId(), PutioFailure.Unexpected(RuntimeException("503"))),
@@ -180,7 +176,6 @@ class ProductAnalyticsPromptTest {
 
     @Test
     fun aFailedReadShowsRatherThanWaitingForever() {
-        // Restored after process death: the account already holds the choice, but the config read failed.
         val start = AndroidAppConfigReducer.start().state
         val requestId = (start.content as AndroidAppConfigContent.Loading).requestId
         val failure = PutioFailure.NetworkUnavailable(RuntimeException("offline"))
@@ -218,7 +213,6 @@ class ProductAnalyticsPromptTest {
         )
 
     private companion object {
-        // iOS AppConfig.CodingKeys.productAnalyticsPromptAnswered
         const val PROMPT_KEY = "dismissed.product_analytics_prompt"
     }
 }

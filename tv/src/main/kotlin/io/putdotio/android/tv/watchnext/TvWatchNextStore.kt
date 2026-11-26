@@ -99,7 +99,6 @@ internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
             } catch (_: SecurityException) {
                 fallback
             } catch (_: IllegalArgumentException) {
-                // No TV provider on this device: the URI is unknown.
                 fallback
             } catch (_: IllegalStateException) {
                 fallback

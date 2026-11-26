@@ -66,7 +66,6 @@ internal data class NowPlaying(
     val durationMillis: Long = C.TIME_UNSET,
 )
 
-// The bar shows only prepared audio. A cleared or ended session leaves nothing to resume.
 internal fun Media3Player.nowPlayingOrNull(): NowPlaying? {
     val fileId = resumableSessionFileId()
     val item = currentMediaItem
@@ -93,7 +92,6 @@ internal fun rememberNowPlaying(playerFactory: MobilePlayerFactory): NowPlayingH
     var player by remember(playerFactory) { mutableStateOf<Media3Player?>(null) }
     var nowPlaying by remember(playerFactory) { mutableStateOf<NowPlaying?>(null) }
     LifecycleStartEffect(context, playerFactory) {
-        // A cancelled connection still answers; a late answer must not revive a stopped observer.
         var stopped = false
         val handle = playerFactory.connectAudio(context) { result ->
             if (!stopped) player = result.getOrNull()
@@ -118,7 +116,6 @@ internal fun rememberNowPlaying(playerFactory: MobilePlayerFactory): NowPlayingH
         attached.addListener(listener)
         onDispose { attached.removeListener(listener) }
     }
-    // The composition survives a stopped Activity; the ticker must not.
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(attached, nowPlaying?.isPlaying, lifecycle) {
         val live = attached ?: return@LaunchedEffect
@@ -146,8 +143,6 @@ internal class NowPlayingHandle(
         if (live.playWhenReady) live.pause() else live.play()
     }
 
-    // Stopping drops the item and its position; the file's server-side start_from still applies
-    // next time. The service is stopped too, so nothing outlives the dismissal.
     fun dismiss() {
         player?.let {
             it.stop()
@@ -199,8 +194,6 @@ internal fun MobileNowPlayingBar(
                         modifier = Modifier.size(22.dp),
                     )
                 }
-                // A short, wide window sets the time beside the name, keeping the card to one line; a
-                // narrow one keeps the time under it so the name keeps the row's width.
                 if (isShortWideWindow()) {
                     Row(
                         Modifier.weight(1f),

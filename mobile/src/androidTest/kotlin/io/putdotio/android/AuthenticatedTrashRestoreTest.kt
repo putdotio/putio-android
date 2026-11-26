@@ -80,7 +80,6 @@ class AuthenticatedTrashRestoreTest {
         val fixture = TrashRestoreFixture.parse(args.getString("putio.trash.restore.fixture"),
             args.getString("putio.trash.restore.runId"))
         val runtime = MobileOAuthRuntime.get(context)
-        // This rule launches a bare activity; PutioApp's session-restoration effect does not run.
         trashRestoreApiCheck("restore existing session") { runtime.authController.restoreSession() }
         val session = runtime.authController.state.value as? MobileAuthState.SignedIn
             ?: throw AssertionError("Proof requires the existing signed-in session")
@@ -318,7 +317,6 @@ private class TrashRestoreCountingRepository(
 
     override suspend fun resolveItem(itemId: FilesItemId): PutioResult<FilesItem> {
         if (itemId.value == ownedRestoreId && restores > 0) {
-            // Reserve the fifteenth exact-ID GET for the host's independent final readback.
             check(checks < 14) { "Restore check budget exhausted; retain fixture" }
             val remainingSpacing = 2_000 - (SystemClock.elapsedRealtime() - lastCheckAt)
             if (checks > 0 && remainingSpacing > 0) delay(remainingSpacing)

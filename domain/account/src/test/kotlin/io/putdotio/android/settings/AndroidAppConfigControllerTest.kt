@@ -206,7 +206,6 @@ class AndroidAppConfigControllerTest {
         private var released = false
         private var pending: Continuation<PutioResult<AndroidAppConfigPreferences>>? = null
 
-        // suspendCoroutine deliberately models a callback API that completes after cancellation.
         override suspend fun load(): PutioResult<AndroidAppConfigPreferences> =
             suspendCoroutine { continuation ->
                 synchronized(lock) {

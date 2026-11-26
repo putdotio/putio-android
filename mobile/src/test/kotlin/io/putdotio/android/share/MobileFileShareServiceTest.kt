@@ -95,7 +95,6 @@ class MobileFileShareServiceTest {
         assertFalse(everything.contains("oauth_token"))
         assertFalse(everything.contains("http"))
         assertEquals(stream, send.clipData?.getItemAt(0)?.uri)
-        // createChooser migrates the grant onto the wrapper; the launched intent is what carries it.
         assertEquals(stream, chooser.clipData?.getItemAt(0)?.uri)
         assertTrue(chooser.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
         val untyped = shareChooserFor(uri, null).getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
@@ -132,7 +131,6 @@ class MobileFileShareServiceTest {
     fun deliveryUsesTheResumedActivityOrWaitsForTheNextOne() {
         val fixture = ShareFixture()
         val service = fixture.service
-        // FileProvider caches its root per authority across tests, so build the payload directly here.
         val chooser = Intent.createChooser(
             Intent(Intent.ACTION_SEND).setType("image/jpeg")
                 .putExtra(Intent.EXTRA_STREAM, "content://${service.packageName}.share/shares/9/poster.jpg".toUri()),
@@ -175,7 +173,6 @@ class MobileFileShareServiceTest {
     @Test
     fun deliveryReChecksTheSessionBeforeOpeningTheChooser() {
         val fixture = ShareFixture()
-        // The download completes after the session ended, before anything observed it; the resume must not share.
         fixture.respond = { request ->
             fixture.auth.value = MobileAuthState.SigningOut
             ok(request)
@@ -203,7 +200,6 @@ class MobileFileShareServiceTest {
         assertTrue(shadowOf(fixture.service).isForegroundStopped)
         assertEquals(1, shadowOf(fixture.service).stopSelfId)
 
-        // Signing in again, as a new session, does not revive the dropped export.
         fixture.auth.value = signedIn(MobileAuthSessionId(2L))
         MobileResumedActivity.resumed(activity)
         fixture.scheduler.advanceUntilIdle()
@@ -259,7 +255,6 @@ class MobileFileShareServiceTest {
                 shadowOf(manager).getNotification(MobileFileShareService.NOTIFICATION_ID),
             )
             assertEquals(FAILED_TEXT, shadowOf(notification).contentText.toString())
-            // Detached, so the failure stays visible after the service stops.
             assertTrue(shadowOf(fixture.service).isForegroundStopped)
             assertFalse(shadowOf(fixture.service).notificationShouldRemoved)
             assertFalse(fixture.export("9").exists())
@@ -314,7 +309,6 @@ class MobileFileShareServiceTest {
     fun endingTheSessionCancelsADownloadBlockedOnTheNetwork() {
         val entered = CountDownLatch(1)
         val cancelled = CountDownLatch(1)
-        // The download blocks a real IO thread while virtual time drives the session watcher.
         val fixture = ShareFixture(io = Dispatchers.IO, onCallCanceled = cancelled::countDown)
         fixture.respond = {
             entered.countDown()
@@ -353,7 +347,6 @@ class MobileFileShareServiceTest {
         assertFalse(leftover.exists())
         assertTrue(next.exists())
 
-        // A session an earlier process left has no known id; ending it clears every earlier-process leftover.
         val restoredLeftover = earlierProcessExport()
         MobileFileShareService.endSession(context, null)
         assertFalse(restoredLeftover.exists())
@@ -372,7 +365,6 @@ class MobileFileShareServiceTest {
 
     @Test
     fun exportedNamesDropControlAndBidiCharacters() {
-        // U+202E would render "invoice_‮gnp.exe" as "invoice_exe.png".
         assertEquals("invoice_gnp.exe", "invoice_‮gnp.exe".sanitizedFileName())
         assertEquals("ab.mkv", "a\u0000\u0007\u0085b​‎‏⁦⁩؜﻿.mkv".sanitizedFileName())
         assertEquals("ab.mkv", "a\uD800b.mkv".sanitizedFileName())
@@ -383,9 +375,7 @@ class MobileFileShareServiceTest {
     @Test
     fun exportedNamesFitTheFileSystemInUtf8Bytes() {
         assertEquals("x".repeat(200), "x".repeat(300).sanitizedFileName())
-        // Three bytes per character: 200 characters would be 600 bytes, over the 255-byte name limit.
         assertEquals("字".repeat(65) + ".mkv", ("字".repeat(150) + ".mkv").sanitizedFileName())
-        // Four-byte code points are never split into a lone surrogate.
         assertEquals("🎬".repeat(50), "🎬".repeat(80).sanitizedFileName())
     }
 
@@ -419,8 +409,6 @@ class MobileFileShareServiceTest {
         fixture.auth.value = MobileAuthState.SignedOut()
         fixture.start(fileId = 1L, name = "a", startId = 1)
         fixture.start(fileId = 2L, name = "b", startId = 2)
-        // Without a session both exports fail. Each job stops only its own startId, so the framework
-        // keeps the service alive until the newest start reports; the last stop must carry 2.
         fixture.scheduler.advanceUntilIdle()
         assertEquals(2, shadowOf(fixture.service).stopSelfId)
         fixture.destroy()

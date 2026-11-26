@@ -70,7 +70,6 @@ public fun productAnalyticsAnswerStep(
 ): ProductAnalyticsAnswerStep {
     val account = (settings.content as? AccountSettingsContent.Ready)?.preferences
     val config = (appConfig.content as? AndroidAppConfigContent.Ready)?.preferences
-    // The refresh after a save doesn't hold the answer back: put.io already took the setting.
     val settingBusy = (settings.mutation as? AccountSettingsMutation.Saving)
         ?.operation == AccountSettingsMutation.Operation.Save
     return when {
@@ -116,7 +115,6 @@ public fun productAnalyticsAnswerProgress(
     staleAnswerFailure: Boolean = false,
 ): ProductAnalyticsAnswerProgress {
     val answerMutation = appConfig.mutation
-    // A read that failed, for example after process death, leaves nothing in flight to wait for.
     val readFailure = (settings.content as? AccountSettingsContent.Failed)?.failure
         ?: (appConfig.content as? AndroidAppConfigContent.Failed)?.failure?.let(AccountSettingsFailure::Putio)
     val answered = (appConfig.content as? AndroidAppConfigContent.Ready)?.preferences?.productAnalyticsPromptAnswered
@@ -142,7 +140,6 @@ private fun AccountSettingsState.settingProgress(enabled: Boolean): ProductAnaly
         settingMutation is AccountSettingsMutation.Saving &&
             settingMutation.change.key == AccountSettingsKey.ProductAnalytics ->
             ProductAnalyticsAnswerProgress.Saving
-        // put.io holds the choice, so the answer is about to follow.
         (content as? AccountSettingsContent.Ready)?.preferences?.productAnalyticsEnabled == enabled ->
             ProductAnalyticsAnswerProgress.Saving
         else -> ProductAnalyticsAnswerProgress.Idle

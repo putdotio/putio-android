@@ -115,7 +115,6 @@ class MobileTransferDropTest {
         val received = links.toMobileIncomingTransfer() as MobileIncomingTransfer.Ready
         assertEquals("https://example.invalid/a.iso\nhttps://example.invalid/b.iso", received.transfer.input)
 
-        // A text file is not a torrent, and its bytes are never read for links.
         val textFile = ClipData(ClipDescription("notes", arrayOf("text/plain")), ClipData.Item(Uri.parse(TEXT_FILE)))
         assertNull(textFile.toMobileIncomingTransfer())
 

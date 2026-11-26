@@ -223,7 +223,6 @@ class MobileDownloadActionReceiverTest {
             find = { _, _ -> failed },
             start = { userId, entry ->
                 entry.sendDownloadRequest(context, userId, testDownloadFilesApi) { request, _ ->
-                    // Android 12+ refuses a foreground service start once the tap's allowance has passed.
                     check(!refuse) { "ForegroundServiceStartNotAllowedException" }
                     sent += request.id
                 }
@@ -272,7 +271,6 @@ class MobileDownloadActionReceiverTest {
         assertEquals(2, controls.pauseAll(USER))
         assertEquals(listOf(USER to FilesItemId(10L), USER to FilesItemId(11L)), paused)
 
-        // A notification left from another session acts on nothing.
         account = SignedInAccount.User(OTHER)
         assertEquals(0, controls.cancelAll(USER))
         account = SignedInAccount.Unknown
@@ -297,7 +295,6 @@ class MobileDownloadActionReceiverTest {
 
         val pause = shadowOf(MobileDownloadActionReceiver.pauseAll(context, USER))
         val cancel = shadowOf(MobileDownloadActionReceiver.cancelAll(context, USER))
-        // Explicit and immutable broadcasts to the unexported receiver; nothing opens.
         assertTrue(pause.isBroadcast && pause.isImmutable && cancel.isBroadcast && cancel.isImmutable)
         context.sendBroadcast(pause.savedIntent)
         shadowOf(Looper.getMainLooper()).idle()
@@ -311,7 +308,6 @@ class MobileDownloadActionReceiverTest {
 
     @Test
     fun theNotificationAndTheScreenShareOneStorePerAccount() {
-        // A pause written from the notification is the row the engine reads, so it never undoes it.
         assertTrue(MobileDownloadStore.shared(context, USER) === MobileDownloadStore.shared(context, USER))
         assertTrue(MobileDownloadStore.shared(context, USER) !== MobileDownloadStore.shared(context, OTHER))
     }

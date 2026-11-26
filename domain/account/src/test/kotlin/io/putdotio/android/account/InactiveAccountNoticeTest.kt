@@ -47,7 +47,6 @@ class InactiveAccountNoticeTest {
         val now = Instant.parse("2026-10-01T22:00:00Z")
 
         assertEquals(14L, notice.daysUntilFilesDeleted(now, ZoneOffset.UTC))
-        // 2026-10-02 01:00 to 2026-10-15 04:00 at +03:00.
         assertEquals(13L, notice.daysUntilFilesDeleted(now, ZoneOffset.ofHours(3)))
         assertEquals(0L, notice.daysUntilFilesDeleted(Instant.parse("2026-10-15T23:00:00Z"), ZoneOffset.UTC))
         assertEquals(2L, notice.daysUntilFilesDeleted(Instant.parse("2026-10-17T00:00:00Z"), ZoneOffset.UTC))

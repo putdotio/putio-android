@@ -163,7 +163,6 @@ class MobileFilesMoveTest {
             PutioTheme { MobileFilesRoute(loadedRoot(), repository, events::add, {}, true, {}) }
         }
         openMove()
-        // The empty first page asks for the next one on its own; only the failed one waits for Retry.
         compose.onNodeWithTag(MOBILE_FILES_MOVE_RETRY_TAG).performClick()
         compose.onNodeWithTag(mobileFilesMoveFolderTag(destination.id)).assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
@@ -532,7 +531,6 @@ class MobileFilesMoveTest {
         FilesItem(FilesItemId(id), FilesFolder.Root.id, name, PutioFileType.FOLDER, 1L, "2026-09-06")
 }
 
-// put.io's response to moving a folder into a folder inside it, captured on 2026-10-04.
 private const val MOVE_INTO_ITSELF_BODY = """{"error_id":null,"error_message":"You don't have the permission to """ +
     """access the requested resource. It is either read-protected or not readable by the server.",""" +
     """"error_type":"Forbidden","error_uri":"http://api.put.io/v2/docs","extra":{},"status":"ERROR",""" +

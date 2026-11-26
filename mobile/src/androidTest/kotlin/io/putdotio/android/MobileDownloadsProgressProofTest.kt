@@ -119,7 +119,6 @@ class MobileDownloadsProgressProofTest {
             val database = DefaultDatabaseProvider(ProofDatabase())
             val cache = SimpleCache(File(workDirectory, "cache"), NoOpCacheEvictor(), database)
             val executor = Executors.newSingleThreadExecutor()
-            // Seeded before the manager exists: reconcile drops an accepted row its index read cannot see.
             val index = DefaultDownloadIndex(database).apply {
                 putDownload(Download(
                     DownloadRequest.Builder("$USER_ID:${FILE_ID.value}", Uri.fromFile(source)).build(),
@@ -182,7 +181,6 @@ class MobileDownloadsProgressProofTest {
         compose.waitForIdle()
         compose.onNodeWithText("On this device", substring = true).assertExists()
         screenshot("completed")
-        // Transitions alone would show 0 % and then Completed; polling shows the bytes in between.
         assertTrue("Only saw $seen", seen.count { it in 1L until SOURCE_BYTES.toLong() } >= MIN_PROGRESS_STEPS)
     }
 

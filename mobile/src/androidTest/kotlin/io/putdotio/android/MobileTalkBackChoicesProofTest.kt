@@ -46,7 +46,6 @@ class MobileTalkBackChoicesProofTest {
         }) { "Actual TalkBack is required" }
         directory = accessibilityProofDirectory()
         require(File(directory, "talkback-choices-stage.txt").createNewFile()) { "Use a fresh proof run ID" }
-        // Three host phases at their documented limit, with launch slack.
         deadline = SystemClock.uptimeMillis() + 400_000
         var surface by mutableStateOf(ChoiceSurface.SignIn)
         ActivityScenario.launch(MobileFullscreenProofActivity::class.java).use { scenario ->

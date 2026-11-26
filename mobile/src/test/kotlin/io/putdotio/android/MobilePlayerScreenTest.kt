@@ -485,7 +485,6 @@ class MobilePlayerScreenTest {
         compose.onNodeWithText("Convert again").performClick()
         compose.runOnIdle { assertEquals(1, starts) }
 
-        // The app's own start still found no conversion.
         content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable)
         compose.onNodeWithText("This video cannot be converted.").assertIsDisplayed()
         compose.onNodeWithText("Convert again").assertDoesNotExist()
@@ -1097,7 +1096,6 @@ class MobilePlayerSubtitleTest {
             }
         }
         compose.runOnIdle {
-            // Settings still loading: off, whatever the system caption setting.
             assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes)
             policy = SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true)
         }
@@ -1122,7 +1120,6 @@ class MobilePlayerSubtitleTest {
         )
         compose.runOnIdle { assertEquals(listOf("de"), player.trackSelectionParameters.preferredTextLanguages) }
 
-        // Arriving tracks mark English as the account's default; no language preference may outrank it.
         val text = TrackGroup(
             Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT)
                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build(),
@@ -1254,7 +1251,6 @@ class MobilePlayerSubtitleTest {
 
         compose.onNodeWithContentDescription("Subtitles", substring = true).performClick()
         compose.onNode(hasText("Off") and isSelectable()).performClick()
-        // Automatic must not come back from a track change that beat the pick's recomposition.
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
     }
 
@@ -1274,7 +1270,6 @@ class MobilePlayerSubtitleTest {
                 )
             }
         }
-        // Settings still loading: the viewer turns subtitles on.
         val text = TrackGroup(
             Format.Builder().setId("en").setLanguage("en").setSampleMimeType(MimeTypes.TEXT_VTT).build(),
         )
@@ -1287,7 +1282,6 @@ class MobilePlayerSubtitleTest {
         compose.runOnIdle { assertFalse(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
 
         compose.runOnIdle { policy = SubtitleStartupPolicy(showSubtitles = false, autoSelectSubtitles = true) }
-        // hide_subtitles outranks the pick: no picker is left to turn them off with.
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
         compose.onNodeWithContentDescription("Subtitles", substring = true).assertDoesNotExist()
     }
@@ -1840,21 +1834,17 @@ class MobilePlayerSeekTest {
         compose.onNodeWithTag(MOBILE_SEEK_FEEDBACK_TAG).assertIsDisplayed()
         compose.mainClock.autoAdvance = false
         val firstRequestAt = seekRequestTimes.single()
-        // 799ms after the first request: still inside its window, stacks to 40s.
         compose.mainClock.advanceTimeBy(firstRequestAt + 799L - compose.mainClock.currentTime, true)
         compose.runOnUiThread { seek() }
         compose.mainClock.advanceTimeBy(2L, true)
         compose.runOnUiThread {
             assertEquals("New seek has not recomposed", 1, starts.size)
-            // Now 801ms after the first request but 2ms after the second: stacks on the second.
             player.movePositionTo(41_000L)
             seek()
             assertEquals(listOf(30_000L, 40_000L, 50_000L), player.seekPositions)
         }
-        // Two seeks landed on the UI thread without a frame; pump frames until the text settles.
         compose.awaitSeekFeedback("Forward 30 seconds")
 
-        // 801ms after the third request with no recomposition in between: fresh request from the player.
         compose.mainClock.advanceTimeBy(801L, true)
         compose.runOnUiThread {
             player.movePositionTo(52_000L)
@@ -1947,7 +1937,6 @@ class MobilePlayerSeekTest {
 
     private val seekRequestTimes = mutableListOf<Long>()
 
-    // With autoAdvance off, each frame is explicit; the feedback text lands within a few frames.
     private fun androidx.compose.ui.test.junit4.ComposeContentTestRule.awaitSeekFeedback(text: String) {
         repeat(5) {
             mainClock.advanceTimeByFrame()
@@ -2269,7 +2258,6 @@ class MobilePlayerAudioTest {
             player.pause()
             player.movePositionTo(30_000L)
         }
-        // Now Playing goes back 15 seconds and forward 30.
         compose.onNodeWithContentDescription("Forward 30 seconds").assertIsDisplayed()
         compose.onNodeWithContentDescription("Back 15 seconds").performClick()
         compose.mainClock.advanceTimeBy(50L)
@@ -2518,7 +2506,6 @@ class MobilePlayerAudioTest {
             PlaybackException.ERROR_CODE_DECODING_FAILED,
         )
 
-        // The controller receives the bundle form, which drops the typed cause chain.
         fun relay(error: PlaybackException) = PlaybackException.fromBundle(error.toBundle())
 
         assertFalse(relay(unauthorized).cause is HttpDataSource.InvalidResponseCodeException)
@@ -2618,7 +2605,6 @@ class MobilePlayerKeyboardTest {
         compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.activity.pressHardwareKey(android.view.KeyEvent.KEYCODE_DPAD_LEFT)
         compose.runOnIdle { assertEquals(listOf(30_000L, 40_000L, 30_000L), player.seekPositions) }
-        // Shift and Ctrl arrows are not seeks.
         compose.activity.pressHardwareKey(
             android.view.KeyEvent.KEYCODE_DPAD_RIGHT,
             android.view.KeyEvent.META_SHIFT_ON or android.view.KeyEvent.META_SHIFT_LEFT_ON,
@@ -2673,7 +2659,6 @@ class MobilePlayerKeyboardTest {
         compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
         compose.runOnIdle { assertTrue(players.last().playWhenReady) }
 
-        // A full-screen window still pauses the video when it pauses.
         shadowOf(compose.activity).setInMultiWindowMode(false)
         compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
         compose.runOnIdle { assertFalse(players.last().playWhenReady) }
@@ -2699,7 +2684,6 @@ class MobilePlayerKeyboardTest {
         }
         compose.runOnIdle { assertTrue(players.single().playWhenReady) }
 
-        // The other pane takes focus, then a headset or the notification pauses the video.
         compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.STARTED) }
         compose.runOnIdle { players.single().pause() }
         compose.runOnIdle { lifecycleOwner.moveTo(Lifecycle.State.RESUMED) }
@@ -2769,7 +2753,6 @@ private fun readyState(startFromSeconds: Double): PlaybackState =
         ),
     )
 
-// Credential URLs can only be minted by the SDK resolver in production.
 private fun credentialUrl(value: String): PutioCredentialUrl =
     PutioCredentialUrl::class.java
         .getDeclaredConstructor(String::class.java)
@@ -3120,7 +3103,6 @@ class MobilePlayerCodecTest {
             )
         assertEquals(40_000L, stacked.targetPositionMillis)
         assertEquals(20_000L, stacked.accumulatedMillis)
-        // The deadline is measured from the newest request, so the window slides.
         assertEquals(6_599L, stacked.accumulatesUntilMillis)
         val expired =
             requireNotNull(

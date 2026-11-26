@@ -122,7 +122,6 @@ internal class MobileTransferDraft private constructor(
                 generation == draftGeneration -> attachTorrent(shared)
             }
         }.apply {
-            // Also when a newer intake cancels this read before it began.
             invokeOnCompletion {
                 if (pendingRead === this) mutableState.update { it.copy(readingTorrent = false) }
                 onDone()
@@ -156,7 +155,6 @@ internal class MobileTransferDraft private constructor(
         val current = mutableState.value
         val pending = replacement
         draftGeneration++
-        // Behind an uploaded torrent every typed line is unsent; otherwise only the lines that didn't parse.
         val unsent = if (current.torrent == null) {
             checkMobileTransferLines(current.input).badText
         } else {
@@ -171,7 +169,6 @@ internal class MobileTransferDraft private constructor(
                 incomingRequestId = current.incomingRequestId,
                 pendingReplacement = pending != null,
             )
-            // A chosen folder lasts for the session, like web's "custom folder in this session".
             pending == null -> mutableState.value = MobileTransferDraftState(destination = current.destination)
             else -> present(pending, current.incomingRequestId)
         }

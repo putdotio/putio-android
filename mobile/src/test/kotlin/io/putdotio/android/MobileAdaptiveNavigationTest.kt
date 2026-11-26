@@ -376,7 +376,6 @@ private object NoNavigationPlayback : PlaybackRepository {
 }
 
 private fun assertCompleteLabel(label: String, layout: TextLayoutResult) {
-    // Native Robolectric can report didOverflowWidth while every rendered line fits its bounds.
     assertEquals("$label must stay on one line", 1, layout.lineCount)
     assertFalse("$label must not be ellipsized", layout.isLineEllipsized(0))
     assertTrue("$label must fit at its leading edge", layout.getLineLeft(0) >= -1f)

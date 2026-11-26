@@ -80,7 +80,6 @@ class PlaybackConversionReducerTest {
             PlaybackContent.Conversion(PlaybackConversionState.NotAvailable, PlaybackRequestId(2L)),
             starting,
         )
-        // The status read before the start is not a verdict: nothing to tap while it starts.
         assertTrue(starting.starting)
         assertNull(starting.action)
         assertFalse(PlaybackReducer.reduce(opened.state, PlaybackEvent.StartConversion).consumed)
@@ -98,7 +97,6 @@ class PlaybackConversionReducerTest {
         )
         assertNull(queued.effect)
 
-        // A poll that still reads not available after the start does not start another one.
         val polled = PlaybackReducer.reduce(
             PlaybackReducer.reduce(queued.state, PlaybackEvent.RefreshConversion).state,
             PlaybackEvent.ResolveSucceeded(
@@ -108,7 +106,6 @@ class PlaybackConversionReducerTest {
         )
         assertNull("One start per opening", polled.effect)
 
-        // The server still has no conversion after the app asked for one: it cannot be converted.
         val refused = PlaybackReducer.reduce(
             opened.state,
             PlaybackEvent.ResolveSucceeded(

@@ -321,14 +321,11 @@ class TvSearchScreenTest {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
         }
-        // The D-pad hold-to-long-press timing belongs to the TV surface; the wiring is what
-        // this proves, so the semantics action stands in for the held Center.
         compose.onNodeWithContentDescription("Search again for tears").assertIsFocused()
             .performSemanticsAction(SemanticsActions.OnLongClick)
         compose.onAllNodesWithContentDescription("Search again for tears").assertCountEquals(0)
         assertEquals(listOf("edit:Remove(term=SearchTerm(value=tears))"), log)
 
-        // The remaining chip picks up focus; removing it too hands focus to the field.
         compose.onNodeWithContentDescription("Search again for sintel").assertIsFocused()
             .performSemanticsAction(SemanticsActions.OnLongClick)
         compose.onAllNodesWithContentDescription("Search again for sintel").assertCountEquals(0)
@@ -353,7 +350,6 @@ class TvSearchScreenTest {
         }
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
 
-        // A new search records term-6 and the cap drops term-5, the chip focused last.
         recent = listOf(SearchTerm("term-6")) + recent.dropLast(1)
         compose.onAllNodesWithContentDescription("Search again for term-5").assertCountEquals(0)
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assertIsFocused()
@@ -382,8 +378,6 @@ class TvSearchScreenTest {
 
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).requestFocus()
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performTextInput("!")
-        // The controller reporting the previous text back, while the user is on the chips,
-        // must not undo the edit.
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).performKeyInput {
             pressKey(Key.DirectionDown)
             pressKey(Key.DirectionDown)
@@ -393,7 +387,6 @@ class TvSearchScreenTest {
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel!"))
         assertEquals(listOf("recent:Tears Of Steel", "query:Tears Of Steel!"), log)
 
-        // The controller catching up leaves the field as typed.
         state = searchState(SearchContent.Idle, recent = state.recentTerms, query = "Tears Of Steel!")
         compose.onNodeWithTag(TV_SEARCH_FIELD_TAG).assert(hasText("Tears Of Steel!"))
     }

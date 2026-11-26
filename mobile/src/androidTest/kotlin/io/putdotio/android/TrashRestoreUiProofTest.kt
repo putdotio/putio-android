@@ -146,7 +146,6 @@ class TrashRestoreUiProofTest {
             pressBackWithPendingRestore(controller)
             try {
                 if (tab == "Account") {
-                    // NavHost may first pop Account to Files; this cannot exit the activity.
                     compose.waitUntil(10_000) {
                         compose.onNodeWithTag(MOBILE_TRASH_LIST_TAG).isDisplayed() ||
                             compose.onNodeWithTag(MOBILE_FILES_REFRESH_TAG).isDisplayed()

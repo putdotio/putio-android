@@ -60,7 +60,6 @@ internal class MobileDownloadEngine(
     private val parkOnTokenClearing: () -> Unit = { park() }
     private val inherited = store.entries.value.associateBy { it.fileId }
 
-    // A sign-out closes this engine; nothing it scheduled may un-park that user's transfers afterwards.
     @Volatile
     private var closed = false
     private val reconcileJob: Job
@@ -81,7 +80,6 @@ internal class MobileDownloadEngine(
             store.removeBlocking(fileId)
         }
 
-        // Media3 keeps queued rows queued while offline or low on storage; the rows show why nothing moves.
         override fun onWaitingForRequirementsChanged(
             downloadManager: DownloadManager,
             waitingForRequirements: Boolean,
@@ -89,7 +87,6 @@ internal class MobileDownloadEngine(
             for (download in downloadManager.currentDownloads) reflect(download, null)
         }
 
-        // A wait can change cause, from network to storage, without ending.
         override fun onRequirementsStateChanged(
             downloadManager: DownloadManager,
             requirements: Requirements,
@@ -102,7 +99,6 @@ internal class MobileDownloadEngine(
     init {
         downloads.onTokenClearing = parkOnTokenClearing
         downloadManager.addListener(listener)
-        // The index read is SQLite; only the manager calls must run on its looper.
         reconcileJob = scope.launch {
             val (snapshot, missing) = withContext(ioDispatcher) {
                 val indexed = downloadManager.downloadIndex.getDownloads().use { cursor ->
@@ -124,8 +120,6 @@ internal class MobileDownloadEngine(
         for (download in indexed) {
             val fileId = fileIdOf(userId, download.request.id)
             if (fileId == null) {
-                // Another account's request: park it; its owner's session resumes it. One its owner
-                // paused stays paused, so the owner's next sign-in does not resume it.
                 if (download.request.ownerUserId() != null && !download.isTerminalState &&
                     download.stopReason != STOP_REASON_PAUSED
                 ) {
@@ -137,8 +131,6 @@ internal class MobileDownloadEngine(
             if (download.state == Download.STATE_REMOVING) {
                 synchronized(removing) { removing += fileId }
             } else {
-                // A download whose row was lost stays visible, playable and deletable; only a
-                // confirmed delete removes bytes.
                 store.addBlocking(download.recoveredEntry(fileId, standInName))
             }
             if (download.stopReason == STOP_REASON_OTHER_USER) {
@@ -156,13 +148,9 @@ internal class MobileDownloadEngine(
             if (closed) return
             val download = known[entry.fileId]
             when {
-                // The delete was confirmed but the process died before Media3 heard of it.
                 entry.removing && download?.state != Download.STATE_REMOVING ->
                     if (download == null) store.removeBlocking(entry.fileId) else remove(entry.fileId)
                 download != null -> Unit
-                // Media3 has no record: it lost the finished bytes, never saw the request, or
-                // dropped it. Finished rows read as missing, failed rows wait for Retry, a Direct play
-                // video waits for the controller to ask put.io again, and everything else goes back in the queue.
                 entry.isCompleted -> store.markMissing(entry.fileId)
                 entry.canRetry || entry.awaitsDirectPlay ||
                     inherited[entry.fileId]?.copy(pauseRequested = entry.pauseRequested) != entry -> Unit
@@ -182,8 +170,6 @@ internal class MobileDownloadEngine(
 
     override suspend fun remove(fileId: FilesItemId) {
         val contentId = downloadContentId(userId, fileId)
-        // The record is read before the remove goes out, so Media3 cannot confirm it before the
-        // row is marked; the service queue runs it after any add already posted either way.
         val known = hasRecord(fileId)
         MobileDownloadNotifications.cancel(appContext, userId, fileId)
         try {
@@ -228,7 +214,6 @@ internal class MobileDownloadEngine(
         }
     }
 
-    // An unreadable index proves nothing: a removal waits for Media3, and a startup lookup leaves the row alone.
     override suspend fun hasRecord(fileId: FilesItemId): Boolean =
         withContext(ioDispatcher) {
             try {
@@ -302,8 +287,6 @@ internal class MobileDownloadEngine(
         if (fileId == null || download.fallingBackToConverted(error)) return
         val pause = downloadManager.pauseReason()
         val status = download.toStatus(error, pause) ?: return
-        // A pause that reached Media3 before its request did, or that parking overwrote, is applied
-        // again; so is a resume Media3 missed.
         val wanted = wantedStopReason(fileId)
         if (wanted != null && !download.isTerminalState &&
             (download.stopReason == STOP_REASON_PAUSED) != (wanted == STOP_REASON_PAUSED)
@@ -311,14 +294,12 @@ internal class MobileDownloadEngine(
             downloadManager.setStopReason(download.request.id, wanted)
         }
         store.updateStatusBlocking(fileId) { current ->
-            // Reconcile sees the failed state without its exception; the stored reason is better.
             val kept = current.status as? DownloadStatus.Failed
             val next = if (status is DownloadStatus.Failed && error == null && kept != null) kept else status
             current.copy(
                 status = next,
                 accepted = true,
                 queuedAt = download.startTimeMs.takeIf { it > 0L } ?: current.queuedAt,
-                // A pause ends with its transfer; any retry, the notification's included, starts clean.
                 pauseRequested = current.pauseRequested && !download.isTerminalState,
             )
         }
@@ -426,9 +407,6 @@ private const val MP4_PATH = "/mp4/stream"
 private fun Download.toStatus(error: Exception?, pause: DownloadPauseReason?): DownloadStatus? =
     when (state) {
         Download.STATE_QUEUED, Download.STATE_RESTARTING, Download.STATE_STOPPED -> {
-            // Paused by the viewer, it holds until Resume; Media3 keeps its stop reason across
-            // restarts. Otherwise it is parked by sign-out, or held by a missing network or low
-            // storage, and resumes without user action.
             val held = if (stopReason == MobileDownloadEngine.STOP_REASON_PAUSED) DownloadPauseReason.USER else pause
             held?.let { DownloadStatus.Paused(it, bytesDownloaded, knownPercent(), knownContentLength) }
                 ?: DownloadStatus.Queued
@@ -446,7 +424,6 @@ private fun Download.toStatus(error: Exception?, pause: DownloadPauseReason?): D
  */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun Download.knownPercent(): Float? =
-    // C.PERCENTAGE_UNSET is negative.
     percentDownloaded.takeIf { it.isFinite() && it >= 0f }?.coerceAtMost(PERCENT)
 
 /** C.LENGTH_UNSET is negative; an HLS rendition reports none until every segment length is known. */

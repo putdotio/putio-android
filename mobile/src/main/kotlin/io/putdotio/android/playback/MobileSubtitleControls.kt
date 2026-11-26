@@ -238,7 +238,6 @@ internal fun MobileSubtitleAppearanceContent(
         }
     }
     MobileSideSheetLabel(stringResource(PlaybackR.string.playback_subtitle_timing), Modifier.padding(top = 12.dp))
-    // The 48dp touch bands of the steps and Reset already hold the board's spacing.
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -279,7 +278,6 @@ internal fun MobileSubtitleAppearanceContent(
 
 @Composable
 private fun OffsetStep(label: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    // The 48dp band holds the 32dp button, so its touch target overlaps nothing below.
     Box(Modifier.height(48.dp), contentAlignment = Alignment.Center) {
         OffsetStepButton(label, description, enabled, onClick)
     }
@@ -318,7 +316,6 @@ internal fun subtitleBottomPadding(frame: DpSize, aspectRatio: Float?, clearance
         ?: return default
     val letterbox = (frame.height - videoHeight) / 2
     val needed = (clearance + SUBTITLE_AIR - letterbox) / videoHeight
-    // In a short window the controls can cover most of the picture; the cues stop at its middle.
     return if (clearance > 0.dp) needed.coerceIn(default, MAX_SUBTITLE_BOTTOM_PADDING) else default
 }
 
@@ -341,5 +338,4 @@ internal fun subtitleArea(frame: DpSize, aspectRatio: Float?, coveredWidth: Dp):
         .takeIf { it.width > 0.dp && it.height > 0.dp }
 }
 
-// Between the controls and the lowest subtitle line.
 private val SUBTITLE_AIR = 8.dp

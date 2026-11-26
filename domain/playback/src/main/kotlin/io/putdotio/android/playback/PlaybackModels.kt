@@ -329,7 +329,6 @@ private const val SAME_LINK_WINDOW_MILLIS = 5_000L
 private fun PlaybackState.retry(): PlaybackTransition {
     val requestId = PlaybackRequestId(nextRequestValue)
     return when (content) {
-        // A read already running settles the interstitial; the controller runs one request at a time.
         is PlaybackContent.Conversion if content.refreshRequestId != null ->
             PlaybackTransition(this, consumed = false)
 
@@ -365,7 +364,6 @@ private fun PlaybackState.resolveSucceeded(
         return PlaybackTransition(this, consumed = false)
     }
     return when (val resolution = event.resolution) {
-        // A looked-up duration stays on the target: TV's prompt reads it, and retries need not list again.
         is PlaybackResolution.Ready ->
             (
                 resolution.durationSeconds
@@ -385,11 +383,9 @@ private fun PlaybackState.ready(resolution: PlaybackResolution.Ready): PlaybackT
         val awaiting = copy(
             content = PlaybackContent.AwaitingResume(resolution.source, resolution.subtitlesHidden, resolution.offline),
         )
-        // A finished video starts over without asking.
         if (playbackFinishedAt(resolution.source.startFromSeconds, target.durationSeconds)) {
             awaiting.chooseResume(restart = true)
         } else if (target.mediaType == PlaybackMediaType.AUDIO) {
-            // Audio continues from its saved position without asking, as iOS does.
             awaiting.chooseResume(restart = false)
         } else {
             PlaybackTransition(awaiting)

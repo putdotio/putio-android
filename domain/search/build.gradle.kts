@@ -5,7 +5,6 @@ plugins {
 android {
     namespace = "io.putdotio.android.search"
 
-    // State builders other modules' tests reuse.
     testFixtures.enable = true
 }
 

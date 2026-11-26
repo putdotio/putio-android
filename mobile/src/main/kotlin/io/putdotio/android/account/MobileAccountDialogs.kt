@@ -63,7 +63,6 @@ private val AccountDialogProperties = DialogProperties(usePlatformDefaultWidth =
 private fun Modifier.accountDialogWidth(): Modifier =
     widthIn(max = ACCOUNT_DIALOG_MAX_WIDTH).fillMaxWidth().padding(horizontal = 24.dp)
 
-// Material's widest dialog, plus the 24dp margins either side.
 private val ACCOUNT_DIALOG_MAX_WIDTH = 608.dp
 
 @Composable
@@ -91,8 +90,6 @@ internal fun MobilePlaybackMethodDialog(
     )
 }
 
-// Routes load when the picker opens: the list depends on the account's CDN eligibility
-// and the caller's address, so it is not worth caching across the session.
 @Composable
 internal fun MobileTunnelRouteDialog(
     selected: TunnelRouteName,

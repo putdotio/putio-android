@@ -154,7 +154,6 @@ class FilesDeleteReducerTest {
         assertTrue(undone.consumed)
         assertNull(undone.state.current.deleteOutcome)
         assertTrue(undone.state.current.needsReload)
-        // The restored item listed again reads as back, not as a delete that failed.
         val refreshed = finishReload(FilesBrowserReducer.reduce(undone.state, FilesBrowserEvent.Refresh), listOf(item))
         assertNull(refreshed.current.deleteOutcome)
     }
@@ -215,7 +214,6 @@ class FilesDeleteReducerTest {
         assertEquals(listOf(file(8L), item), appended.state.current.content.items())
         assertEquals(FilesFolderOperation.Idle, appended.state.current.operation)
         assertNull(appended.effect)
-        // Announcing the earlier result after the correction leaves the corrected one in place.
         assertFalse(FilesBrowserReducer.reduce(
             appended.state, FilesBrowserEvent.DeleteOutcomeAnnounced(previousOutcome),
         ).consumed)
@@ -226,7 +224,6 @@ class FilesDeleteReducerTest {
     fun ambiguousMutationAndReadFailuresRetainCauseAndRetryOnlyExactItemRead() {
         val deleting = FilesBrowserReducer.reduce(loadedRoot(), event)
         val originalFailure = unexpected("connection lost after submission")
-        // Controller-level unexpected throws also arrive through LoadFailed.
         val checking = FilesBrowserReducer.reduce(deleting.state, FilesBrowserEvent.LoadFailed(
             checkNotNull(deleting.effect).requestId, originalFailure,
         ))
@@ -302,7 +299,6 @@ class FilesDeleteReducerTest {
         val gone = checked(checking, PutioResult.Failure(apiFailure(404)))
         assertEquals(FilesDeleteStatus.NO_LONGER_AVAILABLE, gone.state.current.deleteOutcome?.status)
 
-        // The limit only explains a Trash refusal; a permanent request refused the same way is still present.
         val permanent = FilesBrowserReducer.reduce(loadedRoot(), event.copy(mode = FilesDeleteMode.PERMANENT))
         val permanentChecking = FilesBrowserReducer.reduce(permanent.state, FilesBrowserEvent.DeleteFinished(
             checkNotNull(permanent.effect).requestId,

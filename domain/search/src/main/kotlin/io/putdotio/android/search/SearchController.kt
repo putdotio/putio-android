@@ -253,7 +253,6 @@ public class SearchController internal constructor(
                 when (edit) {
                     is RecentSearchEdit.Remove -> !closed && edit.term in mutableState.value.recentTerms
                     RecentSearchEdit.Clear -> !closed && mutableState.value.recentTerms.isNotEmpty()
-                    // Only once the setting has loaded, and only to change it.
                     is RecentSearchEdit.SetEnabled ->
                         !closed && mutableState.value.recentSearchesEnabled == !edit.enabled
                 }
@@ -309,10 +308,8 @@ public class SearchController internal constructor(
                         true
                     }
                 }
-                // A pause while typing is not a search anyone chose; only submit and open record.
                 if (!committed) return@launch
             }
-            // Recent searches keep the bare term; only the request carries the scope and the type.
             val (scope, filter) = synchronized(lock) { mutableState.value.let { it.scope to it.filter } }
             val result = safely { repository.search(term.within(scope), filter) }
             applyInitialResult(lock, mutableState, term, requestId, result)

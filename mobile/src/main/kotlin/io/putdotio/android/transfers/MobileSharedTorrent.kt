@@ -53,7 +53,6 @@ private fun InputStream.readBounded(limit: Int): ByteArray {
     val buffer = ByteArrayOutputStream()
     val chunk = ByteArray(DEFAULT_BUFFER_SIZE)
     while (buffer.size() <= limit) {
-        // A superseded read is interrupted; stop between chunks instead of holding up to the limit.
         if (Thread.interrupted()) throw InterruptedIOException()
         val read = read(chunk, 0, minOf(chunk.size, limit + 1 - buffer.size()))
         if (read < 0) break
@@ -62,7 +61,6 @@ private fun InputStream.readBounded(limit: Int): ByteArray {
     return buffer.toByteArray()
 }
 
-// A metainfo file is a bencoded dictionary with an `info` key; put.io validates the rest.
 private fun ByteArray.looksLikeTorrent(): Boolean =
     size >= MIN_TORRENT_BYTES && first() == 'd'.code.toByte() && last() == 'e'.code.toByte() &&
         containsBytes(INFO_KEY)

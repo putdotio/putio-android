@@ -111,7 +111,6 @@ internal class MobileDownloadStore internal constructor(
         }
     }
 
-    // A deleted file's unreadable row must not come back as a row in a build that can read it.
     private fun forgetUnreadable(fileId: FilesItemId) {
         unreadable = unreadable.filterNot { (it as? JSONObject)?.optLong("fileId") == fileId.value }
     }
@@ -127,7 +126,6 @@ internal class MobileDownloadStore internal constructor(
         }
 
     companion object {
-        // Keyed by the application too: a process has one, and each JVM test gets a fresh one.
         private val shared = WeakHashMap<Context, MutableMap<Long, MobileDownloadStore>>()
 
         internal fun existingShared(context: Context, userId: Long): MobileDownloadStore? {
@@ -202,7 +200,6 @@ private fun SharedPreferences.readDocument(key: String): StoredRows {
         val entry = runCatching { (item as? JSONObject)?.toEntryOrNull() }.getOrNull()
         if (entry == null) item?.let(unreadable::add) else entries += entry
     }
-    // Two rows for one file: keep the one with the viewer's own name over a recovered one.
     val rows = entries.groupBy { it.fileId }.values.map { rows -> rows.firstOrNull { !it.recovered } ?: rows.first() }
     return StoredRows(rows, unreadable)
 }
@@ -252,8 +249,6 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
     val type = optString("type").takeIf { it.isNotBlank() }?.let(PutioFileType::fromRaw)
     val artifact = DownloadArtifact.entries.firstOrNull { it.name == optString("artifact") }
     val pauseRequested = optBoolean("pauseRequested", false)
-    // A viewer's pause reads as paused at once, so the row offers Resume, never Cancel, before
-    // reconcile hears from Media3.
     val status = optJSONObject("status")?.toStatusOrNull()?.let { status ->
         if (pauseRequested && status == DownloadStatus.Queued) {
             DownloadStatus.Paused(DownloadPauseReason.USER, optJSONObject("status")?.optLong("bytes") ?: 0L)
@@ -289,7 +284,6 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
 
 private fun JSONObject.toStatusOrNull(): DownloadStatus? =
     when (optString("kind")) {
-        // Neither a transfer nor a pause survives the process; both resume from the cache as Queued.
         "queued", "waiting", "paused", "downloading" -> DownloadStatus.Queued
         "failed" -> DownloadStatus.Failed(
             DownloadFailureReason.entries.firstOrNull { it.name == optString("reason") }

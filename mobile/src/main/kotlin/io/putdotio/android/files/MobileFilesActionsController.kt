@@ -130,7 +130,6 @@ internal class MobileFilesActionsController(
         }
         val writes = targets.mapNotNull { item -> writeWatched(item, watched)?.let { item to it } }
         if (writes.isEmpty()) return
-        // A 401 is the session's verdict: it signs out as soon as its write answers, not after the rest.
         writes.forEach { (_, write) ->
             scope.launch {
                 val failure = (write.await() as? PutioResult.Failure)?.failure
@@ -186,10 +185,7 @@ internal class MobileFilesActionsController(
      */
     private fun writeWatched(item: FilesItem, watched: Boolean): Deferred<PutioResult<Unit>>? {
         val seconds = if (watched) item.playback?.durationSeconds ?: return null else 0.0
-        // A write already sent can't be called back, so a newer choice waits for it: put.io applies
-        // them in order, and each settles the row in that order, so the last one put.io took shows.
         val previous = watchedJobs[item.id]
-        // Started lazily so the write is registered before its body can compare itself.
         val write = scope.async(start = CoroutineStart.LAZY) {
             previous?.join()
             val result = watchedPermits.withPermit {
@@ -201,7 +197,6 @@ internal class MobileFilesActionsController(
                     }
                 }
             }
-            // A closed session settles nothing: a late 401 must not reject the session after it.
             ensureActive()
             if (watchedJobs[item.id] === coroutineContext[Job]) watchedJobs.remove(item.id)
             if (result is PutioResult.Success) {
@@ -217,7 +212,6 @@ internal class MobileFilesActionsController(
 
     /** Hands VLC the original with the account's download token, never the session's access token. */
     fun openInVlc(id: FilesItemId, name: String) {
-        // One handoff at a time: repeated taps during the token lookup would open VLC once per tap.
         if (id.value <= 0L || vlcHandoff?.isActive == true) return
         vlcHandoff = scope.launch {
             val stream = sources.streamUrls.originalStreamUrl(id)
@@ -249,7 +243,6 @@ internal class MobileFilesActionsController(
             ensureActive()
             when (result) {
                 is PutioResult.Success -> {
-                    // Another delete may have replaced the outcome meanwhile; the item still comes back somewhere.
                     if (!onFilesEvent(FilesBrowserEvent.TrashUndone(outcome))) {
                         onFilesEvent(FilesBrowserEvent.InvalidateAllFolders)
                     }
@@ -271,7 +264,6 @@ internal class MobileFilesActionsController(
     }
 
     private suspend fun report(notice: MobileFilesNotice) {
-        // A 401 is the session's verdict; the shell signs out instead of explaining it here.
         if (notice.failure is PutioFailure.AuthenticationRequired) {
             onAuthenticationRequired()
         } else {

@@ -256,7 +256,6 @@ internal class MobileCastController(
 
     /** The receiver as a Media3 player, for the player screen's controls and position reporting. */
     val remotePlayer: CastRemotePlayer = CastRemotePlayer(gateway, scope, clock) { startMillis ->
-        // A file that finished or failed has left the receiver; playing it again sends it once more.
         sentMedia?.takeIf { gateway.status.value?.fileId == it.fileId }?.let { media ->
             loadsSent++
             gateway.load(media, startMillis, autoplay = true, speed = gateway.status.value?.speed ?: 1f)
@@ -308,15 +307,12 @@ internal class MobileCastController(
     init {
         scope.launch {
             gateway.status.collect { status ->
-                // The status clears only as the session ends: freeze where the receiver stood, for
-                // the file's next local start. A file that finished hands back stopped.
                 if (status == null) takeEnded()?.let { (fileId, handover) -> handovers[fileId] = handover }
                 if (status?.fileId == sending) sending = null
                 noteFinish(status)
             }
         }
         scope.launch {
-            // The departing session is gone once no session is connected or connecting.
             gateway.availability.collect {
                 if (it !is CastAvailability.Connected) sending = null
                 if (it !is CastAvailability.Connected && it !is CastAvailability.Connecting) ending = false
@@ -404,7 +400,6 @@ internal class MobileCastController(
     /** Signing out ends the session: the receiver holds the account's download token. */
     fun end() {
         signOuts++
-        // Nothing goes to the departing session while it winds down.
         ending = gateway.availability.value.let {
             it is CastAvailability.Connected || it is CastAvailability.Connecting
         }
@@ -413,7 +408,6 @@ internal class MobileCastController(
         sending = null
         handovers.clear()
         autoplay.restart()
-        // Nor does one that ended a moment ago and is not handed back yet.
         handedBack = gateway.endedStatus
         gateway.endForSignOut()
     }
@@ -428,7 +422,6 @@ internal class MobileCastController(
     /** Where the local player picks [fileId] up after a session ended; taken once, null while casting. */
     fun takeHandover(fileId: Long): CastHandover? {
         if (gateway.availability.value is CastAvailability.Connected) return null
-        // The session may have ended a moment ago, before the status collector ran.
         if (gateway.status.value == null && gateway.endedStatus?.fileId == fileId) {
             takeEnded()?.let { (endedFileId, handover) -> handovers[endedFileId] = handover }
         }
@@ -441,8 +434,6 @@ internal class MobileCastController(
         return ended.fileId?.let { it to CastHandover(ended.positionAt(clock()), ended.playing, ended.speed) }
     }
 
-    // Only a file seen playing finishes: a receiver found finished already, or a report on a file
-    // still loading, is no new finish.
     private fun noteFinish(status: CastRemoteStatus?) {
         val playing = playingFileId.takeUnless { ending }
         playingFileId = status?.takeIf { it.state in LIVE_STATES }?.fileId.takeUnless { ending }
@@ -623,11 +614,9 @@ internal fun castSubtitleKey(
     return when (selection) {
         SubtitleSelection.Off -> null
         is SubtitleSelection.Track -> selection.identity.id?.let { id ->
-            // Media3 may prefix a sidecar track's id with its source's index.
             keys.firstOrNull { key -> id == key || id.endsWith(":$key") }
         }
         SubtitleSelection.Automatic -> defaultKey
-        // Unknown settings show none, as locally: the account may hide subtitles.
         null -> defaultKey.takeIf { policy?.autoSelectSubtitles == true }
     }
 }
@@ -774,7 +763,6 @@ internal class CastRemotePlayer(
 
     override fun handleSetPlayWhenReady(playWhenReady: Boolean): ListenableFuture<*> {
         when {
-            // Play after a finish seeks to the start first, which already sent the file again.
             playWhenReady && replaying -> Unit
             playWhenReady && status?.left == true -> replayFrom(0L)
             playWhenReady -> gateway.play()
@@ -799,7 +787,6 @@ internal class CastRemotePlayer(
         return awaitStatus()
     }
 
-    // The placeholder state holds until the receiver answers, or for a while when it does not.
     private fun awaitStatus(): ListenableFuture<*> {
         val future = SettableFuture.create<Any?>()
         pending += future

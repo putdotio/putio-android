@@ -67,17 +67,13 @@ internal fun MobileFilesRoute(
     onLinkedFileLanded: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
     val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
     val currentKey = folderKey(state)
     val items = state.current.content.items()
     val showsDetail = listPaneTopBar != null
-    // While rows are being selected the detail pane shows no file: a tap checks a row, not opens it.
     val selecting = selection?.isActive(state) == true
-    // The file the detail pane shows; another folder starts with none.
     var detailId by rememberSaveable(currentKey.first, currentKey.second) { mutableStateOf<Long?>(null) }
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
     var pinToOpen by rememberSaveable { mutableStateOf<Long?>(null) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
@@ -121,7 +117,6 @@ internal fun MobileFilesRoute(
         }
     }
     val openActions = actionsFrom(false)
-    // Movable, so crossing 840dp keeps the folder's sheet, rename draft and pickers.
     val folders = remember { movableContentOf { args: MobileFilesFoldersArgs -> MobileFilesFolders(args) } }
     val foldersArgs =
         MobileFilesFoldersArgs(
@@ -280,7 +275,6 @@ private fun MobileFilesViewerHost(
             ),
         )
     } else if (viewerId != null && state.current.content !is FilesContent.Loading) {
-        // The file left the listing, or the listing changed folder: there is nothing left to view.
         SideEffect(onClose)
     }
 }
@@ -318,8 +312,6 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
         contentKey = folderKey,
         forward = { initial, target -> target.stack.size >= initial.stack.size },
     ) { shown ->
-        // The reducer applies most events to the current folder, so the leaving one sends only an
-        // announced deletion, which the reducer matches anywhere in the stack, and starts nothing.
         val leaving = folderKey(shown) != currentKey
         MobileFilesFolder(
             state = shown,
@@ -343,7 +335,6 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
             fileOpening = fileOpening?.takeUnless { leaving },
             itemActions = itemActions,
             folderCreator = folderCreator,
-            // The leaving folder's rows show no selection; the selection belongs to the folder on screen.
             selection = selection?.takeUnless { leaving },
         )
     }
@@ -385,7 +376,6 @@ private fun MobileFilesFolder(
     selection: FilesSelection?,
 ) {
     key(repository, state.current.folder.id.value) {
-        // One item from its sheet, or the selection from the toolbar; the picker moves them together.
         var movingItemIds by rememberSaveable { mutableStateOf(emptyList<Long>()) }
         val movingItems = state.listedAll(movingItemIds)
         val startMove = movePicker(repository, state) { items -> movingItemIds = items.map { it.id.value } }
@@ -415,8 +405,6 @@ private fun MobileFilesFolder(
             selection = selection,
             onMoveItems = startMove,
         )
-        // A folder made in the picker is new to every cached listing of its parent. Those listings
-        // read again once the picker closes: a reload now could drop the item it is moving or copying.
         val createdInPicker = remember { PickerCreatedFolders() }
         val pickerFolders = MobileMovePickerFolders(folderCreator, onAuthenticationRequired, createdInPicker::add)
         val closePicker = { createdInPicker.invalidate(onEvent) }
@@ -433,7 +421,6 @@ private fun MobileFilesFolder(
                     movingItemIds = emptyList()
                     closePicker()
                 },
-                // Moved items leave the folder, so their selection ends with the move.
                 onMoved = { selection?.end() },
                 folders = pickerFolders,
             )
@@ -586,7 +573,6 @@ private fun MobileFilesMoveSession(
                 if (onEvent(FilesBrowserEvent.Move(sourceFolderId, itemIds, current.current.folder.id))) {
                     memory.choose(targetStore, current.path)
                     onMoved()
-                    // The session-owned browser retains the submitted operation after the picker closes.
                     onDismiss()
                 } else {
                     finished = false

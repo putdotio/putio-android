@@ -70,8 +70,6 @@ internal class AuthTabOAuthBrowser internal constructor(
 
 internal fun buildPinnedAuthTabIntent(provider: String): AuthTabIntent =
     AuthTabIntent.Builder().build().also { authTab ->
-        // AuthTabIntent permits a Custom Tabs fallback unless the verified
-        // Auth Tab provider is made explicit.
         authTab.intent.setPackage(provider)
     }
 

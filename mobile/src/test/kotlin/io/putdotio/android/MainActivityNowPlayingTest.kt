@@ -22,7 +22,6 @@ class MainActivityNowPlayingTest {
         ActivityScenario.launch<MainActivity>(openNowPlaying).use { scenario ->
             scenario.onActivity { assertTrue(it.nowPlayingRequests.pending.value) }
 
-            // The shell had not finished acting (session lookup in flight) when the Activity died.
             scenario.recreate()
             scenario.onActivity { assertTrue(it.nowPlayingRequests.pending.value) }
 

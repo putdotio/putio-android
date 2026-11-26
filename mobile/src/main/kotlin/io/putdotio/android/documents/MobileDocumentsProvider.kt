@@ -55,7 +55,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
                 .add(Root.COLUMN_TITLE, context.getString(DesignR.string.app_name))
                 .add(Root.COLUMN_SUMMARY, root.summary)
                 .add(Root.COLUMN_ICON, DesignR.drawable.putio_icon)
-                // Read-only: no FLAG_SUPPORTS_CREATE, and no recents or tree access.
                 .add(Root.COLUMN_FLAGS, Root.FLAG_SUPPORTS_SEARCH)
         }
         cursor.setNotificationUri(context.contentResolver, DocumentsContract.buildRootsUri(authority(context)))
@@ -63,7 +62,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
     }
 
     override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor {
-        // Look up first: a document that isn't there throws before any cursor exists to leak.
         val row = documents().document(documentId)
         return MatrixCursor(projection ?: DOCUMENT_COLUMNS).apply { add(row) }
     }
@@ -89,8 +87,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
             throw FileNotFoundException("put.io documents are read-only")
         }
         val storage = checkNotNull(context).getSystemService(StorageManager::class.java)
-        // One thread per open document, so a read waiting on the network holds up no other document. It starts
-        // only once the document opened, so a refused open leaves no thread behind.
         val thread = HandlerThread("putio-document")
         val reader = documents().open(documentId, signal) { thread.quitSafely() }
         var opened = false
@@ -230,7 +226,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
         private fun productionDocuments(context: Context): MobileDocuments {
             val app = context.applicationContext
             val runtime = MobileOAuthRuntime.get(app)
-            // A picker can start the process; restore the stored session so the root can appear.
             runtime.ensureSessionRestored {}
             val share = MobileShareDependencies.from(app)
             val offline by lazy { OfflineOriginals.from(app) }

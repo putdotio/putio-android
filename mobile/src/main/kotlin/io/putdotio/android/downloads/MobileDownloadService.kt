@@ -28,8 +28,6 @@ class MobileDownloadService : DownloadService(
     R.string.mobile_downloads_channel_name,
     0,
 ) {
-    // A scheduler or boot restart reaches here before any UI: bringing the auth runtime
-    // up restores the stored session token into the download resolver.
     override fun getDownloadManager(): DownloadManager {
         val downloads = MobileDownloadCache.get(this)
         MobileOAuthRuntime.get(this).ensureSessionRestored(downloads::markSessionSettled)
@@ -38,7 +36,6 @@ class MobileDownloadService : DownloadService(
 
     override fun getScheduler(): Scheduler = PlatformScheduler(this, JOB_ID)
 
-    // Parked and paused transfers stay in Media3's list; the notification shows only live work.
     override fun getForegroundNotification(downloads: List<Download>, notMetRequirements: Int): Notification =
         downloadProgressNotification(this, CHANNEL_ID, downloads, notMetRequirements)
 

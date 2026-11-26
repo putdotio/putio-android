@@ -23,7 +23,6 @@ internal class RemoteOriginals(
     private fun open(fileId: FilesItemId, offset: Long): OpenedBytes {
         val download = runBlocking { originals.request(fileId) } ?: throw IOException("No session")
         val request = download.newBuilder()
-            // A range also stops OkHttp from unzipping the body, so offsets count the file's own bytes.
             .header("Range", "bytes=$offset-")
             .build()
         val call = http.newCall(request)

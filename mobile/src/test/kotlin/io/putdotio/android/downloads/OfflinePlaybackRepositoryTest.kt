@@ -68,7 +68,6 @@ class OfflinePlaybackRepositoryTest {
     @Test
     fun completedDownloadReplaysTheUrlItWasRequestedWith() = runBlocking {
         val downloads = downloadsOf(completed())
-        // A download from before the URL gained max_subtitle_count is cached under its own URL.
         val earlier = "https://api.put.io/v2/files/7/hls/media.m3u8?subtitle_key=all"
         val replayed =
             OfflinePlaybackRepository(downloads, delegate, testDownloadFilesApi) { OfflineRequest(earlier) }
@@ -97,7 +96,6 @@ class OfflinePlaybackRepositoryTest {
 
         assertTrue(ready.useStartFrom)
         assertEquals(250.0, ready.source.startFromSeconds, 0.0)
-        // The resume prompt's finished-video rule needs the duration the row kept.
         assertEquals(1_800.0, ready.durationSeconds)
         assertTrue(delegateCalls.isEmpty())
     }

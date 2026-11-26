@@ -71,7 +71,6 @@ internal val PutioFailure.publicLinkRefusal: PublicLinkRefusal?
         else -> null
     }
 
-// RFC 3986 unreserved characters pass; anything else is percent-encoded as UTF-8.
 private fun String.encodePathSegment(): String =
     buildString {
         for (byte in this@encodePathSegment.encodeToByteArray()) {

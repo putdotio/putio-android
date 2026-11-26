@@ -45,7 +45,6 @@ internal class DocumentListings(
             val current = existing?.takeUnless { it.isStale(clock()) }
             val next = when {
                 closed -> Listing()
-                // A stale listing keeps showing its rows until the fresh first page replaces them.
                 current == null -> load(key, Listing(items = existing?.items.orEmpty()), cursor = null)
                 current.job != null -> current
                 current.failure != null && !current.failureShown -> current.copy(failureShown = true)
@@ -92,7 +91,6 @@ internal class DocumentListings(
         }
         listings[key] = base.copy(job = job, failure = null, failureShown = false)
         job.start()
-        // A load that finished while starting has already stored what landed.
         return checkNotNull(listings[key])
     }
 

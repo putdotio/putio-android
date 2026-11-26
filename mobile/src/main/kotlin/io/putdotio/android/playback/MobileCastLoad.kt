@@ -37,7 +37,6 @@ internal fun PlaybackCastMedia.loadRequest(
     val receiverLoad = receiverLoad?.takeIf { putioReceiver }
     val plain = loadBuilder(startMillis, autoplay, speed, sendsUrl = receiverLoad == null).build()
     receiverLoad ?: return plain
-    // The custom data fills what the rest of the LOAD leaves of one Cast message.
     val room = CAST_MESSAGE_MAX_BYTES - CAST_ENVELOPE_BYTES
     val withCustomData = { budget: Int ->
         loadBuilder(startMillis, autoplay, speed, sendsUrl = false)
@@ -46,7 +45,6 @@ internal fun PlaybackCastMedia.loadRequest(
     }
     val budget = room - plain.jsonSize()
     val first = withCustomData(budget)
-    // Android's JSON escapes what Kotlin's leaves bare, so the sent LOAD can outgrow the first guess.
     val over = first.jsonSize() - room
     return when {
         over <= 0 -> first

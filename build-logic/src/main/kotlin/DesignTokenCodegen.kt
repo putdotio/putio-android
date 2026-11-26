@@ -297,7 +297,6 @@ object DesignTokenCodegen {
                         if (face.weightRange == null) {
                             appendLine("        Font($resource, FontWeight($weight)),")
                         } else {
-                            // The weight only labels the face for matching; the axis must be set too.
                             appendLine("        Font(")
                             appendLine("            $resource,")
                             appendLine("            FontWeight($weight),")
@@ -534,7 +533,6 @@ object DesignTokenCodegen {
         }
         appendLine("}")
         appendLine()
-        // PutioTheme applies the mobile scheme; the TV app builds its own MaterialTheme from the TV one.
         appendLine("/** The tier-2 binding: one dark scheme, every component stock Material 3. */")
         appendLine("internal fun putioDarkColorScheme(): androidx.compose.material3.ColorScheme =")
         appendLine("    androidx.compose.material3.darkColorScheme(")

@@ -150,7 +150,6 @@ class MobileFileShareService : Service() {
                 } finally {
                     exportInProgress = false
                 }
-                // The share sheet opens next; the in-app dialog has nothing left to show.
                 MobileShareProgress.end()
                 deliver(name, session) { shareChooser(file) }
             }
@@ -160,11 +159,9 @@ class MobileFileShareService : Service() {
             clearShares(dependencies.io)
             stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_REMOVE)
         } catch (error: IOException) {
-            // A cancelled call surfaces as IOException; cancellation is not a failure to report.
             currentCoroutineContext().ensureActive()
             fail(name)
         } catch (error: RuntimeException) {
-            // FileProvider, notification posting and Activity launch report failure as runtime errors.
             currentCoroutineContext().ensureActive()
             fail(name)
         }
@@ -205,7 +202,6 @@ class MobileFileShareService : Service() {
         val resumed: Activity? = try {
             withTimeoutOrNull(dependencies.readyTimeout) { MobileResumedActivity.await() }
         } catch (error: CancellationException) {
-            // A dismissed or superseded wait drops its export together with the notification.
             clearShares(dependencies.io)
             throw error
         }

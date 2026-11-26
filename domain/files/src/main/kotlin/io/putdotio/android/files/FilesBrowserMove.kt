@@ -33,7 +33,6 @@ private fun FilesBrowserState.move(event: FilesBrowserEvent.Move): FilesBrowserT
             val updated = started.state.current.copy(
                 moveOutcome = FilesMoveOutcome(effect.requestId, intent, items.first().name), deleteOutcome = null,
             )
-            // Either destination or source ancestors can have changed once the POST is submitted.
             val ancestors = started.state.stack.dropLast(1).map {
                 it.copy(needsReload = true, content = it.content.withoutActivePagingRequest())
             }

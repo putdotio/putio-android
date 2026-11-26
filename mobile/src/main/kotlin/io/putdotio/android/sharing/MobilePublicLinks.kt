@@ -136,7 +136,6 @@ internal fun MobilePublicLinkSheet(
         dragHandle = { MobileSheetHandle() },
         modifier = Modifier.testTag(MOBILE_PUBLIC_LINK_SHEET_TAG),
     ) {
-        // The sheet adds the navigation bar inset; over a gesture bar this makes the board's 28dp.
         Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(bottom = 4.dp)) {
             Text(
                 text = stringResource(R.string.mobile_public_links_action),

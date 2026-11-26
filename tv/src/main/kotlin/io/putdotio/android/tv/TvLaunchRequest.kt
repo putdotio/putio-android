@@ -36,7 +36,6 @@ internal fun Intent.consumeTvLaunchRequest(key: () -> TvLinkKey): TvLaunchReques
 
 internal fun Uri.toTvLaunchRequest(): TvLaunchRequest? {
     if (scheme != SCHEME) return null
-    // Shared folders such as Items shared with you (-2) have negative ids; only files are watched.
     val id = pathSegments.singleOrNull()?.substringBefore(TvLinkKey.SEPARATOR)?.toLongOrNull()
         ?.takeIf { it != 0L }?.let(::FilesItemId)
     return when (host) {

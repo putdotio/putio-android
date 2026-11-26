@@ -31,14 +31,9 @@ class LaunchSmokeTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
 
-            // Stability window: a crash-restart or overlay steal within 3 s
-            // is a failed launch even though the first RESUMED was real.
             Thread.sleep(3_000)
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
 
-            // Bounded main-thread round-trip: RESUMED alone survives a
-            // blocked main thread, and an unbounded runOnMainSync would hang
-            // the instrumentation instead of failing it.
             val mainThreadResponsive = CountDownLatch(1)
             Handler(Looper.getMainLooper()).post { mainThreadResponsive.countDown() }
             assertTrue(

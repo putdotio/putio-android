@@ -122,7 +122,6 @@ internal fun MobileFilesMoveDestination(
     val back = {
         if (state.canNavigateBack) onEvent(FilesMoveDestinationEvent.NavigateBack) else onCancel()
     }
-    // The folder the form was opened in; a picker rebuilt elsewhere after recreation drops the form.
     var creatingIn by rememberSaveable { mutableStateOf<Long?>(null) }
     LaunchedEffect(state.current.folder.id.value) {
         if (creatingIn != state.current.folder.id.value) creatingIn = null
@@ -371,7 +370,6 @@ private fun MobileMoveFolderContent(
         is FilesContent.Empty -> content.paging
         is FilesContent.Loading, is FilesContent.Failed -> FilesPaging.Complete
     }
-    // A folders-only page can hold no folders at all; its footer is in view, so the next one follows.
     LoadNextPageNearEnd(
         listState = listState,
         nextPage = paging as? FilesPaging.Available,

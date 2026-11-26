@@ -2,9 +2,6 @@ import com.android.build.api.artifact.SingleArtifact
 import com.android.build.api.variant.HostTestBuilder
 import java.util.Properties
 
-// Ignored root local.properties key `putioMobileOAuthClientIdDebugOverride`.
-// Read and validated at configuration time for every variant, so a malformed
-// value fails any build on this machine; only the debug BuildConfig embeds it.
 fun localMobileOAuthClientIdOverride(): String {
     val text = providers.fileContents(isolated.rootProject.projectDirectory.file("local.properties")).asText.orNull
         ?: return ""
@@ -29,22 +26,14 @@ plugins {
 
 android {
     defaultConfig {
-        // Shared with the TV app: one Google Play listing serves both, phones get this bundle and
-        // TVs the TV one.
         applicationId = "io.put.putio"
-        // Dedicated public Android mobile OAuth client from #47.
         buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")
-        // Local harness proof only: an ignored local.properties may point debug
-        // builds at another client. The field exists in every variant; the debug
-        // build type overrides this empty default with the local value and the
-        // runtime honours it only when BuildConfig.DEBUG is true.
         buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID_DEBUG_OVERRIDE", "\"\"")
         buildConfigField("String", "PUTIO_ORIGINAL_VIDEO", "\"Check\"")
     }
 
     buildTypes {
         debug {
-            // Keeps debug installs beside the TV app's on one device, under the harness's ids.
             applicationIdSuffix = ".mobile.debug"
             buildConfigField(
                 "String",
@@ -90,8 +79,6 @@ androidComponents {
         profiles.addStaticSourceDirectory(layout.projectDirectory.dir("src/main/generated/baselineProfiles").asFile.absolutePath)
     }
     onVariants { variant ->
-        // Static shortcuts name their target package literally, and each channel and build type
-        // installs under its own application id.
         val shortcuts = tasks.register<GenerateShortcutsTask>(
             "generate${variant.name.replaceFirstChar(Char::titlecase)}Shortcuts",
         ) {
@@ -101,7 +88,6 @@ androidComponents {
         }
         variant.sources.res?.addGeneratedSourceDirectory(shortcuts, GenerateShortcutsTask::outputDir)
 
-        // The harness's device-code sign-in lives in src/debug; release must never declare it.
         val debugSignIn = tasks.register<VerifyDebugOnlyActivityTask>(
             "verify${variant.name.replaceFirstChar(Char::titlecase)}DebugSignInManifest",
         ) {
@@ -115,8 +101,6 @@ androidComponents {
     }
 }
 
-// Google Play delivery runs from this module for both apps: each upload is one release carrying
-// the mobile and TV production bundles (.github/workflows/play-internal.yml).
 val tvPlayBundle = configurations.dependencyScope("tvPlayBundle")
 val tvPlayBundleFiles = configurations.resolvable("tvPlayBundleFiles") {
     extendsFrom(tvPlayBundle.get())
@@ -143,14 +127,12 @@ play {
     artifactDir.set(layout.buildDirectory.dir("play-bundles"))
 }
 
-// lintVital is off (checkReleaseBuilds = false), so an upload lints both release variants itself.
 tasks.matching { it.name == "publishProductionReleaseBundle" }.configureEach {
     dependsOn(playBundles, "lintProductionRelease", ":tv:lintProductionRelease")
 }
 
 val launchSmokeTest = "io.putdotio.android.LaunchSmokeTest#shellLaunchesStaysResumedAndRenders"
 
-// Emulator smoke workflow: one invocation per suite, each gated on its own XML result.
 mapOf(
     "Launch" to launchSmokeTest,
     "OAuth" to "io.putdotio.android.auth.StaleOAuthCallbackTest#" +
@@ -195,9 +177,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.navigation.compose)
-    // Streams through ExoPlayer, publishes a media session for system and remote controls,
-    // draws subtitles (text and bitmap) with media3-ui's SubtitleView, and adds downloads,
-    // the background audio service and its controls.
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.database)
     implementation(libs.androidx.media3.datasource)
@@ -208,9 +187,6 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.ui.compose)
     implementation(libs.androidx.media3.ui.compose.material3)
-    // Google Cast: the device picker reads MediaRouter's routes; sessions and the receiver's media
-    // run through the Cast framework, which stays dormant without Google Play services. Media3's
-    // CastPlayer puts the receiver on the audio session, for the system's output switcher.
     implementation(libs.androidx.media3.cast)
     implementation(libs.androidx.mediarouter)
     implementation(libs.play.services.cast.framework)

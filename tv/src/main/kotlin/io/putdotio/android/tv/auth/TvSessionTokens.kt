@@ -14,8 +14,6 @@ internal class TvSessionTokens(
     var configured: AccessToken? = null
         private set
 
-    // An unreadable store is not an absent session: the ciphertext may still be
-    // there, so the screen says so instead of quietly offering a fresh link.
     suspend fun read(): StoredToken =
         try {
             tokenStore.read()?.let(StoredToken::Present) ?: StoredToken.Absent

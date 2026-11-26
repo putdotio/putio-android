@@ -125,14 +125,12 @@ class TvAutoplayProofTest {
         Thread.sleep(PLAY_MILLIS)
         screenshot("04-next-resumed")
 
-        // Back hides the controls, then leaves; Files focuses the video that played last.
         press(KeyEvent.KEYCODE_BACK)
         if (compose.runOnIdle { session.playback.value != null }) press(KeyEvent.KEYCODE_BACK)
         compose.waitUntil(5_000) { compose.runOnIdle { session.playback.value == null } }
         compose.waitUntil(10_000) { isFocused("Play $SECOND") }
         screenshot("05-back-on-the-autoplayed-row")
 
-        // The folder's last video resumes without asking and leaves playback when it ends, back on its row.
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         compose.waitUntil(10_000) { compose.onAllNodesWithTag(TV_PLAYER_TAG).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(0, compose.onAllNodesWithText(RESUME_PREFIX, substring = true).fetchSemanticsNodes().size)
@@ -263,7 +261,6 @@ class TvAutoplayProofTest {
                         )
                     }
 
-                    // The folder read in name order, with the listing's duration.
                     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult {
                         lookups += target.fileId.value
                         return if (target.fileId.value == FIRST_ID) {
@@ -304,7 +301,6 @@ class TvAutoplayProofTest {
             .executeShellCommand("cp $pushed ${file.absolutePath}")
         ParcelFileDescriptor.AutoCloseInputStream(copy).use { it.readBytes() }
         require(file.isFile && file.canRead()) { "Fixture is not readable: $file (pushed as $pushed)" }
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         return PlaybackSource(

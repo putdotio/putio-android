@@ -36,7 +36,6 @@ public fun SubtitleCueOverlay(
     textSizeFraction: Float = SubtitleView.DEFAULT_TEXT_SIZE_FRACTION,
 ) {
     if (cues.isEmpty()) return
-    // Replacement players can deliver retained cues before their video dimensions.
     if (videoAspectRatio == null || !videoAspectRatio.isFinite() || videoAspectRatio <= 0f) return
     val context = LocalContext.current
     val renderer = remember(context) { SubtitleCueRenderer(context) }
@@ -85,9 +84,6 @@ internal class SubtitleCueRenderer(
     private val captionScale = context.captionFontScale()
     private val placed = CueLayer(context)
 
-    // WebVTT gives each cue without a line its own line counted up from the bottom (-1, -2, ...),
-    // and Media3 applies the bottom padding only to cues with no line, so these stack in a layer of
-    // their own, raised by the padding as a whole.
     private val stacked = CueLayer(context).apply { subtitleView.setBottomPaddingFraction(0f) }
     private var bottomPaddingFraction = SubtitleView.DEFAULT_BOTTOM_PADDING_FRACTION
 
@@ -147,7 +143,6 @@ private class CueLayer(context: Context) {
         renderedScale = textScale
         renderedFraction = baseFraction
         subtitleView.setFractionalTextSize(baseFraction * textScale)
-        // A size the viewer picked wins over sizes the subtitle file sets.
         subtitleView.setApplyEmbeddedFontSizes(textScale == 1f)
     }
 

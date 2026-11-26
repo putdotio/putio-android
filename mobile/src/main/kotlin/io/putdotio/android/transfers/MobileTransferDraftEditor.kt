@@ -77,7 +77,6 @@ internal class MobileTransferDraftEditor(
                 null
             current.torrent != null -> TransfersEvent.AddTorrent(current.torrent, saveParentId)
             else -> {
-                // Good lines go; a bad line stays in the field with its reason for the user to fix.
                 val lines = checkMobileTransferLines(current.input)
                 val links = lines.links.takeIf { it.isNotEmpty() && it.size <= MAX_TRANSFER_LINKS }
                 mutableState.value = current.copy(

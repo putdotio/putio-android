@@ -64,7 +64,6 @@ internal class PostHogAnalyticsSdk(
     ).apply {
         sdkName = "posthog-android"
         sdkVersion = com.posthog.android.BuildConfig.VERSION_NAME
-        // Identified before the first event, with no $identify and no flags request.
         bootstrap = PostHogBootstrapConfig(distinctId = accountId.toString(), isIdentifiedId = true)
         personProfiles = PersonProfiles.IDENTIFIED_ONLY
         setDefaultPersonProperties = false
@@ -73,7 +72,6 @@ internal class PostHogAnalyticsSdk(
         sessionReplay = false
         surveys = false
         errorTrackingConfig.autoCapture = false
-        // Ids live in memory only, so each start is a fresh install and an opt-out leaves none.
         cachePreferences = PostHogMemoryPreferences()
         httpClient = this@PostHogAnalyticsSdk.httpClient
         addBeforeSend(::allowlisted)
@@ -95,7 +93,6 @@ internal class PostHogAnalyticsSdk(
             put("runtime_version", Build.VERSION.RELEASE)
             put("device_class", deviceClass)
             put("auth_state", "signed_in")
-            // Only release builds send, and they talk to production put.io.
             put("environment", "production")
             put("release_channel", configuration.releaseChannel)
             put("app_version", configuration.appVersion)

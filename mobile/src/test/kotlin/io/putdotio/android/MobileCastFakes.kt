@@ -124,7 +124,6 @@ internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
     }
 
     override fun endForSignOut() {
-        // As the SDK may: the receiver's status lands before the session's end does.
         if (reportsOnSignOut) report(CastRemoteState.Playing, positionMillis = 90_000L)
         availability.value = CastAvailability.Available
         endedStatus = null

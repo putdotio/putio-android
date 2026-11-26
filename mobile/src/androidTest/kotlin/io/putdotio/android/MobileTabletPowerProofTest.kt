@@ -151,7 +151,6 @@ class MobileTabletPowerProofTest {
     fun keyboardDrivesFilesSearchTrashAndThePlayer() = withShell {
         screenshot("keys-01-files")
 
-        // The first key leaves touch mode; Tab walks in until a row holds focus.
         repeat(MAX_TABS) { if (!rowFocused("Shows")) press(KeyEvent.KEYCODE_TAB) }
         row("Shows").assertIsFocused()
         screenshot("keys-02-row-focused")
@@ -179,7 +178,6 @@ class MobileTabletPowerProofTest {
         press(KeyEvent.KEYCODE_FORWARD_DEL)
         compose.waitUntil(TIMEOUT_MS) { files.deleted == listOf(NOTES.id to FilesDeleteMode.TRASH) }
         compose.onNodeWithText("Moved to trash").assertExists()
-        // The focused row left the listing; keyboard focus stays in it, on the row now in its place.
         awaitCondition("a row keeps focus") { rowFocused("poster.jpg") }
         screenshot("keys-07-delete-moved-to-trash")
 
@@ -228,13 +226,11 @@ class MobileTabletPowerProofTest {
             )
             awaitCondition("probe beside put.io") { probeWindow() != null && host.isInMultiWindowMode }
             SystemClock.sleep(SETTLE_MS)
-            // The split resized the window without recreating it: the same Activity and player play on.
             assertSame(host, compose.activity)
             assertEquals(1, players.created.get())
             awaitCondition("video still playing") { player { it.isPlaying } == true }
             screenshot("drag-02-video-keeps-playing-in-split-screen")
 
-            // The app opened beside put.io holds key focus; a tap on put.io's pane gives it back.
             tap(hostCenter())
             press(KeyEvent.KEYCODE_ESCAPE)
             awaitCondition("Files in the split") { rowExists("poster.jpg") }
@@ -265,13 +261,10 @@ class MobileTabletPowerProofTest {
             SystemClock.sleep(SETTLE_MS)
             screenshot("drag-06-torrent-opened-add-transfer")
 
-            // An open sheet is its own window and takes no drops, so the next drag starts from Transfers.
             compose.onNodeWithText("Cancel").performClick()
-            // A drag registers its windows when it starts; wait until the sheet's window is gone.
             awaitCondition("the sheet's window to close") { appWindowCount() == 1 }
             SystemClock.sleep(SETTLE_MS)
             touchDrag(from = probeCenter("Magnet link"), to = hostCenter())
-            // Cancel kept the torrent as a draft, so the drop asks before replacing it, as a share does.
             compose.waitUntil(TIMEOUT_MS) {
                 compose.onAllNodes(hasText("Use shared link")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -474,7 +467,6 @@ class MobileTabletPowerProofTest {
         compose.waitForIdle()
         instrumentation.waitForIdleSync()
         uiAutomation.waitForIdle(100, 3_000)
-        // Holds each state long enough for a screen recording to show it.
         SystemClock.sleep(STEP_PAUSE_MS)
         saveProofScreenshot(proofDirectory("tablet-proof-${runId()}"), label)
     }
@@ -602,7 +594,6 @@ class MobileTabletPowerProofTest {
     }
 
     private class LocalVideo(file: File) : PlaybackRepository {
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         private val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
 

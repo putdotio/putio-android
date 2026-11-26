@@ -45,7 +45,6 @@ public class TrashController(
         }
     }
 
-    // One request is owned at a time. IDs reject results from cancelled reads and old sessions.
     private fun startRequest(request: TrashRequest) {
         val next = scope.launch(start = CoroutineStart.LAZY) {
             val completion = execute(request)

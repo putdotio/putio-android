@@ -123,7 +123,6 @@ internal fun MobileTransferDropZone(
 /** Reads a drop into the draft; false when it carries nothing the intake takes. */
 internal fun MobileTransferDraft.receiveDrop(activity: Activity, event: DragEvent): Boolean {
     val incoming = event.clipData?.toMobileIncomingTransfer() ?: return false
-    // Only a file needs the source's grant; text arrives inside the drop itself.
     val permissions =
         (incoming as? MobileIncomingTransfer.Torrent)?.let { activity.requestDragAndDropPermissions(event) }
     receive(incoming, activity.contentResolver, activity.packageName, afterRead = { permissions?.release() })
@@ -139,7 +138,6 @@ internal fun MobileTransferDropOverlay(over: Boolean) {
     val accent = MaterialTheme.colorScheme.primary
     val surface = MaterialTheme.colorScheme.surface
     val shape = RoundedCornerShape(PutioRadius.extraLarge)
-    // Clear of the tab title and the navigation where the window has room; short windows keep the words.
     val windowHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() }
     val roomy = windowHeight >= ROOMY_WINDOW_HEIGHT
     Box(

@@ -1,8 +1,5 @@
 package io.putdotio.android.settings
 
-// States as the reducers would hold them, for tests outside this module; request ids continue
-// from nextRequestValue.
-
 public fun accountSettingsState(
     content: AccountSettingsContent,
     mutation: AccountSettingsMutation,

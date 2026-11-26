@@ -336,7 +336,6 @@ private fun MobileSearchEmpty(
 ) {
     LoadNextPageNow(nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     Box(modifier = modifier.fillMaxSize()) {
-        // The column takes at least the whole height, so the state sits in the middle and scrolls when taller.
         Box(
             modifier = Modifier
                 .fillMaxSize()

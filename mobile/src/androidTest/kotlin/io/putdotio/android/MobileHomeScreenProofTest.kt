@@ -76,7 +76,6 @@ class MobileHomeScreenProofTest {
                 )
                 require(Build.VERSION.SDK_INT == 37) { "Home-screen proof requires API 37" }
                 runId()
-                // The shade and the launcher are other apps' windows; reading them needs every window.
                 val automation = instrumentation.uiAutomation
                 automation.serviceInfo = automation.serviceInfo.apply {
                     flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
@@ -167,7 +166,6 @@ class MobileHomeScreenProofTest {
         MobileDownloadActionReceiver.retriesForTest = DownloadNotificationRetries(
             signedIn = { SignedInAccount.User(USER) },
             find = { userId, fileId -> MobileDownloadStore.peek(context, userId, fileId) },
-            // Stands in for Media3: the real start also replaces the outcome notification.
             start = { userId, entry ->
                 started += userId to entry.fileId
                 MobileDownloadNotifications.cancel(context, userId, entry.fileId)
@@ -185,7 +183,6 @@ class MobileHomeScreenProofTest {
         screenshot("02-retried-for-its-account")
         closeShade()
 
-        // A notification an earlier account left behind: Try again under this account retries nothing.
         MobileDownloadNotifications.post(
             context,
             OTHER,
@@ -207,7 +204,6 @@ class MobileHomeScreenProofTest {
         screenshot("05-finished-offers-play")
         tap(awaitAction("Play"))
         val activity = awaitResumedMainActivity()
-        // Signed out here, so MainActivity holds the scoped link until sign-in; the shell then plays the copy.
         assertEquals(
             MobileDeepLink.Downloads(finished.fileId, play = true, userId = USER),
             activity.deepLinkRequests.pending.value,

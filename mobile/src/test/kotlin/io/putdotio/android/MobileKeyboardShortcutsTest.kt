@@ -70,7 +70,6 @@ class MobileKeyboardShortcutsTest {
 
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_F5)
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_R, CTRL)
-        // Alt and Meta belong to Android's own shortcuts; R alone is just a letter.
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_R, KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON)
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_R)
 
@@ -88,8 +87,6 @@ class MobileKeyboardShortcutsTest {
             assertEquals(listOf(FilesBrowserEvent.NavigateBack, FilesBrowserEvent.NavigateBack), events)
         }
 
-        // With nothing left to go back to, the app still takes Escape, so Android never turns it into a Back
-        // that leaves the app.
         compose.runOnIdle { files = rootState() }
         compose.waitForIdle()
         assertTrue(compose.activity.pressHardwareKeyConsumed(KeyEvent.KEYCODE_ESCAPE))

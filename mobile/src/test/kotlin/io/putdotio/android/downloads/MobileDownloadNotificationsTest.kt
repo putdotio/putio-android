@@ -61,7 +61,6 @@ class MobileDownloadNotificationsTest {
         lookupDispatcher = Dispatchers.Unconfined,
         files = { testDownloadFilesApi },
     ) { signedIn }
-    // The listener never reads the manager; Media3 hands it one anyway.
     private val downloadManager = DownloadManager(
         context,
         DefaultDownloadIndex(StandaloneDatabaseProvider(context), "NotificationsTest"),
@@ -92,7 +91,6 @@ class MobileDownloadNotificationsTest {
         assertEquals(2, posted.size)
         val finished = posted.single { it.extras.getString(Notification.EXTRA_TITLE) == "Download finished" }
         assertEquals("Sintel.mkv", finished.extras.getString(Notification.EXTRA_TEXT))
-        // The lock screen sees the outcome only.
         assertEquals(Notification.VISIBILITY_PRIVATE, finished.visibility)
         assertEquals(null, finished.publicVersion.extras.getString(Notification.EXTRA_TEXT))
         val opened = shadowOf(finished.contentIntent).savedIntent
@@ -115,7 +113,6 @@ class MobileDownloadNotificationsTest {
 
         val posted = shadowOf(manager).allNotifications
         val finished = posted.single { it.extras.getString(Notification.EXTRA_TITLE) == "Download finished" }
-        // Its tap already opens the row, so Play is the one action.
         assertEquals(listOf("Play"), finished.actions.map { it.title.toString() })
         val play = shadowOf(finished.actions[0].actionIntent)
         assertTrue(play.isActivity && play.isImmutable)
@@ -132,12 +129,10 @@ class MobileDownloadNotificationsTest {
         assertTrue(open.isActivity && open.isImmutable)
         assertEquals(Uri.parse("putio://downloads/11?user=$USER"), open.savedIntent.data)
         val retry = shadowOf(failed.actions[0].actionIntent)
-        // A broadcast to the app's own unexported receiver: nothing opens and no other app can send it.
         assertTrue(retry.isBroadcast && retry.isImmutable)
         assertEquals(ComponentName(context, MobileDownloadActionReceiver::class.java), retry.savedIntent.component)
         assertEquals(MobileDownloadActionReceiver.ACTION_RETRY, retry.savedIntent.action)
         assertEquals(Uri.parse("putio://downloads/11?user=$USER"), retry.savedIntent.data)
-        // No token or URL of the file reaches any intent.
         for (action in finished.actions + failed.actions) {
             assertTrue(shadowOf(action.actionIntent).savedIntent.extras?.isEmpty != false)
         }
@@ -186,7 +181,6 @@ class MobileDownloadNotificationsTest {
         notifications.changed(download(20L, Download.STATE_COMPLETED, user = OTHER))
         assertEquals(2, shadowOf(manager).allNotifications.size)
 
-        // OTHER is already signed in when the collector reports USER's session as ended.
         MobileDownloadNotifications.cancelOtherAccounts(context, signedInUser = OTHER)
         assertEquals(listOf("Other.mkv"), shadowOf(manager).allNotifications.map {
             it.extras.getString(Notification.EXTRA_TEXT)
@@ -257,7 +251,6 @@ class MobileDownloadNotificationsTest {
                 running(10L, "Blue.Lights.S04E02.mkv", percent = 30f),
                 running(11L, "Tears.mkv", percent = 54f),
                 download(12L, Download.STATE_QUEUED, name = "Sintel.mkv"),
-                // Paused by the viewer, parked for another account, and being removed: none is on its way.
                 download(13L, Download.STATE_STOPPED, stopReason = MobileDownloadEngine.STOP_REASON_PAUSED),
                 download(20L, Download.STATE_STOPPED, OTHER, stopReason = MobileDownloadEngine.STOP_REASON_OTHER_USER),
                 download(14L, Download.STATE_REMOVING),
@@ -272,7 +265,6 @@ class MobileDownloadNotificationsTest {
         )
         assertEquals(42, notification.extras.getInt(Notification.EXTRA_PROGRESS))
         assertEquals(false, notification.extras.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE))
-        // The lock screen sees the count only.
         assertEquals(Notification.VISIBILITY_PRIVATE, notification.visibility)
         assertEquals(null, notification.publicVersion.extras.getCharSequence(Notification.EXTRA_TEXT))
         assertEquals(Uri.parse("putio://downloads?user=$USER"), shadowOf(notification.contentIntent).savedIntent.data)
@@ -305,7 +297,6 @@ class MobileDownloadNotificationsTest {
 
     @Test
     fun afterTheLastCancelTheNotificationSaysItIsRemovingWithoutActions() {
-        // Media3 keeps the service in the foreground while it deletes a cancelled download's bytes.
         val removing = downloadProgressNotification(
             context,
             "downloads",

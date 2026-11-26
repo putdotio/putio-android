@@ -102,7 +102,6 @@ internal fun TvShell(
     val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
     val tabs = shownTabs(showHome, showHistory)
 
-    // Registered before any pane composes, so each pane's own Back handlers take precedence.
     BackHandler(enabled = !tabBarHasFocus) {
         paneReleased.value = true
         tabFocus.getValue(destination).requestFocus()

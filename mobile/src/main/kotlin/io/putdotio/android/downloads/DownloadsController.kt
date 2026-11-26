@@ -54,8 +54,6 @@ internal class DownloadsController(
     private var closed = false
     private val speeds = SpeedWatch()
 
-    // Speed is measured on progress ticks alone: a stalled transfer, whose unchanged bytes the store
-    // does not re-emit, falls to no speed, and another row's change never moves a baseline.
     private val progress = ProgressWatch(scope, engine, PROGRESS_INTERVAL) { sampleSpeeds(store.entries.value) }
 
     val state: StateFlow<DownloadsState> = mutableState.asStateFlow()
@@ -111,7 +109,6 @@ internal class DownloadsController(
                 removeNow(cancelling = (event as? DownloadsEvent.Cancel)?.fileId)
             is DownloadsEvent.Pause, is DownloadsEvent.Resume -> setPaused(event)
             is DownloadsEvent.SetConcurrency -> setConcurrency(event.limit)
-            // Files and Downloads stop offering a row whose bytes are gone; Download again fetches them.
             is DownloadsEvent.LocalCopyMissing -> {
                 enqueue {
                     store.find(event.fileId)?.takeIf { it.isCompleted }
@@ -141,7 +138,6 @@ internal class DownloadsController(
             directPlayChosen = request.method == StreamingMethod.File,
         )
         enqueue {
-            // Re-check under the mutation lock: a removal may have landed since dispatch.
             if (!accepts(fresh.fileId, retry = false)) return@enqueue
             val replaced = store.find(fresh.fileId)
             val kept = replaced?.takeIf { it.keepsArtifact && request.method == null }
@@ -213,13 +209,11 @@ internal class DownloadsController(
         }
     }
 
-    // Media3 queues a re-added failed or finished request behind everything already waiting.
     private fun retry(event: DownloadsEvent.Retry): Boolean {
         if (!accepts(event.fileId, retry = true)) return false
         enqueue {
             val entry = store.find(event.fileId)?.takeIf { accepts(it.fileId, retry = true) } ?: return@enqueue
             val start = entry.retryStart()
-            // A pause that raced the failure must not hold the retried request.
             val queued = start.entry.copy(status = DownloadStatus.Queued, queuedAt = clock(), pauseRequested = false)
             store.upsert(queued)
             queueStart(queued, decide = start.decides, replaced = entry)
@@ -279,7 +273,6 @@ internal class DownloadsController(
      */
     suspend fun removeAll() {
         if (synchronized(lock) { closed }) return
-        // Queued behind every write already dispatched, so a start from just before sign-out is removed too.
         enqueue {
             val fileIds = synchronized(lock) {
                 val current = mutableState.value
@@ -287,8 +280,6 @@ internal class DownloadsController(
                 mutableState.value = current.copy(removal = null, removing = current.removing + ids)
                 ids
             }
-            // Best effort, row by row: a failed delete must not cost the sign-out it precedes or the rows after
-            // it. Every row is marked first, so one the engine misses finishes its removal at the next sign-in.
             for (fileId in fileIds) {
                 runBestEffort { store.find(fileId)?.let { store.upsert(it.copy(removing = true)) } }
             }
@@ -305,7 +296,6 @@ internal class DownloadsController(
                 !engine.isRemoving(fileId) && synchronized(lock) { fileId !in mutableState.value.removing }
         if (fileIds.none(::allowed)) return false
         enqueue {
-            // Re-check under the mutation lock: the row may have moved on since dispatch.
             for (fileId in fileIds) if (allowed(fileId)) engine.setPaused(fileId, paused)
         }
         return true

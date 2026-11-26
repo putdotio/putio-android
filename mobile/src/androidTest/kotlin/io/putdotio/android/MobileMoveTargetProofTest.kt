@@ -157,7 +157,6 @@ class MobileMoveTargetProofTest {
             screenshot("05-copy-reopens-at-remembered")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
 
-            // The auth runtime runs this on sign-out and on an expired session.
             MobileMoveTargetStore.clearAll(context)
             openPicker(NOTES.name, "Move")
             awaitFolderRow(SAMPLE_FOLDER)
@@ -173,7 +172,6 @@ class MobileMoveTargetProofTest {
             screenshot("07-missing-folder-root")
             compose.onNodeWithTag(MOBILE_FILES_MOVE_CANCEL_TAG).performClick()
 
-            // Remembered before it ended up two levels inside the folder being moved.
             store.write(FilesMoveTargetMemory(true, listOf(FilesFolder(NESTED.id, NESTED.name))))
             openPicker(SAMPLE_FOLDER.name, "Move")
             awaitEmptyFolder()
@@ -185,7 +183,7 @@ class MobileMoveTargetProofTest {
                     compose.onAllNodesWithTag(MOBILE_FILES_MOVE_PICKER_TAG).fetchSemanticsNodes().isEmpty()
             }
             check(repository.moves.last() == SAMPLE_FOLDER.id to NESTED.id) { "Moved ${repository.moves}" }
-            Thread.sleep(DIALOG_EXIT_MILLIS) // The picker dialog's window fades after its semantics leave.
+            Thread.sleep(DIALOG_EXIT_MILLIS)
             screenshot("09-move-into-itself-refused")
         } finally {
             controller.close()
@@ -195,7 +193,6 @@ class MobileMoveTargetProofTest {
     }
 
     private fun openPicker(itemName: String, action: String?) {
-        // Folders have no overflow button; a long-press opens the same sheet for any row.
         compose.onNode(hasText(itemName) and SemanticsMatcher.keyIsDefined(SemanticsActions.OnLongClick))
             .performSemanticsAction(SemanticsActions.OnLongClick)
         if (action == null) {

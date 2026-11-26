@@ -35,7 +35,6 @@ object PutioAndroidSdk {
 class PutioAndroidLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) = with(target) {
         pluginManager.apply("com.android.library")
-        // Compose infers stability only for models compiled with its plugin, so every module applies it.
         pluginManager.apply("org.jetbrains.kotlin.plugin.compose")
         pluginManager.apply("io.gitlab.arturbosch.detekt")
 
@@ -48,12 +47,9 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
                 abortOnError = true
                 lintConfig = rootProject.file("lint.xml")
             }
-            // Robolectric-backed tests need the module's resources.
             testOptions.unitTests.isIncludeAndroidResources = true
         }
 
-        // Strict explicit API: a declaration another module can see needs an explicit `public`.
-        // AGP's built-in Kotlin applies it to main and test fixtures; unit and device tests are exempt.
         extensions.configure<KotlinAndroidExtension> {
             explicitApi()
         }
@@ -72,7 +68,6 @@ class PutioAndroidLibraryPlugin : Plugin<Project> {
         val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
         val composeBom = dependencies.platform(libs.findLibrary("androidx-compose-bom").get())
         val composeRuntime = libs.findLibrary("androidx-compose-runtime").get()
-        // The Compose compiler runs on every compilation, so each needs the runtime, test fixtures included.
         configurations.matching { it.name in setOf("implementation", "testFixturesImplementation") }.configureEach {
             target.dependencies.add(name, composeBom)
             target.dependencies.add(name, composeRuntime)

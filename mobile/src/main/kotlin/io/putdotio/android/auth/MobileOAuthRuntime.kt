@@ -65,18 +65,14 @@ internal class MobileOAuthRuntime(
         private set
 
     init {
-        // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
         applicationScope.launch {
             var previous: MobileAuthSessionId? = null
-            // An earlier process may have left state for its persisted session; a restore that ends signed out ends it.
             var persistedSessionPending = true
             authController.state.collect { state ->
                 val current = (state as? MobileAuthState.SignedIn)?.sessionId
                 val restoreEnded = persistedSessionPending && state is MobileAuthState.SignedOut
                 if (current != null || restoreEnded) persistedSessionPending = false
-                // The collector can lag a switch to the next session, so it names the departed one.
                 when {
-                    // The earlier process's session id is unknown, and this process has no session yet.
                     restoreEnded -> onSessionLeft(null)
                     previous != null && current != previous -> onSessionLeft(previous)
                 }
@@ -123,7 +119,6 @@ internal class MobileOAuthRuntime(
             writing = playbackReporting::exclusive,
         ).also {
             offlinePositions = it
-            // A session restored before this attached still has its waiting positions sent.
             it.requestSync()
         }
 
@@ -282,13 +277,11 @@ internal class MobileOAuthRuntime(
             }
             MobileFileDrags.endSession(session)
             MobileDocumentsProvider.sessionLeft(context)
-            // The collector can lag the next sign-in; that account's outcomes stay.
             MobileDownloadNotifications.cancelOtherAccounts(
                 context,
                 (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId,
             )
             MobileWidgets.sessionLeft(context)
-            // The receiver plays with the account's download token.
             MobileCast.sessionLeft(context, session)
             if (session != null) MobilePlaybackService.stop(context)
         }

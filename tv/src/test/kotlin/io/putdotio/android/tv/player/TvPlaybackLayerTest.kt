@@ -79,7 +79,6 @@ class TvPlaybackLayerTest {
             ),
             nextRequestValue = 10L,
         )
-        // Owned by the session in the app, so it outlives the shell while playback shows.
         val focusMemory = mutableMapOf<Long, Long>()
         val playing = mutableStateOf<FilesItem?>(null)
         setFilesWithPlayback(files, focusMemory, player, playing)
@@ -92,7 +91,6 @@ class TvPlaybackLayerTest {
         compose.onNodeWithContentDescription("Play Sintel.mp4").assertDoesNotExist()
         compose.runOnIdle { assertTrue(player.playWhenReady) }
 
-        // The first Back hides the controls; the second leaves.
         compose.back()
         assertTrue(playing.value != null)
         compose.back()
@@ -214,8 +212,6 @@ class TvPlaybackLayerTest {
 
     @Test
     fun backOnTheShellAfterPlaybackStillReachesTheShell() {
-        // Playback registers its own Back; once it is gone the shell's handlers own Back again.
-        // The first Back hides the controls, the second leaves playback.
         var shellBacks = 0
         var playing by mutableStateOf(true)
         compose.setTvContent {
@@ -244,14 +240,12 @@ class TvPlaybackLayerTest {
     @Test
     fun theShellKeepsItsSavedStateWhilePlaybackShows() {
         var playing by mutableStateOf(false)
-        // A fresh shell would read the next value; a restored one keeps the first.
         var nextValue = 3
         compose.setTvContent {
             TvPlaybackLayer(
                 playing = playing,
                 player = { Text("Player") },
             ) {
-                // Stands in for the shell's saved destination.
                 val saved by rememberSaveable { mutableIntStateOf(nextValue++) }
                 Text("Shell $saved", modifier = Modifier.testTag("shell"))
             }

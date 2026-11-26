@@ -39,7 +39,6 @@ internal fun requireLauncherEntries(manifest: File, activity: String, categories
     val activities = manifestActivities(manifest, activity)
     if (activities.isEmpty()) throw GradleException("${manifest.name} declares no $activity")
 
-    // A launcher query carries no data, so a filter with <data> cannot match it.
     val filters = activities.flatMap { it.getElementsByTagName("intent-filter").elements() }
         .filter { it.getElementsByTagName("data").length == 0 }
     val missing = categories.filterNot { category ->

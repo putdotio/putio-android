@@ -109,7 +109,6 @@ internal fun MobilePlayerSideSheet(
                         MaterialTheme.colorScheme.surfaceContainerLow,
                         RoundedCornerShape(topStart = PutioRadius.extraLarge, bottomStart = PutioRadius.extraLarge),
                     )
-                    // A tap inside the panel never reaches the scrim behind it.
                     .pointerInput(Unit) { detectTapGestures {} }
                     .windowInsetsPadding(
                         WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End),

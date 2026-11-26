@@ -36,7 +36,6 @@ public fun InputStream.readTextPreview(
         .onUnmappableCharacter(CodingErrorAction.REPLACE)
     val input = ByteBuffer.wrap(bytes, 0, count)
     val output = CharBuffer.allocate(count)
-    // endOfInput only when the whole file is here: a cut multi-byte character then stays undecoded.
     decoder.decode(input, output, !truncated)
     if (!truncated) decoder.flush(output)
     output.flip()

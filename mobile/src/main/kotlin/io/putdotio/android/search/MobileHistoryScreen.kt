@@ -227,7 +227,6 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
         },
         headline = { MobileMiddleCutText(item.title(LocalContext.current)) },
         meta = {
-            // The kind gives way at large font sizes; separators and time always show.
             Row {
                 kind?.let {
                     Text(

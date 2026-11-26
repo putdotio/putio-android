@@ -116,13 +116,9 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
 public fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
     toMediaRequestFailureOrNull() ?: errorCodeFailureOrNull() ?: PlaybackFailure.Putio(PutioFailure.Unexpected(this))
 
-// An exception relayed through a MediaController keeps only its error code: the cause is
-// rebuilt from a class name and message, or replaced by a RemoteException, so the
-// HttpDataSource chain above cannot classify it.
 private fun PlaybackException.errorCodeFailureOrNull(): PlaybackFailure? =
     when (errorCode) {
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-            // The status survives only in the rebuilt cause's message ("Response code: 401").
             cause?.message?.relayedResponseCode()
                 ?.takeIf { it == HTTP_UNAUTHORIZED || it == HTTP_FORBIDDEN }
                 ?.let { PlaybackFailure.MediaCredentialUnavailable(this) }

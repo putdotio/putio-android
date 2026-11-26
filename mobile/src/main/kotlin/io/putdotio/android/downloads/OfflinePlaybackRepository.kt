@@ -98,8 +98,6 @@ internal class OfflinePlaybackRepository(
 
     private suspend fun serve(entry: DownloadEntry): PlaybackRepositoryResult<PlaybackResolution> {
         val hls = entry.artifact.isHls
-        // A download made for a hide_subtitles account holds no subtitle rendition, and a cold
-        // offline start cannot read the setting, so the row's own copy of it hides the picker.
         val subtitlesHidden = entry.subtitlesHidden == true
         val resumeEnabled = resume.enabled()
         val request = requested(entry.fileId)
@@ -109,7 +107,6 @@ internal class OfflinePlaybackRepository(
             kind = entry.artifact.sourceKind,
             url = PutioCredentialUrl.of(request?.url ?: entry.artifact.apiUrl(entry.fileId, files, subtitlesHidden)),
             startFromSeconds = if (resumeEnabled) resume.position(entry) else 0.0,
-            // HLS subtitle renditions are inside the downloaded playlist set.
             subtitles = when {
                 hls && !subtitlesHidden -> PlaybackSubtitles.Embedded
                 sidecars.isEmpty() -> PlaybackSubtitles.None
@@ -136,7 +133,6 @@ internal class OfflinePlaybackRepository(
         convertedOnly: Boolean,
     ): PlaybackRepositoryResult<PlaybackResolution> = delegate.startConversion(target, convertedOnly)
 
-    // A receiver streams a downloaded file from put.io: the token-free API URL gets the download token.
     override suspend fun castMedia(
         target: PlaybackTarget,
         source: PlaybackSource,

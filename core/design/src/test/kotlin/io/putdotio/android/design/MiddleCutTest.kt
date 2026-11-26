@@ -25,7 +25,6 @@ class MiddleCutTest {
 
     @Test
     fun noCutSplitsAnEmoji() {
-        // The last eleven UTF-16 units start inside the first tree.
         val name = "Holiday 🎄 clips 🎄🎄🎄🎄.mp4"
         for (budget in 4..name.length) {
             val cut = cut(name, budget)

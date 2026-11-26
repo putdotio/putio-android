@@ -227,7 +227,6 @@ internal class SdkPlaybackRepository internal constructor(
                     capabilities = PlaybackCapabilities(
                         originalVideoPlayable = !convertedOnly && target.mediaType == PlaybackMediaType.VIDEO,
                     ),
-                    // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
                 ),
@@ -258,7 +257,6 @@ internal class SdkPlaybackRepository internal constructor(
         activeSubtitleKey: String?,
     ): PlaybackRepositoryResult<PlaybackCastMedia> =
         try {
-            // Never the session's access token: the receiver keeps what it is sent.
             val token = loadAccount().downloadToken
             val media = token?.let { source.toCastMedia(target, it.value, activeSubtitleKey) }
             when {
@@ -360,7 +358,6 @@ internal class SdkPlaybackRepository internal constructor(
             }
             next != null
         }
-        // A file the listing no longer holds has no place in it, so nothing sits on either side.
         return PlaybackNeighbours(
             previous = previous?.takeIf { foundCurrent }?.toPlaybackTarget(target.mediaType),
             next = next?.toPlaybackTarget(target.mediaType),
@@ -382,7 +379,6 @@ internal class SdkPlaybackRepository internal constructor(
         val fileType = mediaType.fileType()
         var page = listFolder(
             parentId,
-            // Video metadata carries the duration TV needs to offer resume for the next video.
             FilesListQuery(
                 perPage = AUTOPLAY_PAGE_SIZE,
                 fileType = fileType,
@@ -411,7 +407,6 @@ internal class SdkPlaybackRepository internal constructor(
     }
 }
 
-// The near-end rule needs a video's duration, and so does Continue watching, even for a video never started.
 private fun PlaybackTarget.needsDuration(): Boolean =
     durationSeconds == null && mediaType == PlaybackMediaType.VIDEO
 
@@ -497,8 +492,6 @@ public class ConvertingPlaybackRepository internal constructor(
             val resolved = delegate.resolve(target, convertedOnly = true)
             val read = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Conversion
             val stillNotAvailable = read?.state == PlaybackConversionState.NotAvailable
-            // A status read that has not caught up with an accepted start polls once more before
-            // it is final.
             if (accepted && stillNotAvailable) {
                 PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
             } else {

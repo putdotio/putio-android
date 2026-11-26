@@ -67,8 +67,6 @@ internal class PutioTvSessionGateway(
         boundary.clearAccessToken()
     }
 
-    // A false verdict or a 401/403 anywhere in the chain is authoritative; every
-    // other failure keeps the stored token so the user can retry when put.io is back.
     override suspend fun validateSession(): TvSessionValidation =
         try {
             if (!boundary.validateToken()) {

@@ -12,9 +12,7 @@ plugins {
 
 android {
     defaultConfig {
-        // The existing Android TV listing's identity.
         applicationId = "io.put.putio"
-        // Device-code OAuth apps from the legacy tv-native lane: one per TV store.
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_ANDROID_TV", "\"6221\"")
         buildConfigField("String", "PUTIO_TV_OAUTH_CLIENT_ID_FIRE_TV", "\"6233\"")
         buildConfigField("String", "PUTIO_ORIGINAL_VIDEO", "\"Check\"")
@@ -24,7 +22,6 @@ android {
             buildConfigField("String", "PUTIO_ORIGINAL_VIDEO", "\"${originalVideoPolicy()}\"")
         }
     }
-    // The system search provider's authority, generated per variant below.
     buildFeatures.resValues = true
 }
 
@@ -51,7 +48,6 @@ androidComponents {
         artifacts.add(playBundle.name, variant.artifacts.get(SingleArtifact.BUNDLE))
     }
     onVariants { variant ->
-        // searchable.xml names the suggestions provider, whose authority follows the variant's id.
         variant.resValues.put(
             variant.makeResValueKey("string", "tv_search_authority"),
             ResValue("${variant.applicationId.get()}.search", "System search suggestions provider"),
@@ -93,8 +89,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
-    // Streams through ExoPlayer, publishes a media session for system and remote controls,
-    // and draws subtitles (text and bitmap) with media3-ui's SubtitleView.
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.exoplayer)
@@ -109,8 +103,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.okhttp)
     implementation(libs.putio.sdk.kotlin)
-    // Encodes the sign-in QR code on the device: pure Java, no transitive dependencies, and R8
-    // keeps only the encoder. Its decoder reads the rendered code back in the unit tests.
     implementation(libs.zxing.core)
 
     baselineProfile(project(":baselineprofile:tv"))

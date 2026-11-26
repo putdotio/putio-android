@@ -26,7 +26,6 @@ internal fun Modifier.mobileFileDragSource(enabled: Boolean, onDragStart: () -> 
                 if (mouse && !currentEvent.buttons.isPrimaryPressed) return@awaitEachGesture
                 val armedAt = down.uptimeMillis + if (mouse) 0L else viewConfiguration.longPressTimeoutMillis
                 var change = down
-                // Follow the press until it lifts or leaves the touch slop; only then can it be a drag.
                 do {
                     change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id }
                         ?: return@awaitEachGesture

@@ -36,7 +36,6 @@ internal fun Activity.pressHardwareKey(keyCode: Int, metaState: Int = 0, repeats
     send(KeyEvent.ACTION_UP, 0)
 }
 
-// Any non-virtual device id: a key from a physical keyboard.
 private const val HARDWARE_KEYBOARD = 1
 
 /**

@@ -170,7 +170,6 @@ internal fun MobileSettingsLine(
         }
         TitleAndTrailing(
             title = {
-                // body-md has no Material slot.
                 Text(title, style = PutioTypeScale.bodyMd, color = titleColor)
             },
             trailing = {

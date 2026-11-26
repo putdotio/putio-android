@@ -31,9 +31,7 @@ class PlaybackCastMediaTest {
             media.url,
         )
         assertEquals("application/x-mpegURL", media.contentType)
-        // put.io's playlists carry no stable duration; the receiver reads the stream.
         assertFalse(media.buffered)
-        // The playlist carries its own subtitle renditions.
         assertTrue(media.subtitles.isEmpty())
         assertEquals("episode.mkv", media.title)
         assertFalse(media.toString().contains(DOWNLOAD))
@@ -41,7 +39,6 @@ class PlaybackCastMediaTest {
 
     @Test
     fun sidecarSubtitlesGoAsWebVttWithTheDownloadTokenOnly() {
-        // put.io lists sidecar subtitle URLs with the caller's own access token in the query.
         val media = source(
             PlaybackSourceKind.MP4,
             "https://api.put.io/v2/files/42/mp4/download?oauth_token=$ACCESS",
@@ -78,7 +75,6 @@ class PlaybackCastMediaTest {
         ).castable(Video.copy(posterUrl = "https://api.put.io/v2/files/42/screenshot?oauth_token=$ACCESS"))
 
         assertEquals("https://api.put.io/v2/files/42/mp4/download?oauth_token=$DOWNLOAD", media.url)
-        // A poster that carries a credential is left out rather than sent.
         assertNull(media.posterUrl)
     }
 
@@ -136,7 +132,6 @@ class PlaybackCastMediaTest {
             .castMedia(Video, source(PlaybackSourceKind.HLS, "https://cdn.example.com/a.m3u8", PlaybackSubtitles.None))
 
         assertTrue(((ready as PlaybackRepositoryResult.Success).value).url.endsWith("oauth_token=$DOWNLOAD"))
-        // Never the session's access token in its place.
         assertTrue((missing as PlaybackRepositoryResult.Failure).failure is PlaybackFailure.MediaCredentialUnavailable)
         assertTrue((uncastable as PlaybackRepositoryResult.Failure).failure is PlaybackFailure.MediaUnsupported)
     }

@@ -80,7 +80,6 @@ internal fun MobileTransferDestinationRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // The labels, not the buttons' padding, line up with the field's edge above.
         Row(modifier = Modifier.offset(x = TEXT_BUTTON_INSET)) {
             if (destination != null) {
                 TextButton(colors = neutralTextButtonColors(), onClick = onReset, enabled = enabled) {

@@ -179,8 +179,6 @@ internal fun MobileTrashScreen(
 
 @Composable
 private fun ScrollToNewOutcome(state: TrashState, listState: LazyListState) {
-    // A new outcome is inserted above the list content while the list stays anchored on its
-    // previous first item, which leaves the outcome and its recovery controls above the viewport.
     LaunchedEffect(state.restoreOutcome?.item) {
         if (state.restoreOutcome != null) listState.scrollToItem(0)
     }

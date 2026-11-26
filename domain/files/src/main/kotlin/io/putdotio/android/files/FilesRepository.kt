@@ -75,7 +75,6 @@ internal class SdkFilesCopies(
         itemId: FilesItemId,
         destinationId: FilesItemId,
     ): PutioResult<FilesCopyId> = putioRequest {
-        // A lone zero is a bulk selector, never a single source item.
         require(itemId.value > 0L && destinationId.value >= 0L) {
             "Copy requires one positive source ID and a nonnegative destination ID"
         }
@@ -87,7 +86,6 @@ internal class SdkFilesCopies(
         when (info.status) {
             SharedFileCloneStatus.DONE -> FilesCopyProgress.Done
             SharedFileCloneStatus.ERROR -> FilesCopyProgress.Failed(info.errorMessage?.let(::displayableApiReason))
-            // NEW, PROCESSING and any status this app does not know yet may still finish.
             else -> FilesCopyProgress.Running
         }
     }
@@ -130,10 +128,7 @@ public class SdkFilesRepository internal constructor(
     )
 
     override suspend fun loadFolder(folderId: FilesItemId): PutioResult<FilesPage> =
-        // Child video_metadata carries duration for the watched indicator; continuation
-        // cursors inherit the initial listing's field flags server-side.
         putioRequest {
-            // The total feeds the folder's count line; only this first read asks for it.
             listFolder(
                 folderId.value,
                 FilesListQuery(perPage = FILES_PAGE_SIZE, total = true, videoMetadata = true),
@@ -162,7 +157,6 @@ public class SdkFilesRepository internal constructor(
         itemIds: List<FilesItemId>,
         destinationId: FilesItemId,
     ): PutioResult<List<FileMoveError>> = putioRequest {
-        // A zero is a bulk selector, never a source item.
         require(
             itemIds.isNotEmpty() && itemIds.all { it.value > 0L } && destinationId.value >= 0L &&
                 destinationId !in itemIds,
@@ -194,7 +188,6 @@ public class SdkFilesRepository internal constructor(
 
     override suspend fun delete(itemIds: List<FilesItemId>, mode: FilesDeleteMode): PutioResult<FileDeleteResult> =
         putioRequest {
-            // A zero means every root item at the API boundary.
             require(itemIds.isNotEmpty() && itemIds.all { it.value > 0L }) { "Delete requires positive file IDs" }
             mutations.delete(itemIds.map(FilesItemId::value), mode == FilesDeleteMode.PERMANENT)
         }
@@ -225,13 +218,9 @@ public fun PutioFile.toFilesItem(): FilesItem =
         contentType = contentType?.takeIf(String::isNotBlank),
     )
 
-// Only media rows carry a position. Malformed server values drop the indicator instead of
-// failing the list. A never-played media file has no position but may still have a
-// duration, which is kept so it can be marked watched.
 private fun PutioFile.toPlaybackProgress(): FilesPlaybackProgress? {
     val isMedia = fileType == PutioFileType.VIDEO || fileType == PutioFileType.AUDIO
     val position = startFrom ?: 0.0
-    // Absent duration is a known unknown; a supplied but unusable one is malformed data.
     val duration = videoMetadata?.duration
     val durationValid = duration == null || (duration.isFinite() && duration > 0.0)
     val known = startFrom != null || duration != null

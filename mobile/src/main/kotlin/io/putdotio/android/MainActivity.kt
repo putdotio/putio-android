@@ -50,14 +50,11 @@ class MainActivity : BasePutioActivity() {
     internal val nowPlayingRequests: NowPlayingRequests =
         NowPlayingRequests(pendingNowPlayingRequest) { pendingNowPlayingRequest.value = false }
 
-    // Survives a configuration change but not a system destroy, which is exactly the line
-    // between "same launch intent again" and "a new instance answering a fresh tap".
     private val launch: NowPlayingLaunchState by lazy { ViewModelProvider(this)[NowPlayingLaunchState::class.java] }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
-        // Before this activity resumes, so Cast looks for receivers while it shows.
         MobileCast.follow(this)
         if (savedInstanceState == null) {
             lifecycleScope.launch(Dispatchers.IO) { MobileFileShareService.pruneStale(applicationContext) }
@@ -172,7 +169,6 @@ internal class NowPlayingRequests(
 private val Intent?.isNowPlayingAction: Boolean
     get() = this?.action == MobilePlaybackService.ACTION_OPEN_NOW_PLAYING
 
-// A task reopened from recents replays its original launch intent; that is not a new tap.
 internal fun shouldPublishLaunchIntent(
     intent: Intent?,
     alreadyConsumed: Boolean,

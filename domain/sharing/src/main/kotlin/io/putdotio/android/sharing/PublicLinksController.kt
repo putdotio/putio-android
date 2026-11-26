@@ -34,7 +34,6 @@ public class PublicLinksController(
         true
     }
 
-    // A completion can chain the next request, so every state change starts whatever it asks for.
     private fun advance(next: PublicLinksMachine) {
         val started = next.request.takeIf { it != machine.request }
         machine = next

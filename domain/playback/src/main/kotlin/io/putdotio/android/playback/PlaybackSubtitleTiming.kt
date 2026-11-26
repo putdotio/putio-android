@@ -39,9 +39,6 @@ internal class SubtitleLeadRenderer(renderer: Renderer) : ForwardingRenderer(ren
         super.resetPosition(positionUs + leadUs, sampleStreamIsResetToKeyFrame)
     }
 
-    // Media3 gives the final stream's end time only to a renderer that is a TextRenderer, so the
-    // wrapped one would wait out a cue that runs past the media. Read to the end, it holds up
-    // nothing; the player keeps rendering it until audio and video end.
     override fun isEnded(): Boolean = super.isEnded() || hasReadStreamToEnd()
 
     companion object {
@@ -98,7 +95,6 @@ public class DelayedSubtitleCues(private val retainMillis: Long = DEFAULT_RETAIN
         synchronized(shown) { shown.lastOrNull { it.first + delayMillis <= positionMillis }?.second }
 
     private companion object {
-        // Past the longest delay the viewer can pick.
         const val DEFAULT_RETAIN_MILLIS = 12_000L
     }
 }

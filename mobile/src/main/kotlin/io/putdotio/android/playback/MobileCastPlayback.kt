@@ -143,7 +143,6 @@ internal fun rememberPlayerCast(
     val status by (cast?.status ?: NoStatus).collectAsStateWithLifecycle()
     if (cast == null || castMedia == null) return NoPlayerCast
     val askLocalNetwork = rememberLocalNetworkRequest(cast.gateway::localNetworkAnswered, onOpenPicker)
-    // A session reconnecting still owns playback while the receiver's last status stands.
     val device = availability.connectedDevice
         ?: (availability as? CastAvailability.Connecting)?.takeIf { status != null }?.let { it.deviceName.orEmpty() }
     return PlayerCast(
@@ -227,12 +226,10 @@ internal fun MobileCastPlayback(
     val source = (state.content as? PlaybackContent.Ready)?.source
     var failed by remember(fileId) { mutableStateOf(false) }
     var played by remember(fileId) { mutableStateOf(false) }
-    // Try again reruns the handover: a lookup that failed for a moment never needs a new session.
     var attempt by remember(fileId) { mutableIntStateOf(0) }
     val currentPolicy by rememberUpdatedState(subtitleStartupPolicy)
     val currentOnSourceRequired by rememberUpdatedState(onSourceRequired)
     val currentOnOriginalRejected by rememberUpdatedState(onOriginalRejected)
-    // A session reconnecting holds the handover until it answers again.
     val connected = cast.availability.collectAsStateWithLifecycle().value is CastAvailability.Connected
     LaunchedEffect(fileId, source, connected, attempt) {
         if (!connected) return@LaunchedEffect
@@ -243,7 +240,6 @@ internal fun MobileCastPlayback(
         }
         failed = false
         if (!held) played = false
-        // One player at a time: session audio stops once the receiver takes over, for a video too.
         playerFactory.stopAudio(context)
         val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
             val selection = preferences.subtitleSelection
@@ -266,7 +262,6 @@ internal fun MobileCastPlayback(
     val player = cast.remotePlayer
     val status by cast.status.collectAsStateWithLifecycle()
     val current = status?.takeIf { it.fileId == fileId }
-    // A receiver that failed to load the file no longer holds it, so another handover sends it again.
     val castFailed = failed || current?.state == CastRemoteState.Failed
     LaunchedEffect(current?.state) {
         if (current?.state in PLAYED_STATES) played = true
@@ -277,7 +272,6 @@ internal fun MobileCastPlayback(
     val intervals = if (target.mediaType == PlaybackMediaType.AUDIO) AudioSeekIntervals else VideoSeekIntervals
     val seek = { direction: SeekDirection -> player.seekBy(intervals, direction) }
 
-    // Space and the arrows drive the receiver as they drive the local player.
     val keyFocus = remember { FocusRequester() }
     LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
     val keys = Modifier
@@ -362,7 +356,6 @@ private fun MobileCastVideo(
         player.setActiveTracks(tracks)
         sheet = null
     }
-    // Back from the keyboard closes a sheet before it leaves the player, as on local video.
     val closeSheet = Modifier.onPreviewKeyEvent { event ->
         val key = event.nativeKeyEvent
         val back = mobileKeyCommand(MobileShortcutScope.Player, key.keyCode, key.metaState) == MobileKeyCommand.Back
@@ -433,15 +426,12 @@ private suspend fun MobileCastController.handOver(
     val target = state.target
     val fileId = target.fileId.value
     val ready = state.content as? PlaybackContent.Ready
-    // Unknown stays unknown, so resolving a source still finds put.io's saved position.
     val retained = preferences.positionMillis ?: state.resumePositionMillis
     val holds = holds(fileId)
     if (!holds && ready == null) {
         onSourceRequired(retained)
         return CastHandoverOutcome.SourceRequested
     }
-    // The controls follow this file at once, so a failed lookup never leaves them driving another file;
-    // the media resolves after, for Play to send again once the file has finished there.
     attach(item)
     val loaded = castMedia(ready?.source) as? PlaybackRepositoryResult.Success
     when {

@@ -91,7 +91,6 @@ internal fun FilesBrowserState.startFailedOperation(
     operation: FilesFolderOperation.Failed,
 ): FilesBrowserTransition {
     val requestId = FilesRequestId(nextRequestValue)
-    // Mutations may have committed despite a failed response; recovery reads only.
     val phase = when {
         operation.intent is FilesFolderOperationIntent.Delete &&
             operation.phase == FilesFolderOperationPhase.DELETING ->

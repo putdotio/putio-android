@@ -92,7 +92,6 @@ public fun PlaybackSource.toCastMedia(
         contentType = castContentType(target),
         buffered = kind != PlaybackSourceKind.HLS,
         durationMillis = target.durationSeconds?.toPlaybackMillis()?.takeIf { it > 0L },
-        // A poster is a token-free still; one that carries a credential stays here.
         posterUrl = target.posterUrl?.takeIf { it.startsWith("https://") && OAUTH_TOKEN_QUERY !in it.queryNames() },
         subtitles = castSubtitles,
         activeSubtitleId = castSubtitles.getOrNull(activeIndex)?.id,
@@ -118,7 +117,6 @@ private fun String.withDownloadToken(token: String, vararg extra: Pair<String, S
     val uri = apiUri() ?: return null
     val replaced = setOf(OAUTH_TOKEN_QUERY) + extra.map { it.first }
     val kept = uri.rawQuery.orEmpty().split('&')
-        // Names compare decoded, so an escaped `oauth%5Ftoken` cannot carry the session's token through.
         .filter { it.isNotEmpty() && it.substringBefore('=').decoded() !in replaced }
     val added = (extra.toList() + (OAUTH_TOKEN_QUERY to token)).map { (name, value) -> "$name=${value.encoded()}" }
     return "https://$PUTIO_API_HOST${uri.rawPath}?" + (kept + added).joinToString("&")

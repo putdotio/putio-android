@@ -8,7 +8,6 @@ public fun String.isSupportedAvatarUrl(): Boolean {
     return uri.scheme.equals("https", ignoreCase = true) &&
         !uri.host.isNullOrBlank() &&
         uri.userInfo == null &&
-        // URI accepts "host:" and any integer port; a loader would not.
         uri.rawAuthority?.endsWith(':') != true &&
         (uri.port == -1 || uri.port in 1..MAX_PORT)
 }

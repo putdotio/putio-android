@@ -50,7 +50,6 @@ class MobileTalkBackSessionProofTest {
         directory = accessibilityProofDirectory()
         require(directory.listFiles().orEmpty().isEmpty()) { "Use a fresh proof run ID" }
         val fixture = audioFixture()
-        // Preparation plus five host phases at their documented limits, with launch and teardown slack.
         deadline = SystemClock.uptimeMillis() + 660_000
         var ownedPlayer: ExoPlayer? = null
         try {
@@ -99,8 +98,6 @@ class MobileTalkBackSessionProofTest {
                     it.playbackState == Player.STATE_READY && it.isPlaying && factory.liveConnections == 1
                 }
                 scenario.onActivity {
-                    // Playback runs from the 30s start through preparing (15s), bar-pause (120s) and
-                    // open-player-paused (120s) at their full budgets before the host must pause it.
                     require(factory.player.duration >= MINIMUM_FIXTURE_MILLIS) {
                         "Supply audio lasting at least ${MINIMUM_FIXTURE_MILLIS / 1_000} seconds"
                     }
@@ -113,7 +110,6 @@ class MobileTalkBackSessionProofTest {
                 awaitPlayer("bar-play", scenario, factory, observations) {
                     it.isPlaying && observations.playRequests > previousPlayRequests
                 }
-                // The shell hides the bar on the playback route, so opening the player is the only new attach.
                 var attachesBeforePlayer = 0
                 scenario.onActivity { attachesBeforePlayer = factory.attaches }
                 awaitPlayer("open-player-paused", scenario, factory, observations) {
@@ -139,7 +135,6 @@ class MobileTalkBackSessionProofTest {
             }
             File(directory, STAGE_FILE).writeText("finished")
         } finally {
-            // The Activity closes its bar/player connections before the sole owner releases this player.
             instrumentation.runOnMainSync { ownedPlayer?.release() }
         }
     }
@@ -211,7 +206,6 @@ private class TalkBackSessionPlayerFactory(val player: Player) : MobilePlayerFac
     }
 
     override fun stopAudio(context: Context) {
-        // The now-playing handle already stopped/cleared this private player; no service is involved.
         stops += 1
     }
 }

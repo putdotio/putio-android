@@ -201,7 +201,6 @@ private fun MobilePdfPages(
 ) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        // The pages are pictures, so readers get the way to an app that reads the document's text.
         val openElsewhere = stringResource(R.string.mobile_viewer_open_with)
         val list = rememberLazyListState()
         LazyColumn(
@@ -249,7 +248,6 @@ private fun MobilePdfPageImage(
             val bitmap = document.render(index, widthPx)
             PageState.Ready(bitmap, bitmap.height.toFloat() / bitmap.width)
         } catch (_: IllegalStateException) {
-            // The document closed under the page, or the renderer refused it.
             PageState.Failed
         } catch (_: IllegalArgumentException) {
             PageState.Failed
@@ -317,7 +315,6 @@ internal fun MobileTextPage(uri: Uri, onOpenWithAnotherApp: () -> Unit) {
 
 @Composable
 private fun MobileTextLines(preview: FilesTextPreview, onOpenWithAnotherApp: () -> Unit) {
-    // A few hundred lines per item keep each layout small without a node per line.
     val chunks = remember(preview) {
         preview.lines.chunked(TEXT_LINES_PER_ITEM).map { it.joinToString("\n") }
     }

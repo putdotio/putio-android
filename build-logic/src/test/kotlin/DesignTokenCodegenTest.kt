@@ -7,7 +7,6 @@ class DesignTokenCodegenTest {
     @Test
     fun hslMatchesCanonicalHex() {
         listOf(
-            // The token graph documents hsl(44.7, 97.9%, 63.1%) as canonical #FDCE45.
             "hsl(44.7, 97.9%, 63.1%)" to 0xFFFDCE45L,
             "hsl(0, 0%, 8.5%)" to 0xFF161616L,
             "hsl(0, 0%, 93.0%)" to 0xFFEDEDEDL,
@@ -53,9 +52,7 @@ class DesignTokenCodegenTest {
         val code = DesignTokenCodegen.generate(fullGraph(), "3.3.0")
         assertTrue(code.contains("public val yellowSolid: Color = Color(0xFFFDCE45)"))
         assertTrue(code.contains("internal val yellowTextSecondary: Color = Color(0xFFFFD147)"))
-        // app-bg has distinct light/dark values; dark (8.5%) must win over light (100%).
         assertTrue(code.contains("internal val appBg: Color = Color(0xFF161616)"))
-        // red-solid's dark token is a reference to the light one.
         assertTrue(code.contains("internal val redSolid: Color = Color(0xFFE5484D)"))
         assertTrue(code.contains("internal fun putioDarkColorScheme(): androidx.compose.material3.ColorScheme ="))
         assertTrue(code.contains("public fun putioTvDarkColorScheme(): androidx.tv.material3.ColorScheme ="))
@@ -96,9 +93,7 @@ class DesignTokenCodegenTest {
     fun generatesXmlColorsForTheResourceTokensOnly() {
         val xml = DesignTokenCodegen.generateColorResources(fullGraph(), "3.3.0")
         assertTrue(xml.contains("<color name=\"putio_yellow_solid\">#FFFDCE45</color>"))
-        // Dark mode wins here too.
         assertTrue(xml.contains("<color name=\"putio_app_bg\">#FF161616</color>"))
-        // hsl(2, 100%, 77%) and hsl(151, 55%, 41.5%): the light red and green DESIGN.md names.
         assertTrue(xml.contains("<color name=\"putio_red_text_secondary\">#FFFF8E8A</color>"))
         assertTrue(xml.contains("<color name=\"putio_green_solid\">#FF30A46C</color>"))
         assertEquals(DesignTokenCodegen.RESOURCE_TOKENS.size, Regex("<color ").findAll(xml).count())
@@ -111,7 +106,6 @@ class DesignTokenCodegenTest {
         assertTrue(yaml.startsWith("colors:\n"))
         assertTrue(yaml.contains("  primary: \"#FDCE45\" # --yellow-solid\n"))
         assertTrue(yaml.contains("  surface: \"#161616\" # --app-bg\n"))
-        // 26% of 255 rounds to 0x42, written last as CSS #RRGGBBAA expects.
         assertTrue(yaml.contains("  secondary-container: \"#FDCE4542\" # --yellow-solid at 26%\n"))
         assertEquals(
             DesignTokenCodegen.M3_ROLES.size + DesignTokenCodegen.DESIGN_MD_EXTRA_COLORS.size,
@@ -172,7 +166,6 @@ class DesignTokenCodegenTest {
             ),
         )
         assertTrue(code.contains("    val berkeleyMono: FontFamily = FontFamily.Monospace\n"))
-        // A family embeds only whole: one missing face sends it all to the system face.
         val partial = DesignTokenCodegen.generateScales(
             File("../DESIGN.md").readText(),
             lock,

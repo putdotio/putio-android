@@ -78,7 +78,6 @@ private fun FilesBrowserState.checkAgain(outcome: FilesCopyOutcome): FilesBrowse
     )
 }
 
-// A folder opened later reads fresh, so only a destination already in the stack can show a stale listing.
 private fun FilesBrowserState.settle(outcome: FilesCopyOutcome): FilesBrowserTransition {
     val mayHaveLanded = outcome.status == FilesCopyStatus.COPIED || outcome.status == FilesCopyStatus.UNCONFIRMED
     val stack = if (mayHaveLanded) {

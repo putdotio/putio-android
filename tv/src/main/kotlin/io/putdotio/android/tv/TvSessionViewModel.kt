@@ -297,7 +297,6 @@ internal class TvSession internal constructor(
     )
 
     init {
-        // A card whose file put.io no longer has, or that another device finished, leaves the row.
         scope.launch {
             watchNext.reconcile(filesItemResolver::resolveItem)?.let(fileActionFailures::report)
         }
@@ -404,7 +403,6 @@ internal class TvSession internal constructor(
         origin: FilesOpenOrigin,
         playMedia: Boolean = true,
     ): TvExternalOpen {
-        // A newer pick wins over media still waiting for its duration.
         durationLookup?.cancel()
         return when {
             item.isPlayable && playMedia -> {
@@ -701,9 +699,6 @@ internal suspend fun PlaybackController.answerResumePrompts(opened: FilesItemId,
     }
 }
 
-// A position past 95 % starts over, which needs the duration that search results
-// and single-file reads omit; listing the file itself returns it as the parent. Without one,
-// playback continues from the saved position.
 private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {
     val listed = (loadFolder(item.id) as? PutioResult.Success)?.value?.parent
     val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds

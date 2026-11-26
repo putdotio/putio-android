@@ -37,7 +37,6 @@ internal class MobileShareExporter(
         session: MobileAuthSessionId,
         onProgress: (percent: Int, copied: Long, total: Long) -> Unit,
     ): File = withContext(dependencies.io) {
-        // Unlinking an open file is safe on Android; a recipient still reading keeps its descriptor.
         MobileFileShareService.shareRoot(context).deleteRecursively()
         val directory = File(MobileFileShareService.sessionShares(context, session), fileId.value.toString())
         directory.mkdirs()
@@ -69,7 +68,6 @@ internal class MobileShareExporter(
 private suspend fun <T> Call.executeCancellable(block: suspend (Response) -> T): T = coroutineScope {
     val call = this@executeCancellable
     val canceller = launch(start = CoroutineStart.UNDISPATCHED) {
-        // Cancelling a call that already finished is a no-op.
         try {
             awaitCancellation()
         } finally {
@@ -95,7 +93,6 @@ private suspend fun InputStream.streamTo(
     while (read >= 0) {
         output.write(buffer, 0, read)
         copied += read
-        // An unknown size keeps the last percent, so nothing is reported.
         val percent = if (total > 0L) (copied * EXPORT_PROGRESS_MAX / total).toInt() else lastPercent
         if (percent != lastPercent) {
             lastPercent = percent

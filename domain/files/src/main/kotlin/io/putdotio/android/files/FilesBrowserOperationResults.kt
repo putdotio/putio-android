@@ -53,7 +53,6 @@ internal fun FilesFolderState.replaceFirstPage(
         is FilesFolderOperationIntent.Move,
         -> null
     }
-    // Advance the viewport generation only when an explicit sort replaces the rows.
     val viewport = if (persistedSort == null) content.viewport() else FilesViewportPosition()
     return copy(
         folder = folder.copy(sort = page.sort ?: persistedSort ?: folder.sort),

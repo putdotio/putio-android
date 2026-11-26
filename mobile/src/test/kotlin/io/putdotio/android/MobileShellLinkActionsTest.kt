@@ -99,7 +99,6 @@ class MobileShellLinkActionsTest {
 
         compose.waitForIdle()
         compose.runOnIdle {
-            // Dropped, not left pending for a later account, and nothing played or opened.
             assertNull(links.pending.value)
             assertTrue(resolved.isEmpty())
         }

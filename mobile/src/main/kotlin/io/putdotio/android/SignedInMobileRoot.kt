@@ -283,7 +283,6 @@ internal fun SignedInMobileRoot(
                             browser.dispatch(event)
                         },
                         onPositionSaved = { fileId, seconds ->
-                            // Finished or cleared, the video leaves Continue watching; an offline position follows.
                             filesViewModel.continueWatchingIfPrepared(account.userId, sessionId)
                                 ?.positionSaved(fileId, seconds)
                             searchHistorySession?.search?.positionSaved(fileId, seconds)
@@ -297,7 +296,6 @@ internal fun SignedInMobileRoot(
                 }
             }
         }
-    // Each view model hands out null once its session is no longer current.
     val controllersReady = trashController != null && filesController != null &&
         accountSettingsController != null && appConfigController != null &&
         searchHistorySession != null && transfersController != null
@@ -530,7 +528,6 @@ private fun SignedInMobileSession(
             onAccountSettingsEvent = accountSettingsController::dispatch,
             loadTunnelRoutes = {
                 accountSettingsRepository.loadTunnelRoutes().also { result ->
-                    // A 401 here is as authoritative as one from Files or Playback.
                     if (result is AccountSettingsRepositoryResult.Failure &&
                         result.failure.putioFailure is PutioFailure.AuthenticationRequired
                     ) {
@@ -670,7 +667,6 @@ private fun SavedPositionEffects(
             authController.rejectAuthoritativeSession(sessionId)
         }
     }
-    // A delete the fresh read confirmed takes the video, or a deleted folder's videos, out of Continue watching.
     LaunchedEffect(filesController, continueWatching) {
         val row = continueWatching ?: return@LaunchedEffect
         filesController.state

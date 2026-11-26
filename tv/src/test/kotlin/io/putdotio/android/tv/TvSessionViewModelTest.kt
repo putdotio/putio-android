@@ -714,7 +714,6 @@ class TvSessionViewModelTest {
 
         session.play(video)
         session.stopPlayback()
-        // The exit write lands after playback has gone.
         session.watchNextPlayback.saved(9L, 120.0)
         session.watchNextPlayback.saved(10L, 30.0)
         session.setWatched(video, watched = true)

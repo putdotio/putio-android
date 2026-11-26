@@ -135,7 +135,6 @@ internal class TransfersWidgetUpdater(
         when (val state = source.settledSession()) {
             is MobileAuthState.SignedIn -> refreshSignedIn(state)
             null, is MobileAuthState.ValidationUnavailable -> pushIfUnknown(TransfersWidgetContent.Unavailable)
-            // Signed out, or a sign-in still waiting on the browser.
             else -> synchronized(lock) {
                 if (source.authState.value !is MobileAuthState.SignedIn) push(null, TransfersWidgetContent.SignedOut)
             }
@@ -144,14 +143,12 @@ internal class TransfersWidgetUpdater(
 
     private suspend fun refreshSignedIn(state: MobileAuthState.SignedIn) {
         val key = MobileSessionKey(state.account.userId, state.sessionId)
-        // A sign-in replaces Sign in with Loading; any other refresh leaves what the launcher shows until it lands.
         val current = synchronized(lock) { shown }
         if (current != null && current.first != key) publish(key, TransfersWidgetContent.Loading)
         when (val result = source.load()) {
             is PutioResult.Success -> publish(key, result.value.toTransfersWidgetContent(clock()))
             is PutioResult.Failure -> when (result.failure) {
                 is PutioFailure.AuthenticationRequired -> source.rejectSession(state.sessionId)
-                // Rows already shown stay, with the time they were read.
                 else -> synchronized(lock) {
                     if (shown?.let { it.first == key && it.second is TransfersWidgetContent.Ready } != true) {
                         publishLocked(key, TransfersWidgetContent.Unavailable)

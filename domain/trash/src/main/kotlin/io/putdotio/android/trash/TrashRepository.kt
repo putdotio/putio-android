@@ -53,7 +53,6 @@ public class SdkTrashRepository internal constructor(
     }
 
     override suspend fun restore(itemId: FilesItemId): PutioResult<Unit> = putioRequest {
-        // Zero and cursor inputs are bulk selections; this app operation owns exactly one item.
         require(itemId.value > 0L) { "Restore requires one positive item ID" }
         restoreItem(TrashBulkInput(ids = listOf(itemId.value)))
     }
@@ -97,7 +96,6 @@ private fun TrashListResponse.toPage(initial: Boolean): TrashPage {
         },
         nextCursor = cursor?.takeIf(String::isNotBlank)?.let(::FilesCursor),
         total = if (initial) total else null,
-        // The SDK preserves its public zero default on continuation; it is not a server aggregate.
         trashSizeBytes = if (initial) trashSize else null,
     )
 }

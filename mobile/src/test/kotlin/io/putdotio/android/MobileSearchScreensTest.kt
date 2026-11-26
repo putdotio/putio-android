@@ -125,8 +125,6 @@ class MobileSearchScreensTest {
         assertEquals(listOf("Folders", "Files"), labels)
         compose.onNodeWithText("1,000+ results").assertIsDisplayed()
         compose.onAllNodesWithText("2").assertCountEquals(0)
-        // The folder sits at the root, named Files under the Files label; the video sits in a folder the
-        // session has named; the subtitle's folder isn't known yet, so its row names none.
         compose.onAllNodesWithText("Files", useUnmergedTree = true).assertCountEquals(2)
         compose.onAllNodesWithText("Big Buck Bunny", useUnmergedTree = true).assertCountEquals(2)
     }
@@ -155,7 +153,6 @@ class MobileSearchScreensTest {
         compose.onNodeWithText("Videos").performClick()
         assertEquals(listOf(SearchFilter.Videos), chosen)
 
-        // A page that held nothing is not yet nothing at all: more pages may match.
         val term = SearchTerm("cassini ring scans")
         val firstPage = SearchContent.Empty(term, SearchPaging.Available(FilesCursor("next")))
         search = searchState("cassini ring scans", firstPage, emptyList(), 1L)
@@ -191,7 +188,6 @@ class MobileSearchScreensTest {
 
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).performTextInput("bunny")
         compose.runOnIdle { assertEquals("bunny", sent.last()) }
-        // A recent search replaces the text without sending it back up, whatever edits went before.
         replacement = MobileSearchFieldText("sintel")
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertTextEquals("sintel")
         compose.runOnIdle {
@@ -531,7 +527,6 @@ class MobileSearchScreensTest {
                 compose.onNodeWithText(title).assertIsDisplayed()
                 compose.onNodeWithText(kind).assertIsDisplayed()
             }
-            // A type with no copy names nothing and gives its time alone.
             compose.onNodeWithTag(MOBILE_HISTORY_LIST_TAG).performScrollToNode(hasText("No title"))
             compose.onNodeWithText("No title").assertIsDisplayed()
             compose.onAllNodesWithText(" · ", substring = true, useUnmergedTree = true).assertCountEquals(0)

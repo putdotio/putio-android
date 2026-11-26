@@ -57,7 +57,6 @@ internal class MobileDownloadNotifications(
         download: Download,
         finalException: Exception?,
     ) {
-        // Most changes are progress; only outcomes read the index.
         val outcome = when (download.state) {
             Download.STATE_COMPLETED -> DownloadOutcome.Completed
             Download.STATE_FAILED -> DownloadOutcome.Failed(finalException.toFailureReason())
@@ -66,7 +65,6 @@ internal class MobileDownloadNotifications(
         val owner = download.request.ownerUserId()
         val fileId = owner?.let { fileIdOf(it, download.request.id) }
         if (outcome == null || owner == null || fileId == null) return
-        // A row being deleted, or one this device never indexed, stays quiet.
         if (download.fallingBackToConverted(finalException)) {
             fallBackIfEligible(downloadManager, owner, fileId)
         } else if (owner == signedInUser()) {
@@ -154,7 +152,6 @@ internal class MobileDownloadNotifications(
                     .build(),
             )
             val notification = outcomeNotification(context, userId, entry, outcome).build()
-            // The grant can be revoked between the check and this call.
             try {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
@@ -210,7 +207,6 @@ internal class MobileDownloadNotifications(
                 DownloadOutcome.Completed -> R.drawable.ic_ph_check
                 is DownloadOutcome.Failed -> R.drawable.ic_ph_warning_circle
             }
-            // The lock screen shows the outcome without the file name.
             val public = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(icon)
                 .setColor(ContextCompat.getColor(context, DesignR.color.putio_yellow_solid))
@@ -242,7 +238,6 @@ internal class MobileDownloadNotifications(
                 .setAutoCancel(true)
                 .setContentIntent(openRow)
                 .addAction(primary)
-            // A finished copy's one action is Play; its tap already opens the row.
             if (outcome is DownloadOutcome.Failed) {
                 builder.addAction(
                     R.drawable.ic_ph_download_simple,

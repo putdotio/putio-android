@@ -103,7 +103,6 @@ internal class CastReceiverSwitch(
                 return
             }
         runCatching {
-            // Stored once applied, so a fresh process resumes the session with the receiver it runs.
             CastReceiverStore.save(context, applicationId == PUTIO_RECEIVER_APPLICATION_ID)
             reselect(cast.mergedSelector)
         }

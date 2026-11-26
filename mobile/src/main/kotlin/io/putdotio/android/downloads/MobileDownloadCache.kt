@@ -74,8 +74,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
     @SuppressLint("StaticFieldLeak")
     private val appContext: Context = context.applicationContext
     private val databaseProvider = StandaloneDatabaseProvider(appContext)
-    // Internal storage: playlists a download stored before they were made token-free still carry
-    // the server's oauth_token query, and app-external directories are readable by other apps on Android 8 to 10.
     val cache: SimpleCache = SimpleCache(
         File(appContext.filesDir, CACHE_DIRECTORY),
         NoOpCacheEvictor(),
@@ -274,7 +272,6 @@ internal class MobileDownloadCache private constructor(context: Context) {
     private fun authorize(spec: DataSpec): DataSpec {
         val host = spec.uri.host.orEmpty()
         if (!host.endsWith(PUTIO_DOMAIN) || spec.uri.getQueryParameter(OAUTH_TOKEN_QUERY) != null) return spec
-        // Data sources open on Media3's loader threads; the wait is bounded by the restore itself.
         sessionSettled.await(SESSION_SETTLE_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         val token = try {
             downloadToken?.let { runBlocking { it.get() } }

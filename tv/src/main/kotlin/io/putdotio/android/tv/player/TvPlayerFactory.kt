@@ -113,7 +113,6 @@ internal object DefaultTvPlayerFactory : TvPlayerFactory {
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun tvMediaSession(context: Context, player: Player, queue: Boolean = false): MediaSession.Builder =
     MediaSession.Builder(context, player)
-        // A recreated screen can publish its player before the old session is gone.
         .setId("tv-player-${UUID.randomUUID()}")
         .setCallback(
             object : MediaSession.Callback {

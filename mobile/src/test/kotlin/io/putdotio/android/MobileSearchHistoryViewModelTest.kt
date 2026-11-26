@@ -177,7 +177,6 @@ class MobileSearchHistoryViewModelTest {
                 assertTrue(history.dispatch(HistoryEvent.OpenFile(HistoryFileId(1L))))
                 withTimeout(TIMEOUT) { firstStarted.await() }
                 assertTrue(history.dispatch(HistoryEvent.OpenFile(HistoryFileId(2L))))
-                // Sequential collection never starts the second before the first ends; let it lapse.
                 withTimeoutOrNull(NO_SECOND_EVENT_TIMEOUT) { secondStarted.await() }
                 releaseFirst.complete(Unit)
 

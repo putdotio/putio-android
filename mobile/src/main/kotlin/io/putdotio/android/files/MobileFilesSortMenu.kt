@@ -85,13 +85,11 @@ internal fun MobileFilesSortMenu(
     val current = folder.folder.sort ?: accountSort
     val sortLabel = stringResource(R.string.mobile_files_sort)
     val currentLabel = current?.labelResource()?.let { stringResource(it) }
-    // A loading or failed folder keeps the button in place but has no listing to order yet.
     val enabled = folder.operation.canStartOperation && folder.content is FilesContent.Ready
 
     LaunchedEffect(enabled) {
         if (!enabled) expanded = false
     }
-    // The current sort stays choosable: after a failed reload it retries the order on screen.
     val choose = { sort: FilesSort ->
         expanded = false
         onSelect(sort)

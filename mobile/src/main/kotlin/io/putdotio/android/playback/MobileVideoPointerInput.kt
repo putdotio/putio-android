@@ -29,7 +29,6 @@ private data object VideoPointerSharingElement : ModifierNodeElement<VideoPointe
 }
 
 private class VideoPointerSharingNode : Modifier.Node(), PointerInputModifierNode {
-    // Chrome handles controls and scrolling first; unconsumed taps reach the sibling video regions.
     override fun sharePointerInputWithSiblings() = true
 
     override fun onPointerEvent(pointerEvent: PointerEvent, pass: PointerEventPass, bounds: IntSize) = Unit
@@ -42,7 +41,6 @@ internal suspend fun PointerInputScope.detectVideoTapGestures(
     onTap: (Offset) -> Unit,
 ) {
     awaitEachGesture {
-        // Native controls and scrolling consume in Main before the video observes Final.
         awaitFirstDown(pass = PointerEventPass.Final)
         val firstUp = awaitVideoTapRelease() ?: return@awaitEachGesture
         firstUp.consume()

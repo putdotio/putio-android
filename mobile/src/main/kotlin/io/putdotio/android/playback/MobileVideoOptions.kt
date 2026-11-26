@@ -206,7 +206,6 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
             enabled = enabled && slower != null,
             onClick = { slower?.let(player::setPlaybackSpeed) },
         )
-        // The buttons keep their 56dp; the value takes what is left and shrinks to fit large text.
         BasicText(
             buildAnnotatedString {
                 append(formatPlaybackSpeed(speed))

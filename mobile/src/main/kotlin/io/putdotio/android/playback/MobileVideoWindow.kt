@@ -23,13 +23,11 @@ internal fun MobileVideoWindow(fileId: Long, landscape: Boolean, rotateToLandsca
     val activity = LocalActivity.current ?: return
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val configuration = LocalConfiguration.current
-    // The route owns this baseline across autoplay and Activity recreation, not each media file.
     val original = rememberSaveable(saver = VideoWindowBaselineSaver) { activity.captureVideoWindowBaseline() }
     val requestedOrientation = videoWindowOrientation(
         original = original.requestedOrientation,
         landscape = landscape && rotateToLandscape,
         smallestWidthDp = configuration.smallestScreenWidthDp,
-        // Picture-in-picture is multi-window too, but expanding it must return to the video's own shape.
         multiWindow = activity.isInMultiWindowMode && !activity.isInPictureInPictureMode,
     )
     val currentOrientation = rememberUpdatedState(requestedOrientation)
@@ -47,7 +45,6 @@ internal fun MobileVideoWindow(fileId: Long, landscape: Boolean, rotateToLandsca
         }
         onDispose {
             lifecycle.removeObserver(observer)
-            // A recreating Activity keeps its window, which restoring now would turn once more.
             if (!activity.isChangingConfigurations) {
                 original.restoreBars(activity)
                 if (activity.requestedOrientation != original.requestedOrientation) {

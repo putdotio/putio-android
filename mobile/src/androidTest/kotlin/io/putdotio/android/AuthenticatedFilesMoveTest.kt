@@ -170,7 +170,6 @@ class AuthenticatedFilesMoveTest {
     }
 
     private fun sortSource(f: MoveProofFixture, runtime: MobileOAuthRuntime) {
-        // The order words follow the field, so Name goes first; the current sort may be another field.
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
         compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_field_name)).performClick()
         compose.waitUntil(TIMEOUT) {

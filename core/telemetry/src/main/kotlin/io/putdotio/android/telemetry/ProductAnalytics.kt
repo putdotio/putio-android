@@ -44,7 +44,6 @@ public object ProductAnalytics {
     /** The account's answer: a null [accountId] is signed out, which counts as off. */
     @Synchronized
     public fun update(accountId: Long?, enabled: Boolean) {
-        // Another account's route must not reach this one's first open.
         if (accountId != this.accountId) updateRoute(null)
         this.accountId = accountId
         gate?.update(accountId, enabled)
@@ -64,7 +63,6 @@ public object ProductAnalytics {
      */
     @Synchronized
     public fun confirm(check: ConsentCheck, accountId: Long?, enabled: Boolean?) {
-        // A sign-out or account switch since the check already answered for the current account.
         val current = accountId != null && accountId == this.accountId
         gate?.answer(check.revision, accountId.takeIf { current }, enabled.takeIf { current })
     }
@@ -110,15 +108,12 @@ internal class ProductAnalyticsGate(
     private var revision = 0
     private var running: Long? = null
 
-    // Bumped on every start or stop, so a capture queued before an opt-out drops instead of draining.
     private val generation = AtomicInteger()
 
-    // Without an open since the start, a background would time a session that began before consent.
     private var hasSentOpen = false
     private val held = ArrayDeque<Pair<AnalyticsEvent, Long>>()
 
     init {
-        // A killed process may have left a queue or ids from an earlier account or opt-in.
         submit(sdk::stop)
     }
 
@@ -186,7 +181,6 @@ internal class ProductAnalyticsGate(
         }
     }
 
-    // A held event keeps the time it happened, not the time the answer came.
     private fun send(event: AnalyticsEvent, at: Long) {
         if (running == null) return
         when (event) {
@@ -200,7 +194,6 @@ internal class ProductAnalyticsGate(
         submit { if (generation.get() == queuedIn) sdk.capture(name, properties, at) }
     }
 
-    // PostHog failing never breaks a flow.
     private fun submit(step: () -> Unit) {
         executor.execute { runCatching(step) }
     }

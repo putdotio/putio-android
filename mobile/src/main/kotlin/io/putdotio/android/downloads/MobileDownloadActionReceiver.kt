@@ -286,7 +286,6 @@ internal class DownloadNotificationRetries(
                     ?: DownloadRetryOutcome.NOT_RETRYABLE
             else -> DownloadRetryOutcome.REFUSED
         }
-        // Another account's outcome, or a stale one, must not stay on screen.
         if (outcome == DownloadRetryOutcome.REFUSED || outcome == DownloadRetryOutcome.NOT_RETRYABLE) {
             dismiss(userId, fileId)
         }
@@ -323,7 +322,6 @@ internal class DownloadNotificationRetries(
             start(userId, chosen)
             DownloadRetryOutcome.STARTED
         } catch (_: IllegalStateException) {
-            // The system refused to start the download service from the background; Downloads still offers it.
             DownloadRetryOutcome.UNCONFIRMED
         }
     }

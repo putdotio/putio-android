@@ -60,7 +60,6 @@ internal class TvPlaybackReporting(
             when {
                 closed -> Unit
                 result is PlaybackRepositoryResult.Success -> onSaved(fileId, seconds)
-                // A verdict that lands after another session took over is not this session's.
                 (result as? PlaybackRepositoryResult.Failure)?.failure?.putioFailure is
                     PutioFailure.AuthenticationRequired ->
                     if (sessionCurrent()) {

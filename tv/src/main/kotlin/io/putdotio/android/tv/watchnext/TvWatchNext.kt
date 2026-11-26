@@ -75,7 +75,6 @@ internal class TvWatchNext(
                 lock.withLock { removeAllExcept(owner.userId) }
             }
         }
-        // A quiet sign-out lands in Initializing, where every process also starts.
         scope.launch {
             quietSignOuts.filter { it > 0 }.collect { lock.withLock { removeAllExcept(null) } }
         }
@@ -174,7 +173,6 @@ internal class TvWatchNext(
                 store.update(existing.rowId, owner, program, engagedAtMillis)
                 return
             }
-            // The least recently watched cards make room, so reconciling stays a bounded read.
             cards.filter { it.owner?.userId == userId }
                 .sortedBy { it.engagedAtMillis }
                 .let { mine -> mine.take((mine.size - MAX_CARDS + 1).coerceAtLeast(0)) }
@@ -193,7 +191,6 @@ internal class TvWatchNext(
         when (state) {
             is TvAuthState.SignedIn -> Owner(state.account.userId)
             is TvAuthState.Linking, TvAuthState.SigningOut -> Owner(null)
-            // Restoring or offline: whose session this is is not known yet.
             TvAuthState.Initializing,
             TvAuthState.RestoringSession,
             is TvAuthState.ValidatingSession,
@@ -206,7 +203,6 @@ private fun TvStoredWatchNextProgram.media(file: FilesItem): TvWatchNextMedia =
     TvWatchNextMedia(
         fileId = file.id.value,
         title = file.name,
-        // The card keeps the duration playback knew; a single-file read carries none.
         durationSeconds = file.playback?.durationSeconds
             ?: program.durationMillis.takeIf { it > 0L }?.let { it / MILLIS_PER_SECOND },
         posterUrl = file.screenshotUrl ?: program.posterUrl,

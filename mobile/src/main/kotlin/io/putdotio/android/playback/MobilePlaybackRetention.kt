@@ -29,8 +29,6 @@ internal class RetainedPlayerPreferences(
     /** How much later than the file says this video's subtitles show; negative is sooner. */
     var subtitleOffsetMillis by mutableStateOf(subtitleOffsetMillis)
 
-    // Set once this route has prepared or adopted the session's file, so a later
-    // recomposition on the same route leaves an ended session ended instead of restarting it.
     var sessionHandled by mutableStateOf(false)
 
     fun retainPlayback(playback: RetainedPlayback) {

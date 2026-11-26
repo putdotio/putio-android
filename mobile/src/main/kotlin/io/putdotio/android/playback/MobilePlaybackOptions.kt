@@ -26,7 +26,6 @@ internal fun RetainedPlayerPreferences.adoptPlaybackOptions(player: Media3Player
     playbackSpeed = player.playbackParameters.speed
     val parameters = player.trackSelectionParameters
     val audioOverride = parameters.overrides.values.singleOrNull { it.type == C.TRACK_TYPE_AUDIO }
-    // A reprepare can temporarily expose no current tracks; the override still owns the chosen format.
     val identity = audioOverride?.let { selected ->
         selected.trackIndices.singleOrNull()?.let { index ->
             selected.mediaTrackGroup.getFormat(index).toAudioTrackIdentity()

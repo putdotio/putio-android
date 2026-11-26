@@ -1,8 +1,5 @@
 package io.putdotio.android.files
 
-// States as the reducers would hold them, for tests outside this module; request ids continue
-// from nextRequestValue.
-
 public fun filesBrowserState(
     stack: List<FilesFolderState>,
     nextRequestValue: Long,

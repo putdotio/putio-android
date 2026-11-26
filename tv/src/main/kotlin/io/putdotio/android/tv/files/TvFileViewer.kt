@@ -160,7 +160,6 @@ internal fun TvFileViewer(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    // A crashed viewer's copies go before this one copies its first document.
     val cacheCleared by produceState(false) {
         withContext(Dispatchers.IO) { FilesPdfDocument.clearCache(context) }
         value = true
@@ -361,7 +360,6 @@ private fun TvPdfPages(document: FilesPdfDocument, keys: TvViewerKeys, onDismiss
                     value = try {
                         PageState.Ready(document.renderFitting(page, widthPx, heightPx))
                     } catch (_: IllegalStateException) {
-                        // The document closed under the page, or the renderer refused it.
                         PageState.Failed
                     } catch (_: IllegalArgumentException) {
                         PageState.Failed

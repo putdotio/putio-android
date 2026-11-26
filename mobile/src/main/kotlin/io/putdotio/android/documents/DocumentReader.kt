@@ -41,7 +41,6 @@ internal class DocumentReader(
             count
         } catch (error: IOException) {
             closeStream()
-            // A read cut short by the session ending reports the session, not the I/O it interrupted.
             ensureReadable()
             throw ErrnoException("read", OsConstants.EIO, error)
         }
@@ -69,7 +68,6 @@ internal class DocumentReader(
         val next = bytes.open(offset)
         opened = next
         position = offset
-        // revoke() may have run while the open blocked, before it could interrupt this stream.
         ensureReadable()
         return next.input
     }

@@ -43,7 +43,6 @@ class AuthenticatedFilesRenameProofTest {
     private val optIn = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
-                // Ordinary connected tests must not launch or mutate an authenticated session.
                 assumeTrue(
                     "Authenticated rename proof requires explicit opt-in",
                     InstrumentationRegistry.getArguments().getString("putio.rename.enabled") == "true",
@@ -173,7 +172,6 @@ class AuthenticatedFilesRenameProofTest {
     private fun waitForRow(listTag: String, name: String): SemanticsMatcher {
         val row = hasText(name) and hasAnyAncestor(hasTestTag(listTag))
         compose.waitUntil(TIMEOUT_MILLIS) {
-            // Server reload may move a renamed item beyond the currently composed viewport.
             val found = try {
                 compose.onNodeWithTag(listTag).performScrollToNode(hasText(name))
                 true

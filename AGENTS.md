@@ -85,12 +85,15 @@ script headers and `--help` own the harness.
 The machine provides Node from `.node-version`, pnpm from `package.json`,
 and `python3`. Then run `./scripts/bootstrap.sh`; its header lists the other
 preconditions. Only live and authenticated lanes need the `devs-auto` profile.
+`putioMobileOAuthClientIdDebugOverride` in `local.properties` sets the mobile
+debug build's OAuth client id; a malformed value fails every build on the
+machine.
 
 ## Kotlin SDK
 
-To build against unreleased SDK changes, see `putioSdkKotlinPath` in
-[`settings.gradle.kts`](settings.gradle.kts). Release the SDK before an app PR
-depends on it.
+To build against unreleased SDK changes, set `putioSdkKotlinPath` in
+`local.properties` to an SDK checkout; `gradle/libs.versions.toml` pins the
+released version. Release the SDK before an app PR depends on it.
 
 ## Skills
 

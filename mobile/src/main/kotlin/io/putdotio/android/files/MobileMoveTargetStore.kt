@@ -52,7 +52,6 @@ private fun JSONObject.toMemory(): FilesMoveTargetMemory {
         val folder = path.getJSONObject(index)
         FilesFolder(FilesItemId(folder.getLong("id")), folder.optString("name").takeIf { folder.has("name") })
     }
-    // A damaged path opens at root rather than somewhere unexpected.
     return FilesMoveTargetMemory(
         remember = getBoolean("remember"),
         lastTarget = folders.takeIf { list -> list.all { it.id.value > 0L } }.orEmpty(),

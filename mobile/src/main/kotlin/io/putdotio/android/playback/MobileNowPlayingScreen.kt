@@ -129,7 +129,6 @@ internal fun MobileNowPlayingScreen(
                     onScrub = onScrub,
                     onPlay = onPlay,
                     chips = {
-                        // A receiver without speed control leaves the chip out.
                         if (castLabel == null || options.canChangeSpeed) {
                             MobileSpeedChip(options, { sheet = NowPlayingSheet.Speed }, onPage = true)
                         }
@@ -140,8 +139,6 @@ internal fun MobileNowPlayingScreen(
                 )
             }
             if (maxWidth >= WIDE_LAYOUT_WIDTH && maxWidth > maxHeight) {
-                // Side by side: the details keep room for the transport and scroll; the glyph takes the rest,
-                // and a pane too short for the smallest glyph leaves it out.
                 val artwork = minOf(maxHeight - 16.dp, maxWidth - ARTWORK_INSET - WIDE_DETAILS_WIDTH, MAX_ARTWORK)
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                     if (artwork >= MIN_ARTWORK) {
@@ -350,7 +347,6 @@ private fun NowPlayingTransport(
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
 ) {
-    // The chips' 48dp touch band adds 8dp above them, so the bottom padding leaves the board's 20dp.
     BoxWithConstraints(
         Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
         contentAlignment = Alignment.Center,
@@ -359,7 +355,6 @@ private fun NowPlayingTransport(
         val room = maxWidth - buttons - PLAY_RING
         val gaps = (room / (SMALL_GAP * 2 + BIG_GAP * 2)).coerceIn(0f, 1f)
         val ring = (maxWidth - buttons).coerceIn(TRANSPORT_TARGET, PLAY_RING)
-        // Narrower than the five 48dp targets, the row wraps rather than squeeze them.
         FlowRow(
             horizontalArrangement = Arrangement.Center,
             itemVerticalAlignment = Alignment.CenterVertically,

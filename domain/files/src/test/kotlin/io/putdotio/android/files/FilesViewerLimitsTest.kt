@@ -20,7 +20,6 @@ class FilesViewerLimitsTest {
 
     @Test
     fun aFileLongerThanTheLimitStopsThereAndDropsTheCharacterTheLimitCutsInHalf() {
-        // "ab" then "ç" (two bytes) straddling a three-byte limit, then more text.
         val bytes = "abçdef".toByteArray()
 
         val preview = ByteArrayInputStream(bytes).readTextPreview(limitBytes = 3)
@@ -47,7 +46,6 @@ class FilesViewerLimitsTest {
         assertTrue(poster.width.toLong() * poster.height <= 4_000_000L)
         assertEquals(10.0, poster.height.toDouble() / poster.width, 0.05)
 
-        // A strip too tall to lay out at the frame's width fails as a page that won't render.
         assertThrows(IllegalArgumentException::class.java) {
             pdfBitmapSize(pageWidth = 10, pageHeight = 3_000, widthPx = 1080)
         }
@@ -55,7 +53,6 @@ class FilesViewerLimitsTest {
 
     @Test
     fun aPageFitsTheFrameBySideWhicheverLimitsIt() {
-        // An A4 page on a 1920x1080 screen is as tall as the screen; a wide slide is as wide.
         assertEquals(763, pdfFittingWidth(pageWidth = 595, pageHeight = 842, widthPx = 1920, heightPx = 1080))
         assertEquals(1920, pdfFittingWidth(pageWidth = 1600, pageHeight = 900, widthPx = 1920, heightPx = 1080))
     }

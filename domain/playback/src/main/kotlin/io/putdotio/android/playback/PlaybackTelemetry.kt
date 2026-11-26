@@ -66,7 +66,6 @@ public fun PlaybackState.originalFallbackTelemetry(
         PlaybackSourceKind.ORIGINAL,
     )
     val code = reason.rescueReason
-    // The rejection keeps only its reason, not the engine error or response behind it.
     val tags = played.tags(platform, RESCUED, started = false) + mapOf(
         "failure_mode" to reason.failureMode,
         "rescue_reason" to code,
@@ -144,8 +143,6 @@ private class PlayedSource(
             "file_id" to (fileId?.toString() ?: UNKNOWN),
         ) + mediaFacts(source?.mediaInfo)
 
-    // Standard plays HLS only and Direct play the file stream only, so a video's format names its
-    // method; audio plays the original file with both.
     private fun streamingMethod(): String =
         method?.wireValue ?: when {
             source == null || offline || mediaType == PlaybackMediaType.AUDIO -> UNKNOWN
@@ -162,7 +159,6 @@ private class PlayedSource(
             else -> UNKNOWN
         }
 
-    // An original video streams only after the device check passed it; audio and downloads skip it.
     private fun deviceCheck(): String =
         when {
             kind == null -> UNKNOWN

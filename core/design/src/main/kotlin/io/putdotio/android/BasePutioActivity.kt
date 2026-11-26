@@ -12,8 +12,6 @@ public abstract class BasePutioActivity : ComponentActivity() {
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(newBase)
-        // Read once: subclasses must leave fontScale out of configChanges, so
-        // a font size change recreates the activity (MainActivityFontScaleTest).
         val fontScale = newBase.resources.configuration.fontScale
         val cap = maxFontScale
         if (fontScale > cap) {

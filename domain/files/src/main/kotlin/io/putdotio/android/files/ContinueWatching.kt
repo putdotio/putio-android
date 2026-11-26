@@ -120,7 +120,6 @@ public class ContinueWatching(
     ): PutioFailure.AuthenticationRequired? {
         if (reconciled || closed) return null
         val rejected = readEntries(resolve)
-        // Set only once the pass ends, so a pass cancelled with its screen runs again.
         reconciled = true
         return rejected
     }
@@ -175,15 +174,12 @@ public class ContinueWatching(
         for (read in mutableEntries.value) {
             val result = resolve(read.fileId)
             val failure = (result as? PutioResult.Failure)?.failure
-            // A session already closed answers for nobody, so its 401 rejects nothing.
             val rejected = (failure as? PutioFailure.AuthenticationRequired)?.takeUnless { closed }
             if (rejected != null) return rejected
             when {
                 closed -> Unit
-                // A position saved while the read was out is newer than what it brought back.
                 result is PutioResult.Success ->
                     if (mutableEntries.value.any { it == read }) refresh(read, result.value)
-                // Gone whatever was saved meanwhile; as in removed(fileId), a later save can't bring it back.
                 failure?.isNotFound == true -> removed(read.fileId)
             }
         }
@@ -247,7 +243,6 @@ public class DeviceContinueWatchingStore internal constructor(
     private val generation = wipes.get()
 
     override fun write(entries: List<ContinueWatchingEntry>) {
-        // A session being torn down can still finish a read after sign-out wiped the row.
         if (wipes.get() != generation) return
         preferences.edit { putString(key, entries.toJson().toString()) }
     }
@@ -280,7 +275,6 @@ private fun List<ContinueWatchingEntry>.toJson(): JSONArray =
         }
     }
 
-// A damaged entry is dropped rather than shown with made-up progress.
 private fun JSONArray.toEntries(): List<ContinueWatchingEntry> =
     (0 until length()).mapNotNull { index ->
         val entry = optJSONObject(index) ?: return@mapNotNull null

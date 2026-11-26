@@ -138,8 +138,6 @@ internal class MobileAuthController(
     suspend fun beginSignIn(): OAuthLaunchResult = operationMutex.withLock {
         val signedOutState = mutableState.value as? MobileAuthState.SignedOut
             ?: return@withLock OAuthLaunchResult.NotAllowed
-        // Reset and sign in: the clear is best effort, since the new token overwrites
-        // the record anyway and a store that still fails surfaces again on write.
         if (signedOutState.reason == MobileSignedOutReason.SecureStorageUnavailable) {
             withContext(NonCancellable) { clearLocalSession() }
         }
@@ -317,7 +315,6 @@ internal class MobileAuthController(
             when (result) {
                 is SessionValidationResult.Valid -> {
                     validatedAccounts.write(result.account)
-                    // The token names its account; a different one is a different session.
                     val sessionId = if (result.account.userId == current.account.userId) {
                         current.sessionId
                     } else {
@@ -359,7 +356,6 @@ internal class MobileAuthController(
 
     private suspend fun persistAndValidateToken(accessToken: AccessToken, source: SessionValidationSource) {
         val kept = try {
-            // The previous token's account must never open the shell for this one.
             if (!validatedAccounts.clear()) throw AuthTokenStorageException("clear validated account")
             tokenRevocations.keep(accessToken) { tokenStore.write(accessToken) }
         } catch (_: AuthTokenStorageException) {
@@ -393,7 +389,6 @@ internal class MobileAuthController(
                 mutableState.value = MobileAuthState.SignedIn(account = result.account, sessionId = nextSessionId())
             }
             is SessionValidationResult.Unavailable -> {
-                // Only a stored session put.io confirmed before opens offline; a new sign-in has none.
                 val offlineAccount = if (source.restoresStoredToken()) validatedAccounts.read() else null
                 mutableState.value = if (offlineAccount != null) {
                     MobileAuthState.SignedIn(offlineAccount, nextSessionId(), validated = false)

@@ -70,7 +70,6 @@ import io.putdotio.android.playback.MOBILE_NOW_PLAYING_TAG
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileLiveAudioAttachmentProofTest {
-    // Real Media3 listeners require the main looper rather than v2's queued test dispatcher.
     private val compose = createComposeRule()
     private val optIn = TestRule { base, _ ->
         object : Statement() {

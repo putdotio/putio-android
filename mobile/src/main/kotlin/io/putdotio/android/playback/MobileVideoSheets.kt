@@ -117,7 +117,6 @@ internal fun MobileVideoSheets(
     modifier: Modifier,
     panelModifier: Modifier,
 ) {
-    // The last sheet stays composed while it slides out.
     var shown by remember { mutableStateOf(sheet ?: MobileVideoSheet.Audio) }
     if (sheet != null) shown = sheet
     val close = { onSheet(null) }

@@ -577,14 +577,12 @@ class MobileCastSessionAudioTest {
         gateway.connect()
         cast.cast(Media, Item, CastHandover(positionMillis = 0L, playing = true))
         gateway.report(CastRemoteState.Playing, positionMillis = 60_000L)
-        // No new status for 2.5 s of playback, then the session ends.
         now += 2_500L
         assertNull(cast.takeHandover(42L))
 
         gateway.disconnect()
 
         assertEquals(CastHandover(positionMillis = 62_500L, playing = true), cast.takeHandover(42L))
-        // Taken once: a later opening resumes from put.io's position instead.
         assertNull(cast.takeHandover(42L))
     }
 

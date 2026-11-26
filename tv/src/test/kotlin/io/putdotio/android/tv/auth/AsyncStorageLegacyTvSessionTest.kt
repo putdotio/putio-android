@@ -61,7 +61,6 @@ class AsyncStorageLegacyTvSessionTest {
     fun `a hot journal tv-native left mid-write is rolled back and the token read`() = runBlocking {
         writeFixture(RN_TOKEN_KEY to FAKE_TOKEN)
         val crashed = File(database.parentFile, "crashed")
-        // Spill an uncommitted overwrite to the file, then snapshot it with its journal, as a kill mid-write leaves it.
         SQLiteDatabase.openDatabase(database.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
             db.rawQuery("PRAGMA journal_mode=DELETE", null).use { it.moveToFirst() }
             db.rawQuery("PRAGMA cache_size=1", null).use { it.moveToFirst() }
@@ -114,7 +113,6 @@ class AsyncStorageLegacyTvSessionTest {
         }
     }
 
-    // Literals from tv-native and AsyncStorage, not the production constants, so a wrong name fails here.
     private companion object {
         const val RN_DATABASE = "RKStorage"
         const val RN_TABLE = "catalystLocalStorage"

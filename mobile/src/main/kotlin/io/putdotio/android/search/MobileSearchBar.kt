@@ -82,19 +82,16 @@ internal fun MobileSearchBar(
             modifier = Modifier
                 .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
                 .fillMaxWidth()
-                // Larger text grows the pill rather than crop the query.
                 .heightIn(min = SEARCH_BAR_HEIGHT),
         ) {
             SearchBarDefaults.InputField(
                 state = text.state,
-                // The IME can submit before the last edit has been sent up; send it first.
                 onSearch = {
                     text.send(onQueryChanged)
                     onSubmit()
                 },
                 expanded = true,
                 onExpandedChange = {},
-                // The pill draws the container; the field's own would cover it in surface-container-high.
                 colors = SearchBarDefaults.inputFieldColors().copy(
                     focusedContainerColor = Color.Transparent,
                     unfocusedContainerColor = Color.Transparent,

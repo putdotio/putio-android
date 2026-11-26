@@ -156,7 +156,6 @@ internal fun MobileTransfersScreen(
         filesRepository = filesRepository,
         onFilesAuthenticationRequired = onFilesAuthenticationRequired,
     )
-    // Outside the sheet: the copy outlives the sheet it closes.
     val copy = rememberSourceCopy(snackbarHostState)
     val actionsItem = actionsFor?.let { id -> (state.content as? TransfersContent.Ready)?.items?.find { it.id == id } }
     if (actionsItem != null) {
@@ -219,13 +218,11 @@ private fun MobileTransfersNews(
 ) {
     val addedCount = state.lastAddReceipt?.addedCount ?: 0
     val addedMessage = pluralStringResource(R.plurals.mobile_transfers_added, addedCount, addedCount)
-    // The successful add id changes once per accepted submission; the first value is history, not news.
     var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }
     LaunchedEffect(state.lastSuccessfulAddRequestId) {
         val added = state.lastSuccessfulAddRequestId
         if (added != null && added != announcedAdd) {
             announcedAdd = added
-            // Refused links reopen the draft with their own message; only started transfers are news.
             if (addedCount > 0) {
                 snackbarHostState.currentSnackbarData?.dismiss()
                 snackbarHostState.showSnackbar(addedMessage)
@@ -382,7 +379,6 @@ private fun MobileTransfersContent(
             MobileEmptyState(
                 title = stringResource(R.string.mobile_transfers_empty_title),
                 message = stringResource(R.string.mobile_transfers_empty_message),
-                // The state sits a little above the middle, clear of the navigation.
                 modifier = Modifier.padding(bottom = 56.dp),
                 glyph = PutioEmptyGlyph.NoTransfers,
             ) {
@@ -601,7 +597,6 @@ private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
         is TransferRetryOutcome.Failed ->
             stringResource(
                 R.string.mobile_transfers_retry_failed,
-                // put.io answers 403 when the transfer has no error left to retry.
                 if (outcome.failure is PutioFailure.AccessDenied) {
                     stringResource(R.string.mobile_transfers_retry_not_failed)
                 } else {

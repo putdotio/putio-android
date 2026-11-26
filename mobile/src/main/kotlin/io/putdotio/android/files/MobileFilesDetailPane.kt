@@ -120,7 +120,6 @@ internal fun MobileFilesDetailPane(
             )
             return@Box
         }
-        // Another file starts at the top.
         val scroll = key(item.id) { rememberScrollState() }
         Column(
             modifier = Modifier
@@ -157,7 +156,6 @@ private fun MobileFilesDetailPreview(item: FilesItem, actions: MobileFilesDetail
             .aspectRatio(PREVIEW_ASPECT_RATIO)
             .clip(RoundedCornerShape(PutioRadius.extraLarge))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            // The primary button names the same action; the preview is a larger target for it.
             .clickable(role = Role.Button, onClick = { actions.onOpen(item) })
             .clearAndSetSemantics {},
         contentAlignment = Alignment.Center,

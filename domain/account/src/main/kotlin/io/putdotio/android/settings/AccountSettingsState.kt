@@ -13,18 +13,11 @@ public data class AccountSettingsPreferences(
     val trashEnabled: Boolean,
     val showSubtitles: Boolean,
     val autoSelectSubtitles: Boolean,
-    // Account-wide `use_start_from`: playback resumes from and writes back saved positions.
     val resumePlayback: Boolean = true,
-    // Account-wide `tunnel_route_name`; the server reports null for the direct route.
     val tunnelRoute: TunnelRouteName = TunnelRouteName.DEFAULT,
-    // Account-wide `sort_by`: folders without their own sort use it. Null means the
-    // server reported a value this app does not know.
     val defaultSort: FilesSort? = null,
-    // Privacy controls per the frontend analytics contract: diagnostics are on by
-    // default, product analytics is opt-in.
     val diagnosticsEnabled: Boolean = true,
     val productAnalyticsEnabled: Boolean = false,
-    // Account-wide `next_episode`: the video player offers the folder's next video.
     val nextEpisode: Boolean = false,
 )
 
@@ -90,7 +83,6 @@ public sealed interface AccountSettingsChange {
     }
 
     public companion object {
-        // Keeps the boolean call sites readable: AccountSettingsChange(key, enabled).
         public operator fun invoke(key: AccountSettingsKey, enabled: Boolean): AccountSettingsChange =
             Toggle(key, enabled)
     }
@@ -283,16 +275,12 @@ public fun AccountSettingsState.productAnalyticsAllowed(): Boolean? =
         confirmedPreferences(AccountSettingsKey.ProductAnalytics)?.productAnalyticsEnabled == true
     }
 
-// Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed";
-// the accepted reset count makes a folder sort reset read as a change too.
 @ConsistentCopyVisibility
 public data class ConfirmedDefaultSort internal constructor(
     public val sort: FilesSort?,
     internal val folderSortResets: Long = 0,
 )
 
-// A pending or failed mutation only makes its own key unconfirmed; the other
-// preferences still reflect the last authoritative read.
 private fun AccountSettingsState.confirmedPreferences(key: AccountSettingsKey): AccountSettingsPreferences? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
     return ready.preferences.takeUnless { mutation.pending?.first == key }

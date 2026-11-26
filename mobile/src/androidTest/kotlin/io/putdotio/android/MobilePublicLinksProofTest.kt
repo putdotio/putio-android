@@ -182,7 +182,6 @@ class MobilePublicLinksProofTest {
         )
         compose.waitForIdle()
         instrumentation.uiAutomation.waitForIdle(100, 3_000)
-        // Holds each state long enough for a screen recording to show it.
         SystemClock.sleep(STEP_PAUSE_MS)
         saveProofScreenshot(proofDirectory("public-links-proof-$runId"), label)
     }

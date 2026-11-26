@@ -30,8 +30,6 @@ private fun TrashMachine.acceptPage(completed: TrashRequest.ListPage, page: Tras
         snapshotCursor = if (completed.cursor == null) page.nextCursor else previous?.snapshotCursor,
     )
     val blockedIds = if (completed.cursor == null) {
-        // Only a fresh initial page can establish a new deletion of an already restored ID.
-        // Continuations can contain stale rows from the cursor's original snapshot.
         val newOccurrences = content.items.filter { item ->
             val restoredAt = state.restoredOccurrences[item.id]?.let(::parsePutioTimestamp)
             val deletedAt = item.deletedAt?.let(::parsePutioTimestamp)

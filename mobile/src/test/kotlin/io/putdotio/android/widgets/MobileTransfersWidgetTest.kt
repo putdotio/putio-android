@@ -131,7 +131,6 @@ class MobileTransfersWidgetTest {
         updater.clear()
 
         assertEquals("Sign in to put.io to see your transfers.", text(widget, R.id.widget_transfers_message))
-        // The host reapplied onto the same views: hidden rows must not keep the old text either.
         assertEquals(listOf("", "", ""), rowTexts(widget))
         assertEquals("", text(widget, R.id.widget_transfers_footer))
     }

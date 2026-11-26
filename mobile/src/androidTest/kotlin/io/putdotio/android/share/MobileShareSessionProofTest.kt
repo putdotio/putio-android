@@ -85,7 +85,6 @@ class MobileShareSessionProofTest {
                 source.release()
                 awaitCondition("control chooser") { choosers.hits == 1 }
                 awaitCondition("chooser window") { activeWindowPackage() !in listOf(null, context.packageName) }
-                // The sheet slides in after its window takes focus.
                 SystemClock.sleep(SETTLE_MS)
                 screenshot("control-chooser-opens")
                 instrumentation.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
@@ -97,7 +96,6 @@ class MobileShareSessionProofTest {
                 screenshot("export-running")
                 auth.value = MobileAuthState.SigningOut
                 auth.value = MobileAuthState.SignedOut()
-                // The download finishes after the session ended; delivery must still drop it.
                 source.release()
                 awaitCondition("share folder removed") { !MobileFileShareService.shareRoot(context).exists() }
                 SystemClock.sleep(SETTLE_MS)

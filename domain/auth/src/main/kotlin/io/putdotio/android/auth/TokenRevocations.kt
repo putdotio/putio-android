@@ -107,7 +107,6 @@ public class PendingTokenRevocations(
     private val slots = stores.map(::Slot).also { require(it.isNotEmpty()) }
     private val slotMutex = Mutex()
 
-    // Held for a whole attempt, so keep() learns the outcome of a request already sent.
     private val attemptMutex = Mutex()
     private var writes = 0L
     private val revoked = ArrayDeque<AccessToken>()
@@ -237,7 +236,6 @@ public class PendingTokenRevocations(
         var loaded = false
         var writtenAt = 0L
 
-        // Call with slotMutex held. A failed read stays unloaded so the next attempt reads again.
         suspend fun load(): AccessToken? {
             if (!loaded) {
                 pending = store.read()
@@ -246,14 +244,11 @@ public class PendingTokenRevocations(
             return pending
         }
 
-        // Call with slotMutex held.
         suspend fun drop() {
             store.clear()
             pending = null
         }
 
-        // Call with slotMutex held. A record left by a failed clear is revoked again (401 if put.io
-        // already dropped it) by the next process to load it.
         suspend fun clear() {
             pending = null
             try {

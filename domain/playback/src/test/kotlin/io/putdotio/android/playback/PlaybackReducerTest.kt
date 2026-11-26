@@ -397,7 +397,6 @@ class PlaybackReducerTest {
             assertEquals(PlaybackContent.Ready(finishedSource, useStartFrom = true), finished.state.content)
             assertEquals(0L, finished.state.resumePositionMillis)
         }
-        // The resolution's duration serves a target that came without one.
         val looked = PlaybackReducer.reduce(
             PlaybackReducer.start(Target).state,
             PlaybackEvent.ResolveSucceeded(
@@ -436,7 +435,6 @@ class PlaybackReducerTest {
             retry.effect,
         )
 
-        // A listing's duration is not replaced.
         val listed = PlaybackReducer.reduce(
             PlaybackReducer.start(Target.copy(durationSeconds = 900.0)).state,
             PlaybackEvent.ResolveSucceeded(

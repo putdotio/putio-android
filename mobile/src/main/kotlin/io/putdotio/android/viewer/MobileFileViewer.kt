@@ -146,7 +146,6 @@ internal fun MobileFileViewerContent(
 ) {
     val shownIndex = files.indexOfFirst { it.id == shownId }.coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = shownIndex) { files.size }
-    // A file that left the folder, moved or deleted from the sheet, keeps the pager on the one shown.
     LaunchedEffect(shownIndex, files.size) {
         if (pager.currentPage != shownIndex && !pager.isScrollInProgress) pager.scrollToPage(shownIndex)
     }

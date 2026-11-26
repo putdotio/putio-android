@@ -179,14 +179,12 @@ class MobileFilesActionsControllerTest {
         watched.next = { first.await() }
         controller.setWatched(video, watched = true)
         runCurrent()
-        // A newer choice for the same file waits for the one already sent.
         watched.next = { PutioResult.Success(Unit) }
         controller.setWatched(video, watched = false)
         advanceUntilIdle()
         assertEquals(listOf("set"), watched.answered)
         first.complete(PutioResult.Success(Unit))
         advanceUntilIdle()
-        // put.io applies them in order, and the row follows each in that order.
         assertEquals(listOf("set", "clear"), watched.answered)
         assertEquals(
             listOf(
@@ -199,7 +197,6 @@ class MobileFilesActionsControllerTest {
 
     @Test
     fun aWriteThatReturnsAfterTheSessionClosedSettlesNothing() = runTest {
-        // Its own job on the test's dispatcher, so closing it leaves the test running.
         val controller = controller(CoroutineScope(coroutineContext.minusKey(Job)))
         val answer = CompletableDeferred<PutioResult<Unit>>()
         watched.next = { answer.await() }
@@ -249,7 +246,6 @@ class MobileFilesActionsControllerTest {
         lookup.complete(Unit)
         advanceUntilIdle()
         assertEquals(1, opened.size)
-        // Once the handoff is done, the next tap opens VLC again.
         controller.openInVlc(video.id, video.name)
         advanceUntilIdle()
         assertEquals(2, opened.size)
@@ -288,8 +284,6 @@ class MobileFilesActionsControllerTest {
         val controller = controller()
         val late = FilesItemId(8L)
         val ids = listOf(video.id, late)
-        // put.io answered the restore before it had put the second item back; a read that answers for
-        // another item proves nothing either.
         trash.notYetBack[late] = 1
         trash.answeredAs[video.id] = FilesItemId(9L)
         val outcome = FilesDeleteOutcome(
@@ -316,14 +310,12 @@ class MobileFilesActionsControllerTest {
             video.name,
             status = FilesDeleteStatus.NO_LONGER_AVAILABLE,
         )
-        // An item put.io never serves again: the reads stop and the folder reads anyway.
         trash.notYetBack[late] = Int.MAX_VALUE
         controller.undoTrash(outcome)
         advanceUntilIdle()
         assertEquals(listOf(video.id) + List(5) { late }, trash.resolved)
         assertEquals(listOf(FilesBrowserEvent.TrashUndone(outcome), FilesBrowserEvent.ReloadIfStale), events)
 
-        // A rejected session ends the reads at once; the shell signs out instead of reloading.
         events.clear()
         trash.resolved.clear()
         trash.rejecting = true
@@ -350,7 +342,6 @@ class MobileFilesActionsControllerTest {
         assertEquals(listOf(video.id), trash.restored)
         assertEquals(listOf(FilesBrowserEvent.TrashUndone(outcome), FilesBrowserEvent.ReloadIfStale), events)
 
-        // Permanent deletion has nothing to restore.
         controller.undoTrash(outcome.copy(intent = outcome.intent.copy(mode = FilesDeleteMode.PERMANENT)))
         trash.result = PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
         controller.undoTrash(outcome)
@@ -528,7 +519,6 @@ class MobileFilesActionsControllerTest {
         override suspend fun setPosition(itemId: FilesItemId, seconds: Double): PutioResult<Unit> {
             positions += itemId to seconds
             answered += "set"
-            // Like a blocking network call, a scripted answer returns even after cancellation.
             val answer = next?.let { answer -> withContext(NonCancellable) { answer() } } ?: result
             return if (itemId in failing) PutioResult.Failure(PutioFailure.NetworkUnavailable(Exception())) else answer
         }

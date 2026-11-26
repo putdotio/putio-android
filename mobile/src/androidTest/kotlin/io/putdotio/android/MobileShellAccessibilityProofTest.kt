@@ -400,7 +400,6 @@ class MobileShellAccessibilityProofTest {
         val contentWidth = if (navigation == MobileNavigationLayout.Rail) root.width - surface.width else root.width
         val density = context.resources.displayMetrics.density
         if (isCompactHeight((root.height / density).dp)) {
-            // A phone in landscape keeps the bar whenever its labels fit, so Files gets what is left.
             assertTrue("Files keeps usable scrolling space", list.height >= density * MINIMUM_LIST_HEIGHT_DP)
         } else {
             assertTrue("Files keeps most of the shell height", list.height >= root.height / 2f)

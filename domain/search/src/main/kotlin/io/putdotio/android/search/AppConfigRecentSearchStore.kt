@@ -108,8 +108,6 @@ public class AppConfigRecentSearchStore(
 
     private suspend fun reload(): Boolean = loadConfigOrNull()?.also(writes::load) != null
 
-    // Another client may have changed the history since it loaded, so each edit applies to what
-    // the server holds now: turning it off clears that, and a recorded term keeps the others.
     private suspend fun apply(edit: RecentSearchMutation): Boolean {
         if (!reload()) return false
         val terms = writes.storedTerms
@@ -153,7 +151,6 @@ private class RecentSearchWrites(
     suspend fun writeEnabled(enabled: Boolean): Boolean =
         when {
             enabled == stored.enabled -> true
-            // Turning history off clears the stored terms first, as tv-native does.
             !enabled && !writeTerms(emptyList()) -> false
             else -> write(stored.copy(enabled = enabled)) { saveEnabled(enabled) }
         }
@@ -182,7 +179,6 @@ private class RecentSearchWrites(
 
     private fun publish(next: StoredRecentSearches) {
         stored = next
-        // A disabled history keeps whatever the server holds out of sight.
         terms.value = if (next.enabled) next.terms else emptyList()
         enabled.value = next.enabled
     }

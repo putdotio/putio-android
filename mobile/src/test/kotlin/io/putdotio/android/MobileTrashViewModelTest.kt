@@ -91,7 +91,6 @@ class MobileTrashViewModelTest {
     fun sameAccountReauthenticationRejectsOldCallbacksAndLateExactReadWithoutChangingNewOutcome() {
         var lateRead: Continuation<PutioResult<FilesItem>>? = null
         val oldRepository = FakeTrashRepository().apply {
-            // A noncooperative response must still be rejected after its session closes.
             onResolve = { suspendCoroutine { lateRead = it } }
         }
         val newRepository = FakeTrashRepository()

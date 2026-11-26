@@ -186,13 +186,11 @@ private fun MobileTransferActionsHeader(item: TransferItem) {
             }
         }
         MobileTransferMeta(item.dot, state, maxLines = 1)
-        // The card cuts put.io's reason to its meta lines; here it shows in full.
         item.errorMessage?.let { reason ->
             SelectionContainer {
                 Text(reason, style = PutioTypeScale.bodySm, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        // A running transfer without a reported share shows an empty track rather than no bar.
         val reported = item.percentDone?.takeIf { it in 0.0..100.0 }
         val percent = when (item.section) {
             MobileTransferSection.NeedsAttention -> null
@@ -244,7 +242,6 @@ private fun MobileTransferFacts(
     val folderName by produceState<String?>(null, item.saveParentId, folders) {
         val id = item.saveParentId
         val resolved = if (id == null || id == 0L) null else folders?.resolveItem(FilesItemId(id))
-        // A folder that can't be read only hides the row; a rejected session signs out as anywhere else.
         if ((resolved as? PutioResult.Failure)?.failure is PutioFailure.AuthenticationRequired) {
             onAuthenticationRequired()
         }
@@ -268,7 +265,6 @@ private fun MobileTransferFact(label: Int, value: List<MobileTransferPart>) {
             style = style,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        // Weighted after the label, so a long folder name wraps instead of pushing the label out.
         Text(
             value.annotated(style.putioMono().toSpanStyle()),
             style = style,

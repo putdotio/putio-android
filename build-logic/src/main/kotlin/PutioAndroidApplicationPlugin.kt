@@ -44,11 +44,8 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             productFlavors {
                 create("production") {
                     dimension = "channel"
-                    // `lint` checks only the default variant; without this AGP picks nightlyDebug.
                     isDefault = true
                 }
-                // Play internal/closed tracks ship nightly; the public listing keeps
-                // production. Own application id so both install side by side.
                 create("nightly") {
                     dimension = "channel"
                     applicationIdSuffix = ".nightly"
@@ -59,8 +56,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             defaultConfig.buildConfigField("String", "PUTIO_SENTRY_DSN", "\"\"")
             defaultConfig.buildConfigField("String", "PUTIO_POSTHOG_TOKEN", "\"\"")
 
-            // Delivery signs with the Play upload key (.github/workflows/play-internal.yml); without it,
-            // release builds stay unsigned and Google Play rejects them.
             providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull?.let { keystore ->
                 val upload = signingConfigs.create("upload") {
                     storeFile = file(keystore)
@@ -78,7 +73,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             buildTypes {
                 getByName("debug") {
                     applicationIdSuffix = ".debug"
-                    // Only nightly debug builds minify (below); production debug keeps a fast, debuggable build.
                     proguardFiles(
                         getDefaultProguardFile("proguard-android-optimize.txt"),
                         "proguard-rules.pro",
@@ -86,7 +80,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 }
                 getByName("release") {
                     buildConfigField("String", "PUTIO_SENTRY_DSN", "\"${sentryDsn()}\"")
-                    // Release only, so debug and test builds never report into the production project.
                     buildConfigField("String", "PUTIO_POSTHOG_TOKEN", "\"$POSTHOG_TOKEN\"")
                     isMinifyEnabled = true
                     isShrinkResources = true
@@ -101,9 +94,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 warningsAsErrors = true
                 abortOnError = true
                 lintConfig = rootProject.file("lint.xml")
-                // AGP skips lintVital's report whenever full lint runs, as it does in verify, yet
-                // still runs its analysis on every release variant and library. Full lint with
-                // warnings as errors already covers lintVital's fatal-only checks.
                 checkReleaseBuilds = false
             }
 
@@ -113,7 +103,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 "lib/x86/libass*.so",
             )
 
-            // Robolectric-backed Compose tests need the app's resources.
             testOptions.unitTests.isIncludeAndroidResources = true
 
             buildFeatures.buildConfig = true
@@ -142,12 +131,9 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
         }
 
         extensions.configure<ApplicationAndroidComponentsExtension> {
-            // Nightly adds resources only, so its unit tests would rerun production's.
             beforeVariants(selector().withFlavor("channel" to "nightly")) { variant ->
                 variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
             }
-            // Testers install nightly debug APKs: they keep the harness sign-in but run like release.
-            // BuildConfig.DEBUG follows debuggable, so only production debug honours the local OAuth override.
             beforeVariants(selector().withFlavor("channel" to "nightly").withBuildType("debug")) { variant ->
                 variant.isMinifyEnabled = true
                 variant.shrinkResources = true
@@ -156,7 +142,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             }
 
             onVariants { variant ->
-                // Launchers find the app with an ACTION_MAIN query; a category without MAIN matches nothing.
                 val launcherManifest = tasks.register<VerifyLauncherManifestTask>(
                     "verify${variant.name.replaceFirstChar(Char::titlecase)}LauncherManifest",
                 ) {
@@ -168,7 +153,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
                 }
                 tasks.named("check") { dependsOn(launcherManifest) }
 
-                // Only bundles reach Google Play; release APKs, as in verify, may use the system face.
                 if (variant.buildType == "release") {
                     val bundle = "bundle${variant.name.replaceFirstChar(Char::titlecase)}"
                     tasks.matching { it.name == bundle }.configureEach { dependsOn(":core:design:requireBrandFonts") }
@@ -267,9 +251,7 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
     private companion object {
         val ALLOWED_LICENSES = listOf("Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "ASDKL")
         val REQUIRED_R8_KEPT_CLASSES = listOf("com.posthog.PostHogEvent", "com.posthog.internal.PostHogBatchEvent")
-        // PostHog's public project token, shared with putio-web and iOS; it only names the project.
-        const val POSTHOG_TOKEN = "phc_DcWvN8MzbwTfNxki3GhGuBBBDHY5sfvtxfaKZQ3iRDvm" // gitleaks:allow
-        // Keeps the highest code under Google Play's 2_100_000_000 ceiling.
+        const val POSTHOG_TOKEN = "phc_DcWvN8MzbwTfNxki3GhGuBBBDHY5sfvtxfaKZQ3iRDvm"
         const val MAX_MAJOR = 2_099
         val VERSION_NAME = Regex("""[1-9]\d{0,3}\.(0|[1-9]\d?)\.(0|[1-9]\d{0,2})""")
         val SENTRY_DSN = Regex("""https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+""")

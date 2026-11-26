@@ -101,7 +101,6 @@ class MobilePictureInPictureProofTest {
             await("playing on in the window again") { it.currentPosition > paused + 1_000 }
             val beforeExpand = onMain { factory.current().currentPosition }
 
-            // A landscape video expands straight to landscape, never through the launcher's portrait.
             val orientations = mutableListOf<Int>()
             val listener = Consumer<Configuration> { orientations += it.orientation }
             onMain { activity.addOnConfigurationChangedListener(listener) }
@@ -115,7 +114,6 @@ class MobilePictureInPictureProofTest {
             assertTrue("Orientations after Expand: $orientations", Configuration.ORIENTATION_PORTRAIT !in orientations)
             assertEquals(Configuration.ORIENTATION_LANDSCAPE, onMain { activity.resources.configuration.orientation })
             screenshot("04-expanded")
-            // The controls show where playback is after the round trip.
             val (width, height) = onMain { activity.window.decorView.run { width to height } }
             shell("input tap ${width / 2} ${height / 2}")
             SystemClock.sleep(SETTLE_MILLIS)
@@ -145,7 +143,6 @@ class MobilePictureInPictureProofTest {
             SystemClock.sleep(SETTLE_MILLIS)
             screenshot("11-window-closed")
 
-            // The launcher's own intent, which the scenario recognises as its Activity.
             val component = "${context.packageName}/${MainActivity::class.java.name}"
             shell("am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n $component")
             awaitActivity("reopened") { it.lifecycle.currentState == Lifecycle.State.RESUMED }
@@ -207,7 +204,6 @@ class MobilePictureInPictureProofTest {
             val close = menu?.findDescribed("Close")
             if (action != null && expand != null && close != null) return MenuButtons(action, expand, close)
             if (menu == null) {
-                // A tap away from the centre, where Expand appears, brings the menu up.
                 windows.firstOrNull {
                     it.isInPictureInPictureMode && it.type == AccessibilityWindowInfo.TYPE_APPLICATION
                 }?.let { window ->
@@ -306,7 +302,6 @@ class MobilePictureInPictureProofTest {
 
     private fun localVideoState() = run {
         val file = proofFixture("putio.pip.fixture")
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         playbackState(
@@ -388,6 +383,5 @@ private class PictureInPictureProofPlayerFactory(private val lease: String) : Mo
         }
     }
 
-    // This private-video proof must not stop an unrelated real audio session.
     override fun stopAudio(context: Context) = Unit
 }

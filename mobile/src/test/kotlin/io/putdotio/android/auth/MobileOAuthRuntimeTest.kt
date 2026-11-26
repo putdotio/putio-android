@@ -25,7 +25,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-// Robolectric supplies the app files directory the share-out cleanup works on.
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileOAuthRuntimeTest {
@@ -88,7 +87,6 @@ class MobileOAuthRuntimeTest {
         val first = fixture.signedInSession()
         val firstExport = writeExport(context, first)
 
-        // Sign out and back in, then export, all before the cleanup collector runs again.
         fixture.controller.logout()
         fixture.controller.beginSignIn()
         assertEquals(OAuthCallbackHandlingResult.ACCEPTED, fixture.controller.handleOAuthCallback(CALLBACK))
@@ -104,7 +102,6 @@ class MobileOAuthRuntimeTest {
     @Test
     fun `signing out of a restored session deletes exports an earlier process left`() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        // Session ids restart per process, so an earlier process's export can sit under the id this one assigns.
         val earlier = File(MobileFileShareService.shareRoot(context), "earlier-process/1/9/poster.jpg").apply {
             parentFile?.mkdirs()
             writeText("bytes")

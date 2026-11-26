@@ -80,7 +80,6 @@ class PlaybackPositionWriterTest {
         runCurrent()
 
         writer.offer(lease, 15_000L)
-        // Longer than a request's own timeout.
         advanceTimeBy(20_000L)
         runCurrent()
         assertTrue(calls.isEmpty())

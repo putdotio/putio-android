@@ -38,10 +38,8 @@ internal fun downloadProgressNotification(
         context.resources.getQuantityString(R.plurals.mobile_downloads_notification, live.size, live.size)
     }
     val percents = running.map { it.percentDownloaded }
-    // One unknown size makes the overall share unknown, so the bar turns indeterminate.
     val percent = percents.takeIf { it.isNotEmpty() && it.none { value -> value == C.PERCENTAGE_UNSET.toFloat() } }
         ?.average()?.roundToInt()?.coerceIn(0, PERCENT_MAX)
-    // Only the signed-in account's transfers run; the others are parked with a stop reason.
     val userId = live.firstNotNullOfOrNull { it.request.ownerUserId() }
     val builder = progressBuilder(context, channelId, title)
         .setPublicVersion(progressBuilder(context, channelId, title).build())

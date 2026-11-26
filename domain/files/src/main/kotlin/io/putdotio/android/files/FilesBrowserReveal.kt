@@ -29,8 +29,6 @@ internal fun FilesBrowserState.listingLoaded(
     page: FilesPage,
 ): FilesBrowserTransition {
     val search = folder.revealSearch?.takeIf { it.requestId == requestId }
-    // A folder an outside open pushed takes its name from the listing (the root keeps its
-    // localized title); later pages carry no folder.
     val named = if (search == null) {
         val name = folder.folder.name ?: page.parent?.takeIf { it.id != FilesFolder.Root.id }?.name
         folder.copy(folder = folder.folder.copy(sort = page.sort ?: folder.folder.sort, name = name))

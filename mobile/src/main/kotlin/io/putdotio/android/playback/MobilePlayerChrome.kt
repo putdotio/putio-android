@@ -175,7 +175,6 @@ private fun MobileVideoLayout(
                         )
                     },
                     chips = {
-                        // Narrow or large-text windows wrap the chips instead of squeezing them.
                         FlowRow(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -339,7 +338,6 @@ private fun MobileVideoTransport(
     }
 }
 
-// The 80dp buffering ring holds the 72dp button, so the 56dp gap between circles loses 4dp each side.
 private val VIDEO_TRANSPORT_GAP = 52.dp
 private const val VIDEO_PLAY_CIRCLE_ALPHA = 0.42f
 

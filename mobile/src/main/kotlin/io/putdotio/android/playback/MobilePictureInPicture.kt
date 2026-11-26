@@ -76,7 +76,6 @@ internal fun rememberMobilePictureInPicture(
     onSeekRequested: (SeekDirection) -> Unit = {},
 ): (() -> Unit)? {
     val host = LocalActivity.current
-    // The platform throws for an Activity that does not declare the window.
     val declared = remember(host) { host?.declaresPictureInPicture() == true }
     val activity = (host as? PictureInPictureProvider)?.takeIf { declared } ?: return null
     val context = LocalContext.current
@@ -125,9 +124,6 @@ internal fun rememberMobilePictureInPicture(
     val supported = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
     }
-    // Asked for, the window opens even for a paused video, which then shows Play. Entering needs
-    // enabled parameters; the playback-derived ones go straight back, so a paused video never
-    // enters on its own afterwards.
     val enter = {
         pictureInPictureCall {
             activity.enterPictureInPictureMode(
@@ -296,12 +292,9 @@ private fun remoteAction(
     return RemoteAction(Icon.createWithResource(context, icon), title, title, intent)
 }
 
-// ActivityInfo.FLAG_SUPPORTS_PICTURE_IN_PICTURE, which the SDK hides; set from the manifest's
-// supportsPictureInPicture since Android 7.
 private const val FLAG_SUPPORTS_PICTURE_IN_PICTURE = 0x400000
 private const val MILLIS_PER_SECOND = 1_000L
 
-// Inside the platform's 2.39:1 limits, so a rounding difference can never make the shape invalid.
 private const val WIDEST_HUNDREDTHS = 238
 private const val HUNDREDTHS = 100
 private val WIDEST = Rational(WIDEST_HUNDREDTHS, HUNDREDTHS)

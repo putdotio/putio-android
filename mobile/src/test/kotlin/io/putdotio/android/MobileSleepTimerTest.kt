@@ -51,7 +51,6 @@ class MobileSleepTimerTest {
         runCurrent()
         assertEquals(0, pauses)
 
-        // Off that lands once the wait is over, before the timer acts on it, still wins.
         timer.start(15)
         runCurrent()
         advanceTimeBy(15 * 60_000L)
@@ -62,7 +61,6 @@ class MobileSleepTimerTest {
         timer.start(15)
         runCurrent()
         advanceTimeBy(10 * 60_000L)
-        // A new choice counts from now, not from the first one.
         timer.start(30)
         runCurrent()
         advanceTimeBy(30 * 60_000L - 1)

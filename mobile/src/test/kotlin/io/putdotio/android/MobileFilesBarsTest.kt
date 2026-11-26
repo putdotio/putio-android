@@ -135,7 +135,6 @@ class MobileFilesBarsTest {
 
         compose.waitUntil(TIMEOUT) { FilesBrowserEvent.Refresh in events }
         assertEquals(listOf(FilesItemId(7L) to "Shorts"), created)
-        // The folder it was made in goes stale, then reloads when it can.
         val stale = events.filterIsInstance<FilesBrowserEvent.InvalidateRestoredItem>().single()
         assertEquals(FilesItemId(7L), stale.item.parentId)
         assertEquals(FilesBrowserEvent.Refresh, events.last())

@@ -31,7 +31,6 @@ import org.gradle.work.DisableCachingByDefault
  */
 fun Project.useOfflineRobolectric() {
     val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
-    // One configuration per SDK: in a single one Gradle would keep only the newer of two versions.
     val androidAll = files(
         mapOf(
             "robolectricAndroidAll" to "robolectric-android-all",
@@ -69,7 +68,6 @@ abstract class LinkRobolectricAndroidAll : DefaultTask() {
         target.toFile().listFiles()?.forEach { Files.deleteIfExists(it.toPath()) }
         jars.forEach { jar ->
             val link = target.resolve(jar.name)
-            // Robolectric wants a regular file, so a hard link; a copy where the cache is on another volume.
             try {
                 Files.createLink(link, jar.toPath())
             } catch (_: IOException) {

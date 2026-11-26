@@ -78,9 +78,6 @@ public val PutioFailure.apiReason: String?
 public val PutioFailure?.isNotFound: Boolean
     get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
 
-// A contract-derived 401/403 reason anywhere in the wrapper chain is an auth verdict even when the
-// underlying error is not an API exception. The envelope's status code classifies the API error;
-// ApiRejected keeps the HTTP status beside it.
 public fun PutioException.toPutioFailure(): PutioFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()

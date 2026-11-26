@@ -90,7 +90,6 @@ class SdkSearchRepositoryTest {
 
             SearchFilter.entries.forEach { repository.search(SearchTerm("movie"), it) }
 
-            // put.io has no subtitle type: Subtitles asks for every type and filters on the device.
             assertEquals(
                 listOf(
                     emptyList(),

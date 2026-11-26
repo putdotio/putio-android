@@ -79,7 +79,6 @@ internal const val HARNESS_EXPORT_TOKEN = "files/harness/export-token"
 internal const val EXTRA_EXPORT_TOKEN = "io.putdotio.android.harness.EXPORT_TOKEN"
 
 
-// The harness reads these with uiautomator; scripts/sign-in-devs-auto.sh matches them.
 private fun DebugDeviceSignInState.label(): String =
     when (this) {
         DebugDeviceSignInState.Starting -> "Device sign-in: starting"
@@ -107,7 +106,6 @@ internal class DebugDeviceSignIn(
     }
 
     private suspend fun signIn() {
-        // Consumed before anything else, so a pushed token never outlives this launch.
         val imported = takeImportedToken()
         val restored = restoredState()
         when {
@@ -122,7 +120,6 @@ internal class DebugDeviceSignIn(
         val controller = runtime.authController
         controller.restoreSession()
         return when (val settled = controller.state.first { it.isSettled() }) {
-            // A session that opened offline is not proof that put.io accepts it.
             is MobileAuthState.SignedIn ->
                 if (settled.validated) {
                     DebugDeviceSignInState.SignedIn(settled.account.userId)
@@ -141,7 +138,6 @@ internal class DebugDeviceSignIn(
                 is DeviceCodeAuthState.AwaitingLink ->
                     mutableState.value = DebugDeviceSignInState.AwaitingApproval(link.code)
                 DeviceCodeAuthState.Validating -> mutableState.value = DebugDeviceSignInState.Validating
-                // The token leaves the SDK here, once; leaving the screen must not drop it half stored.
                 is DeviceCodeAuthState.Linked ->
                     mutableState.value = withContext(NonCancellable) { complete(link) }
                 is DeviceCodeAuthState.Expired ->

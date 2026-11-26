@@ -56,11 +56,8 @@ public class SearchFolderNames internal constructor(
 
     init {
         scope.launch {
-            // Results land when a search or a page succeeds, even a page that adds no rows; a page
-            // asked for or failed is no new result, so it retries nothing.
             search
                 .map { state -> state.scope to (state.content as? SearchContent.Ready)?.takeIf { it.paging.landed } }
-                // Each landing is a new Ready, even one equal to the last, as a repeat search's is.
                 .distinctUntilChanged { old, new -> old.first == new.first && old.second === new.second }
                 .collect { (searchScope, content) -> learn(searchScope, content?.items.orEmpty()) }
         }
@@ -87,7 +84,6 @@ public class SearchFolderNames internal constructor(
 
     private suspend fun read(folderId: FilesItemId) {
         val name = reads.withPermit {
-            // Results or the scope may have named it while this read waited for a permit.
             if (folderId in mutableNames.value) null else readName(folderId)
         }
         if (name != null) {

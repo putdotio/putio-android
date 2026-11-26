@@ -119,7 +119,6 @@ class FilesMoveNavigationUiProofTest {
                 }
                 activity.addOnConfigurationChangedListener(configurationListener)
                 navigationDispatcher = navigationOwner.navigationEventDispatcher
-                // Register before MobileShell so this observes an otherwise unhandled activity Back.
                 val fallback = object : OnBackPressedCallback(true) {
                     override fun handleOnBackPressed() { fallbacks += 1 }
                 }

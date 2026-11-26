@@ -40,14 +40,11 @@ private val APP_EXPLAINED_STATUSES =
 private const val MAX_REASON_LENGTH = 300
 private const val REDACTED_MARKER = "REDACTED"
 private val WHITESPACE = Regex("""\s+""")
-// FILE_NOT_FOUND, FILE-NOT-FOUND, file_not_found: one all-capitals or snake_case word.
 private val ERROR_CODE = Regex("""[A-Z0-9_-]+|\S*_\S*""")
-// Schemes, mailto, scheme-relative and JSON-escaped links, www hosts, and host[:port]/path forms.
 private val URL_MENTION = Regex(
     """//|\\/|\bmailto:|\bwww\.|\burls?\b|\b[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?/""",
     RegexOption.IGNORE_CASE,
 )
-// Letter boundaries so access_token matches and "tokenized" does not.
 private val CREDENTIAL_MENTION = Regex(
     """(?<![a-z])(bearer|authorization|tokens?|secrets?|passwords?|credentials?|api[_ -]?keys?)(?![a-z])""",
     RegexOption.IGNORE_CASE,

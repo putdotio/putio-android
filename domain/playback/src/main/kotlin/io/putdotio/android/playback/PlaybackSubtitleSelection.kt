@@ -115,8 +115,6 @@ public fun TrackSelectionParameters.withSubtitleSelection(
 
         SubtitleSelection.Automatic -> {
             if (inFileLanguage != null || tracks.any(PlaybackSubtitleTrack::isServerDefault)) {
-                // Media3 ranks the device's caption language above a track's default flag; with only
-                // the account's in-file language, or no preference, left, the account's choice wins.
                 builder
                     .setPreferredTextLanguage(inFileLanguage)
                     .setPreferredTextRoleFlags(0)
@@ -209,13 +207,10 @@ public fun restoreSubtitleSelection(
     remembered: RememberedSubtitle? = null,
 ): TrackSelectionParameters =
     when {
-        // hide_subtitles outranks any pick: its picker is gone, so nothing could turn one off.
         startupPolicy?.showSubtitles == false -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         retained != null -> defaults.withSubtitleSelection(retained, emptyList(), defaults)
         startupPolicy != null && remembered == RememberedSubtitle.Off ->
             defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
-        // No policy means account settings are loading or failed to load; until they say
-        // otherwise a `hide_subtitles` account must not see subtitles.
         startupPolicy == null -> defaults.withSubtitleSelection(SubtitleSelection.Off, emptyList())
         startupPolicy.autoSelectSubtitles ->
             defaults.withSubtitleSelection(SubtitleSelection.Automatic, emptyList(), defaults)

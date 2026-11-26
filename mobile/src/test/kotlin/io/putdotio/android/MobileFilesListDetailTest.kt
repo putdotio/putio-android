@@ -99,7 +99,6 @@ class MobileFilesListDetailTest {
         compose.onNode(hasText(EPISODE.name) and hasAnyAncestor(hasTestTag(MOBILE_FILES_LIST_PANE_TAG)))
             .performClick()
 
-        // A tap only selects: nothing plays until the pane's Play.
         compose.runOnIdle { assertTrue(played.isEmpty()) }
         compose.onNode(hasText(EPISODE.name) and hasAnyAncestor(hasTestTag(MOBILE_FILES_DETAIL_TAG))).assertExists()
         compose.onNodeWithText("Resume from 18:42").assertExists()
@@ -152,7 +151,6 @@ class MobileFilesListDetailTest {
     fun theViewerLoadsTheFoldersNextPageNearItsLastFile() {
         val events = mutableListOf<FilesBrowserEvent>()
         setRoute(width = 400.dp, wide = false, state = blueLights(FilesPaging.Available(FilesCursor("next"))), events)
-        // The short list already asked for the page itself; only the viewer's own ask counts here.
         compose.runOnIdle { events.clear() }
 
         compose.onNodeWithText(SECOND_IMAGE.name).performClick()
@@ -248,7 +246,6 @@ class MobileFilesListDetailTest {
         compose.runOnIdle {
             val chooser = shadowOf(compose.activity).nextStartedActivity
             assertEquals(Intent.ACTION_CHOOSER, chooser.action)
-            // The app takes .torrent files as transfers, so it never offers itself here.
             assertEquals(
                 listOf(ComponentName(compose.activity, MainActivity::class.java)),
                 chooser.getParcelableArrayExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, ComponentName::class.java)?.toList(),

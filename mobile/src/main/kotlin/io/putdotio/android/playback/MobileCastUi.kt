@@ -151,7 +151,6 @@ internal fun MobileCastPicker(gateway: CastGateway, onDismiss: () -> Unit, modif
     val devices by gateway.devices.collectAsStateWithLifecycle()
     val availability by gateway.availability.collectAsStateWithLifecycle()
     BackHandler(onBack = onDismiss)
-    // Keys move through the picker, not the player behind it.
     val focus = remember { FocusRequester() }
     LaunchedEffect(focus) { focus.requestFocus() }
     val title = stringResource(R.string.mobile_cast_to)
@@ -171,7 +170,6 @@ internal fun MobileCastPicker(gateway: CastGateway, onDismiss: () -> Unit, modif
                     MaterialTheme.colorScheme.surfaceContainerLow,
                     RoundedCornerShape(topStart = PutioRadius.extraLarge, topEnd = PutioRadius.extraLarge),
                 )
-                // A tap inside the sheet never reaches the scrim behind it.
                 .pointerInput(Unit) { detectTapGestures {} }
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
                 .verticalScroll(rememberScrollState())
@@ -181,9 +179,7 @@ internal fun MobileCastPicker(gateway: CastGateway, onDismiss: () -> Unit, modif
                     isTraversalGroup = true
                 }
                 .focusRequester(focus)
-                // Focus stays in the picker until it closes.
                 .focusProperties { onExit = { cancelFocusChange() } }
-                // Focusable itself, so it takes focus before any receiver row exists.
                 .focusable()
                 .focusGroup()
                 .testTag(MOBILE_CAST_PICKER_TAG),
@@ -275,7 +271,6 @@ private fun MobileCastActionRow(
     Row(
         modifier
             .fillMaxWidth()
-            // Large text grows the row past its 64dp.
             .heightIn(min = CAST_ROW_HEIGHT)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { this.selected = selected }

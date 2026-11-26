@@ -45,7 +45,6 @@ class TvPlaybackReportingTest {
         val positions = fixture.reporting.observe(player)
         runCurrent()
 
-        // The screen's position poll ticks every 500 ms; none of those writes.
         repeat(19) { tick ->
             player.position(10_000L + (tick + 1) * 500L)
             advanceTimeBy(500L)
@@ -98,8 +97,6 @@ class TvPlaybackReportingTest {
         val first = checkNotNull(fixture.reporting.lease(FILE_ID))
         assertEquals("A player rebuilt for the same playback", first, fixture.reporting.lease(FILE_ID))
 
-        // The old player's exit write is still in flight when the rebuilt player asks for its
-        // lease; it must still land.
         val player = fixture.play(positionMillis = 50_000L, playing = false)
         fixture.reporting.observe(player).close()
         fixture.play(positionMillis = 50_000L, playing = false)

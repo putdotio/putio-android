@@ -46,9 +46,6 @@ class PutioColorSchemeTest {
         assertEquals(PutioDesignTokens.line, scheme.outlineVariant)
         assertEquals(PutioDesignTokens.redSolid, scheme.error)
         assertEquals(PutioDesignTokens.appBg, scheme.onError)
-        // Derived: the stock FAB reads primaryContainer and the nav bar
-        // indicator reads secondaryContainer; without these they fall back
-        // to M3 baseline purple.
         assertEquals(PutioDesignTokens.yellowSolid, scheme.primaryContainer)
         assertEquals(PutioDesignTokens.text, scheme.secondary)
         assertEquals(PutioDesignTokens.yellowSolid.copy(alpha = 0.26f), scheme.secondaryContainer)

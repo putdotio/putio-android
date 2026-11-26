@@ -187,7 +187,6 @@ internal data class PublicLinksMachine(
             is PutioResult.Failure -> revokeFailed(link, result.failure)
         }
 
-    // The link may already be gone, revoked elsewhere or expired, so the links are read again.
     private fun revokeFailed(link: PublicLink, failure: PutioFailure): PublicLinksMachine {
         val outcome = PublicLinksOutcome.RevokeFailed(link, failure)
         return if (failure is PutioFailure.AuthenticationRequired) {
@@ -205,6 +204,5 @@ internal data class PublicLinksMachine(
 private fun PublicLinksContent.withLinks(change: (List<PublicLink>) -> List<PublicLink>): PublicLinksContent =
     if (this is PublicLinksContent.Ready) PublicLinksContent.Ready(change(links)) else this
 
-// put.io issues ids in creation order.
 private fun List<PublicLink>.newestFirst(): List<PublicLink> =
     distinctBy { it.id }.sortedByDescending { it.id.value }

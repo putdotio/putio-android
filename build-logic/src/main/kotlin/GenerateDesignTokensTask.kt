@@ -61,7 +61,6 @@ abstract class GenerateDesignTokensTask : DefaultTask() {
         val scales = DesignTokenCodegen.generateScales(designMd.get().asFile.readText(), lock, installed)
         target.resolveSibling("PutioScales.kt").writeText(scales)
         val res = resOutputDir.get().asFile
-        // A font removed since the last run must not stay packaged.
         res.resolve("font").deleteRecursively()
         brandFonts.files.filter { it.name in installed }.forEach { it.copyTo(res.resolve("font/${it.name}")) }
         if (installed.size < lock.faces.size) {

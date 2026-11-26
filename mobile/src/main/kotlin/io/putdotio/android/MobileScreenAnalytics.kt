@@ -9,7 +9,6 @@ import androidx.compose.runtime.setValue
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 
-// Downloads is local to the device, so the contract has no screen for it.
 internal fun analyticsScreen(
     destination: MobileDestination,
     isPlayback: Boolean,

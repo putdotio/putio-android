@@ -77,7 +77,6 @@ internal object MobileFileDrags {
             val evicted = mutableListOf<Drag>()
             synchronized(lock) {
                 drags[key] = drag
-                // A dropped file stays readable; only the latest drags are kept, so this never grows.
                 while (drags.size > MAX_DRAGS) drags.remove(drags.keys.first())?.let(evicted::add)
             }
             evicted.forEach(::stop)
@@ -113,7 +112,6 @@ internal object MobileFileDrags {
             onReleased()
         }
         drag.readers += reader
-        // A session that ended while this opened has already stopped the drag's other readers.
         if (get(key) !== drag) {
             reader.revoke()
             throw FileNotFoundException("The session ended")

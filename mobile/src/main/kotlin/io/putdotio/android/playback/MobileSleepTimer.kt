@@ -41,7 +41,6 @@ internal class MobileSleepTimer(private val clock: () -> Long = SystemClock::ela
         state.collectLatest { run ->
             if (run == null) return@collectLatest
             while (remainingMillis(run) > 0L) delay(remainingMillis(run).coerceAtMost(MAX_WAIT_MILLIS))
-            // Off or a new choice can land after the wait ends; only the run still current pauses.
             if (state.compareAndSet(run, null)) pause()
         }
     }

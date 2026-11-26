@@ -57,7 +57,6 @@ internal class PlaybackAnalyticsTracker(
         }
     }
 
-    // A replay after the end doesn't repeat it; the file's next opening does.
     @Synchronized
     override fun reachedEnd() {
         val playback = started ?: return
@@ -114,7 +113,6 @@ internal fun playback(
         PlaybackMediaType.VIDEO -> AnalyticsEvent.Media.Video
         PlaybackMediaType.AUDIO -> AnalyticsEvent.Media.Audio
     },
-    // A receiver streams a downloaded file from put.io; only the local player reads the download.
     streamMethod = if (offline && player == AnalyticsEvent.Player.ExoPlayer) {
         AnalyticsEvent.StreamMethod.LocalFile
     } else {

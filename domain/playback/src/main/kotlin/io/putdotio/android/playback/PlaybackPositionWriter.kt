@@ -35,7 +35,6 @@ public class PlaybackPositionWriter(
     public fun register(fileId: Long, authorized: () -> Boolean): String {
         check(!closed)
         require(fileId > 0L)
-        // A reopened file supersedes its old producer, including a queued exit snapshot.
         leases.entries.removeAll { it.value.fileId == fileId }
         while (leases.size >= MAX_LEASES) leases.remove(leases.keys.first())
         val token = UUID.randomUUID().toString()
@@ -77,8 +76,6 @@ public class PlaybackPositionWriter(
         val lease = leases[token]?.takeIf { !closed && offeredMillis >= 0L && it.authorized() } ?: return
         val positionMillis = offeredMillis.takeIf { it >= MIN_SAVED_POSITION_MILLIS } ?: 0L
         if (lease.delivery.covers(positionMillis)) return
-        // One in-flight request and one latest snapshot bound memory during slow requests
-        // and rapid file switches. Intermediate queued exit positions may be superseded.
         pending?.let { leases[it.token]?.settle(it.generation, it.attempt, Delivery.Unsent) }
         val snapshot = Snapshot(token, lease.fileId, positionMillis, lease.generation, ++attempts)
         lease.delivery = Delivery.Sending(positionMillis, snapshot.attempt)
@@ -120,11 +117,8 @@ public class PlaybackPositionWriter(
         active = snapshot
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                // Waiting for an exclusive block comes before authorization and outside the timeout.
                 requests.withLock {
                     if (snapshot.allowed()) {
-                        // The SDK captures the current credential before suspending. Do not add
-                        // a dispatcher hop between authorization and this asynchronous request.
                         val result = withTimeout(WRITE_TIMEOUT_MILLIS) {
                             if (snapshot.allowed()) write(snapshot.fileId, snapshot.positionMillis / MILLIS_PER_SECOND)
                             else null

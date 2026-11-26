@@ -221,7 +221,6 @@ internal fun MobileFilesSelectionToolbar(
         canSetWatched = handlers.onSetWatched != null,
     )
     val label = pluralStringResource(R.plurals.mobile_files_selection_actions, items.size, items.size)
-    // Download leaves the files already here or on their way as they are.
     val notHere = items.filter { (downloads.entry(it.id)?.status).downloadable }
     MobileSelectionToolbar(
         modifier.testTag(MOBILE_FILES_SELECTION_TOOLBAR_TAG).semantics { contentDescription = label },
@@ -248,12 +247,9 @@ private fun DeleteAction(
     onDelete: (List<FilesItem>, FilesDeleteMode) -> Unit,
 ) {
     var confirmingPermanentDelete by rememberSaveable { mutableStateOf(false) }
-    // Move to trash is sent after the next composition, against the latest Trash setting: once
-    // Trash is off, put.io applies a Trash request as permanent deletion.
     var trashTapped by remember { mutableStateOf(false) }
     val currentTrashEnabled by rememberUpdatedState(confirmedTrashEnabled)
     val currentItems by rememberUpdatedState(items)
-    // A Trash setting that changes while the confirm is open withdraws it.
     LaunchedEffect(confirmedTrashEnabled) {
         if (confirmedTrashEnabled != false) confirmingPermanentDelete = false
     }
@@ -263,7 +259,6 @@ private fun DeleteAction(
             if (currentTrashEnabled == true) onDelete(currentItems, FilesDeleteMode.TRASH)
         }
     }
-    // An unknown Trash setting can't say which delete this would be.
     DeleteTile(permanent = confirmedTrashEnabled == false, enabled = canStart && confirmedTrashEnabled != null) {
         when (currentTrashEnabled) {
             true -> trashTapped = true
@@ -359,7 +354,6 @@ internal fun MobileFilesSelectionToolbarSlot(
 ) {
     val currentState by rememberUpdatedState(state)
     val items = selection?.selected(state).orEmpty()
-    // Rows that share no action, such as an owned file beside a friend's folder, get no empty toolbar.
     val offered = items.selectionActions(
         canMove = actions.onMove != null,
         canDownload = actions.onDownload != null,
@@ -369,7 +363,6 @@ internal fun MobileFilesSelectionToolbarSlot(
         SideEffect { onHeightChanged(0) }
         return
     }
-    // Each action ends the selection as it is sent; a second tap queued in the same frame finds none.
     val sendOnce = { send: () -> Unit ->
         if (selection.isActive(currentState)) {
             send()
@@ -385,7 +378,6 @@ internal fun MobileFilesSelectionToolbarSlot(
             { chosen, watched -> sendOnce { setWatched(chosen, watched) } }
         },
         onDelete = { chosen, mode ->
-            // The reducer refuses a delete while another operation runs; the selection then stays.
             if (currentState.current.operation.canStartOperation) {
                 val folderId = currentState.current.folder.id
                 sendOnce { actions.onEvent(FilesBrowserEvent.Delete(folderId, chosen.map { it.id }, mode)) }

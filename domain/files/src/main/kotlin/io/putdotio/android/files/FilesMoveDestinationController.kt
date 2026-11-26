@@ -93,7 +93,6 @@ public class FilesMoveDestinationController private constructor(
         true
     }
 
-    // One current-folder read is owned at a time; navigation cancels it and IDs reject late completions.
     private fun startRequest(request: FilesMoveDestinationRequest) {
         val next = scope.launch(start = CoroutineStart.LAZY) {
             val result = load(request)

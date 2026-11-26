@@ -7,8 +7,6 @@ public class SentryConfiguration private constructor(
     internal val surface: String,
 ) {
     public companion object {
-        // put.io's tunnel to Sentry ingest (putio-web `infra/telemetry`). Some networks reset
-        // connections to Sentry's own host, and the tunnel forwards only allowlisted project ids.
         private const val RELAY_HOST = "relay.put.io"
         private val DSN = Regex("""https://([A-Za-z0-9]+)@[^/]+/([0-9]+)""")
 

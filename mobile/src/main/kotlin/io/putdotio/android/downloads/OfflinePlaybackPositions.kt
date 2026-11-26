@@ -118,7 +118,6 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
         val current = snapshot.pending[update.fileId]
         val known = snapshot.known + (update.fileId to remote)
         return when {
-            // The player's own accepted write replaced this one: [known] already holds the newer position.
             current == null -> SyncResult.SUPERSEDED
             current.revision == update.revision -> {
                 write(snapshot.copy(known = known, pending = snapshot.pending - update.fileId))
@@ -341,7 +340,6 @@ internal class OfflinePlaybackPositions(
             } finally {
                 passes.unlock()
             }
-            // A request that landed between the last check and the unlock.
             if (passRequested) requestSync()
         }
     }
@@ -353,7 +351,6 @@ internal class OfflinePlaybackPositions(
         withContext(session.ioDispatcher) {
             val store = store(userId)
             if (store.pending().isEmpty() || session.userId() != userId || !resumeStillOn(store)) return@withContext
-            // A newer local position replacing one since the pass began goes in the next pass.
             for (update in store.pending()) {
                 val keepGoing = session.userId() == userId &&
                     (!store.isCurrent(update) || syncRead(userId, store, update))
@@ -399,18 +396,14 @@ internal class OfflinePlaybackPositions(
         var keepSyncing = true
         when {
             samePosition(current, update.seconds) -> settle(store, update, current)
-            // An earlier write landed without a reply; compare later positions against it.
             attempted != null && samePosition(current, attempted) -> {
                 store.rebase(update, current)
                 passRequested = true
             }
             expected != null && !samePosition(current, expected) -> store.yieldTo(update, current)
             else -> writing {
-                // The player's own write may have landed since the read; the newer position then stands.
                 if (store.isCurrent(update) && session.userId() == userId) {
                     store.attempted(update)
-                    // The player's writes wait meanwhile. Cancelling here would let them overtake a
-                    // request already on its way, so only the transport's own timeouts end it.
                     val rejectIfUnauthorized = session.captureRejection()
                     when (val write = remote.write(update.fileId, update.seconds)) {
                         is PlaybackRepositoryResult.Success ->
@@ -489,7 +482,6 @@ private val PlaybackFailure.isPermanentFileError: Boolean
         else -> false
     }
 
-// put.io may round what it stores; positions within a second are the same position.
 private fun samePosition(first: Double, second: Double): Boolean = abs(first - second) < 1.0
 
 private fun Double.isValidPosition(): Boolean = isFinite() && this >= 0.0

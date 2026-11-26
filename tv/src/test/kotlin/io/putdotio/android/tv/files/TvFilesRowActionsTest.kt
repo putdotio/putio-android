@@ -488,7 +488,6 @@ class TvFilesRowActionsTest {
         compose.onNodeWithContentDescription("notes.txt").assertIsFocused().performKeyInput { pressKey(Key.Menu) }
         compose.onNode(hasText("Delete permanently") and isFocused()).performKeyInput { pressCenter() }
         compose.onAllNodesWithText("Mark as watched").assertCountEquals(0)
-        // The setting flipping under an open confirmation withdraws it rather than rewording it.
         compose.onNodeWithText("Delete 1 item permanently?").assertIsDisplayed()
         compose.runOnIdle { trash = true }
         compose.onAllNodesWithText("Delete 1 item permanently?").assertCountEquals(0)
@@ -620,7 +619,6 @@ class TvFilesRowActionsTest {
         }
         compose.onAllNodesWithText(message).assertCountEquals(0)
 
-        // A rename keeps the outcome; the confirmation names the folder as it is listed now.
         compose.runOnIdle { state = withOutcome(folder.copy(name = "Renamed folder")) }
         compose.onNode(hasText("Delete permanently") and hasClickAction()).apply {
             performSemanticsAction(SemanticsActions.RequestFocus)

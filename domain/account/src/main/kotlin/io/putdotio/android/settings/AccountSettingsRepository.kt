@@ -97,8 +97,6 @@ public class SdkAccountSettingsRepository(
         }
 
     @Suppress("TooGenericExceptionCaught")
-    // `UNAVAILABLE_VALUE` only means an ineligible proxy when the write was a route change;
-    // for any other setting it stays a plain API rejection.
     private suspend fun <T> request(
         routeChange: Boolean = false,
         block: suspend () -> T,

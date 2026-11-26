@@ -60,7 +60,6 @@ internal data class PendingSeek(
     val targetPositionMillis: Long,
     val accumulatedMillis: Long,
     val requestId: Long,
-    // Monotonic time until which the next request stacks on this target.
     val accumulatesUntilMillis: Long,
 )
 
@@ -124,7 +123,6 @@ internal fun PlayerSeekWindow.nextPendingSeek(
 ): PendingSeek? {
     if (durationMillis <= 0L) return null
     val interval = intervals.millis(direction)
-    // The window is measured from the previous request, not from when its effect started.
     val stacked = previous?.takeIf { it.accumulatesAt(nowMillis) }
     val basePosition = (stacked?.targetPositionMillis ?: currentPositionMillis).coerceIn(0L, durationMillis)
     val targetPosition =
@@ -170,9 +168,7 @@ internal fun SeekFeedbackTimeout(pendingSeek: MutableState<PendingSeek?>) {
             originalTimeoutMillis = MOBILE_SEEK_FEEDBACK_DELAY_MILLIS,
             containsText = true,
         ) ?: MOBILE_SEEK_FEEDBACK_DELAY_MILLIS
-        // Accumulation expiry lives on the request; this timer only hides the feedback.
         delay(feedbackTimeout.coerceAtLeast(MOBILE_SEEK_FEEDBACK_DELAY_MILLIS))
-        // A new seek can arrive before recomposition cancels the previous timer.
         if (pendingSeek.value?.requestId == requestId) pendingSeek.value = null
     }
 }
@@ -192,7 +188,6 @@ internal fun MobileSeekButton(
             onClick = onClick,
             enabled = enabled,
             colors = IconButtonDefaults.iconButtonColors(
-                // On video the button is a translucent dark circle, so it reads over any frame.
                 containerColor = if (onVideo) {
                     MaterialTheme.colorScheme.scrim.copy(alpha = VIDEO_SEEK_CIRCLE_ALPHA)
                 } else {
@@ -222,7 +217,6 @@ internal fun MobileSeekButton(
                     contentDescription = null,
                     modifier = Modifier.size(if (onVideo) 34.dp else 32.dp),
                 )
-                // The number belongs to the fixed-size glyph; the accessible label carries the interval.
                 Text(
                     intervalSeconds.toString(),
                     style = MaterialTheme.typography.labelSmall.putioMono(),

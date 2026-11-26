@@ -239,7 +239,6 @@ internal fun MobileNavHost(
                 exitTransition = { motion.exit(motion.between(initialState, targetState, false, panes)) },
                 popEnterTransition = { motion.enter(motion.between(initialState, targetState, true, panes)) },
                 popExitTransition = { motion.exit(motion.between(initialState, targetState, true, panes)) },
-                // A Back gesture seeks the same pop, so it previews what Back will do.
                 predictivePopEnterTransition = { motion.enter(motion.between(initialState, targetState, true, panes)) },
                 predictivePopExitTransition = { motion.exit(motion.between(initialState, targetState, true, panes)) },
             ) {
@@ -279,7 +278,6 @@ internal fun MobileNavHost(
                                         onOpenWith = { fileOpener.openWithAnotherApp(filesContext, it) },
                                     ).playingWithVia(searchHistoryActions.onResultWith),
                                     downloads = currentDownloads,
-                                    // Through the result's own open, so the query joins Recent searches.
                                     onPlayItem = searchHistoryActions.onResult,
                                     onDownloadItem = startDownload,
                                     onShareItem = onShareItem,
@@ -440,7 +438,6 @@ internal fun MobileNavHost(
                     val mediaType =
                         PlaybackMediaType.entries.firstOrNull { it.name == media } ?: PlaybackMediaType.VIDEO
                     val subtitleStartupPolicy = accountSettingsState.subtitleStartupPolicy()
-                    // The listing's duration spares resolution a lookup for the near-end rule.
                     val durationSeconds = backStackEntry.arguments?.getString("duration")?.toDoubleOrNull()
                         ?.takeIf { it.isFinite() && it > 0.0 }
                     val method = backStackEntry.arguments?.getString("method")
@@ -454,7 +451,6 @@ internal fun MobileNavHost(
                             factory = mobilePlaybackViewModelFactory(target, playbackRepository),
                         )
                     continueWatching?.let { RecordOpenedVideos(playbackViewModel.controller, it) }
-                    // The player grows out of the row it was opened from: a container transform.
                     Box(Modifier.fillMaxSize().playbackContainer(fileId, route = this)) {
                         MobilePlaybackRoute(
                             controller = playbackViewModel.controller,
@@ -468,7 +464,6 @@ internal fun MobileNavHost(
                             findNextEpisode = playbackRepository::findNextVideo
                                 .takeIf { accountSettingsState.nextEpisodeEnabled() },
                             findNeighbours = playbackRepository::findNeighbours,
-                            // Another file replaces this route, so Back still returns to the screen below.
                             onPlay = { next ->
                                 navController.navigateToPlayback(
                                     next.fileId,
@@ -484,7 +479,6 @@ internal fun MobileNavHost(
                             cast = cast,
                             castMedia = playbackRepository::castMediaFor,
                         )
-                        // Over the player, which paints its own background.
                         filesActions?.let { MobileFilesNoticeHost(it.notices, Modifier.align(Alignment.BottomCenter)) }
                         pinnedFiles?.let { MobileFilesNoticeHost(it.notices, Modifier.align(Alignment.BottomCenter)) }
                     }
@@ -563,7 +557,6 @@ private fun MobileFilesTab(
     search: @Composable () -> Unit,
     files: @Composable () -> Unit,
 ) {
-    // Search keeps its scroll position and field while a folder it opened is on screen.
     val saved = rememberSaveableStateHolder()
     MobileRouteAnimation(routeAnimation) {
         MobileAxisContent(
@@ -597,7 +590,6 @@ private fun MobilePlaybackRoute(
 ) {
     val state by controller.state.collectAsStateWithLifecycle()
     val firstFrameSource = remember { mutableStateOf<PlaybackSource?>(null) }
-    // The lookups outlive a recomposition; a rejection reaches the current session's handler.
     val currentOnAuthenticationRequired by rememberUpdatedState(onAuthenticationRequired)
     val nextEpisode = rememberNextEpisode(state, findNextEpisode) { currentOnAuthenticationRequired() }
     val neighbours = rememberFolderNeighbours(state, findNeighbours) { currentOnAuthenticationRequired() }
@@ -615,7 +607,6 @@ private fun MobilePlaybackRoute(
     LaunchedEffect(authenticationFailure) {
         if (authenticationFailure != null) onAuthenticationRequired()
     }
-    // A picture-in-picture window never shows the shell: the finished video waits for the viewer to leave it.
     val pictureInPicture by rememberPictureInPictureMode()
     LaunchedEffect(state.content, pictureInPicture) {
         if (state.content is PlaybackContent.Ended && !pictureInPicture) onBack()
@@ -628,7 +619,6 @@ private fun MobilePlaybackRoute(
         onStartConversion = { controller.dispatch(PlaybackEvent.StartConversion) },
         onPlayerFailure = { failure, positionMillis ->
             val playing = controller.state.value
-            // Audio plays on the session service's player, which reports its own failures.
             if (controller.dispatch(PlaybackEvent.PlayerFailed(failure, positionMillis)) &&
                 controller.state.value.content is PlaybackContent.Failed &&
                 playing.target.mediaType == PlaybackMediaType.VIDEO

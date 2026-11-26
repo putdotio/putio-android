@@ -56,7 +56,6 @@ public fun PutioSwitch(
                     cornerRadius = CornerRadius(radius.x - outline / 2f),
                     style = Stroke(outline),
                 )
-                // Each handle keeps the gap between it and the outline equal on three sides.
                 val offCenter = size.height / 2f
                 val onCenter = size.width - size.height / 2f
                 drawCircle(

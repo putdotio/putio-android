@@ -22,7 +22,6 @@ class ContinueWatchingTest {
     fun aSavedPositionOfAnOpenedVideoJoinsNewestFirstAndFinishingRemovesIt() {
         row.opened(Tears, "Tears.of.Steel.mkv", 734.0)
         row.opened(Sintel, "Sintel.mkv", 888.0)
-        // A position for a video the player never resolved has no name or duration to show.
         row.positionSaved(FilesItemId(99L), 30.0)
         row.positionSaved(Tears, 482.0)
         row.positionSaved(Sintel, 353.0)
@@ -33,7 +32,6 @@ class ContinueWatchingTest {
 
         row.positionSaved(Tears, 698.0)
         assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
-        // An unwatched reset leaves too.
         row.positionSaved(Sintel, 0.0)
         assertTrue(row.entries.value.isEmpty())
     }
@@ -66,9 +64,7 @@ class ContinueWatchingTest {
         val resolve: suspend (FilesItemId) -> PutioResult<FilesItem> = { id ->
             reads++
             when (id) {
-                // Watched on another device: the position moves.
                 Tears -> PutioResult.Success(video(Tears, "Tears renamed.mkv", startFrom = 300.0))
-                // Finished on another device.
                 Sintel -> PutioResult.Success(video(Sintel, "Sintel.mkv", startFrom = 0.0))
                 Gone -> PutioResult.Failure(notFound())
                 else -> PutioResult.Failure(PutioFailure.NetworkUnavailable(IllegalStateException("offline")))
@@ -89,7 +85,6 @@ class ContinueWatchingTest {
     fun reconcileLeavesANewerSaveAloneAndReturnsARejectedSession() = runBlocking {
         row.opened(Tears, "Tears.of.Steel.mkv", 600.0)
         row.positionSaved(Tears, 60.0)
-        // The player saves a newer position while the read is out; the read brings back the old one.
         val stale = row.reconcile { id ->
             row.positionSaved(id, 120.0)
             PutioResult.Success(video(Tears, "Tears.of.Steel.mkv", startFrom = 0.0))
@@ -159,23 +154,19 @@ class ContinueWatchingTest {
 
         val recheck = launch { row.recheckAfterDeletes(resolve) }
 
-        // An entry deleted on its own leaves without reading the others.
         val video = deleted(1L, Flaky)
         row.removed(listOf(video))
         settle()
         assertTrue(reads.isEmpty())
 
-        // A folder's id is no entry: every entry is read, and the one inside it is gone.
         val folder = deleted(2L, Folder)
         row.removed(listOf(video, folder))
         settle()
         assertEquals(listOf(Tears, Sintel), reads.sortedBy { it.value })
         assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
-        // A save answered after the folder went can't bring its video back.
         row.positionSaved(Tears, 90.0)
         assertEquals(listOf(Sintel), row.entries.value.map { it.fileId })
 
-        // The screen replays deletes it still shows, after a rotation say; they read nothing again.
         row.removed(listOf(video, folder))
         settle()
         assertEquals(2, reads.size)
@@ -217,7 +208,6 @@ class ContinueWatchingTest {
         val restored = ContinueWatching(MemoryStore(listOf(kept)))
 
         assertEquals(listOf(kept), restored.entries.value)
-        // A position for a kept entry updates it without the player resolving it again.
         restored.positionSaved(Tears, 120.0)
         assertEquals(120.0, restored.entries.value.single().positionSeconds, 0.0)
     }

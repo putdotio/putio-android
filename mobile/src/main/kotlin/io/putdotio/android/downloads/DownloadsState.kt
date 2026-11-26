@@ -109,5 +109,4 @@ internal fun DownloadsState.withEntries(entries: List<DownloadEntry>): Downloads
     )
 }
 
-// Media3 sorts by start time; ties keep the order rows were added.
 private val QUEUE_ORDER = compareBy<DownloadEntry>({ it.queuedAt }, { it.createdAt }, { it.fileId.value })

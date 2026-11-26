@@ -152,7 +152,6 @@ class AuthenticatedFilesDeleteTest {
     }
 
     private fun sortDescending(fixture: DeleteProofFixture, runtime: MobileOAuthRuntime) {
-        // The order words follow the field, so Name goes first; the current sort may be another field.
         compose.onNodeWithTag(MOBILE_FILES_SORT_TAG).performClick()
         compose.onNodeWithText(compose.activity.getString(R.string.mobile_files_sort_field_name)).performClick()
         compose.waitUntil(TIMEOUT) {
@@ -184,7 +183,6 @@ class AuthenticatedFilesDeleteTest {
         val actionLabel = compose.activity.getString(action)
         waitFor(hasText(actionLabel))
         if (fixture.expectedTrashEnabled) {
-            // Move to trash runs without a confirmation, so cancelling means leaving the sheet.
             deleteProofScreenshot(if (cancel) "cancel-sheet" else "action-sheet")
             if (cancel) {
                 Espresso.pressBack()

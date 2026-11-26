@@ -29,7 +29,6 @@ private const val EMULATOR_CODEC_WORKAROUND_API = 37
 public fun playbackRenderersFactory(context: Context): DefaultRenderersFactory {
     val renderersFactory: DefaultRenderersFactory = PlaybackRenderersFactory(context)
     if (requiresEmulatorCodecWorkaround(Build.VERSION.SDK_INT, Build.HARDWARE)) {
-        // API 37's goldfish AVC codec can fail its memfd queue before decoding a frame.
         renderersFactory
             .setMediaCodecSelector(EmulatorMediaCodecSelector)
             .setEnableDecoderFallback(true)

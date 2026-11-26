@@ -81,7 +81,6 @@ class MobilePictureInPictureTest {
             assertTrue(armed.isAutoEnterEnabled)
             assertEquals(Rational(1_920, 1_080), armed.aspectRatio)
             val hint = checkNotNull(armed.sourceRectHint)
-            // A landscape video letterboxes inside the portrait window, centred.
             assertEquals(activity.window.decorView.width, hint.width())
             assertEquals(activity.window.decorView.width * 1_080.0 / 1_920, hint.height().toDouble(), 1.0)
             assertEquals(activity.window.decorView.height / 2.0, hint.centerY().toDouble(), 1.0)
@@ -187,13 +186,11 @@ class MobilePictureInPictureTest {
 
         compose.onNodeWithContentDescription("Picture in picture").performClick()
         compose.runOnIdle {
-            // The entry, then the playback-derived parameters back.
             assertEquals(before + 2, activity.params.size)
             assertEquals("Pause", activity.params[before].actions[1].title)
             player.movePositionTo(30_000L)
         }
         compose.runOnIdle { activity.sendPictureInPictureAction("Forward 10 seconds") }
-        // The video plays on in the window, so the seek starts a moment past where it was moved.
         compose.runOnIdle { assertTrue(player.seekPositions.single() in 40_000L..41_000L) }
         host.close()
     }
@@ -386,8 +383,6 @@ class MobilePictureInPictureTest {
         )
     }
 
-    // The fake prepares and plays synchronously, before the screen's listener attaches; a real
-    // player reports READY later. Pausing and playing again reports the state a real one would.
     private fun reportPlaying(player: RecordingPlayer) {
         compose.runOnIdle { player.pause() }
         compose.runOnIdle { player.play() }
@@ -408,7 +403,6 @@ class MobilePictureInPictureTest {
             ActivityInfo().apply {
                 name = type.name
                 packageName = application.packageName
-                // What the manifest's supportsPictureInPicture sets; the SDK hides the constant.
                 if (declaresPictureInPicture) {
                     flags = flags or ActivityInfo::class.java.getField("FLAG_SUPPORTS_PICTURE_IN_PICTURE").getInt(null)
                 }
@@ -471,7 +465,6 @@ private fun source(target: PlaybackTarget, kind: PlaybackSourceKind): PlaybackSo
     PlaybackSource(
         fileId = target.fileId.value,
         kind = kind,
-        // Credential URLs can only be minted by the SDK resolver in production.
         url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance("https://example.com/${target.name}"),
         startFromSeconds = 0.0,

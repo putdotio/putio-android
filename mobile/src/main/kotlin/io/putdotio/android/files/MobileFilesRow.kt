@@ -98,7 +98,6 @@ internal fun MobileFilesRow(
         return
     }
     val actionsLabel = stringResource(R.string.mobile_files_actions, item.name)
-    // Touch never focuses a row; a keyboard-focused one is outlined so it reads at a glance.
     var focused by remember { mutableStateOf(false) }
     val outline = MaterialTheme.colorScheme.primary
     val interaction = Modifier.rowInteraction(
@@ -258,7 +257,6 @@ private fun MobileFilesMeta(
         size?.let {
             add { Text(monoValue(it, style.putioMono().toSpanStyle()), style = style, color = color, maxLines = 1) }
         }
-        // The date or folder gives way first, so the glyphs after it keep their room at large text sizes.
         date?.let {
             add {
                 Text(

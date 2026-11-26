@@ -36,7 +36,6 @@ public class SdkPublicLinksRepository internal constructor(
     }
 
     override suspend fun create(fileId: FilesItemId): PutioResult<PublicLink> = putioRequest {
-        // Root and the virtual shared folders are not the viewer's to share.
         require(fileId.value > 0L) { "A public link needs one positive file ID" }
         createShare(fileId.value).toPublicLink(PutioRequestData("POST", "/public_share/${fileId.value}"))
     }

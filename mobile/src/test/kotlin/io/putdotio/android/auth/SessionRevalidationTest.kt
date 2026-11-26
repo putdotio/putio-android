@@ -13,7 +13,6 @@ import org.junit.Test
 import java.io.IOException
 import kotlin.time.Duration.Companion.seconds
 
-// Attempts run in backgroundScope, which only moves as virtual time passes.
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionRevalidationTest {
     @Test
@@ -72,7 +71,6 @@ class SessionRevalidationTest {
         revalidation.onNetworkReturned()
         advanceTimeBy(TEN_MINUTES)
 
-        // Restore and the opening attempts, the first return's first attempt, then the second return's.
         assertEquals(1 + DELAYS.size + 1 + DELAYS.size, fixture.validations())
     }
 

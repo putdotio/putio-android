@@ -24,7 +24,6 @@ internal class MobileDownloadsViewModel(
         keyOf = MobileAuthState::sessionKey,
         scope = viewModelScope,
         close = ActiveDownloads::close,
-        // The session ended or changed hands: park this user's transfers, then detach.
         onSessionEnded = {
             it.park()
             it.close()

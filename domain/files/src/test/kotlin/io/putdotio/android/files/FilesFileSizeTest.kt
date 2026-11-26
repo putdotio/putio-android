@@ -12,7 +12,6 @@ class FilesFileSizeTest {
             41_000L to "41 kB",
             31_000_000L to "31 MB",
             3_200_000_000L to "3.2 GB",
-            // Android's short formatter writes "19 GB" here; the folder line needs the decimal.
             19_400_000_000L to "19.4 GB",
             1_040_000_000L to "1 GB",
             250_400_000L to "250 MB",

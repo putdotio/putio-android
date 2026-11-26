@@ -219,12 +219,8 @@ internal fun MobileFilesActions(
     }
     var submittedName by rememberSaveable { mutableStateOf<String?>(null) }
     var previousCompletionRequestValue by rememberSaveable { mutableStateOf<Long?>(null) }
-    // Only permanent deletion confirms; Trash keeps the item, and its snackbar offers Undo.
     var confirmingPermanentDelete by rememberSaveable { mutableStateOf(false) }
     var deleteSubmitted by rememberSaveable { mutableStateOf(false) }
-    // A Move to trash tap is sent after the next composition, against the latest Trash setting:
-    // a tap made before a change to the setting reached the sheet must not send TRASH, which
-    // the server applies as permanent deletion once Trash is off.
     var trashTapped by remember { mutableStateOf(false) }
     val currentTrashEnabled = rememberUpdatedState(confirmedTrashEnabled)
     val currentOperation by rememberUpdatedState(operation)
@@ -236,7 +232,6 @@ internal fun MobileFilesActions(
         onDismiss()
     }
     LaunchedEffect(renameCompletion, submittedName, previousCompletionRequestValue) {
-        // Keep the confirmed mutation across frames even when save and reload finish together.
         if (renameCompletion.confirms(item.id, submittedName, previousCompletionRequestValue)) onDismiss()
     }
     val submitDelete = { mode: FilesDeleteMode ->
@@ -473,7 +468,6 @@ internal fun MobileFilesSheetHeader(type: PutioFileType, name: String, meta: @Co
             FileTypeIcon(type, Modifier.size(HEADER_ICON_SIZE))
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            // The whole name, wrapped and selectable: the list cut it to one line.
             SelectionContainer {
                 Text(name, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             }
@@ -555,7 +549,6 @@ internal fun MobileFilesActionTiles(
     }
 }
 
-// A completed or running download names its state; the tile then does nothing.
 @Composable
 private fun RowScope.MobileFilesDownloadTile(
     item: FilesItem,
@@ -638,7 +631,6 @@ private fun MobileFilesActionRows(
 ) {
     val listed = item.id.value > 0L
     val owner = item.acceptsOwnerActions && listed
-    // Each action closes the sheet once it has started.
     val then = { action: (FilesItem) -> Unit ->
         {
             action(item)
@@ -751,7 +743,6 @@ private fun MobileFilesOwnerRows(
             onDismiss()
         }
     }
-    // Owner-only, as on web: a friend's item and the shared folders are not the viewer's to share.
     onPublicLinkItem?.takeIf { listed }?.let { link ->
         MobileFilesActionRow(R.drawable.ic_ph_link, R.string.mobile_files_exclusive_link,
             MOBILE_FILES_PUBLIC_LINK_ACTION_TAG) {
@@ -805,7 +796,6 @@ private fun MobileFilesDeleteAction(
     onTrash: () -> Unit,
     onConfirmPermanentDelete: () -> Unit,
 ) {
-    // Only the owner deletes, and only from the listing the item is in.
     if (!shown || !item.acceptsOwnerActions) return
     MobileFilesDestructiveAction(
         icon = R.drawable.ic_ph_trash,

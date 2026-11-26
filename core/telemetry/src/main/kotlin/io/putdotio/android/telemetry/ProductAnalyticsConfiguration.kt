@@ -9,7 +9,6 @@ public class ProductAnalyticsConfiguration private constructor(
     internal val appVersion: String,
 ) {
     public companion object {
-        // PostHog's public project token, which only names the project.
         private val TOKEN = Regex("phc_[A-Za-z0-9]{20,64}")
 
         /**

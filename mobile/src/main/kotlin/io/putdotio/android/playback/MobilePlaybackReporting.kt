@@ -44,7 +44,6 @@ internal class MobilePlaybackReporting(
             if (sessionId != null && result is PlaybackRepositoryResult.Failure &&
                 result.failure.putioFailure is PutioFailure.AuthenticationRequired
             ) {
-                // Rejection clears the session and cancels its writer. It must own a separate job.
                 scope.launch {
                     if ((auth.value as? MobileAuthState.SignedIn)?.sessionId == sessionId) {
                         onAuthenticationRequired(sessionId)

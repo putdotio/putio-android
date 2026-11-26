@@ -237,14 +237,11 @@ internal fun MobileShell(
     }
     val isPlayback = backStackEntry?.destination?.route == MOBILE_PLAYBACK_ROUTE
     val isTrash = backStackEntry?.destination?.route == MOBILE_TRASH_ROUTE
-    // Search opens over Files and stays open across tab switches, like a folder does.
     var searchOpen by rememberSaveable(sessionId) { mutableStateOf(false) }
     var linkedFile by rememberSaveable(sessionId) { mutableStateOf<Long?>(null) }
     ScreenViewedEffect(analyticsScreen(selectedDestination, isPlayback, isTrash, searchOpen), sessionId)
-    // Which way Search last moved: forward when opened or left for a result, back on a Back.
     var searchForward by remember { mutableStateOf(true) }
     val currentSearchActions by rememberUpdatedState(searchHistoryActions)
-    // The search field owns its text; a recent search is the one thing besides typing that sets it.
     var searchFieldText by remember(sessionId) { mutableStateOf<MobileSearchFieldText?>(null) }
     val searchPlayWith = remember(sessionId) { MobileSearchPlayWith() }
     val searchActions = remember(searchHistoryActions) {
@@ -256,7 +253,6 @@ internal fun MobileShell(
             },
         )
     }
-    // A folder's search stays inside it; the root's pill, Ctrl+F and links search everything.
     val showSearch = {
         navController.showTab(MobileDestination.Files)
         searchForward = true
@@ -267,7 +263,6 @@ internal fun MobileShell(
         showSearch()
     }
     val openSearch = { openScopedSearch(null) }
-    // The folder New folder was asked for; the dialog shows while that folder is on screen.
     val newFolder = rememberNewFolderRequest(sessionId)
     val filesFolder by remember(filesStates) { derivedStateOf(FolderChrome) { filesStates.value.current } }
     val requestNewFolder = newFolder.action(folderCreator, filesFolder)
@@ -275,8 +270,6 @@ internal fun MobileShell(
         searchForward = forward
         searchOpen = false
     }
-    // A tap on the Files tab while it shows, or a link to Files, lands on the root: Search closes
-    // and the folders above it pop.
     val showFilesRoot: () -> Unit = {
         leaveSearch(false)
         onFilesEvent(FilesBrowserEvent.PopToRoot)
@@ -291,9 +284,7 @@ internal fun MobileShell(
     }
     val downloadsStates: State<DownloadsState> =
         downloadsController?.state?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(DownloadsState()) }
-    // The Downloads top bar and list share one selection: in selection its bar replaces the title.
     val downloadsSelection = rememberDownloadsSelection()
-    // So do Files' bar and folder; its selection belongs to the folder it started in.
     val filesSelection = rememberFilesSelection(sessionId, filesStates)
     val filesSelectionActive by remember(filesStates, filesSelection) {
         derivedStateOf { filesSelection.isActive(filesStates.value) }
@@ -335,7 +326,6 @@ internal fun MobileShell(
     DefaultSortInvalidationEffect(sessionId, accountSettingsState, onFilesEvent)
     StaleFilesReloadEffect(selectedDestination, isTrash, filesStates, onFilesEvent)
 
-    // The NavHost owns Back between routes, the player's included, with its predictive preview.
     var searchFocusPending by remember { mutableStateOf(false) }
     MobileShellKeyboardEffect(
         searchEnabled = !isPlayback,
@@ -376,7 +366,6 @@ internal fun MobileShell(
         closeSearch = if (searchOpen) ({ leaveSearch(false) }) else null,
         onFilesEvent = onFilesEvent,
         returnTo = { origin ->
-            // Back to the search a result came from, scope and query as they were.
             navController.returnTo(origin) {
                 showSearch()
                 searchForward = false
@@ -395,7 +384,6 @@ internal fun MobileShell(
         navController = navController,
     )
 
-    // One NavHost call site in one slot: playback only hides the chrome, so destinations keep saved state.
     key(transfersSessionId) {
         MobileTransferDropZone(
             enabled = !isPlayback,
@@ -404,7 +392,6 @@ internal fun MobileShell(
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val navigationLayout = mobileNavigationLayout(maxWidth, maxHeight, destinations)
-                // Files keeps its panes while Search covers it, so nothing under Search is rebuilt.
                 val listDetail = isFilesListDetail(maxWidth, maxHeight)
                 val topBarInFilesPane = showsFilesListDetail(
                     width = maxWidth,
@@ -426,7 +413,6 @@ internal fun MobileShell(
                             destination = destination,
                             route = route,
                             searchOpen = searchOpen,
-                            // A new scope clears the query, so it gets a fresh field, not a reconciled one.
                             searchBar = { navigation ->
                                 key(searchHistoryState.search.scope) {
                                     MobileSearchBar(
@@ -443,7 +429,6 @@ internal fun MobileShell(
                                     )
                                 }
                             },
-                            // Search opened from its pill or a folder's bar takes the cursor at once.
                             onOpenSearch = { scope ->
                                 openScopedSearch(scope)
                                 searchFocusPending = true
@@ -567,8 +552,6 @@ internal fun MobileShell(
         searchOpen = searchOpen,
         creator = folderCreator,
         onCreated = {
-            // Stale first, so a folder busy with another operation reloads once it settles; the
-            // refresh reloads now when it can, after a failed refresh included.
             onFilesEvent(FilesBrowserEvent.InvalidateRestoredItem(it))
             onFilesEvent(FilesBrowserEvent.Refresh)
         },
@@ -661,12 +644,9 @@ private fun DeepLinkNavigationEffect(
     targets: DeepLinkTargets,
 ) {
     val pendingDeepLink by deepLinkRequests.pending.collectAsStateWithLifecycle()
-    // Keyed on readiness rather than the entry so the navigation a link causes cannot restart it.
     LaunchedEffect(pendingDeepLink, navigationReady, navigationBlocked, userId) {
         val link = pendingDeepLink ?: return@LaunchedEffect
         if (!navigationReady || navigationBlocked) return@LaunchedEffect
-        // A newer link restarts this effect and cancels an unfinished file resolve. One scoped to
-        // another account, such as an earlier account's notification, is dropped unopened.
         if (link.belongsTo(userId)) navController.openDeepLink(link, targets)
         deepLinkRequests.acknowledge(link)
     }
@@ -798,23 +778,19 @@ private fun NowPlayingNavigationEffect(
     transferDraft: MobileTransferDraft,
     navController: NavHostController,
 ) {
-    // The collector outlives any one Activity, so it must not hold one.
     val appContext = LocalContext.current.applicationContext
     LaunchedEffect(nowPlayingRequests, playbackPlayerFactory, appContext, transferDraft) {
         nowPlayingRequests.pending.collect { pending ->
             if (!pending) return@collect
-            // While casting, the session's notification asks for the receiver's file instead.
             val target = playbackPlayerFactory.activeAudio(appContext)
                 ?.let { PlaybackTarget(it.fileId, it.title, PlaybackMediaType.AUDIO) }
                 ?: MobileCast.castingTarget(appContext)
-            // Acknowledged only once the lookup finished: a cancelled lookup leaves it pending.
             nowPlayingRequests.acknowledge()
             if (target == null || transferDraft.state.value.incomingRequestId != null) return@collect
             val onPlaybackRoute = navController.currentBackStackEntry
                 ?.takeIf { it.destination.route == MOBILE_PLAYBACK_ROUTE }
                 ?.arguments?.getLong("fileId")
             if (onPlaybackRoute == target.fileId.value) return@collect
-            // A different item's route, still loading or failed, gives no controls for the live audio.
             navController.navigateToPlayback(
                 target.fileId,
                 target.name,
@@ -836,15 +812,12 @@ private fun ContentNavigationEffect(
     onNavigationRejected: () -> Unit,
 ) {
     val currentOnFilesEvent by rememberUpdatedState(onFilesEvent)
-    // Media plays above the screen it was chosen on; anything else opens in Files above its prior location.
     LaunchedEffect(contentNavigation, transferDraft) {
         contentNavigation.collect { (item, origin) ->
             val draft = transferDraft.state.value
             val editingTransfer = navController.currentDestination?.route == MobileDestination.Transfers.route &&
                 (draft.open || draft.pendingReplacement)
             if (item.isPlayable) {
-                // A delayed history result must not displace a newer transfer draft. A newer pick
-                // replaces the player, so Back still returns to the screen below it.
                 val method = if (origin == FilesOpenOrigin.SEARCH) searchPlayWith.take(item) else null
                 if (!editingTransfer) {
                     navController.navigateToPlayback(
@@ -854,7 +827,6 @@ private fun ContentNavigationEffect(
                     )
                 }
             } else if (currentOnFilesEvent(FilesBrowserEvent.OpenExternalItem(item, origin))) {
-                // A delayed history result may update Files without displacing a newer transfer draft.
                 if (!editingTransfer) {
                     navController.showTab(MobileDestination.Files)
                     onFilesOpened()
@@ -928,11 +900,8 @@ private fun FilesBackGate.back(
     onFilesEvent: (FilesBrowserEvent) -> Boolean,
     returnTo: (FilesOpenOrigin) -> Unit,
 ): FilesBack {
-    // Closing Search leaves the folder alone, so it stays allowed while a move settles; Search would
-    // otherwise hide the folder's Check status.
     val searchOwnsBack = closeSearch != null && onFiles
     val ownsBack = searchOwnsBack || moveSettling || onFiles && canNavigateBack
-    // The reducer refuses to leave a folder while a move or its deletion settles: no preview then.
     val refused = !searchOwnsBack && (moveSettling || deletePending)
     return FilesBack(ownsBack, previewable = ownsBack && !refused) {
         if (searchOwnsBack) {
@@ -1080,13 +1049,11 @@ private fun MobileChrome(
         navigationSuiteType = suiteType,
     ) {
         Scaffold(
-            // The suite pads itself for the system bars it sits against; the slot must not again.
             modifier = Modifier.consumeWindowInsets(navigationSuiteInsets(suiteType)),
             topBar = { if (visible && !topBarInContent) MobileChromeTopBar(topBar, inactiveNotice) },
             contentWindowInsets = chromeContentInsets(topBarInContent),
             bottomBar = {
                 if (visible) {
-                    // The bar pads its own content; above it the now-playing bar needs only the side insets.
                     MobileNowPlayingSlot(
                         navController,
                         playbackPlayerFactory,
@@ -1098,7 +1065,6 @@ private fun MobileChrome(
                 }
             },
         ) { padding ->
-            // Playback draws edge to edge and handles its own insets.
             content(if (visible) Modifier.padding(padding).consumeWindowInsets(padding) else Modifier.fillMaxSize())
         }
     }
@@ -1127,7 +1093,6 @@ private fun MobileFilesPaneTopBar(
 @Composable
 private fun MobileChromeTopBar(topBar: @Composable () -> Unit, inactiveNotice: InactiveAccountNotice?) {
     Column {
-        // The top bar owns the status bar inset.
         topBar()
         inactiveNotice?.let { notice ->
             MobileInactiveAccountNotice(

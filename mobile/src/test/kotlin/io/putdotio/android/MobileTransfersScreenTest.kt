@@ -387,7 +387,6 @@ class MobileTransfersScreenTest {
         compose.onNodeWithText("Clear").performClick()
         assertEquals(TransfersEvent.CleanCompleted, events.last())
 
-        // The menu stays open while the state moves through what blocks each action.
         val listed = current
         val busy = TransfersRequestId(9L)
         compose.onNodeWithContentDescription("More options").performClick()
@@ -607,5 +606,4 @@ class MobileTransfersScreenTest {
     }
 }
 
-// Longer than SnackbarDuration.Short.
 private const val SNACKBAR_TIMEOUT_MS = 10_000L

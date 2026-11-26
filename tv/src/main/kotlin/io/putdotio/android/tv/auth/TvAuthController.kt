@@ -137,8 +137,6 @@ internal class TvAuthController(
         try {
             val accessToken = when (val stored = quietToken ?: tokens.readSession(tokenRevocations)) {
                 is StoredToken.Present -> {
-                    // Unread: a Keystore session supersedes it. Deleting here retries a
-                    // cleanup that failed after import.
                     legacySession.delete()
                     stored.accessToken
                 }
@@ -174,8 +172,6 @@ internal class TvAuthController(
         if (current.phase is TvLinkPhase.Validating) {
             return@withLock false
         }
-        // The caller is a UI scope; if it dies between the join and the launch the old
-        // code would stay on screen with nothing polling it.
         withContext(NonCancellable) {
             linking.cancelAndJoin()
             if (mutableState.value is TvAuthState.Linking) {
@@ -211,9 +207,6 @@ internal class TvAuthController(
         }
     }
 
-    // Only an in-flight validation is rolled back. A verdict that already settled
-    // (signed in, unavailable, or expired with a link attempt running) stands, since
-    // the caller's cancellation arrived after the NonCancellable work finished.
     private fun rollBackInterruptedValidation(previous: TvAuthState) {
         val current = mutableState.value
         if (current is TvAuthState.ValidatingSession || current == TvAuthState.RestoringSession) {
@@ -257,8 +250,6 @@ internal class TvAuthController(
         }
     }
 
-    // The token leaves the SDK exactly once, here; a store failure discards it rather than
-    // running an unpersisted session that would vanish on the next launch.
     private suspend fun persistLinkedSession(
         linked: DeviceCodeAuthState.Linked,
         sessionExpired: Boolean,
@@ -324,7 +315,6 @@ internal class TvAuthController(
                     linking.start(sessionExpired = false)
                 }
                 is TvSessionValidation.Valid -> {
-                    // Like a linked token: one awaiting revocation is kept, one already revoked is not.
                     when (tokenRevocations.keepStored(legacyToken, tokens)) {
                         false -> {
                             legacySession.delete()

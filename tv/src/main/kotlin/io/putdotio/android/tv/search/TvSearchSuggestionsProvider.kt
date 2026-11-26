@@ -55,7 +55,6 @@ internal class TvSearchSuggestionsProvider internal constructor(
             ?: uri.lastPathSegment?.takeIf { it != SearchManager.SUGGEST_URI_PATH_QUERY }
         val limit = uri.getQueryParameter(SearchManager.SUGGEST_PARAMETER_LIMIT)?.toIntOrNull()
         val context = context
-        // A binder thread: the system search waits on this answer, so it is bounded.
         val found = context?.let(globalSearch)?.let { search ->
             runBlocking { withTimeoutOrNull(QUERY_TIMEOUT_MILLIS) { search.files(query) } }
         }

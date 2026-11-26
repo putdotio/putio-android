@@ -183,7 +183,6 @@ internal fun MobileSelectionToolbar(modifier: Modifier = Modifier, tiles: @Compo
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        // Large text can make the tiles wider than the screen; the row then scrolls, keeping each reachable.
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()).padding(TOOLBAR_PADDING),
             horizontalArrangement = Arrangement.spacedBy(TOOLBAR_GAP),
@@ -206,7 +205,6 @@ internal fun MobileToolbarTile(
     val tint = if (enabled) color else color.copy(alpha = DISABLED_ALPHA)
     Column(
         modifier = modifier
-            // At least 64x52dp; a large font grows the tile instead of clipping its word.
             .defaultMinSize(TILE_WIDTH, TILE_HEIGHT)
             .clip(RoundedCornerShape(TILE_CORNER))
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)

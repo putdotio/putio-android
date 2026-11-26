@@ -53,7 +53,6 @@ class FilesKeyboardFocusTest {
     @Test
     fun focusMovedOffTheListingStaysWhereTheViewerPutIt() {
         focus.onRowFocus(rows[1].id, index = 1, focused = true)
-        // Tab to the navigation rail: the row blurs and is still listed.
         focus.onRowFocus(rows[1].id, index = 1, focused = false)
 
         focus.afterListingChange(keyboardInput = true, items = rows - rows[3])

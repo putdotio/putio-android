@@ -63,7 +63,6 @@ class TvSearchHistoryProofTest {
 
     private val writes: MutableList<String> = Collections.synchronizedList(mutableListOf())
 
-    // The account's `/config` as the store rereads it: each save lands here.
     @Volatile private var serverConfig = RecentSearchConfig(enabled = true, terms = listOf("earlier"))
 
     @Test
@@ -158,7 +157,6 @@ class TvSearchHistoryProofTest {
         val inside = proofItem(INSIDE_ID, INSIDE, PutioFileType.PDF, folder.id)
         return tvProofDependencies(
             listings = mapOf(
-                // Files starts elsewhere, so a result row is only ever Search's.
                 FilesFolder.Root.id to FilesPage(listOf(home), null),
                 folder.id to FilesPage(listOf(inside), null, parent = folder),
             ),
