@@ -78,6 +78,23 @@ class AndroidAppConfigRepositoryTest {
     }
 
     @Test
+    fun onlyASavedTrueOptsIntoThePutioCastReceiver() {
+        val opted = { value: JsonPrimitive? ->
+            AppConfig(listOfNotNull(value?.let { "beta.putio_cast_receiver" to it }).toMap())
+                .toAndroidPreferences()
+                .putioCastReceiver
+        }
+        assertEquals(false, opted(null))
+        assertEquals(false, opted(JsonPrimitive("true")))
+        assertEquals(false, opted(JsonPrimitive(false)))
+        assertTrue(opted(JsonPrimitive(true)))
+        assertEquals(
+            AppConfigUpdate("beta.putio_cast_receiver", JsonPrimitive(true)),
+            AndroidAppConfigChange.PutioCastReceiver(enabled = true).toUpdate(),
+        )
+    }
+
+    @Test
     fun ignoresLegacyPlaybackKeys() {
         assertEquals(
             AndroidAppConfigPreferences(streamingMethod = StreamingMethod.Hls),

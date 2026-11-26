@@ -13,6 +13,7 @@ public data class AndroidAppConfigPreferences(
     val streamingMethod: StreamingMethod = StreamingMethod.Hls,
     val autoplayNextVideo: Boolean = false,
     val rotateToLandscape: Boolean = true,
+    val putioCastReceiver: Boolean = false,
     // Whether this app recorded an answer to the product analytics prompt.
     val productAnalyticsPromptAnswered: Boolean = false,
 )
@@ -24,6 +25,7 @@ internal fun AndroidAppConfigPreferences.applying(
         is AndroidAppConfigChange.PlaybackMethod -> copy(streamingMethod = change.value)
         is AndroidAppConfigChange.AutoplayNextVideo -> copy(autoplayNextVideo = change.enabled)
         is AndroidAppConfigChange.RotateToLandscape -> copy(rotateToLandscape = change.enabled)
+        is AndroidAppConfigChange.PutioCastReceiver -> copy(putioCastReceiver = change.enabled)
         AndroidAppConfigChange.ProductAnalyticsPromptAnswered -> copy(productAnalyticsPromptAnswered = true)
     }
 
@@ -37,6 +39,10 @@ public sealed interface AndroidAppConfigChange {
     ) : AndroidAppConfigChange
 
     public data class RotateToLandscape(
+        val enabled: Boolean,
+    ) : AndroidAppConfigChange
+
+    public data class PutioCastReceiver(
         val enabled: Boolean,
     ) : AndroidAppConfigChange
 

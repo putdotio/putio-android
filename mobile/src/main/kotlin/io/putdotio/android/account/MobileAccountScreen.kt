@@ -285,6 +285,7 @@ private fun LazyListScope.playbackItems(
             config?.let { preferences -> SettingsRow { rows.AutoplayNext(it, preferences) } },
             config?.let { preferences -> SettingsRow { rows.RotateToLandscape(it, preferences) } },
             config?.let { preferences -> SettingsRow { rows.PlaybackMethod(it, preferences) } },
+            config?.let { preferences -> SettingsRow { rows.PutioCastReceiver(it, preferences) } },
             settings?.let { preferences -> SettingsRow { rows.Proxy(it, preferences) } },
         ),
     )
@@ -565,6 +566,17 @@ private class AccountRows(
             icon = R.drawable.ic_ph_device_rotate,
             checked = preferences.rotateToLandscape,
             change = AndroidAppConfigChange::RotateToLandscape,
+        )
+    }
+
+    @Composable
+    fun PutioCastReceiver(segment: SettingsSegment, preferences: AndroidAppConfigPreferences) {
+        ConfigSwitch(
+            segment = segment,
+            title = R.string.mobile_settings_putio_cast_receiver,
+            icon = R.drawable.ic_ph_screencast,
+            checked = preferences.putioCastReceiver,
+            change = AndroidAppConfigChange::PutioCastReceiver,
         )
     }
 

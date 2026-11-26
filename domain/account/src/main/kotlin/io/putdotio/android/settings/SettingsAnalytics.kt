@@ -127,6 +127,7 @@ internal fun AndroidAppConfigChange.analyticsEvent(): AnalyticsEvent.SettingsCha
         is AndroidAppConfigChange.AutoplayNextVideo ->
             AnalyticsEvent.SettingsChanged(Setting.AutoplayNextVideo, SettingValue.of(enabled))
         is AndroidAppConfigChange.RotateToLandscape,
+        is AndroidAppConfigChange.PutioCastReceiver,
         AndroidAppConfigChange.ProductAnalyticsPromptAnswered,
         -> null
     }

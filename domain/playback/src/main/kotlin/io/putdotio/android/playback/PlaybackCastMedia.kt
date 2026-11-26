@@ -32,6 +32,8 @@ public data class PlaybackCastMedia(
     public val activeSubtitleId: Long?,
     /** The HLS playlist's own subtitle to turn on once the receiver lists it; null for none. */
     public val playlistSubtitle: PlaybackCastPlaylistSubtitle? = null,
+    /** What the put.io receiver loads in place of [url]; null for media only a plain load plays. */
+    public val receiverLoad: PlaybackCastReceiverLoad? = null,
 ) {
     override fun toString(): String =
         "PlaybackCastMedia(fileId=$fileId, contentType=$contentType, subtitles=${subtitles.size}, <redacted urls>)"
@@ -94,6 +96,7 @@ public fun PlaybackSource.toCastMedia(
         posterUrl = target.posterUrl?.takeIf { it.startsWith("https://") && OAUTH_TOKEN_QUERY !in it.queryNames() },
         subtitles = castSubtitles,
         activeSubtitleId = castSubtitles.getOrNull(activeIndex)?.id,
+        receiverLoad = toReceiverLoad(target, downloadToken),
     )
 }
 

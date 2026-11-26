@@ -330,6 +330,13 @@ private fun FollowCastFinish(
     }
 }
 
+/** The Cast video's option sheets. */
+internal enum class CastVideoSheet(@StringRes val title: Int) {
+    Audio(R.string.mobile_playback_audio_control),
+    Subtitles(R.string.mobile_playback_subtitles_title),
+    Speed(R.string.mobile_playback_speed),
+}
+
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileCastVideo(
@@ -344,13 +351,23 @@ private fun MobileCastVideo(
     modifier: Modifier,
 ) {
     val options = rememberPlayerOptionsSnapshot(player)
-    var speedSheet by rememberSaveable { mutableStateOf(false) }
-    // Back from the keyboard closes the Speed sheet before it leaves the player, as on local video.
+    val status by player.receiverStatus.collectAsStateWithLifecycle()
+    var sheet by rememberSaveable { mutableStateOf<CastVideoSheet?>(null) }
+    var shownSheet by rememberSaveable { mutableStateOf(CastVideoSheet.Speed) }
+    val open = { next: CastVideoSheet ->
+        shownSheet = next
+        sheet = next
+    }
+    val choose = { tracks: Set<Long> ->
+        player.setActiveTracks(tracks)
+        sheet = null
+    }
+    // Back from the keyboard closes a sheet before it leaves the player, as on local video.
     val closeSheet = Modifier.onPreviewKeyEvent { event ->
         val key = event.nativeKeyEvent
         val back = mobileKeyCommand(MobileShortcutScope.Player, key.keyCode, key.metaState) == MobileKeyCommand.Back
-        (speedSheet && back).also { closes ->
-            if (closes && key.action == android.view.KeyEvent.ACTION_DOWN) speedSheet = false
+        (sheet != null && back).also { closes ->
+            if (closes && key.action == android.view.KeyEvent.ACTION_DOWN) sheet = null
         }
     }
     Box(closeSheet.then(modifier).fillMaxSize()) {
@@ -358,7 +375,7 @@ private fun MobileCastVideo(
         MobilePlayerChrome(
             player = player,
             title = title,
-            visible = !speedSheet,
+            visible = sheet == null,
             seekEnabled = seekEnabled,
             onSeek = seek,
             onScrub = {},
@@ -366,16 +383,22 @@ private fun MobileCastVideo(
             modifier = Modifier.zIndex(2f),
             topActions = { castButton(Modifier) },
             settings = {
-                if (options.canChangeSpeed) MobileSpeedChip(options, { speedSheet = true })
+                MobileCastTrackChips(status, open)
+                if (options.canChangeSpeed) MobileSpeedChip(options, { open(CastVideoSheet.Speed) })
             },
         )
         MobilePlayerSideSheet(
-            visible = speedSheet,
-            title = stringResource(R.string.mobile_playback_speed),
-            onClose = { speedSheet = false },
+            visible = sheet != null,
+            title = stringResource(shownSheet.title),
+            onClose = { sheet = null },
             modifier = Modifier.zIndex(2.5f),
         ) {
-            MobileSpeedSheetContent(player, options)
+            val current = status
+            when (shownSheet) {
+                CastVideoSheet.Audio -> current?.let { MobileCastAudioSheetContent(it, choose) }
+                CastVideoSheet.Subtitles -> current?.let { MobileCastSubtitlesSheetContent(it, choose) }
+                CastVideoSheet.Speed -> MobileSpeedSheetContent(player, options)
+            }
         }
     }
 }

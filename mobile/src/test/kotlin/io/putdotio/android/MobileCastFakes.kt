@@ -157,6 +157,10 @@ internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
     override fun setSpeed(speed: Float) {
         commands += "speed $speed"
     }
+
+    override fun setActiveTracks(trackIds: Set<Long>) {
+        commands += "tracks ${trackIds.sorted()}"
+    }
 }
 
 internal class FakeCastAccount(

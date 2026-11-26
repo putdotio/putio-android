@@ -466,6 +466,8 @@ class MobileCastPlaybackTest {
         override fun seekTo(positionMillis: Long) = Unit
 
         override fun setSpeed(speed: Float) = Unit
+
+        override fun setActiveTracks(trackIds: Set<Long>) = Unit
     }
 
     /** Two episodes in one folder: the first one's next is the second, which is the last. */

@@ -19,7 +19,10 @@ import com.google.android.gms.cast.framework.CastState
 import com.google.android.gms.cast.framework.SessionManagerListener
 import com.google.android.gms.cast.framework.SessionTransferCallback
 import com.google.android.gms.tasks.TaskCompletionSource
+import com.google.android.gms.cast.CastMediaControlIntent
 import io.putdotio.android.playback.CastContextHandle
+import io.putdotio.android.playback.CastReceiverStore
+import io.putdotio.android.playback.PUTIO_RECEIVER_APPLICATION_ID
 import io.putdotio.android.playback.GmsCastGateway
 import io.putdotio.android.playback.GmsCastRemote
 import io.putdotio.android.playback.GmsCastRoutes
@@ -186,11 +189,58 @@ class GmsCastRoutesTest {
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
 
+    @Test
+    fun aReceiverChosenBeforeCastLoadsAppliesAsItBindsAndTheSearchFollowsIt() {
+        val gateway = GmsCastGateway(app, routes, GmsCastRemote()) {
+            TaskCompletionSource<CastContext>().task
+        }
+        val cast = FakeCastContextHandle(SELECTOR, putioSelector = PUTIO_SELECTOR)
+        try {
+            gateway.receivers.use(putio = true)
+            gateway.bind(cast)
+
+            assertEquals(listOf(PUTIO_RECEIVER_APPLICATION_ID), cast.applied)
+            assertEquals(PUTIO_SELECTOR, routes.selector)
+            assertTrue(CastReceiverStore.putio(app))
+        } finally {
+            gateway.receivers.use(putio = false)
+        }
+    }
+
+    @Test
+    fun aReceiverChosenMidSessionWaitsForItsEnd() {
+        val gateway = GmsCastGateway(app, routes, GmsCastRemote()) {
+            TaskCompletionSource<CastContext>().task
+        }
+        val cast = FakeCastContextHandle(SELECTOR, castState = CastState.CONNECTED)
+        try {
+            gateway.bind(cast)
+            gateway.receivers.use(putio = true)
+
+            assertEquals(emptyList<String>(), cast.applied)
+            assertFalse(CastReceiverStore.putio(app))
+        } finally {
+            gateway.receivers.use(putio = false)
+        }
+    }
+
     private class FakeCastContextHandle(
-        override val mergedSelector: MediaRouteSelector?,
+        private val defaultSelector: MediaRouteSelector?,
+        override val castState: Int = CastState.NO_DEVICES_AVAILABLE,
+        private val putioSelector: MediaRouteSelector? = defaultSelector,
     ) : CastContextHandle {
-        override val castState: Int = CastState.NO_DEVICES_AVAILABLE
         override val currentCastSession: CastSession? = null
+        private var current = CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+        override val receiverApplicationId: String get() = current
+        val applied = mutableListOf<String>()
+
+        override val mergedSelector: MediaRouteSelector?
+            get() = if (receiverApplicationId == PUTIO_RECEIVER_APPLICATION_ID) putioSelector else defaultSelector
+
+        override fun setReceiverApplicationId(applicationId: String) {
+            applied += applicationId
+            current = applicationId
+        }
 
         override fun addCastStateListener(listener: () -> Unit) = Unit
 
@@ -225,5 +275,7 @@ class GmsCastRoutesTest {
     private companion object {
         const val CATEGORY = "io.putdotio.android.test.CAST_RECEIVER"
         val SELECTOR: MediaRouteSelector = MediaRouteSelector.Builder().addControlCategory(CATEGORY).build()
+        val PUTIO_SELECTOR: MediaRouteSelector =
+            MediaRouteSelector.Builder().addControlCategory("$CATEGORY.PUTIO").build()
     }
 }

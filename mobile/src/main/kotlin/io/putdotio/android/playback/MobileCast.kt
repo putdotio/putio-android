@@ -21,6 +21,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -80,6 +81,10 @@ internal data class CastRemoteStatus(
     val audio: Boolean = false,
     /** When the session ended, for a last status: the position moves on no further than this. */
     val endedAtMillis: Long? = null,
+    /** The tracks the receiver lists for the media, and the ones it plays. */
+    val audioTracks: List<CastTrack> = emptyList(),
+    val textTracks: List<CastTrack> = emptyList(),
+    val activeTrackIds: Set<Long> = emptySet(),
 ) {
     val playing: Boolean
         get() = state == CastRemoteState.Playing || (state == CastRemoteState.Buffering && playIntent != false)
@@ -91,6 +96,9 @@ internal data class CastRemoteStatus(
         return durationMillis?.let(position::coerceAtMost) ?: position
     }
 }
+
+/** One of the receiver's audio or text tracks; [name] and [language] are what the stream says. */
+internal data class CastTrack(val id: Long, val name: String?, val language: String?)
 
 internal enum class CastDeviceKind { Tv, Speaker, Other }
 
@@ -162,6 +170,9 @@ internal interface CastRemote {
     fun seekTo(positionMillis: Long)
 
     fun setSpeed(speed: Float)
+
+    /** Plays exactly [trackIds] among the media's tracks: one audio, and a text track or none. */
+    fun setActiveTracks(trackIds: Set<Long>)
 }
 
 internal interface CastAccount {
@@ -673,6 +684,7 @@ internal class CastRemotePlayer(
 ) : SimpleBasePlayer(Looper.getMainLooper()) {
     private var item: MediaItem? = null
     private var status: CastRemoteStatus? = gateway.status.value
+    private val adoptedStatus = MutableStateFlow<CastRemoteStatus?>(null)
     private val pending = mutableListOf<SettableFuture<Any?>>()
     private val handler = Handler(Looper.getMainLooper())
 
@@ -683,6 +695,7 @@ internal class CastRemotePlayer(
         scope.launch {
             gateway.status.collect {
                 status = it
+                adoptedStatus.value = it.adoptedBy(item)
                 replaying = false
                 settle()
                 invalidateState()
@@ -690,11 +703,19 @@ internal class CastRemotePlayer(
         }
     }
 
+    /** What the receiver last said of the adopted file, its tracks included; null for other media. */
+    val receiverStatus: StateFlow<CastRemoteStatus?> get() = adoptedStatus
+
+    fun setActiveTracks(trackIds: Set<Long>) {
+        if (adoptedStatus.value != null) gateway.setActiveTracks(trackIds)
+    }
+
     /** Keeps an item that reports positions over a bare one for the same file. */
     fun adopt(item: MediaItem) {
         val current = this.item
         if (current?.mediaId == item.mediaId && current.reportsPositions && !item.reportsPositions) return
         this.item = item
+        adoptedStatus.value = status.adoptedBy(item)
         invalidateState()
     }
 
