@@ -695,7 +695,7 @@ internal class CastRemotePlayer(
         scope.launch {
             gateway.status.collect {
                 status = it
-                adoptedStatus.value = adopted(it)
+                adoptedStatus.value = it.adoptedBy(item)
                 replaying = false
                 settle()
                 invalidateState()
@@ -715,12 +715,9 @@ internal class CastRemotePlayer(
         val current = this.item
         if (current?.mediaId == item.mediaId && current.reportsPositions && !item.reportsPositions) return
         this.item = item
-        adoptedStatus.value = adopted(status)
+        adoptedStatus.value = status.adoptedBy(item)
         invalidateState()
     }
-
-    private fun adopted(status: CastRemoteStatus?): CastRemoteStatus? =
-        status?.takeIf { it.fileId != null && item?.mediaId == it.fileId.toString() }
 
     override fun getState(): State {
         val current = status
@@ -826,3 +823,7 @@ internal class CastRemotePlayer(
         const val MICROS_PER_MILLI = 1_000L
     }
 }
+
+/** This status when it is of [item]'s file; null for other media. */
+private fun CastRemoteStatus?.adoptedBy(item: MediaItem?): CastRemoteStatus? =
+    this?.takeIf { it.fileId != null && item?.mediaId == it.fileId.toString() }
