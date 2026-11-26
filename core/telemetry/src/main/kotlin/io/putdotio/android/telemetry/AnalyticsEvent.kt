@@ -22,6 +22,7 @@ public sealed interface AnalyticsEvent {
         TunnelRoute("tunnel_route_name"),
         StreamingMethod("streaming_method"),
         AutoplayNextVideo("autoplay_next_video"),
+        PutioCastReceiver("beta.putio_cast_receiver"),
     }
 
     public enum class SettingValue(internal val value: String) {
@@ -165,7 +166,7 @@ internal object AnalyticsAllowlist {
         "settings_changed" to mapOf(
             "setting" to setOf(
                 "history_enabled", "trash_enabled", "hide_subtitles", "dont_autoselect_subtitles", "use_start_from",
-                "sort_by", "tunnel_route_name", "streaming_method", "autoplay_next_video",
+                "sort_by", "tunnel_route_name", "streaming_method", "autoplay_next_video", "beta.putio_cast_receiver",
             ),
             "value" to setOf("on", "off", "hls", "file", "changed"),
         ),
