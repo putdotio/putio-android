@@ -24,6 +24,8 @@ script headers and `--help` own the harness.
   its `ffmpeg` submodule pins; an ass-media bump updates them to the
   libraries its `libass-cmake` submodule pins; a Sentry bump updates
   `telemetryNotices` to the sentry-native its NDK module depends on.
+- A change to what the apps collect edits `play/data-safety.csv` in the same
+  pull request.
 - TV uses Compose for TV, D-pad focus, system media sessions, and platform
   search.
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
@@ -48,7 +50,7 @@ script headers and `--help` own the harness.
   `io.put.putio` in production, the id of the put.io TV app users run today, so
   a release replaces it in place and TV imports its session. Keep the
   id unless product owners choose a new listing. Only the
-  [Google Play delivery](#google-play-delivery) workflows upload.
+  [Google Play delivery](docs/google-play-delivery.md) workflows upload.
 - **Shared test account.** Live proof uses the `devs-auto` put.io CLI profile
   that the web, iOS, and TV harnesses share. Create uniquely named fixtures,
   record their ids, and remove only those. Never empty Trash, use ID zero, or
@@ -134,7 +136,6 @@ that matches. Report skipped or unavailable proof.
 | Domain or core logic                | `./gradlew :domain:<name>:testDebugUnitTest` or `:core:<name>:testDebugUnitTest`; tests live in the owning module                                                                                                                                                                                                                         |
 | App view models or services         | `./gradlew :mobile:testProductionDebugUnitTest` or `:tv:testProductionDebugUnitTest`                                                                                                                                                                                                                                                      |
 | UI, navigation, playback, or launch | Mobile: `:mobile:verifyCiPhoneLaunchProof` (`-Pandroid.testInstrumentationRunnerArguments.class=io.putdotio.android.LaunchSmokeTest -Pandroid.testoptions.manageddevices.emulator.gpu=swiftshader`) and [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md); TV: `./scripts/prove.sh tv` or its opt-in `*ProofTest` lane |
-| Google Play delivery                | `./gradlew -PputioVersionName=3.0.1 :mobile:bundleProductionRelease :tv:bundleProductionRelease`, then a `dry_run` of [Google Play delivery](#google-play-delivery)                                                                                                                                                                       |
 | Live API behavior                   | Mobile: [verify-putio-android](.agents/skills/verify-putio-android/SKILL.md) with its fixture ledger; TV: the lane's `devs-auto` steps                                                                                                                                                                                                    |
 | Design tokens or icons              | `./gradlew syncDesignAssets` or `./gradlew generateIcons`, then `./gradlew verify`                                                                                                                                                                                                                                                        |
 | Visible change                      | Reviewed captures from `.evidence/`, attached with `gh pr comment <n> --attach <file>`                                                                                                                                                                                                                                                    |
@@ -146,24 +147,6 @@ feature list, and a token or design-rule change updates DESIGN.md.
 ## Delivery and CI
 
 Open pull requests against `main`. A merge runs only
-[CI](.github/workflows/ci.yml); a Google Play dispatch ships a build.
-
-### Google Play delivery
-
-[Google Play Internal](.github/workflows/play-internal.yml) uploads both
-bundles; [Google Play Release](.github/workflows/play-release.yml) promotes or
-changes the rollout. Their inputs own the options.
-[Google Play Data Safety](.github/workflows/play-data-safety.yml) replaces the
-listing's Data safety answers with `play/data-safety.csv`. Google can't read
-them back, so a change to what the apps collect edits that file in the same
-pull request.
-
-- Every dispatch, `dry_run` included, needs Altay's OK: it loads the `release`
-  Environment's secrets.
-- If an upload lands but its `tag` job fails, rerun only that job. A full
-  rerun repeats the version code, and Google Play refuses it.
-- Each upload needs a new `version_name`. Mobile and TV share the
-  [putio-tv-native-legacy](https://github.com/putdotio/putio-tv-native-legacy)
-  listing's version codes.
-- Google Play can't downgrade installs. Halt a bad rollout with the `halt`
-  input of Google Play Release, then ship the fix under a new `version_name`.
+[CI](.github/workflows/ci.yml); a Google Play dispatch ships a build. Every
+dispatch needs Altay's OK; open [Google Play delivery](docs/google-play-delivery.md)
+before one.
