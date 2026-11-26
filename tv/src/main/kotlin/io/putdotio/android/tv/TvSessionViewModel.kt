@@ -107,7 +107,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
 
-/** What one signed-in TV session needs to build its controllers. */
 internal data class TvSessionDependencies(
     val filesRepository: FilesRepository,
     val searchRepository: SearchRepository,
@@ -115,18 +114,12 @@ internal data class TvSessionDependencies(
     val trashRepository: TrashRepository,
     val settingsRepository: AccountSettingsRepository,
     val appConfigRepository: AndroidAppConfigRepository,
-    /** Saves or clears a media file's position, which is what marks it watched. */
     val watchedRepository: FilesWatchedRepository,
-    /** Original stream URLs for handing a file to another player. */
     val streamUrls: FilesStreamUrls,
-    /** Turns the file id a history event names into the item Files can open. */
     val filesItemResolver: FilesItemResolver,
     val recentSearchStore: (CoroutineScope) -> RecentSearchStoreOwner,
-    /** Resolves playable sources; reads this app's playback method at each resolution. */
     val playbackRepository: (appConfig: () -> AndroidAppConfigState) -> PlaybackRepository,
-    /** Saves a media file's playback position (`start_from`), as mobile's reporting does. */
     val writePlaybackPosition: suspend (fileId: Long, seconds: Double) -> PlaybackRepositoryResult<Unit>,
-    /** The launcher's Watch Next row, as one signed-in session reports to it. */
     val watchNext: (userId: Long, sessionId: TvAuthSessionId) -> TvWatchNextRecorder =
         { _, _ -> TvWatchNextRecorder.None },
     val folderCounts: FilesFolderCounts? = null,
@@ -136,15 +129,11 @@ internal data class TvSessionDependencies(
     val showHomeStore: (userId: Long) -> TvShowHomeStore = { TvShowHomeStore.Memory() },
 )
 
-/** What choosing a Search or History row did. */
 internal enum class TvExternalOpen {
-    /** Media plays over the pane it was chosen on. */
     PLAYING,
 
-    /** Files shows the folder, or the file's folder with focus on it. */
     IN_FILES,
 
-    /** Files refused while a move or deletion settles. */
     REFUSED,
 }
 
@@ -168,7 +157,6 @@ internal class TvSession internal constructor(
     sessionCurrent: () -> Boolean,
     parentScope: CoroutineScope,
     private val watchNext: TvWatchNextRecorder = TvWatchNextRecorder.None,
-    /** The signed-in account, which product analytics identifies; null in tests. */
     accountId: Long? = null,
     private val audio: TvSessionAudio = TvSessionAudio(),
 ) {
@@ -181,10 +169,8 @@ internal class TvSession internal constructor(
     val history = HistoryController(dependencies.historyRepository, historyEnabled, parentScope)
     val trash = TrashController(dependencies.trashRepository, parentScope)
 
-    /** Account-wide `/account/settings`; shared with mobile, read once per session. */
     val settings = AccountSettingsController(dependencies.settingsRepository, parentScope)
 
-    /** This app's `/config` playback keys; shared with mobile. */
     val appConfig = AndroidAppConfigController(dependencies.appConfigRepository, parentScope)
     private val filesRepository = dependencies.filesRepository
     val folderCounts = dependencies.folderCounts
@@ -212,7 +198,6 @@ internal class TvSession internal constructor(
     private val mutablePlayback = MutableStateFlow<PlaybackController?>(null)
     private val mutablePlaybackInBackground = MutableStateFlow(false)
     private var attachedAudio: PlaybackController? = null
-    /** The item that started playback; autoplay stays within its folder. */
     private var playbackStart: FilesItem? = null
     private var durationLookup: Job? = null
     private var continueSaved: Job? = null
@@ -220,7 +205,6 @@ internal class TvSession internal constructor(
     private var playingFromHome = false
     val homeReturn = TvHomeReturn()
 
-    /** Pairs saved positions with the videos they belong to, for Watch Next. */
     internal val watchNextPlayback = TvWatchNextPlayback(watchNext, scope)
 
     val trashUndo: TvTrashUndo = TvTrashUndo(
@@ -240,7 +224,6 @@ internal class TvSession internal constructor(
         itemChanges.publish(TvItemChange.PositionSaved(FilesItemId(fileId), seconds))
     }
 
-    /** Start-from write-back for this session's playback; see [TvPlaybackReporting]. */
     val playbackReporting = TvPlaybackReporting(
         scope = scope,
         settings = settings.state,
@@ -249,14 +232,8 @@ internal class TvSession internal constructor(
         onSaved = positionSaved,
     )
 
-    /**
-     * Which Files row last held D-pad focus in each folder. It lives here, not in the pane,
-     * because the pane is disposed whenever another destination is shown and must come
-     * back to the same row. Plain, not snapshot state: a focus move must not recompose.
-     */
     val filesFocusMemory: MutableMap<Long, Long> = mutableMapOf()
 
-    /** The Search result and the History event last opened, focused again when their pane returns. */
     val searchPickedRow = TvPickedRow()
     val historyPickedRow = TvPickedRow()
 
@@ -279,16 +256,12 @@ internal class TvSession internal constructor(
 
     val recentSearchFailure = recentSearches.failure
 
-    /** What opening a history event's file did. */
     val historyOpens: Flow<TvExternalOpen> = historyOpenChannel.receiveAsFlow()
 
-    /** Why the last history row could not be resolved; cleared by the next success or dismissal. */
     val historyOpenFailure: StateFlow<PutioFailure?> = historyOpener.failure
 
-    /** Why the last watched toggle failed; cleared by the next attempt or dismissal. */
     val fileActionFailure: StateFlow<PutioFailure?> = fileActionFailures.failure
 
-    /** Files that system search and Watch Next cards ask to open. */
     val links = TvLinkOpener(
         resolver = filesItemResolver,
         scope = scope,
@@ -297,7 +270,6 @@ internal class TvSession internal constructor(
     )
 
     init {
-        // A card whose file put.io no longer has, or that another device finished, leaves the row.
         scope.launch {
             watchNext.reconcile(filesItemResolver::resolveItem)?.let(fileActionFailures::report)
         }
@@ -376,15 +348,10 @@ internal class TvSession internal constructor(
 
     fun retryRecentSearches() = recentSearches.retry()
 
-    /**
-     * The file playing, or null while nothing plays. It lives here so playback survives
-     * configuration changes and ends with the session.
-     */
     val playback: StateFlow<PlaybackController?> = mutablePlayback.asStateFlow()
 
     val playbackInBackground: StateFlow<Boolean> = mutablePlaybackInBackground.asStateFlow()
 
-    /** The video after a target in its folder, by autoplay's walk; Next episode offers it. */
     val findNextVideo: suspend (PlaybackTarget) -> PlaybackNextResult = playbackRepository::findNextVideo
 
     val findNeighbours: suspend (PlaybackTarget) -> PlaybackRepositoryResult<PlaybackNeighbours> =
@@ -395,16 +362,11 @@ internal class TvSession internal constructor(
         startPlayback(item, start, fromHome = false, method)
     }
 
-    /**
-     * Opens a pick from [origin]: media plays unless [playMedia] is false, a folder opens in Files,
-     * and any other file opens its folder with focus on it. Back returns to [origin] either way.
-     */
     fun openExternal(
         item: FilesItem,
         origin: FilesOpenOrigin,
         playMedia: Boolean = true,
     ): TvExternalOpen {
-        // A newer pick wins over media still waiting for its duration.
         durationLookup?.cancel()
         return when {
             item.isPlayable && playMedia -> {
@@ -487,11 +449,6 @@ internal class TvSession internal constructor(
         }
     }
 
-    /**
-     * Leaves playback; the shell shows again. After autoplay moved on, Files focuses the row of
-     * the video that played last rather than the one that started, reading later pages when that
-     * row is not loaded yet.
-     */
     fun stopPlayback() {
         durationLookup?.cancel()
         continueSaved?.cancel()
@@ -560,20 +517,14 @@ internal class TvSession internal constructor(
         job.start()
     }
 
-    /**
-     * The original file's URL for an external player, carrying the account's download token.
-     * A 401 is recorded as the session verdict; the caller explains every other failure.
-     */
     suspend fun originalStreamUrl(id: FilesItemId): FilesStreamUrlResult =
         streamUrls.originalStreamUrl(id).also { result ->
             val failure = (result as? FilesStreamUrlResult.Failure)?.failure
             if (failure is PutioFailure.AuthenticationRequired) fileActionFailures.report(failure)
         }
 
-    /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissFileActionFailure() = fileActionFailures.dismiss()
 
-    /** Drops the explanation the pane showed; a 401 stays, since it is a session verdict. */
     fun dismissHistoryOpenFailure() = historyOpener.dismissFailure()
 
     internal fun closeOnSessionEnded() {
@@ -616,7 +567,6 @@ internal data class TvSessionKey(
     val sessionId: TvAuthSessionId,
 )
 
-/** Holds the controllers of the signed-in session so they never outlive it. */
 internal class TvSessionViewModel(
     private val authState: StateFlow<TvAuthState>,
     private val buildContext: CoroutineContext = Dispatchers.Default,
@@ -633,10 +583,8 @@ internal class TvSessionViewModel(
     private val mutablePrepared = MutableStateFlow<TvSessionKey?>(null)
     private var preparing: TvSessionKey? = null
 
-    /** The session [prepare] last finished building; [sessionFor] then returns it without building. */
     val prepared: StateFlow<TvSessionKey?> = mutablePrepared.asStateFlow()
 
-    /** Builds the session's controllers on [buildContext], so no frame waits for them or their disk reads. */
     fun prepare(
         account: TvAccount,
         sessionId: TvAuthSessionId,
@@ -701,9 +649,6 @@ internal suspend fun PlaybackController.answerResumePrompts(opened: FilesItemId,
     }
 }
 
-// A position past 95 % starts over, which needs the duration that search results
-// and single-file reads omit; listing the file itself returns it as the parent. Without one,
-// playback continues from the saved position.
 private suspend fun FilesRepository.withListedDuration(item: FilesItem): FilesItem {
     val listed = (loadFolder(item.id) as? PutioResult.Success)?.value?.parent
     val duration = listed?.takeIf { it.id == item.id }?.playback?.durationSeconds

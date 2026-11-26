@@ -20,7 +20,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Drives the real PostHog SDK and reads what it puts on the wire; only the network is faked. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class PostHogAnalyticsSdkTest {
@@ -41,7 +40,6 @@ class PostHogAnalyticsSdkTest {
         sdk.capture("search_performed", mapOf("query" to LEAK), 1_000L)
         sdk.capture("app_opened", mapOf("entry" to LEAK), 2_000L)
 
-        // Each event goes in its own batch; whatever else the SDK sends would show up here too.
         val sent = generateSequence { requests.poll(5, TimeUnit.SECONDS) }.take(2).toList() +
             generateSequence { requests.poll(1, TimeUnit.SECONDS) }.toList()
         assertEquals(listOf("/batch", "/batch"), sent.map { it.first.trimEnd('/') })

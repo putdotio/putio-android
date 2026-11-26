@@ -11,7 +11,6 @@ public enum class PlaybackStream(
     Converted(R.string.playback_stream_converted, R.string.playback_stream_converted_detail),
 }
 
-/** What the Stream chip shows: the stream playing, and the move to the other one. */
 public class PlaybackStreamSwitch(
     public val current: PlaybackStream,
     public val switch: () -> Unit,

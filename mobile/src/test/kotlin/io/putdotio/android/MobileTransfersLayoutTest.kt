@@ -177,7 +177,6 @@ class MobileTransfersLayoutTest {
 
     private fun assertUnclippedText(label: String, fontScale: Float) {
         val layouts = mutableListOf<TextLayoutResult>()
-        // Material clears the extended FAB's label from the merged tree.
         compose.onNodeWithText(label, useUnmergedTree = true).assertIsDisplayed()
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         val layout = layouts.single()

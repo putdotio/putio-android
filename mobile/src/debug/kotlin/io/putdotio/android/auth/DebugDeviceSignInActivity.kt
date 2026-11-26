@@ -28,14 +28,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/**
- * Debug builds only: signs the app in for harnesses, with no browser. A token the harness pushed to
- * [HARNESS_IMPORT_TOKEN] is used first; otherwise the screen shows a device code the `putio` CLI
- * approves, and with [EXTRA_EXPORT_TOKEN] the new token lands in [HARNESS_EXPORT_TOKEN] for the
- * harness to cache. Either token goes through [MobileAuthController.completeDeviceLink], so the
- * session is the one a browser sign-in stores. The screen shows the code, then the signed-in
- * account's ID, as plain text nodes.
- */
 class DebugDeviceSignInActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,13 +65,11 @@ internal sealed interface DebugDeviceSignInState {
     ) : DebugDeviceSignInState
 }
 
-/** Relative to the app's data directory, which is where `adb shell run-as` starts. */
 internal const val HARNESS_IMPORT_TOKEN = "files/harness/import-token"
 internal const val HARNESS_EXPORT_TOKEN = "files/harness/export-token"
 internal const val EXTRA_EXPORT_TOKEN = "io.putdotio.android.harness.EXPORT_TOKEN"
 
 
-// The harness reads these with uiautomator; scripts/sign-in-devs-auto.sh matches them.
 private fun DebugDeviceSignInState.label(): String =
     when (this) {
         DebugDeviceSignInState.Starting -> "Device sign-in: starting"
@@ -90,7 +80,6 @@ private fun DebugDeviceSignInState.label(): String =
         is DebugDeviceSignInState.ImportRejected -> "Cached token rejected: $reason"
     }
 
-/** One attempt per activity, kept across configuration changes so a rotation does not replace the code. */
 internal class DebugDeviceSignIn(
     application: Application,
     savedState: SavedStateHandle,
@@ -107,7 +96,6 @@ internal class DebugDeviceSignIn(
     }
 
     private suspend fun signIn() {
-        // Consumed before anything else, so a pushed token never outlives this launch.
         val imported = takeImportedToken()
         val restored = restoredState()
         when {
@@ -117,12 +105,10 @@ internal class DebugDeviceSignIn(
         }
     }
 
-    /** The settled state when the app is not signed out, else null. */
     private suspend fun restoredState(): DebugDeviceSignInState? {
         val controller = runtime.authController
         controller.restoreSession()
         return when (val settled = controller.state.first { it.isSettled() }) {
-            // A session that opened offline is not proof that put.io accepts it.
             is MobileAuthState.SignedIn ->
                 if (settled.validated) {
                     DebugDeviceSignInState.SignedIn(settled.account.userId)
@@ -141,7 +127,6 @@ internal class DebugDeviceSignIn(
                 is DeviceCodeAuthState.AwaitingLink ->
                     mutableState.value = DebugDeviceSignInState.AwaitingApproval(link.code)
                 DeviceCodeAuthState.Validating -> mutableState.value = DebugDeviceSignInState.Validating
-                // The token leaves the SDK here, once; leaving the screen must not drop it half stored.
                 is DeviceCodeAuthState.Linked ->
                     mutableState.value = withContext(NonCancellable) { complete(link) }
                 is DeviceCodeAuthState.Expired ->

@@ -28,17 +28,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-/**
- * The home-screen Transfers widget. The system asks for an update every 30 minutes and when one is
- * placed; the broadcast ends after 8 s at the latest, and a refresh still running goes on best-effort.
- */
 class MobileTransfersWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         MobileWidgets.transfers(context).refresh(holdBroadcast()::release)
     }
 }
 
-/** The widget's refresh button. Not exported: only the widget's own pending intent reaches it. */
 internal class MobileWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != ACTION_REFRESH) return
@@ -58,23 +53,13 @@ internal class MobileWidgetActionReceiver : BroadcastReceiver() {
     }
 }
 
-/** What the Transfers widget reads: the session and the account's transfers, never a token. */
 internal class TransfersWidgetSource(
     val authState: StateFlow<MobileAuthState>,
-    /** The session once it settles, restoring a stored one first; null while it is still unsettled. */
     val settledSession: suspend () -> MobileAuthState?,
-    /** The first page of the signed-in account's transfers, newest first. */
     val load: suspend () -> PutioResult<List<TransferItem>>,
-    /** put.io rejected the session; the app signs it out as anywhere else. */
     val rejectSession: (MobileAuthSessionId) -> Unit,
 )
 
-/**
- * Keeps every placed Transfers widget on the signed-in session's transfers. Content is pushed only
- * while the session that read it is still signed in, under one lock with [clear], so a read that
- * outlives its session can never show that account's names afterwards. Nothing is stored: the
- * launcher holds the only copy, and the next push replaces it.
- */
 internal class TransfersWidgetUpdater(
     context: Context,
     private val source: TransfersWidgetSource,
@@ -88,19 +73,13 @@ internal class TransfersWidgetUpdater(
     private val lock = Any()
     private var refreshing: Job? = null
 
-    /** What this process last pushed, and for which session; null until it pushes anything. */
     private var shown: Pair<MobileSessionKey?, TransfersWidgetContent>? = null
 
-    /** Null on a device without home-screen widgets, which then never has one placed. */
     private val manager: AppWidgetManager? get() = AppWidgetManager.getInstance(appContext)
     private val widgetIds: IntArray
         get() = manager?.getAppWidgetIds(ComponentName(appContext, MobileTransfersWidgetProvider::class.java))
             ?: IntArray(0)
 
-    /**
-     * Reads the account's transfers and shows them, replacing any refresh still running. Does
-     * nothing, and reads nothing, while no widget is placed. [onDone] runs once it settles.
-     */
     fun refresh(onDone: () -> Unit = {}) {
         if (widgetIds.isEmpty()) {
             onDone()
@@ -118,7 +97,6 @@ internal class TransfersWidgetUpdater(
         }
     }
 
-    /** The session ended: every widget shows Sign in at once, whatever a refresh is still reading. */
     fun clear() {
         synchronized(lock) {
             refreshing?.cancel()
@@ -126,7 +104,6 @@ internal class TransfersWidgetUpdater(
         }
     }
 
-    /** The app's own Transfers screen read [items] for [key]; the widget shows them without another request. */
     fun show(key: MobileSessionKey, items: List<TransferItem>) {
         if (widgetIds.isNotEmpty()) publish(key, items.toTransfersWidgetContent(clock()))
     }
@@ -135,7 +112,6 @@ internal class TransfersWidgetUpdater(
         when (val state = source.settledSession()) {
             is MobileAuthState.SignedIn -> refreshSignedIn(state)
             null, is MobileAuthState.ValidationUnavailable -> pushIfUnknown(TransfersWidgetContent.Unavailable)
-            // Signed out, or a sign-in still waiting on the browser.
             else -> synchronized(lock) {
                 if (source.authState.value !is MobileAuthState.SignedIn) push(null, TransfersWidgetContent.SignedOut)
             }
@@ -144,14 +120,12 @@ internal class TransfersWidgetUpdater(
 
     private suspend fun refreshSignedIn(state: MobileAuthState.SignedIn) {
         val key = MobileSessionKey(state.account.userId, state.sessionId)
-        // A sign-in replaces Sign in with Loading; any other refresh leaves what the launcher shows until it lands.
         val current = synchronized(lock) { shown }
         if (current != null && current.first != key) publish(key, TransfersWidgetContent.Loading)
         when (val result = source.load()) {
             is PutioResult.Success -> publish(key, result.value.toTransfersWidgetContent(clock()))
             is PutioResult.Failure -> when (result.failure) {
                 is PutioFailure.AuthenticationRequired -> source.rejectSession(state.sessionId)
-                // Rows already shown stay, with the time they were read.
                 else -> synchronized(lock) {
                     if (shown?.let { it.first == key && it.second is TransfersWidgetContent.Ready } != true) {
                         publishLocked(key, TransfersWidgetContent.Unavailable)
@@ -165,12 +139,10 @@ internal class TransfersWidgetUpdater(
         synchronized(lock) { publishLocked(key, content) }
     }
 
-    /** Only the session that read [content] may show it, and only while it is still signed in. */
     private fun publishLocked(key: MobileSessionKey, content: TransfersWidgetContent) {
         if (source.authState.value.sessionKey() == key) push(key, content)
     }
 
-    /** A cold process cannot tell what the launcher shows, so a failure there says so rather than keep stale rows. */
     private fun pushIfUnknown(content: TransfersWidgetContent) {
         synchronized(lock) {
             val current = shown
@@ -185,17 +157,14 @@ internal class TransfersWidgetUpdater(
     }
 
     private companion object {
-        /** Restoring a session reads put.io, then the transfers; past this the widget says put.io is unreachable. */
         val REFRESH_TIMEOUT = 25.seconds
     }
 }
 
-/** The process's widget updaters, shared by the providers, the auth runtime and the Transfers screen. */
 internal object MobileWidgets {
     @Volatile
     private var transfers: TransfersWidgetUpdater? = null
 
-    /** A proof lane or test installs its own updater over a controlled session. */
     @Volatile
     internal var transfersForTest: TransfersWidgetUpdater? = null
 
@@ -208,7 +177,6 @@ internal object MobileWidgets {
 
     fun sessionLeft(context: Context) = transfers(context).clear()
 
-    /** Restoring a stored session in a cold process reads put.io before the transfers can be. */
     private val SESSION_TIMEOUT = 15.seconds
 
     private fun createTransfers(context: Context): TransfersWidgetUpdater {

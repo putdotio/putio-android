@@ -130,7 +130,6 @@ import io.putdotio.sdk.files.PutioFileType
 import kotlinx.coroutines.launch
 import io.putdotio.android.settings.putioFailure
 
-/** TV root: the generated Compose for TV scheme, then whichever screen the session state names. */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) {
@@ -138,8 +137,6 @@ internal fun PutioApp(runtime: TvAuthRuntime, launchRequests: TvLaunchRequests) 
     val sessionViewModel: TvSessionViewModel = viewModel(factory = tvSessionViewModelFactory(authController.state))
     val authState by authController.state.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
-    // The app's start, and again after a session ended with no screen (a 401 to system search),
-    // which leaves Initializing: restoring then offers a code when no session is left.
     LaunchedEffect(authController) {
         authController.state.collect { if (it == TvAuthState.Initializing) authController.restoreSession() }
     }
@@ -216,8 +213,6 @@ private fun TvSignedInApp(
         sessionViewModel.prepare(signedIn.account, signedIn.sessionId, dependencies)
     }
     val prepared by sessionViewModel.prepared.collectAsStateWithLifecycle()
-    // Looked up every composition, not remembered: the view model closes the session on its
-    // own auth collector, and a cached closed controller would silently swallow events.
     val session = sessionViewModel
         .takeIf { prepared == TvSessionKey(signedIn.account.userId, signedIn.sessionId) }
         ?.sessionFor(signedIn.account, signedIn.sessionId, dependencies)
@@ -237,17 +232,14 @@ private fun TvSignedInApp(
     )
 }
 
-/** One signed-in session's shell and player; the controllers all come from [session]. */
 @Composable
 internal fun TvSessionShell(
     session: TvSession,
     account: TvAccount,
-    /** Changes with the signed-in session so one account's saved UI state never greets the next. */
     sessionKey: Any,
     onSignOut: () -> Unit,
     onSessionRejected: suspend () -> Unit,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>>,
-    /** A file or search the system asked for; it is handled once the shell exists. */
     pendingLaunch: TvLaunchRequest? = null,
     onLaunchHandled: (TvLaunchRequest) -> Unit = {},
     connectivity: TvConnectivity = rememberTvConnectivity(),
@@ -273,7 +265,6 @@ internal fun TvSessionShell(
     val undoFailure by session.trashUndo.failure.collectAsStateWithLifecycle()
     val showHome by session.showHome.shown.collectAsStateWithLifecycle()
     val homeReturn by session.homeReturn.file.collectAsStateWithLifecycle()
-    // A 401 from the proxy list is as authoritative as one from any controller.
     var tunnelRoutesRejected by remember(session) { mutableStateOf(false) }
     val controllerRejected = listOf(
         filesState.authoritativeSessionFailure(),
@@ -296,17 +287,11 @@ internal fun TvSessionShell(
         ).any { it is PutioFailure.AuthenticationRequired }
     val sessionRejected = controllerRejected || tunnelRoutesRejected || positionWriteRejected || sideActionRejected
     LaunchedEffect(sessionRejected) { if (sessionRejected) onSessionRejected() }
-    // The controller starts from the setting read at validation; each confirmed value from
-    // the settings controller supersedes it, so the Account toggle flips the History pane.
-    // An unsettled History write confirms nothing and leaves the last value in place, like mobile.
     val confirmedHistoryEnabled = settingsState.confirmedHistoryEnabled()
     LaunchedEffect(session, confirmedHistoryEnabled) {
         confirmedHistoryEnabled?.let { session.history.dispatch(HistoryEvent.SetEnabled(it)) }
     }
 
-    // A search result, a Home pick or a history event plays when it is media; anything else opens
-    // in Files and the shell switches destinations. A history event's "Go to folder" opens its
-    // folder in Files. A refused jump stays put with an explanation.
     var requestedDestination by remember(session) { mutableStateOf<TvDestination?>(null) }
     var openRejected by remember(session) { mutableStateOf(false) }
     var historyOpenRejected by remember(session) { mutableStateOf(false) }
@@ -424,7 +409,6 @@ internal fun TvSessionShell(
             },
             requestedDestination = requestedDestination,
             onDestinationRequestHandled = { requestedDestination = null },
-            // Back from a folder opened from Search or History returns to that pane.
             onFilesBack = if (filesState.canNavigateBack) {
                 {
                     val returnTo = filesState.current.openedFrom.returnDestination()
@@ -499,8 +483,6 @@ internal fun TvSessionShell(
     }
 }
 
-/** Opens a Search or Home pick; false when Files refused it while a move or deletion settles. */
-/** A restore changes Files behind the browser's cache: one item's folder, or every folder. */
 @Composable
 private fun InvalidateFilesOnRestore(session: TvSession, trashState: TrashState) {
     LaunchedEffect(session, trashState.restoredVersion) {
@@ -553,8 +535,6 @@ private fun TvFilesPane(
     paneFocus: FocusRequester,
     onSessionRejected: suspend () -> Unit,
 ) {
-    // A restore from Trash marks its folder stale; the listing reloads when Files shows
-    // again, or once a refresh or operation running at that moment has settled.
     val current = filesState.current
     LaunchedEffect(
         session,
@@ -576,8 +556,6 @@ private fun TvFilesPane(
     var streamFailure by remember(session) { mutableStateOf<PutioFailure?>(null) }
     val pins by session.pins.pins.collectAsStateWithLifecycle()
     val pinFailure by session.pins.editFailure.collectAsStateWithLifecycle()
-    // A requester on the pane lands on its first focusable descendant (Refresh); the
-    // pane's own entry effects then move focus to the row it remembers.
     TvFilesScreen(
         state = filesState,
         onEvent = session.files::dispatch,
@@ -607,7 +585,6 @@ private fun TvFilesPane(
             streamScope.launch {
                 val stream = session.originalStreamUrl(item.id)
                 filesNotice = stream.openInVlc(context, item.name, audio = item.type == PutioFileType.AUDIO) { null }
-                // A 401 is the session's verdict, which the session already holds.
                 streamFailure = (stream as? FilesStreamUrlResult.Failure)?.failure
                     ?.takeUnless { it is PutioFailure.AuthenticationRequired }
             }
@@ -631,11 +608,6 @@ private fun TvFilesPane(
     )
 }
 
-/**
- * Acts on what system search or a Watch Next card asked for: a file resolves, then plays or
- * opens in Files; a search opens Search with its term. Returns what Files explains when a file did
- * not open; a 401 is left to the shell, which signs out.
- */
 @Composable
 private fun rememberTvLaunchHandling(
     session: TvSession,
@@ -693,13 +665,11 @@ private fun rememberTvLaunchHandling(
     )
 }
 
-/** Why a file from system search or Watch Next did not open; Files shows it. */
 private class TvLinkNotice(
     rejected: Boolean,
     failure: PutioFailure?,
     val onDismiss: () -> Unit,
 ) {
-    // A 401 is the session's verdict, which the shell already acts on.
     private val shownFailure: FilesFailure? = when {
         rejected -> FilesFailure.NavigationBlocked
         else -> failure?.takeUnless { it is PutioFailure.AuthenticationRequired }
@@ -878,8 +848,6 @@ private fun TvHistoryPane(
 ) {
     val pins by session.pins.pins.collectAsStateWithLifecycle()
     val trashEnabled = settingsState.confirmedTrashEnabled()
-    // A stale explanation must not greet a visit to the pane: cleared on entry as well
-    // as on leaving, since a slow resolution can settle after the user has left.
     DisposableEffect(session) {
         onClearOpenRejection()
         session.dismissHistoryOpenFailure()
@@ -947,9 +915,6 @@ private fun TvAccountPane(
     sessionKey: Any,
     paneFocus: FocusRequester,
 ) {
-    // The listing is read on entry so Manage your trash can show the trash's size, and
-    // kept while the pane is away; a pending mutation's recovery stays available
-    // because the controller outlives the pane.
     LaunchedEffect(session) { session.trash.dispatch(TrashEvent.Open) }
     TvAccountScreen(
         account = account,

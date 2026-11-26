@@ -2,7 +2,6 @@ package io.putdotio.android.playback
 
 import io.putdotio.android.files.FilesItemId
 
-/** A playback state as the reducer would hold it, for tests outside this module. */
 public fun playbackState(
     target: PlaybackTarget,
     content: PlaybackContent,
@@ -11,7 +10,6 @@ public fun playbackState(
     visitedFileIds: Set<FilesItemId> = setOf(target.fileId),
 ): PlaybackState = PlaybackState(target, content, nextRequestValue, resumePositionMillis, visitedFileIds)
 
-/** [copy] for tests outside this module; request ids keep counting from this state. */
 public fun PlaybackState.copyForTest(
     target: PlaybackTarget = this.target,
     content: PlaybackContent = this.content,

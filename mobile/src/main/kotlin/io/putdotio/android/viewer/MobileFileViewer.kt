@@ -77,7 +77,6 @@ internal const val MOBILE_FILE_VIEWER_POSITION_TAG = "mobile-file-viewer-positio
 
 internal val LocalMobileFileViewerIo = staticCompositionLocalOf<CoroutineDispatcher> { Dispatchers.IO }
 
-/** What a viewer reaches outside itself: the file's bytes and the same actions the Files sheet runs. */
 internal class MobileFileViewerActions(
     val documentUri: (FilesItem) -> Uri,
     val onOpenWithAnotherApp: (FilesItem) -> Unit,
@@ -100,14 +99,6 @@ private sealed interface ViewerPageAsk {
     data class Retry(val fromPage: Int) : ViewerPageAsk
 }
 
-/**
- * Images, PDFs and text on a black frame, over the whole window. The name and the file's actions
- * sit on a top scrim; a swipe moves between the folder's files of the same kind, and the position
- * shows in mono below. [files] are those files in listing order; [onShown] follows the swipe.
- * Near the last of them the folder's next page loads, so a swipe reaches every file it holds; after
- * [VIEWER_FRUITLESS_PAGES] pages in a row bring none of this kind, it reads on only when the last
- * file is reached again.
- */
 @Composable
 internal fun MobileFileViewer(
     files: List<FilesItem>,
@@ -146,7 +137,6 @@ internal fun MobileFileViewerContent(
 ) {
     val shownIndex = files.indexOfFirst { it.id == shownId }.coerceAtLeast(0)
     val pager = rememberPagerState(initialPage = shownIndex) { files.size }
-    // A file that left the folder, moved or deleted from the sheet, keeps the pager on the one shown.
     LaunchedEffect(shownIndex, files.size) {
         if (pager.currentPage != shownIndex && !pager.isScrollInProgress) pager.scrollToPage(shownIndex)
     }
@@ -215,7 +205,6 @@ internal fun MobileFileViewerContent(
     }
 }
 
-/** Back, the name cut in the middle, then Share and the overflow, over a scrim that fades out. */
 @Composable
 private fun MobileFileViewerBar(
     file: FilesItem,
@@ -352,7 +341,6 @@ private fun MobileFileViewerPosition(position: Int, count: Int, more: Boolean, s
     }
 }
 
-/** The empty-state voice for a file the viewer can't show, with the one way left to see it. */
 @Composable
 internal fun MobileViewerFailure(onOpenWithAnotherApp: () -> Unit, modifier: Modifier = Modifier) {
     Column(

@@ -16,10 +16,6 @@ import io.putdotio.android.auth.MobileOAuthRuntime
 import io.putdotio.sdk.files.FilesApi
 import io.putdotio.sdk.files.PutioFileType
 
-/**
- * Foreground host for Media3 downloads. Its notification ([downloadProgressNotification]) shows the
- * count, progress and the first running name on an unlocked screen; URLs and tokens never reach it.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileDownloadService : DownloadService(
     FOREGROUND_NOTIFICATION_ID,
@@ -28,8 +24,6 @@ class MobileDownloadService : DownloadService(
     R.string.mobile_downloads_channel_name,
     0,
 ) {
-    // A scheduler or boot restart reaches here before any UI: bringing the auth runtime
-    // up restores the stored session token into the download resolver.
     override fun getDownloadManager(): DownloadManager {
         val downloads = MobileDownloadCache.get(this)
         MobileOAuthRuntime.get(this).ensureSessionRestored(downloads::markSessionSettled)
@@ -38,7 +32,6 @@ class MobileDownloadService : DownloadService(
 
     override fun getScheduler(): Scheduler = PlatformScheduler(this, JOB_ID)
 
-    // Parked and paused transfers stay in Media3's list; the notification shows only live work.
     override fun getForegroundNotification(downloads: List<Download>, notMetRequirements: Int): Notification =
         downloadProgressNotification(this, CHANNEL_ID, downloads, notMetRequirements)
 
@@ -49,11 +42,6 @@ class MobileDownloadService : DownloadService(
     }
 }
 
-/**
- * Hands [userId]'s download to Media3 through the download service: a new request, or a failed or
- * missing one again, which joins the back of the queue. Its last outcome notification goes once the
- * service has the request; a start the system refuses throws and leaves it, Try again included.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun DownloadEntry.sendDownloadRequest(
     context: Context,

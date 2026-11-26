@@ -38,7 +38,6 @@ import org.robolectric.annotation.Config
 class OfflinePlaybackPositionsTest {
     private val preferences = ApplicationProvider.getApplicationContext<Context>()
         .getSharedPreferences("offline-positions-test", Context.MODE_PRIVATE)
-    // put.io held the listing's position when the file was downloaded.
     private val remote = FakePositionRemote().apply { positions[FILE] = 100.0 }
     private var signedIn: Long? = USER
     private val synced = mutableListOf<Pair<Long, Double>>()
@@ -56,11 +55,9 @@ class OfflinePlaybackPositionsTest {
     fun offlinePlaybackResumesFromWhatItPlayedAndSyncsThatOncePutioAnswers() = runTest {
         remote.online = false
         val positions = positions(backgroundScope)
-        // Opened offline: the listing's position from download time.
         assertEquals(100.0, positions.resumePosition(USER, sintel), 0.0)
         positions.afterWrite(USER, FILE, 250.0, NetworkFailure)
 
-        // A process death in between loses nothing.
         val restored = positions(backgroundScope)
         assertEquals(250.0, restored.resumePosition(USER, sintel), 0.0)
         remote.online = true
@@ -109,7 +106,6 @@ class OfflinePlaybackPositionsTest {
         val positions = playedOffline()
 
         remote.online = true
-        // The read sees the old server value; the online player's newer write lands right after it.
         remote.afterRead = {
             remote.positions[FILE] = 400.0
             positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit))
@@ -130,7 +126,6 @@ class OfflinePlaybackPositionsTest {
         remote.duringWrite = { positions.afterWrite(USER, FILE, 400.0, PlaybackRepositoryResult.Success(Unit)) }
         positions.syncNow(USER)
 
-        // The older position's late confirmation neither rewrites what is known nor reaches Files rows.
         assertEquals(400.0, positions.store(USER).known(FILE))
         assertNull(positions.store(USER).pending(FILE))
         assertTrue(synced.isEmpty())
@@ -200,7 +195,6 @@ class OfflinePlaybackPositionsTest {
     @Test
     fun onlyTheSignedInOwnersPositionsAreSentAndOnlyForDownloadedFiles() = runTest {
         val positions = playedOffline()
-        // A streamed file was never opened offline; its failed write is not kept.
         positions.afterWrite(USER, 99L, 40.0, NetworkFailure)
         assertNull(positions.store(USER).pending(99L))
 
@@ -340,7 +334,6 @@ class OfflinePlaybackPositionsTest {
         }
     }
 
-    /** Opened offline, then played to 250 s while put.io could not take it. */
     private suspend fun TestScope.playedOffline(): OfflinePlaybackPositions {
         remote.online = false
         val positions = positions(backgroundScope)
@@ -374,13 +367,10 @@ class OfflinePlaybackPositionsTest {
 internal class FakePositionRemote : PositionRemote {
     var online = true
     var resume = true
-    /** The server stores the position, but the reply never arrives. */
     var landButFail = false
     var readFailure: PlaybackFailure? = null
-    /** Runs after a read has taken its value, as a concurrent request would. */
     var afterRead: () -> Unit = {}
     var duringWrite: () -> Unit = {}
-    /** Holds the next write until completed, as a slow request would. */
     var writeGate: CompletableDeferred<Unit>? = null
     val positions = mutableMapOf<Long, Double>()
     val writes = mutableListOf<Pair<Long, Double>>()

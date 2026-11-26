@@ -55,18 +55,9 @@ internal fun rememberPictureInPictureMode(): State<Boolean> {
     return mode
 }
 
-/** A started Activity in picture-in-picture is the viewer's foreground, as a resumed one is. */
 internal fun Lifecycle.State.withPictureInPicture(pictureInPicture: Boolean): Lifecycle.State =
     if (pictureInPicture && isAtLeast(Lifecycle.State.STARTED)) Lifecycle.State.RESUMED else this
 
-/**
- * Offers the video to picture-in-picture while it is [playing]: Android 12 and later enter on
- * their own when the viewer leaves, earlier versions on the leave hint. The window takes the
- * video's shape, and its actions ask [onSeekRequested] to go 10 seconds back or forward and
- * [onPlayingRequested] to pause or play the screen's own player. Returns what the top bar's button
- * calls to enter the window now, or null when the host Activity does not declare the window or
- * the device has none.
- */
 @Composable
 internal fun rememberMobilePictureInPicture(
     playing: Boolean,
@@ -76,7 +67,6 @@ internal fun rememberMobilePictureInPicture(
     onSeekRequested: (SeekDirection) -> Unit = {},
 ): (() -> Unit)? {
     val host = LocalActivity.current
-    // The platform throws for an Activity that does not declare the window.
     val declared = remember(host) { host?.declaresPictureInPicture() == true }
     val activity = (host as? PictureInPictureProvider)?.takeIf { declared } ?: return null
     val context = LocalContext.current
@@ -125,9 +115,6 @@ internal fun rememberMobilePictureInPicture(
     val supported = remember(context) {
         context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
     }
-    // Asked for, the window opens even for a paused video, which then shows Play. Entering needs
-    // enabled parameters; the playback-derived ones go straight back, so a paused video never
-    // enters on its own afterwards.
     val enter = {
         pictureInPictureCall {
             activity.enterPictureInPictureMode(
@@ -140,11 +127,6 @@ internal fun rememberMobilePictureInPicture(
     return enter.takeIf { supported }
 }
 
-/**
- * Closing the window stops the Activity and ends picture-in-picture, in either order and without
- * resuming in between. [onDismissed] runs when the Activity starts again after that, before its
- * player is rebuilt.
- */
 @Composable
 internal fun PictureInPictureDismissalEffect(onDismissed: () -> Unit) {
     val activity = LocalActivity.current as? OnPictureInPictureModeChangedProvider ?: return
@@ -181,10 +163,6 @@ private fun PictureInPictureProvider.withdrawPictureInPicture() {
     pictureInPictureCall { setPictureInPictureParams(PictureInPictureParamsCompat.Builder().setEnabled(false).build()) }
 }
 
-/**
- * A device may narrow the platform's shape limits or refuse the window outright; the platform
- * then throws, and the video simply gets no window.
- */
 private inline fun pictureInPictureCall(call: () -> Unit): Boolean =
     try {
         call()
@@ -224,7 +202,6 @@ internal fun pictureInPictureParams(
         .build()
 }
 
-/** The video's display shape, held inside the 1:2.39 to 2.39:1 range every device accepts. */
 internal fun pictureInPictureAspectRatio(videoSize: VideoSize): Rational? {
     val ratio = videoSize.displayAspectRatioOrNull() ?: return null
     return when {
@@ -234,7 +211,6 @@ internal fun pictureInPictureAspectRatio(videoSize: VideoSize): Rational? {
     }
 }
 
-/** Where the video sits inside [this] frame, letterboxed and centred as the content frame draws it. */
 internal fun Rect.fittedVideoBounds(aspectRatio: Rational): android.graphics.Rect? {
     if (width <= 0f || height <= 0f) return null
     val ratio = aspectRatio.toFloat()
@@ -250,7 +226,6 @@ internal fun Rect.fittedVideoBounds(aspectRatio: Rational): android.graphics.Rec
     )
 }
 
-/** The window's actions, in the player's order: 10 seconds back, play or pause, 10 seconds forward. */
 private class PictureInPictureActions(context: Context) {
     private val seconds = (VideoSeekIntervals.backMillis / MILLIS_PER_SECOND).toInt()
     private val back = remoteAction(
@@ -296,12 +271,9 @@ private fun remoteAction(
     return RemoteAction(Icon.createWithResource(context, icon), title, title, intent)
 }
 
-// ActivityInfo.FLAG_SUPPORTS_PICTURE_IN_PICTURE, which the SDK hides; set from the manifest's
-// supportsPictureInPicture since Android 7.
 private const val FLAG_SUPPORTS_PICTURE_IN_PICTURE = 0x400000
 private const val MILLIS_PER_SECOND = 1_000L
 
-// Inside the platform's 2.39:1 limits, so a rounding difference can never make the shape invalid.
 private const val WIDEST_HUNDREDTHS = 238
 private const val HUNDREDTHS = 100
 private val WIDEST = Rational(WIDEST_HUNDREDTHS, HUNDREDTHS)

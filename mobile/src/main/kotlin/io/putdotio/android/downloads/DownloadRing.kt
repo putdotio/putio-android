@@ -30,10 +30,8 @@ import io.putdotio.android.MobileTooltip
 
 internal const val MOBILE_DOWNLOADS_RING_TAG = "mobile-downloads-ring"
 
-/** What a tap on a row's ring does; its glyph shows the action and its colour whether bytes move. */
 internal enum class DownloadRingAction { Pause, Resume, Cancel }
 
-/** The ring a Downloading row trails with, or null for a row that shows none. */
 internal fun DownloadEntry.ringAction(): DownloadRingAction? =
     when (val value = status) {
         DownloadStatus.Queued -> DownloadRingAction.Cancel
@@ -85,7 +83,6 @@ internal fun DownloadRingTrack(status: DownloadStatus, size: Dp, modifier: Modif
     }
 }
 
-/** Material's indicator, drawn on the ring's stroke circle; no percentage yet spins. */
 @Composable
 private fun RingProgress(percent: Float?, color: Color, track: Color, box: Dp) {
     val stroke = box * (STROKE_UNITS / RING_UNITS)
@@ -111,7 +108,6 @@ private fun RingProgress(percent: Float?, color: Color, track: Color, box: Dp) {
     }
 }
 
-// Glyph geometry in the board's 36-unit ring box.
 private fun DrawScope.unit(value: Float): Float = value * size.width / RING_UNITS
 
 private fun DrawScope.drawDashedTrack(color: Color) {

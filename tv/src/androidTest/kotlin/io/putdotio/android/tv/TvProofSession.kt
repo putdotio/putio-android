@@ -68,12 +68,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlin.math.abs
 
-/**
- * Fake account repositories for the controlled-state TV proofs: Files serves [listings] and
- * their later pages [continuations], Search answers every term with [searchResults], History
- * and Trash list one page of [history] and [trash], account settings confirm [historyEnabled],
- * and playback resolves to [playback], read only when something plays. Nothing reaches the API.
- */
 internal fun tvProofDependencies(
     listings: Map<FilesItemId, FilesPage>,
     searchResults: List<FilesItem>,

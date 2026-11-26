@@ -96,7 +96,6 @@ private fun StreamingMethod.other(): StreamingMethod =
         StreamingMethod.File -> StreamingMethod.Hls
     }
 
-/** Otherwise the reducer would refuse the Delete a permanent-deletion confirmation sends. */
 internal fun FilesFolderState.permanentDeleteConfirmable(trashEnabled: Boolean?): Boolean =
     trashEnabled == false && operation.canStartOperation
 
@@ -123,7 +122,6 @@ internal fun TvFilesActionHandlers.run(action: TvFilesAction, item: FilesItem) {
     }
 }
 
-/** Hands a ready stream to VLC; the notice to show instead, if any. */
 @StringRes
 internal fun FilesStreamUrlResult.openInVlc(
     context: Context,
@@ -142,10 +140,6 @@ internal fun Context.hasVlc(): Boolean = packageManager.run {
     getLeanbackLaunchIntentForPackage(VLC_PACKAGE) ?: getLaunchIntentForPackage(VLC_PACKAGE)
 } != null
 
-/**
- * Hands the original file to VLC. False when VLC is not installed; the URL carries the
- * account's download token and goes only into the intent, never into a log or a message.
- */
 private fun launchVlc(context: Context, streamUrl: String, name: String, audio: Boolean): Boolean {
     val intent = Intent(Intent.ACTION_VIEW)
         .setDataAndType(streamUrl.toUri(), if (audio) "audio/*" else "video/*")

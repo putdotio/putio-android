@@ -28,7 +28,6 @@ import org.robolectric.annotation.GraphicsMode
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS-w320dp-h400dp-port")
-/** A short, phone-narrow window, such as a split-screen slice, at 2x text. */
 class MobileShortWindowChromeTest {
     private val compose = createComposeRule()
     @get:Rule val rules: RuleChain = RuleChain.outerRule(object : ExternalResource() {

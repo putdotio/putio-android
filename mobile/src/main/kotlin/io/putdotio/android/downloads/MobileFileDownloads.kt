@@ -15,7 +15,6 @@ internal class MobileFileDownloads(
     val bySetting: (FilesItem) -> Unit = { item -> withMethod(item, null) }
 }
 
-/** The confirmed subtitle setting travels with the download, which skips subtitles for it. */
 private fun FilesItem.toDownloadRequest(showSubtitles: Boolean?, method: StreamingMethod?): DownloadRequest =
     DownloadRequest(
         fileId = id,

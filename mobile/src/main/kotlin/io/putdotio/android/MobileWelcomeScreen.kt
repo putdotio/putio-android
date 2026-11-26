@@ -64,7 +64,6 @@ import io.putdotio.android.design.rememberWelcomeSequencePosition
 import kotlin.math.abs
 import io.putdotio.android.design.R as DesignR
 
-/** One kaomoji over its caption on the Welcome stage. */
 internal data class MobileWelcomeFrame(
     @StringRes val kaomoji: Int,
     @StringRes val caption: Int,
@@ -99,7 +98,6 @@ internal data class MobileWelcomeAction(
     val style: MobileWelcomeActionStyle,
 )
 
-/** The copy and controls of one signed-out moment; layout stays in [MobileWelcomeScreen]. */
 internal data class MobileWelcomeContent(
     @StringRes val title: Int,
     @StringRes val lede: Int,
@@ -161,7 +159,6 @@ internal fun mobileWelcomeContent(
             secondaryAction = MobileWelcomeAction(R.string.mobile_auth_storage_reset, MobileWelcomeActionStyle.Text),
         )
 
-        // Without an OAuth client there is nothing to offer: no button.
         MobileSignedOutReason.OAuthNotConfigured -> MobileWelcomeContent(
             title = R.string.mobile_auth_not_configured_title,
             lede = R.string.mobile_auth_not_configured_message,
@@ -180,7 +177,6 @@ private val WORDMARK_WIDTH = 88.dp
 private val STAGE_TOP = 96.dp
 private val STAGE_TOP_SHORT = 24.dp
 
-/** Below the bar, the height the stage and the copy need with the full gap above the stage. */
 private val SHORT_WINDOW = 600.dp
 private val STAGE_HEIGHT = 220.dp
 private val KAOMOJI_SIZE = 48.dp
@@ -212,7 +208,6 @@ internal fun MobileWelcomeScreen(
             )
         }
         BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            // Short windows (landscape, split screen) drop the gap so the copy rises; the rest scrolls.
             val stageTop = if (maxHeight < SHORT_WINDOW) STAGE_TOP_SHORT else STAGE_TOP
             Column(
                 modifier = Modifier
@@ -259,7 +254,6 @@ private fun WelcomeCopy(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = BLOCK_GAP),
         )
-        // The notice and the action each sit 24dp below what precedes them; a lone action sits 32dp below the lede.
         content.notice?.let { notice ->
             WelcomeNotice(notice = notice, modifier = Modifier.padding(top = 24.dp))
         }
@@ -286,10 +280,6 @@ private fun WelcomeCopy(
     }
 }
 
-/**
- * The kaomoji stage: frames roll up one after another, with page dots that follow. It is decoration,
- * so screen readers skip it. Reduced motion, and a stage of one frame, hold the first frame still.
- */
 @Composable
 private fun WelcomeStage(
     frames: List<MobileWelcomeFrame>,
@@ -308,7 +298,6 @@ private fun WelcomeStage(
                     .wrapContentHeight(align = Alignment.Top, unbounded = true)
                     .graphicsLayer { translationY = -position.floatValue * STAGE_HEIGHT.toPx() },
             ) {
-                // The first frame repeats at the end, so the last roll brings it back.
                 (if (sequence) frames + frames.first() else frames).forEach { frame ->
                     WelcomeFrame(frame = frame, modifier = Modifier.fillMaxWidth().height(STAGE_HEIGHT))
                 }
@@ -329,7 +318,6 @@ private fun WelcomeFrame(
     frame: MobileWelcomeFrame,
     modifier: Modifier = Modifier,
 ) {
-    // The kaomoji is drawn art at a fixed size; the caption scales with the system font size.
     val density = LocalDensity.current
     val kaomojiSize = remember(density) {
         with(density) {
@@ -350,8 +338,6 @@ private fun WelcomeFrame(
         verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // Fallback fonts for glyphs GT America lacks (ಠ, ᕕ, づ) grow the line past its height, so the
-        // kaomoji is centred in a box of exactly one line. A window too narrow for it shrinks it to fit.
         BasicText(
             text = stringResource(frame.kaomoji),
             style = kaomojiStyle,
@@ -378,7 +364,6 @@ private fun WelcomeDots(
     val current = MaterialTheme.colorScheme.onSurface
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         repeat(count) { index ->
-            // How current this dot is: 1 while its frame holds, easing to 0 as the next rolls in.
             fun weight(): Float {
                 val at = position()
                 val distance = minOf(abs(at - index), abs(at - index - count))

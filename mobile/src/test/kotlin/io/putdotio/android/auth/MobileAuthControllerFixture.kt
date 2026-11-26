@@ -16,7 +16,6 @@ internal class AuthControllerFixture(
     val pendingAttemptStore: FakePendingOAuthAttemptStore = FakePendingOAuthAttemptStore(),
     revocations: RevocationScript = RevocationScript(),
 ) {
-    /** What an earlier process kept as the account put.io last confirmed. */
     val validatedAccounts = FakeValidatedAccounts()
     val clock = FakeOAuthAttemptClock(NOW_EPOCH_MILLIS)
     val tokenStore = FakeAuthTokenStore(storedToken?.let { checkNotNull(AccessToken.parse(it)) })
@@ -59,7 +58,6 @@ internal class FakeValidatedAccounts(
     }
 }
 
-/** A revocation recorded by an earlier process, and put.io's answers to each revocation attempt. */
 internal class RevocationScript(
     val pending: String? = null,
     val results: List<TokenRevocationResult> = emptyList(),

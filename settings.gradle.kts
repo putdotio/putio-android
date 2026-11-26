@@ -41,9 +41,6 @@ val localProperties = Properties().apply {
         ?.use { load(it) }
 }
 
-// Opt-in: point putioSdkKotlinPath in local.properties at an SDK checkout to
-// build the app against unreleased SDK changes instead of the Maven Central
-// release pinned in gradle/libs.versions.toml.
 localProperties.getProperty("putioSdkKotlinPath")?.let { sdkPath ->
     includeBuild(rootDir.resolve(sdkPath)) {
         dependencySubstitution {

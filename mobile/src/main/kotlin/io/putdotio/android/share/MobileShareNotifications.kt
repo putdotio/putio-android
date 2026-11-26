@@ -15,7 +15,6 @@ import androidx.core.content.ContextCompat
 import io.putdotio.android.MainActivity
 import io.putdotio.android.R
 
-/** The share service's one notification in each of its states; none carries the export's payload. */
 internal class MobileShareNotifications(private val context: Context) {
     fun progress(name: String, indeterminate: Boolean, progress: Int): Notification =
         base(context.getString(R.string.mobile_share_preparing, name))
@@ -34,7 +33,6 @@ internal class MobileShareNotifications(private val context: Context) {
             )
             .build()
 
-    /** Tapping returns to the app, whose resume opens the chooser; the payload stays out of the notification. */
     fun ready(name: String): Notification =
         base(context.getString(R.string.mobile_share_ready, name)).setAutoCancel(true).build()
 

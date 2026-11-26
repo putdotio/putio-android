@@ -197,7 +197,6 @@ class TvTrashScreenTest {
         compose.onNode(focusedInDialog("Cancel")).performKeyInput { pressCenter() }
         assertEquals(TrashEvent.CancelAction, events.last())
         compose.runOnIdle { state = state.copy(actionConfirmation = null, actionConfirmationId = null) }
-        // The button that opened the confirmation takes focus back, not the list.
         compose.onNode(hasText("Empty trash") and hasClickAction()).assertIsFocused()
     }
 

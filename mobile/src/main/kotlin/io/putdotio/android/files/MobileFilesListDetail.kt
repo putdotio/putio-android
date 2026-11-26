@@ -25,14 +25,9 @@ import io.putdotio.android.isCompactHeight
 
 internal const val MOBILE_FILES_LIST_PANE_TAG = "mobile-files-list-pane"
 
-/**
- * Files shows list and detail side by side in a window 840dp or wider that is not compact in height:
- * a phone in landscape keeps one pane.
- */
 internal fun isFilesListDetail(width: Dp, height: Dp): Boolean =
     width >= FILES_LIST_DETAIL_MIN_WIDTH && !isCompactHeight(height)
 
-/** Whether Files' bar sits over its list pane: the panes are on screen, not under Search or the player. */
 internal fun showsFilesListDetail(
     width: Dp,
     height: Dp,
@@ -43,11 +38,6 @@ internal fun showsFilesListDetail(
 
 private val FILES_LIST_DETAIL_MIN_WIDTH: Dp = 840.dp
 
-/**
- * Files as Material's list-detail: the folder's bar and listing on the left, at most 520dp and never
- * more than half the width, and the selected file's detail filling the rest. Both panes always show,
- * so the scaffold never navigates between them; Back stays with the folder stack.
- */
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 internal fun MobileFilesListDetail(

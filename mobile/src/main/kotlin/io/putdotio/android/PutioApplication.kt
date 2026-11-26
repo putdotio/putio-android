@@ -37,7 +37,6 @@ class PutioApplication : Application(), SingletonImageLoader.Factory {
                 BuildConfig.VERSION_CODE,
             ),
         )
-        // A PDF copy a viewer left when the process died; restoring from Recents may never reopen it.
         viewerCacheClearThread = thread(name = "viewer-cache-clear") { FilesPdfDocument.clearCache(this) }
     }
 }

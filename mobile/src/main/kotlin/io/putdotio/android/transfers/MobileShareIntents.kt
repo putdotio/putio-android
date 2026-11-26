@@ -25,7 +25,6 @@ internal class MobileSharedTransfer(
         "MobileSharedTransfer(<redacted>, validation=$validation, torrent=${torrent != null})"
 }
 
-/** What an incoming intent asks for; a torrent still has to be read from its content URI. */
 internal sealed interface MobileIncomingTransfer {
     class Ready(val transfer: MobileSharedTransfer) : MobileIncomingTransfer
 
@@ -34,11 +33,6 @@ internal sealed interface MobileIncomingTransfer {
     }
 }
 
-/**
- * Accepts shared text, `magnet:` links and `.torrent` content as untrusted input for the add-transfer
- * draft, which the user still confirms. Removes the payload even when malformed; only the in-memory
- * draft may retain it.
- */
 internal fun Intent.consumeMobileIncomingTransfer(): MobileIncomingTransfer? {
     val viewedUri = data.takeIf { action == Intent.ACTION_VIEW }
     val kind = incomingKind(viewedUri) ?: return null
@@ -64,7 +58,6 @@ private fun Intent.incomingKind(viewedUri: Uri?): IncomingKind? =
     when {
         action == Intent.ACTION_SEND && type == "text/plain" -> IncomingKind.Text
         viewedUri?.scheme.equals(MAGNET_SCHEME, ignoreCase = true) -> IncomingKind.Magnet
-        // The manifest routes VIEW content URIs here only for the BitTorrent type.
         viewedUri?.scheme == ContentResolver.SCHEME_CONTENT -> IncomingKind.Torrent
         action == Intent.ACTION_SEND && type == TORRENT_MEDIA_TYPE -> IncomingKind.Torrent
         else -> null
@@ -91,7 +84,6 @@ private fun Intent.sharedText(): MobileSharedTransfer {
     }
 }
 
-/** A tapped `magnet:` link; anything else stays visible but invalid so the user can see what arrived. */
 internal fun parseMobileMagnetLink(link: String): MobileSharedTransfer {
     if (!link.fitsMobileTransferInputLimit()) return MobileSharedTransfer(validation = MobileShareValidation.TooLong)
     val submission = TransferSubmission.parse(link)
@@ -100,7 +92,6 @@ internal fun parseMobileMagnetLink(link: String): MobileSharedTransfer {
         ?: MobileSharedTransfer(link, MobileShareValidation.InvalidLink)
 }
 
-/** Shared text becomes one link per line when every link in it is complete; prose stays for the user to fix. */
 internal fun parseMobileSharedTransfer(text: String): MobileSharedTransfer {
     if (!text.fitsMobileTransferInputLimit()) return MobileSharedTransfer(validation = MobileShareValidation.TooLong)
     return TransferSubmission.parseAll(text)?.let { MobileSharedTransfer(it.joinLines()) } ?: linksInProse(text)

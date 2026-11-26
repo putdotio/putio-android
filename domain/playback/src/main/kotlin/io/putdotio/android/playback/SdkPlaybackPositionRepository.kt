@@ -26,13 +26,11 @@ public class SdkPlaybackPositionRepository internal constructor(
         if (seconds == 0.0) clearPosition(fileId) else setPosition(fileId, seconds)
     }
 
-    /** The account's saved position for [fileId], in seconds. */
     public suspend fun read(fileId: Long): PlaybackRepositoryResult<Double> = request {
         require(fileId > 0L)
         getPosition(fileId).also { require(it.isFinite() && it >= 0.0) { "start_from must be finite and nonnegative" } }
     }
 
-    /** The account's `use_start_from`, read now rather than from a settings screen's state. */
     public suspend fun resumeEnabled(): PlaybackRepositoryResult<Boolean> = request { loadResumeSetting() }
 
     @Suppress("TooGenericExceptionCaught")

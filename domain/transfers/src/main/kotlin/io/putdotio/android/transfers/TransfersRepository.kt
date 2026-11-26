@@ -41,7 +41,6 @@ internal class TransfersAddOperations(
             is TransferAddRequest.Torrent -> addTorrent(request)
         }
 
-    // One link keeps `/transfers/add` so put.io's rejection reaches the user as the failure itself.
     private suspend fun addLinks(request: TransferAddRequest.Links): TransferAddOutcome {
         val inputs = request.links.map { TransferAddInput(url = it.value, saveParentId = request.saveParentId) }
         val single = inputs.singleOrNull()
@@ -124,9 +123,6 @@ public class SdkTransfersRepository internal constructor(
         }
     }
 
-    // `/transfers/list` rebuilds the newest 10,000 ids and returns a full page of rows on
-    // every call, so a few polled rows are read by id instead. The limit keeps a 5 s poll
-    // well inside the API's 300 requests/minute transfers-get budget.
     private suspend fun refreshEach(ids: List<TransferId>): TransfersRowRefresh =
         coroutineScope {
             val found = ids.map { id -> async { getOrNull(id) } }.awaitAll()

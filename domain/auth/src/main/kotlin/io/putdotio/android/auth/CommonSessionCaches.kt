@@ -8,20 +8,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-/** Default directory Coil 3 writes its disk cache to under `Context.cacheDir`. */
 public const val COIL_DISK_CACHE_DIR: String = "coil3_disk_cache"
 
 private val COIL_JOURNAL_FILES: Set<String> = setOf("journal", "journal.tmp", "journal.bkp")
 
-/**
- * Clears the account-scoped caches shared by mobile and TV when a session ends or expires:
- * Continue Watching and SwitchedToConverted immediately, and Coil's memory/disk caches plus
- * the PDF viewer cache off-main on [ioDispatcher].
- *
- * [clearImageDiskCache] clears any live Coil disk cache and returns its directory, or null when
- * absent; leftover files under `cacheDir/coil3_disk_cache` are removed as well so cold-start
- * expiry clears caches left by an earlier process without breaking an open DiskLruCache journal.
- */
 public class CommonSessionCaches(
     private val clearImageMemoryCache: () -> Unit,
     private val clearImageDiskCache: () -> File?,

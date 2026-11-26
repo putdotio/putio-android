@@ -81,7 +81,6 @@ internal fun TvShell(
     accountPane: @Composable (paneFocus: FocusRequester) -> Unit = { TvAccountFallbackPane(account, onSignOut, it) },
     requestedDestination: TvDestination? = null,
     onDestinationRequestHandled: () -> Unit = {},
-    /** Files' own Back step, such as leaving a folder; null when Files has none. */
     onFilesBack: (() -> Unit)? = null,
     showHome: Boolean = true,
     showHistory: Boolean = true,
@@ -102,7 +101,6 @@ internal fun TvShell(
     val panes = TvShellPanes(homePane, filesPane, searchPane, historyPane, accountPane)
     val tabs = shownTabs(showHome, showHistory)
 
-    // Registered before any pane composes, so each pane's own Back handlers take precedence.
     BackHandler(enabled = !tabBarHasFocus) {
         paneReleased.value = true
         tabFocus.getValue(destination).requestFocus()
@@ -366,7 +364,6 @@ private fun TvPlaceholderPane(
     )
 }
 
-/** The default Account pane: who is signed in, and Sign out. */
 @Composable
 private fun TvAccountFallbackPane(
     account: TvAccount,

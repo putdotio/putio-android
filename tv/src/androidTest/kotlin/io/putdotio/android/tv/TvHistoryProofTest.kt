@@ -50,10 +50,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Board captures of History on the signed-in TV shell, and Clear history and Open folder driven
- * with the D-pad. Every repository is fake, so clearing never reaches an account. No API calls.
- */
 @RunWith(AndroidJUnit4::class)
 class TvHistoryProofTest {
     private val compose = createAndroidComposeRule<TvProofActivity>()

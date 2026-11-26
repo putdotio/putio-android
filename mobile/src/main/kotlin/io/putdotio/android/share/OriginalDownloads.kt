@@ -9,17 +9,12 @@ import io.putdotio.sdk.files.FilesApi
 import java.io.IOException
 import okhttp3.Request
 
-/**
- * Requests for a file's original bytes, as the SDK builds them: a token-free URL with the account download token in
- * the header. A refused token is forgotten so the next request loads a fresh one.
- */
 internal class OriginalDownloads(
     private val session: () -> MediaDownloadToken?,
     private val files: FilesApi,
 ) {
     constructor(token: MediaDownloadToken, files: FilesApi) : this({ token }, files)
 
-    /** Null without a session; an account put.io cannot read fails as an [IOException]. */
     suspend fun request(fileId: FilesItemId): Request? {
         val downloadToken = session()?.let { holder ->
             try {

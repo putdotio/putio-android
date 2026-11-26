@@ -348,7 +348,6 @@ class AppConfigRecentSearchStoreTest {
         withTimeout(TIMEOUT) { while (!condition()) delay(1) }
     }
 
-    /** `/config` as the store and other clients see it: each save lands, each load reads it. */
     private class FakeConfigServer(
         @Volatile var config: RecentSearchConfig,
         @Volatile var failNext: Throwable? = null,

@@ -6,7 +6,6 @@ import io.putdotio.android.playback.PlaybackMediaType
 import io.putdotio.android.playback.PlaybackTarget
 import io.putdotio.sdk.files.PutioFileType
 
-/** A file this TV played or marked, with what the Watch Next row needs to show it. */
 internal data class TvWatchNextMedia(
     val fileId: Long,
     val title: String,
@@ -15,7 +14,6 @@ internal data class TvWatchNextMedia(
     val isVideo: Boolean,
 )
 
-/** One video's card in the launcher's Watch Next row ("Play Next", "Continue watching"). */
 internal data class TvWatchNextProgram(
     val fileId: Long,
     val title: String,
@@ -29,14 +27,9 @@ internal sealed interface TvWatchNextChange {
 
     data class Remove(val fileId: Long) : TvWatchNextChange
 
-    /** Nothing to say: not a video, or no duration to show progress against. */
     data object None : TvWatchNextChange
 }
 
-/**
- * What a saved position means for the row. A video is in progress above 0 % and below 95 %.
- * Unwatched and finished videos leave.
- */
 internal fun watchNextChange(media: TvWatchNextMedia, positionSeconds: Double): TvWatchNextChange {
     val duration = media.durationSeconds?.takeIf { it.isFinite() && it > 0.0 }
     return when {

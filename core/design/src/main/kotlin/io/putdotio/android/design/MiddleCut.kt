@@ -45,12 +45,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.toSize
 import kotlin.math.roundToInt
 
-/**
- * A name on one line, or up to [maxLines], cut in the middle when it does not fit: it keeps its
- * start and the last [MIDDLE_CUT_TAIL] characters, so the extension and what comes just before it
- * stay readable ("Blue.Lights.S04E01…ORGANiC.mkv"). Accessibility reads the full name. It draws in
- * [color], else the style's colour, else [contentColor].
- */
 @Composable
 public fun PutioMiddleCutText(
     text: String,
@@ -65,11 +59,9 @@ public fun PutioMiddleCutText(
     Spacer(modifier.then(MiddleCutTextElement(text, style, drawColor, maxLines, measurer)))
 }
 
-/** The text a cut name laid out, while accessibility reads the full name; for tests. */
 public val MiddleCutShown: SemanticsPropertyKey<String> = SemanticsPropertyKey("MiddleCutShown")
 private var SemanticsPropertyReceiver.middleCutShown by MiddleCutShown
 
-/** Characters kept after the cut: the extension and a few before it. */
 public const val MIDDLE_CUT_TAIL: Int = 11
 
 private data class MiddleCutTextElement(

@@ -44,14 +44,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Opt-in, no API calls: a local original the emulator cannot decode resumes, is rejected by the
- * real Media3 player, and the converted fixture plays on from the same position.
- *
- * Arguments: `putio.tv.fallback.enabled=true`, `putio.tv.fallback.runId` (UUID),
- * `putio.tv.fallback.original` (an undecodable MKV) and `putio.tv.fallback.converted` (an H.264
- * MP4), both under the app's external files directory.
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class TvOriginalFallbackProofTest {

@@ -213,7 +213,6 @@ class TvSearchSuggestionsTest {
     private fun provider(search: TvGlobalSearch) =
         TvSearchSuggestionsProvider { search }.also { it.attachInfo(context, null) }
 
-    /** An attribute of searchable.xml as written, with string references resolved. */
     private fun searchableAttribute(name: String): String? {
         context.resources.getXml(R.xml.searchable).use { parser ->
             while (parser.next() != XmlPullParser.END_DOCUMENT) {

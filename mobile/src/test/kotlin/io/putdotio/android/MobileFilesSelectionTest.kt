@@ -56,7 +56,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Files selection as the shell draws it: Select from the sheet, the bar, the toolbar and Back. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS-w400dp-h900dp")
 class MobileFilesSelectionTest {
@@ -114,7 +113,6 @@ class MobileFilesSelectionTest {
 
         compose.runOnIdle {
             val delete = events.filterIsInstance<FilesBrowserEvent.Delete>().single()
-            // In the listing's order, whatever order they were checked in.
             val expected = FilesBrowserEvent.Delete(FOLDER.id, listOf(SERIES.id, SINTEL.id), FilesDeleteMode.TRASH)
             assertEquals(expected, delete)
         }
@@ -154,10 +152,8 @@ class MobileFilesSelectionTest {
 
         val videos = actions(SINTEL, FINISHED)
         assertTrue(videos.download)
-        // One is finished and one isn't: Watched saves both ends.
         assertEquals(true, videos.watched)
         assertEquals(false, actions(FINISHED, FINISHED.copy(id = FilesItemId(14L))).watched)
-        // Watched is a saved end, so every file needs a known length.
         assertNull(actions(SINTEL, unknownLength).watched)
 
         val withShared = actions(SINTEL, shared)
@@ -165,7 +161,6 @@ class MobileFilesSelectionTest {
         assertNull(withShared.watched)
         assertTrue(withShared.download)
 
-        // A friend's folder beside an owned file shares no action, so the toolbar shows none.
         assertFalse(actions(SERIES.copy(id = FilesItemId(15L), isShared = true), SINTEL).any)
 
         val offline = listOf(SINTEL).selectionActions(canMove = false, canDownload = false, canSetWatched = false)
@@ -180,13 +175,11 @@ class MobileFilesSelectionTest {
         selection.start(folder, SINTEL)
         selection.toggle(folder, FINISHED)
 
-        // A row leaves the listing, then comes back: it is not checked again.
         val without = folder.withItems(SERIES, SINTEL)
         selection.reconcile(without)
         selection.reconcile(folder)
         assertEquals(listOf(SINTEL), selection.selected(folder))
 
-        // The same folder read afresh, as an outside open that replaces it does, ends it too.
         val again = FilesSelection()
         again.start(folder, SINTEL)
         again.reconcile(folder.copyForTest(stack = folder.stack.dropLast(1) + folder.current.copy(
@@ -194,7 +187,6 @@ class MobileFilesSelectionTest {
         )))
         assertFalse(again.isActive(folder))
 
-        // Another folder ends it, so coming back shows none.
         val root = FilesBrowserReducer.reduce(folder, FilesBrowserEvent.NavigateBack).state
         selection.reconcile(root)
         assertFalse(selection.isActive(folder))

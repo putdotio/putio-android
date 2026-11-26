@@ -2,7 +2,6 @@ package io.putdotio.android.history
 
 import io.putdotio.android.PutioFailure
 
-/** A 401 from any history request; a session verdict that outranks every other failure. */
 public fun HistoryState.authoritativeSessionFailure(): PutioFailure? =
     listOfNotNull(
         authoritativeFailure,

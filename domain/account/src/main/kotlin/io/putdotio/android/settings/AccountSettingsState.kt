@@ -13,22 +13,14 @@ public data class AccountSettingsPreferences(
     val trashEnabled: Boolean,
     val showSubtitles: Boolean,
     val autoSelectSubtitles: Boolean,
-    // Account-wide `use_start_from`: playback resumes from and writes back saved positions.
     val resumePlayback: Boolean = true,
-    // Account-wide `tunnel_route_name`; the server reports null for the direct route.
     val tunnelRoute: TunnelRouteName = TunnelRouteName.DEFAULT,
-    // Account-wide `sort_by`: folders without their own sort use it. Null means the
-    // server reported a value this app does not know.
     val defaultSort: FilesSort? = null,
-    // Privacy controls per the frontend analytics contract: diagnostics are on by
-    // default, product analytics is opt-in.
     val diagnosticsEnabled: Boolean = true,
     val productAnalyticsEnabled: Boolean = false,
-    // Account-wide `next_episode`: the video player offers the folder's next video.
     val nextEpisode: Boolean = false,
 )
 
-/** Server route identifier. `default` is the direct Amsterdam route and what a null setting means. */
 @JvmInline
 public value class TunnelRouteName(public val value: String) {
     init {
@@ -90,7 +82,6 @@ public sealed interface AccountSettingsChange {
     }
 
     public companion object {
-        // Keeps the boolean call sites readable: AccountSettingsChange(key, enabled).
         public operator fun invoke(key: AccountSettingsKey, enabled: Boolean): AccountSettingsChange =
             Toggle(key, enabled)
     }
@@ -252,47 +243,31 @@ public val AccountSettingsState.trashOff: Boolean
 public fun AccountSettingsState.confirmedResumePlayback(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ResumePlayback)?.resumePlayback
 
-/** Whether the account shows subtitles (`!hide_subtitles`), or null while unloaded or while that write is unsettled. */
 public fun AccountSettingsState.confirmedShowSubtitles(): Boolean? =
     confirmedPreferences(AccountSettingsKey.ShowSubtitles)?.showSubtitles
 
-/**
- * The default sort the server holds and how many folder sort resets it has accepted, or null while
- * unloaded or while a sort write or reset is unsettled. A refresh failure after an accepted write
- * still counts: the server took the value.
- */
 public fun AccountSettingsState.confirmedDefaultSort(): ConfirmedDefaultSort? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
     val unsettledWrite = mutation.pending in UNSETTLED_SORT_WRITES
     return ConfirmedDefaultSort(ready.preferences.defaultSort, folderSortResets).takeUnless { unsettledWrite }
 }
 
-/**
- * Whether crash and error reports may leave the device, or null while the settings are unloaded.
- * While a Diagnostics write is unsettled or failed, off wins: an opt-out stops reporting before
- * put.io confirms it, and an opt-in waits for the confirmation.
- */
 public fun AccountSettingsState.diagnosticsAllowed(): Boolean? =
     (content as? AccountSettingsContent.Ready)?.let {
         confirmedPreferences(AccountSettingsKey.Diagnostics)?.diagnosticsEnabled == true
     }
 
-/** Whether product analytics may run, or null while the settings are unloaded; off wins like [diagnosticsAllowed]. */
 public fun AccountSettingsState.productAnalyticsAllowed(): Boolean? =
     (content as? AccountSettingsContent.Ready)?.let {
         confirmedPreferences(AccountSettingsKey.ProductAnalytics)?.productAnalyticsEnabled == true
     }
 
-// Wraps the nullable sort so "confirmed as unknown to this app" stays distinct from "not confirmed";
-// the accepted reset count makes a folder sort reset read as a change too.
 @ConsistentCopyVisibility
 public data class ConfirmedDefaultSort internal constructor(
     public val sort: FilesSort?,
     internal val folderSortResets: Long = 0,
 )
 
-// A pending or failed mutation only makes its own key unconfirmed; the other
-// preferences still reflect the last authoritative read.
 private fun AccountSettingsState.confirmedPreferences(key: AccountSettingsKey): AccountSettingsPreferences? {
     val ready = content as? AccountSettingsContent.Ready ?: return null
     return ready.preferences.takeUnless { mutation.pending?.first == key }

@@ -132,7 +132,6 @@ internal fun TvPlayerScreen(
     onPlayerFailure: (PlaybackFailure, Long) -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
-    /** The player showed the current source's first frame. */
     onFirstFrame: () -> Unit = {},
     onOriginalChosen: (Long) -> Boolean = { false },
     onRefreshConversion: () -> Unit = {},

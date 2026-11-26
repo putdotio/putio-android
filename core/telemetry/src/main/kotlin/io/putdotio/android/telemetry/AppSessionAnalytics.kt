@@ -4,18 +4,11 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 
-/**
- * Turns the app's foregrounds into `app_opened` and `app_backgrounded`. Main thread only, as
- * Android calls activity callbacks. The open waits for the first resume, since a link to a stopped
- * activity arrives through `onNewIntent` after `onStart`.
- */
 internal class AppSessionAnalytics(
     private val capture: (AnalyticsEvent) -> Unit,
-    /** A return to the foreground after an earlier open, before its `app_opened`. */
     private val onReturn: () -> Unit = {},
     private val now: () -> Long = System::currentTimeMillis,
 ) : Application.ActivityLifecycleCallbacks {
-    /** The account's tunnel route name, null until its settings load. */
     @Volatile
     var route: String? = null
 
@@ -50,7 +43,6 @@ internal class AppSessionAnalytics(
 
     override fun onActivityStopped(activity: Activity) {
         started--
-        // Rotation stops and restarts the activity; that is no background.
         if (started > 0 || activity.isChangingConfigurations) return
         openedFromLink = false
         val since = activeSince ?: return

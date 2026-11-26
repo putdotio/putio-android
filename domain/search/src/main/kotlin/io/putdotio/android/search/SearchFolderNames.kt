@@ -22,13 +22,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
-/**
- * The names of the folders search results sit in. Results carry only their parent's id, so each
- * folder is read once, at most [MAX_PARALLEL_READS] at a time, and its name kept while the session
- * lasts. The search's own scope and folders among the results name themselves without a read, and
- * a read that answers later never replaces them; the root has no name to read. A failed read is
- * tried again when the next page or search lands, and a 401 is kept for the session to act on.
- */
 public class SearchFolderNames internal constructor(
     private val resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     search: StateFlow<SearchState>,
@@ -48,19 +41,14 @@ public class SearchFolderNames internal constructor(
     private val mutableNames = MutableStateFlow<Map<FilesItemId, String>>(emptyMap())
     private val mutableAuthenticationFailure = MutableStateFlow<PutioFailure?>(null)
 
-    /** Folder names by id, as far as they are known. */
     public val names: StateFlow<Map<FilesItemId, String>> = mutableNames.asStateFlow()
 
-    /** put.io's 401 to a folder read, which ends the session as any other 401 does. */
     public val authenticationFailure: StateFlow<PutioFailure?> = mutableAuthenticationFailure.asStateFlow()
 
     init {
         scope.launch {
-            // Results land when a search or a page succeeds, even a page that adds no rows; a page
-            // asked for or failed is no new result, so it retries nothing.
             search
                 .map { state -> state.scope to (state.content as? SearchContent.Ready)?.takeIf { it.paging.landed } }
-                // Each landing is a new Ready, even one equal to the last, as a repeat search's is.
                 .distinctUntilChanged { old, new -> old.first == new.first && old.second === new.second }
                 .collect { (searchScope, content) -> learn(searchScope, content?.items.orEmpty()) }
         }
@@ -87,7 +75,6 @@ public class SearchFolderNames internal constructor(
 
     private suspend fun read(folderId: FilesItemId) {
         val name = reads.withPermit {
-            // Results or the scope may have named it while this read waited for a permit.
             if (folderId in mutableNames.value) null else readName(folderId)
         }
         if (name != null) {

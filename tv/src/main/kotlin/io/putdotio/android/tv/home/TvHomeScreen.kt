@@ -427,10 +427,6 @@ private class TvHomeCardSheet {
     }
 }
 
-/**
- * After a pressed Try again, the pinned row's next state takes focus: its first card, the Browse
- * button or Continue watching when nothing is pinned, or the Try again of a fresh failure.
- */
 private class TvPinnedRetry(
     val tracksPaneFocus: Modifier,
     private val pressed: MutableState<Boolean>,

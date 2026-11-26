@@ -39,25 +39,18 @@ import io.putdotio.android.MobileIconButton
 
 internal const val MOBILE_FILES_NEW_FOLDER_ACTION_TAG = "mobile-files-new-folder-action"
 
-/** What the Files bars act on: the current folder, its sort, and where search and New folder go. */
 internal class MobileFilesBarActions(
     val folder: FilesFolderState,
     val onSelectSort: (FilesSort) -> Unit,
     val onOpenSearch: () -> Unit,
-    /** Null where this folder can't take a new one. */
     val onNewFolder: (() -> Unit)?,
     val navigation: (@Composable () -> Unit)? = null,
     val accountSort: FilesSort? = null,
 ) {
-    /** An empty folder has nothing to order, so it has no sort button. */
     val sortable: Boolean
         get() = folder.content !is FilesContent.Empty
 }
 
-/**
- * The Files root's search app bar: a pill reading "Search your files" that opens Search, with sort
- * and New folder inside it.
- */
 @Composable
 internal fun MobileFilesSearchBar(actions: MobileFilesBarActions, modifier: Modifier = Modifier) {
     val muted = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -108,10 +101,6 @@ internal fun MobileFilesSearchBar(actions: MobileFilesBarActions, modifier: Modi
     }
 }
 
-/**
- * A folder's small top app bar: back, the folder name, search in this folder, sort and New folder.
- * Back is disabled while a move or this folder's delete settles.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileFolderTopBar(

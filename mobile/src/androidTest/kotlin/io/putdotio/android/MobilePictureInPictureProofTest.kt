@@ -49,11 +49,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The real player screen inside MainActivity, so its manifest declarations are the ones on trial,
- * playing a caller-owned local video through Home, the system's picture-in-picture menu and its
- * expand button. Compose runs on the real frame clock, as in the app. It makes no API calls.
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobilePictureInPictureProofTest {
@@ -101,7 +96,6 @@ class MobilePictureInPictureProofTest {
             await("playing on in the window again") { it.currentPosition > paused + 1_000 }
             val beforeExpand = onMain { factory.current().currentPosition }
 
-            // A landscape video expands straight to landscape, never through the launcher's portrait.
             val orientations = mutableListOf<Int>()
             val listener = Consumer<Configuration> { orientations += it.orientation }
             onMain { activity.addOnConfigurationChangedListener(listener) }
@@ -115,7 +109,6 @@ class MobilePictureInPictureProofTest {
             assertTrue("Orientations after Expand: $orientations", Configuration.ORIENTATION_PORTRAIT !in orientations)
             assertEquals(Configuration.ORIENTATION_LANDSCAPE, onMain { activity.resources.configuration.orientation })
             screenshot("04-expanded")
-            // The controls show where playback is after the round trip.
             val (width, height) = onMain { activity.window.decorView.run { width to height } }
             shell("input tap ${width / 2} ${height / 2}")
             SystemClock.sleep(SETTLE_MILLIS)
@@ -145,7 +138,6 @@ class MobilePictureInPictureProofTest {
             SystemClock.sleep(SETTLE_MILLIS)
             screenshot("11-window-closed")
 
-            // The launcher's own intent, which the scenario recognises as its Activity.
             val component = "${context.packageName}/${MainActivity::class.java.name}"
             shell("am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -n $component")
             awaitActivity("reopened") { it.lifecycle.currentState == Lifecycle.State.RESUMED }
@@ -188,11 +180,6 @@ class MobilePictureInPictureProofTest {
                 it.currentCues.cues.isNotEmpty()
         }
 
-    /**
-     * Shows the system menu over the window and reads where its Pause, Expand and Close buttons sit. The
-     * accessibility window list drops the menu once it has been used, so later presses reuse these
-     * places and check the player's or the Activity's state instead.
-     */
     private fun discoverMenu(): MenuButtons {
         val automation = interactiveAutomation()
         val deadline = SystemClock.uptimeMillis() + ACTION_TIMEOUT_MILLIS
@@ -207,7 +194,6 @@ class MobilePictureInPictureProofTest {
             val close = menu?.findDescribed("Close")
             if (action != null && expand != null && close != null) return MenuButtons(action, expand, close)
             if (menu == null) {
-                // A tap away from the centre, where Expand appears, brings the menu up.
                 windows.firstOrNull {
                     it.isInPictureInPictureMode && it.type == AccessibilityWindowInfo.TYPE_APPLICATION
                 }?.let { window ->
@@ -220,7 +206,6 @@ class MobilePictureInPictureProofTest {
         error("The picture-in-picture menu never showed Pause, Expand and Close")
     }
 
-    /** The first press may only bring a hidden menu back; the next one reaches the button. */
     private fun pressUntil(label: String, button: Rect, done: () -> Boolean) {
         val deadline = SystemClock.uptimeMillis() + ACTION_TIMEOUT_MILLIS
         while (SystemClock.uptimeMillis() < deadline) {
@@ -234,7 +219,6 @@ class MobilePictureInPictureProofTest {
         error("Timed out waiting for $label")
     }
 
-    /** A fresh device teaches immersive mode once, over the video; acknowledge it if it shows. */
     private fun acknowledgeImmersiveHint() {
         val automation = interactiveAutomation()
         val deadline = SystemClock.uptimeMillis() + HINT_TIMEOUT_MILLIS
@@ -306,7 +290,6 @@ class MobilePictureInPictureProofTest {
 
     private fun localVideoState() = run {
         val file = proofFixture("putio.pip.fixture")
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         playbackState(
@@ -351,7 +334,6 @@ class MobilePictureInPictureProofTest {
 
 private class MenuButtons(val action: Rect, val expand: Rect, val close: Rect)
 
-/** The production player over a local file; positions go through the real observer to a recorder. */
 private class PictureInPictureProofPlayerFactory(private val lease: String) : MobilePlayerFactory {
     var player: Player? = null
         private set
@@ -388,6 +370,5 @@ private class PictureInPictureProofPlayerFactory(private val lease: String) : Mo
         }
     }
 
-    // This private-video proof must not stop an unrelated real audio session.
     override fun stopAudio(context: Context) = Unit
 }

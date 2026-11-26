@@ -60,23 +60,18 @@ internal class MobileOAuthRuntime(
 
     internal val uploadClient: PutioClient = PutioClient(putioClient.config, okHttpClient = PutioHttpClient.shared)
 
-    /** Saved positions of downloaded files; attached by [create], absent in runtimes tests build. */
     internal var offlinePositions: OfflinePlaybackPositions? = null
         private set
 
     init {
-        // Sessions also end without a UI (a background rejection), so the process scope owns this boundary.
         applicationScope.launch {
             var previous: MobileAuthSessionId? = null
-            // An earlier process may have left state for its persisted session; a restore that ends signed out ends it.
             var persistedSessionPending = true
             authController.state.collect { state ->
                 val current = (state as? MobileAuthState.SignedIn)?.sessionId
                 val restoreEnded = persistedSessionPending && state is MobileAuthState.SignedOut
                 if (current != null || restoreEnded) persistedSessionPending = false
-                // The collector can lag a switch to the next session, so it names the departed one.
                 when {
-                    // The earlier process's session id is unknown, and this process has no session yet.
                     restoreEnded -> onSessionLeft(null)
                     previous != null && current != previous -> onSessionLeft(previous)
                 }
@@ -123,14 +118,9 @@ internal class MobileOAuthRuntime(
             writing = playbackReporting::exclusive,
         ).also {
             offlinePositions = it
-            // A session restored before this attached still has its waiting positions sent.
             it.requestSync()
         }
 
-    /**
-     * Background components that outlive the UI restore the session so the download
-     * resolver has its token; [onSessionSettled] fires whether or not a token exists.
-     */
     fun ensureSessionRestored(onSessionSettled: () -> Unit) {
         applicationScope.launch {
             try {
@@ -141,16 +131,11 @@ internal class MobileOAuthRuntime(
         }
     }
 
-    /**
-     * The session once it settles, for a component without a screen: a stored one is restored first.
-     * Null while restore or validation is still running after [timeout].
-     */
     internal suspend fun awaitSettledSession(timeout: Duration): MobileAuthState? {
         ensureSessionRestored {}
         return withTimeoutOrNull(timeout) { authController.state.first { it.isSettled() } }
     }
 
-    /** put.io rejected [sessionId] outside any screen; signs it out unless another session replaced it. */
     internal fun rejectSession(sessionId: MobileAuthSessionId) {
         applicationScope.launch { authController.rejectAuthoritativeSession(sessionId) }
     }
@@ -250,7 +235,6 @@ internal class MobileOAuthRuntime(
             }
         }
 
-        /** What a session leaves behind on this device, ended or removed once it is gone. */
         private fun reportConsent(
             authController: MobileAuthController,
             putioClient: PutioClient,
@@ -282,13 +266,11 @@ internal class MobileOAuthRuntime(
             }
             MobileFileDrags.endSession(session)
             MobileDocumentsProvider.sessionLeft(context)
-            // The collector can lag the next sign-in; that account's outcomes stay.
             MobileDownloadNotifications.cancelOtherAccounts(
                 context,
                 (authController.state.value as? MobileAuthState.SignedIn)?.account?.userId,
             )
             MobileWidgets.sessionLeft(context)
-            // The receiver plays with the account's download token.
             MobileCast.sessionLeft(context, session)
             if (session != null) MobilePlaybackService.stop(context)
         }
@@ -347,7 +329,6 @@ internal fun MobileAuthState.diagnosticsAnswer(): DiagnosticsAnswer? =
         is MobileAuthState.SignedIn -> DiagnosticsAnswer.Account(account.diagnosticsEnabled).takeIf { validated }
     }
 
-/** The account and its product analytics answer: signed out is `null to false`; null keeps the last answer. */
 internal fun MobileAuthState.productAnalyticsAnswer(): Pair<Long?, Boolean>? =
     when (this) {
         is MobileAuthState.SignedOut, MobileAuthState.AwaitingOAuthCallback -> null to false

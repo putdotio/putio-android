@@ -67,7 +67,6 @@ class SessionScopedHolderTest {
 
     @Test
     fun aSessionThatChangedHandsBeforeReconcileClosesTheOldValue() {
-        // The collector has not run yet, so only valueFor sees the new session.
         val fixture = Fixture(initial = "a", eager = false)
         val first = checkNotNull(fixture.holder.valueFor("a") { fixture.build() })
 

@@ -7,7 +7,6 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 
-/** One JSON document per user in private SharedPreferences; sign-out clears every user's. */
 internal class MobileMoveTargetStore internal constructor(
     private val preferences: SharedPreferences,
     private val key: String,
@@ -52,7 +51,6 @@ private fun JSONObject.toMemory(): FilesMoveTargetMemory {
         val folder = path.getJSONObject(index)
         FilesFolder(FilesItemId(folder.getLong("id")), folder.optString("name").takeIf { folder.has("name") })
     }
-    // A damaged path opens at root rather than somewhere unexpected.
     return FilesMoveTargetMemory(
         remember = getBoolean("remember"),
         lastTarget = folders.takeIf { list -> list.all { it.id.value > 0L } }.orEmpty(),

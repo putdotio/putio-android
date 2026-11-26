@@ -32,7 +32,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** TV start-from write-back on the shared writer and observer, with a fake position repository. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 @UnstableApi
@@ -45,7 +44,6 @@ class TvPlaybackReportingTest {
         val positions = fixture.reporting.observe(player)
         runCurrent()
 
-        // The screen's position poll ticks every 500 ms; none of those writes.
         repeat(19) { tick ->
             player.position(10_000L + (tick + 1) * 500L)
             advanceTimeBy(500L)
@@ -98,8 +96,6 @@ class TvPlaybackReportingTest {
         val first = checkNotNull(fixture.reporting.lease(FILE_ID))
         assertEquals("A player rebuilt for the same playback", first, fixture.reporting.lease(FILE_ID))
 
-        // The old player's exit write is still in flight when the rebuilt player asks for its
-        // lease; it must still land.
         val player = fixture.play(positionMillis = 50_000L, playing = false)
         fixture.reporting.observe(player).close()
         fixture.play(positionMillis = 50_000L, playing = false)
@@ -177,7 +173,6 @@ class TvPlaybackReportingTest {
             onSaved = { fileId, seconds -> saved += fileId to seconds },
         )
 
-        /** What the TV screen does: the item carries the playback's lease. */
         fun play(positionMillis: Long, playing: Boolean = true): ReportingPlayer {
             val lease = checkNotNull(reporting.lease(FILE_ID))
             return ReportingPlayer().apply {

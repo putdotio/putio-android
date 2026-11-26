@@ -9,11 +9,6 @@ import io.putdotio.sdk.errors.PutioSerializationException
 import io.putdotio.sdk.errors.PutioTransportException
 import java.io.InterruptedIOException
 
-/**
- * What a Files-family surface explains when it fails: a [PutioFailure], or a Files navigation the
- * app itself refused. It sits beside [PutioFailure] because a sealed type's cases must share its
- * module, and transfers and both apps carry it.
- */
 public sealed interface FilesFailure {
     public val cause: Throwable
 
@@ -22,7 +17,6 @@ public sealed interface FilesFailure {
     }
 }
 
-/** A put.io operation that did not complete, in the taxonomy every domain shares. */
 public sealed interface PutioFailure : FilesFailure {
     public data class AuthenticationRequired(
         override val cause: PutioException,
@@ -48,7 +42,6 @@ public sealed interface PutioFailure : FilesFailure {
         val httpStatusCode: Int = statusCode,
     ) : PutioFailure
 
-    /** Any cause: playback also reports a failed media stream or a timed-out position write here. */
     public data class NetworkUnavailable(
         override val cause: Throwable,
     ) : PutioFailure
@@ -70,17 +63,12 @@ public sealed interface PutioFailure : FilesFailure {
     ) : PutioFailure
 }
 
-/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
 public val PutioFailure.apiReason: String?
     get() = (this as? PutioFailure.ApiRejected)?.cause?.apiRejectionReason()
 
-/** put.io has no such file: a 404 in both the envelope and HTTP status, which a trashed file reads as too. */
 public val PutioFailure?.isNotFound: Boolean
     get() = this is PutioFailure.ApiRejected && statusCode == HTTP_NOT_FOUND && httpStatusCode == HTTP_NOT_FOUND
 
-// A contract-derived 401/403 reason anywhere in the wrapper chain is an auth verdict even when the
-// underlying error is not an API exception. The envelope's status code classifies the API error;
-// ApiRejected keeps the HTTP status beside it.
 public fun PutioException.toPutioFailure(): PutioFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()
@@ -91,10 +79,6 @@ public fun PutioException.toPutioFailure(): PutioFailure {
     return current.leafFailure(context = this)
 }
 
-/**
- * [toPutioFailure], except that an `invalid_scope` refusal anywhere in the chain is AccessDenied
- * rather than a 401 that expires the session: put.io answers so for a scope this app lacks.
- */
 public fun PutioException.toScopedFailure(): PutioFailure =
     if (findPutioApiException()?.errorType == INVALID_SCOPE_ERROR_TYPE) {
         PutioFailure.AccessDenied(this)
@@ -102,7 +86,6 @@ public fun PutioException.toScopedFailure(): PutioFailure =
         toPutioFailure()
     }
 
-/** The API error under the SDK's operation wrappers and causes, if any; cycles end the walk. */
 public fun Throwable.findPutioApiException(): PutioApiException? {
     var current: Throwable? = this
     val visited = mutableSetOf<Throwable>()

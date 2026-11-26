@@ -17,20 +17,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** What one signed-in session tells the Watch Next row. */
 internal interface TvWatchNextRecorder {
-    /** put.io saved [positionSeconds] for [media], from playback or the watched toggle. */
     fun positionSaved(media: TvWatchNextMedia, positionSeconds: Double)
 
-    /** The card leaves: put.io no longer has the file, or the user hid it on this TV. */
     fun fileGone(fileId: Long)
 
-    /**
-     * Reads each of the user's cards' files again, once per process and user: a file put.io no
-     * longer has leaves, and a position saved on another device moves the card or, when
-     * finished, removes it. Returns the 401 that ended the pass, which is the session's verdict;
-     * other failures keep the card.
-     */
     suspend fun reconcile(
         resolve: suspend (FilesItemId) -> PutioResult<FilesItem>,
     ): PutioFailure.AuthenticationRequired?
@@ -46,27 +37,17 @@ internal interface TvWatchNextRecorder {
     }
 }
 
-/**
- * The app's cards in the launcher's Watch Next row, process-wide. A card belongs to the signed-in
- * user who played the video on this TV; a write from a session that is no longer signed in is
- * dropped, signing out, a rejected session and a quiet sign-out ([quietSignOuts]) remove every
- * card, and signing in removes any other user's. Provider work runs one operation at a time, in
- * order.
- */
 internal class TvWatchNext(
     private val store: TvWatchNextStore,
     private val authState: StateFlow<TvAuthState>,
-    /** [io.putdotio.android.tv.auth.TvAuthController.quietSignOuts]. */
     quietSignOuts: Flow<Int>,
     private val scope: CoroutineScope,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val lock = Mutex()
 
-    /** Users whose cards this process has reconciled; guarded by [lock]. */
     private val reconciledUsers = mutableSetOf<Long>()
 
-    /** How many changes this process applied to each card; guarded by [lock]. */
     private val cardChanges = mutableMapOf<TvWatchNextOwner, Int>()
 
     init {
@@ -75,7 +56,6 @@ internal class TvWatchNext(
                 lock.withLock { removeAllExcept(owner.userId) }
             }
         }
-        // A quiet sign-out lands in Initializing, where every process also starts.
         scope.launch {
             quietSignOuts.filter { it > 0 }.collect { lock.withLock { removeAllExcept(null) } }
         }
@@ -174,7 +154,6 @@ internal class TvWatchNext(
                 store.update(existing.rowId, owner, program, engagedAtMillis)
                 return
             }
-            // The least recently watched cards make room, so reconciling stays a bounded read.
             cards.filter { it.owner?.userId == userId }
                 .sortedBy { it.engagedAtMillis }
                 .let { mine -> mine.take((mine.size - MAX_CARDS + 1).coerceAtLeast(0)) }
@@ -193,7 +172,6 @@ internal class TvWatchNext(
         when (state) {
             is TvAuthState.SignedIn -> Owner(state.account.userId)
             is TvAuthState.Linking, TvAuthState.SigningOut -> Owner(null)
-            // Restoring or offline: whose session this is is not known yet.
             TvAuthState.Initializing,
             TvAuthState.RestoringSession,
             is TvAuthState.ValidatingSession,
@@ -206,7 +184,6 @@ private fun TvStoredWatchNextProgram.media(file: FilesItem): TvWatchNextMedia =
     TvWatchNextMedia(
         fileId = file.id.value,
         title = file.name,
-        // The card keeps the duration playback knew; a single-file read carries none.
         durationSeconds = file.playback?.durationSeconds
             ?: program.durationMillis.takeIf { it > 0L }?.let { it / MILLIS_PER_SECOND },
         posterUrl = file.screenshotUrl ?: program.posterUrl,
@@ -216,6 +193,5 @@ private fun TvStoredWatchNextProgram.media(file: FilesItem): TvWatchNextMedia =
 private fun TvWatchNextChange.isNoOpFor(card: TvStoredWatchNextProgram): Boolean =
     this is TvWatchNextChange.Publish && program == card.program && !card.outdated
 
-/** Bounds the cards one user keeps, so each sign-in's reconcile reads at most this many files. */
 private const val MAX_CARDS = 20
 private const val MILLIS_PER_SECOND = 1_000.0

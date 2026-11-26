@@ -4,7 +4,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
 
-/** Transfer actions that act on one finished transfer or its folder. */
 class TransfersActionsReducerTest {
     @Test
     fun removeTakesACompletedTransferOffOnlyWhenPutioDeletedItAndCancelsAFailedOne() {

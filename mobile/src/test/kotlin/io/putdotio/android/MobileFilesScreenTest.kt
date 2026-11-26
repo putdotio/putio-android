@@ -366,8 +366,6 @@ class MobileFilesScreenTest {
 
         assertEquals(FilesBrowserEvent.Retry, events.last())
 
-        // A forbidden folder names the permission problem and keeps a retry so a
-        // later share grant can be picked up without leaving the screen.
         compose.runOnIdle {
             state = browserState(
                 FilesContent.Failed(PutioFailure.AccessDenied(PutioConfigurationException("forbidden"))),
@@ -377,7 +375,6 @@ class MobileFilesScreenTest {
         compose.onNodeWithText("Try again").performClick()
         assertEquals(listOf(FilesBrowserEvent.Retry, FilesBrowserEvent.Retry), events.takeLast(2))
 
-        // A refused request shows put.io's own reason; a server error keeps the app's copy.
         compose.runOnIdle {
             state = browserState(
                 FilesContent.Failed(putioRefusal(400, putioErrorBody(400, "not a folder")).toPutioFailure()),
@@ -451,12 +448,10 @@ class MobileFilesScreenTest {
         val state = browserState(FilesContent.Ready(items, FilesPaging.Complete))
         compose.setBuiltContent { PutioTheme { MobileFilesScreen(state, onEvent = {}, onPlayMedia = {}) } }
         compose.awaitText("128 B")
-        // Resumable shows no mark of its own, and never the finished eye.
         compose.onNode(hasText("partly.mkv") and hasText("128 B")).assertIsDisplayed()
         compose.onNode(hasText("partly.mkv") and hasContentDescription("25% watched")).assertDoesNotExist()
         compose.onNode(hasText("partly.mkv") and hasContentDescription("Watched")).assertDoesNotExist()
         compose.onNode(hasText("finished.mkv") and hasContentDescription("Watched")).assertIsDisplayed()
-        // Played with no known length can't resume to a place, so it reads as finished.
         compose.onNode(hasText("unknown.mp3") and hasContentDescription("Watched")).assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_FILES_WATCHED_TAG, useUnmergedTree = true).assertCountEquals(2)
         compose.onNode(hasText("fresh.mkv") and hasContentDescription("Watched")).assertDoesNotExist()
@@ -517,7 +512,6 @@ class MobileFilesScreenTest {
             }
         }
         compose.onAllNodes(hasText(name)).assertCountEquals(2)
-        // Readers get the full name, never the cut line.
         compose.onAllNodesWithText("…", substring = true).assertCountEquals(0)
     }
 }
@@ -563,7 +557,6 @@ class MobileFilesListTest {
         compose.onNodeWithText("Try again").performClick()
         assertEquals(FilesBrowserEvent.Retry, events.last())
 
-        // A folder operation holds paging; the next page follows once it settles.
         compose.runOnIdle {
             state = browserState(
                 available,
@@ -634,7 +627,6 @@ class MobileFilesListTest {
             state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-3"))))
         }
         assertEquals(2, loads())
-        // The next page landed before its loading state was drawn; its new cursor still continues.
         compose.runOnIdle {
             state = browserState(FilesContent.Ready(short, FilesPaging.Available(FilesCursor("page-4"))))
         }

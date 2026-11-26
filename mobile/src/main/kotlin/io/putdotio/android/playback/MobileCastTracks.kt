@@ -9,7 +9,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.media3.common.MediaItem
 import io.putdotio.android.R
 
-/** What each of these tracks shows as: its name, else its language, numbered where two match. */
 internal fun castTrackLabels(tracks: List<CastTrack>, fallback: String): List<String> {
     val labels = tracks.map { track ->
         track.name ?: languageName(track.language) ?: track.language?.takeIf(String::isNotBlank) ?: fallback
@@ -25,19 +24,15 @@ internal fun castTrackLabels(tracks: List<CastTrack>, fallback: String): List<St
     }
 }
 
-/** This status when it is of [item]'s file, whose tracks the Cast controls switch; null for other media. */
 internal fun CastRemoteStatus?.adoptedBy(item: MediaItem?): CastRemoteStatus? =
     this?.takeIf { it.fileId != null && item?.mediaId == it.fileId.toString() }
 
-/** The active tracks with [audioId] as the one audio track. */
 internal fun CastRemoteStatus.withAudio(audioId: Long): Set<Long> =
     activeTrackIds - audioTracks.map(CastTrack::id).toSet() + audioId
 
-/** The active tracks with [textId] as the one text track, or none. */
 internal fun CastRemoteStatus.withSubtitle(textId: Long?): Set<Long> =
     activeTrackIds - textTracks.map(CastTrack::id).toSet() + listOfNotNull(textId)
 
-/** Audio when the receiver lists more than one track, Subtitles when it lists any. */
 @Composable
 internal fun MobileCastTrackChips(status: CastRemoteStatus?, onSheet: (CastVideoSheet) -> Unit) {
     val tracks = status ?: return
@@ -65,7 +60,6 @@ internal fun MobileCastTrackChips(status: CastRemoteStatus?, onSheet: (CastVideo
     }
 }
 
-/** The receiver's audio tracks; a choice replaces the one playing. */
 @Composable
 internal fun MobileCastAudioSheetContent(status: CastRemoteStatus, onTracks: (Set<Long>) -> Unit) {
     val labels = castTrackLabels(status.audioTracks, stringResource(R.string.mobile_playback_audio_control))
@@ -80,7 +74,6 @@ internal fun MobileCastAudioSheetContent(status: CastRemoteStatus, onTracks: (Se
     }
 }
 
-/** Off, then the receiver's text tracks; a choice replaces the one showing. */
 @Composable
 internal fun MobileCastSubtitlesSheetContent(status: CastRemoteStatus, onTracks: (Set<Long>) -> Unit) {
     val labels = castTrackLabels(status.textTracks, stringResource(R.string.mobile_playback_subtitles_title))

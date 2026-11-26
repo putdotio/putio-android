@@ -262,7 +262,6 @@ class FilesCopyTest {
     private fun checked(requestId: FilesRequestId, progress: FilesCopyProgress) =
         FilesBrowserEvent.CopyChecked(requestId, PutioResult.Success(progress))
 
-    /** Root lists the shared folder, which is open on top with [items]. */
     private fun inSharedFolder(items: List<FilesItem>): FilesBrowserState {
         val root = loaded(FilesBrowserReducer.start(), listOf(sharedFolder))
         return loaded(FilesBrowserReducer.reduce(root, FilesBrowserEvent.OpenFolder(sharedFolder.id)), items)

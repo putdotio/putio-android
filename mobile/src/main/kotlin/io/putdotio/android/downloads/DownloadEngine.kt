@@ -2,34 +2,21 @@ package io.putdotio.android.downloads
 
 import io.putdotio.android.files.FilesItemId
 
-/**
- * The platform downloader (Media3 on mobile). It owns transfer, persistence of
- * progress, and the foreground notification; the controller only issues intents
- * and mirrors reported status into [DownloadStore].
- */
 internal interface DownloadEngine {
-    /** Starts or resumes; a retry after failure or a missing copy is the same call. */
     suspend fun start(entry: DownloadEntry)
 
     fun notifyFailed(entry: DownloadEntry, reason: DownloadFailureReason) = Unit
 
-    /** Removes cached bytes and any in-flight transfer; the index row goes when the engine confirms. */
     suspend fun remove(fileId: FilesItemId)
 
     fun isRemoving(fileId: FilesItemId): Boolean = false
 
     suspend fun hasRecord(fileId: FilesItemId): Boolean = false
 
-    /**
-     * Holds a running or waiting transfer, keeping its bytes, until it is released again; a released
-     * one rejoins the queue in its old place.
-     */
     suspend fun setPaused(fileId: FilesItemId, paused: Boolean)
 
-    /** Mirrors live byte progress into the store; the controller calls it while the Downloads screen is visible. */
     fun refreshProgress() = Unit
 
-    /** How many transfers run at once, one of [DOWNLOAD_CONCURRENCY_CHOICES]. */
     val concurrency: Int get() = DOWNLOAD_CONCURRENCY_DEFAULT
 
     fun setConcurrency(limit: Int) = Unit

@@ -9,12 +9,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 
-/** DESIGN.md keeps every button but the one primary action neutral; Material's text button is yellow. */
 @Composable
 internal fun neutralTextButtonColors(): ButtonColors =
     ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
 
-/** A dialog's Cancel: a neutral text button, so the dialog's one yellow action stays its confirm. */
 @Composable
 internal fun MobileDialogDismissButton(
     onClick: () -> Unit,

@@ -21,17 +21,8 @@ import org.gradle.kotlin.dsl.withType
 import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.work.DisableCachingByDefault
 
-/**
- * Runs Robolectric against the android-all jars Gradle resolved, instead of the
- * ones Robolectric downloads from Maven Central into `~/.m2` while tests run.
- * That download sits outside every build cache and fails CI on network errors;
- * Gradle's copies are cached with the rest of the dependencies. Robolectric looks
- * each jar up by file name in one `robolectric.dependency.dir`, and Gradle keeps
- * every artifact in its own directory, so the jars are linked into one.
- */
 fun Project.useOfflineRobolectric() {
     val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
-    // One configuration per SDK: in a single one Gradle would keep only the newer of two versions.
     val androidAll = files(
         mapOf(
             "robolectricAndroidAll" to "robolectric-android-all",
@@ -53,7 +44,6 @@ fun Project.useOfflineRobolectric() {
     }
 }
 
-/** Links each resolved android-all jar into one directory under its own file name. */
 @DisableCachingByDefault(because = "Links files from Gradle's dependency cache; nothing to store")
 abstract class LinkRobolectricAndroidAll : DefaultTask() {
     @get:InputFiles
@@ -69,7 +59,6 @@ abstract class LinkRobolectricAndroidAll : DefaultTask() {
         target.toFile().listFiles()?.forEach { Files.deleteIfExists(it.toPath()) }
         jars.forEach { jar ->
             val link = target.resolve(jar.name)
-            // Robolectric wants a regular file, so a hard link; a copy where the cache is on another volume.
             try {
                 Files.createLink(link, jar.toPath())
             } catch (_: IOException) {

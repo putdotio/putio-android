@@ -3,7 +3,6 @@ plugins {
 }
 
 dependencies {
-    // The root build puts AboutLibraries, AGP, detekt and the Sentry plugin on the classpath; the convention plugin only compiles against them.
     compileOnly(libs.aboutlibraries.gradle.plugin)
     compileOnly(libs.android.gradle.plugin)
     compileOnly(libs.detekt.gradle.plugin)
@@ -12,7 +11,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
 }
 
-// The codegen tests read the repository's design contract, token graph and design, font and icon locks.
 tasks.test {
     inputs.files("../DESIGN.md", "../design/tokens.dtcg.json", "../design/brand-fonts.lock.json", "../design/phosphor-icons.lock.json", "../design/putio-design.lock.json")
         .withPropertyName("designSources")

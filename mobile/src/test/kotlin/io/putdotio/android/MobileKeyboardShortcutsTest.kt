@@ -54,7 +54,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 
-/** Hardware keys through the real input stages, on the production shell over a fixed Files listing. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileKeyboardShortcutsTest {
@@ -70,7 +69,6 @@ class MobileKeyboardShortcutsTest {
 
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_F5)
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_R, CTRL)
-        // Alt and Meta belong to Android's own shortcuts; R alone is just a letter.
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_R, KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON)
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_R)
 
@@ -88,15 +86,12 @@ class MobileKeyboardShortcutsTest {
             assertEquals(listOf(FilesBrowserEvent.NavigateBack, FilesBrowserEvent.NavigateBack), events)
         }
 
-        // With nothing left to go back to, the app still takes Escape, so Android never turns it into a Back
-        // that leaves the app.
         compose.runOnIdle { files = rootState() }
         compose.waitForIdle()
         assertTrue(compose.activity.pressHardwareKeyConsumed(KeyEvent.KEYCODE_ESCAPE))
         compose.runOnIdle { assertEquals(2, events.size) }
     }
 
-    /** Below API 28 the listener rides androidx's KeyEventDispatcher, which ComponentActivity routes keys through. */
     @Test
     @Config(sdk = [26])
     fun onApi26F5RefreshesAndEscapeStaysInTheApp() {
@@ -254,7 +249,6 @@ class MobileKeyboardShortcutsTest {
         compose.waitForIdle()
     }
 
-    /** A navigation key leaves touch mode, as on a device; then the row takes focus as arrows would give it. */
     private fun focusRow(name: String) {
         compose.activity.pressHardwareKey(KeyEvent.KEYCODE_TAB)
         compose.onNode(hasText(name) and hasAnyAncestor(hasTestTag(FILES_LIST))).requestFocus().assertIsFocused()

@@ -116,13 +116,9 @@ internal fun Throwable.toMediaRequestFailureOrNull(): PlaybackFailure? {
 public fun PlaybackException.toPlaybackFailure(): PlaybackFailure =
     toMediaRequestFailureOrNull() ?: errorCodeFailureOrNull() ?: PlaybackFailure.Putio(PutioFailure.Unexpected(this))
 
-// An exception relayed through a MediaController keeps only its error code: the cause is
-// rebuilt from a class name and message, or replaced by a RemoteException, so the
-// HttpDataSource chain above cannot classify it.
 private fun PlaybackException.errorCodeFailureOrNull(): PlaybackFailure? =
     when (errorCode) {
         PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-            // The status survives only in the rebuilt cause's message ("Response code: 401").
             cause?.message?.relayedResponseCode()
                 ?.takeIf { it == HTTP_UNAUTHORIZED || it == HTTP_FORBIDDEN }
                 ?.let { PlaybackFailure.MediaCredentialUnavailable(this) }
@@ -136,10 +132,6 @@ private fun PlaybackException.errorCodeFailureOrNull(): PlaybackFailure? =
         else -> null
     }
 
-/**
- * The device has no decoder for the format, or cannot parse the container or manifest. A decoder
- * that fails to start is left out: another app can hold the hardware decoder, so a retry may work.
- */
 private val MEDIA_UNSUPPORTED_ERROR_CODES = setOf(
     PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
     PlaybackException.ERROR_CODE_PARSING_MANIFEST_UNSUPPORTED,

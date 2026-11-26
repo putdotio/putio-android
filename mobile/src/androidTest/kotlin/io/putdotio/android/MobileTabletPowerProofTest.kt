@@ -116,13 +116,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Synthetic tablet proof on a large-screen emulator through the production shell and player over
- * faked repositories and a local video: hardware-keyboard navigation and shortcuts, then drag and
- * drop with another app in split screen (the test package's drag probe, its own process) while the
- * playing video and the shell keep their state through the split. The drag-out export downloads from
- * an in-process source under a controlled session. No API calls, no sign-in.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileTabletPowerProofTest {
     private val compose = createAndroidComposeRule<MobileTabletProofActivity>()
@@ -151,7 +144,6 @@ class MobileTabletPowerProofTest {
     fun keyboardDrivesFilesSearchTrashAndThePlayer() = withShell {
         screenshot("keys-01-files")
 
-        // The first key leaves touch mode; Tab walks in until a row holds focus.
         repeat(MAX_TABS) { if (!rowFocused("Shows")) press(KeyEvent.KEYCODE_TAB) }
         row("Shows").assertIsFocused()
         screenshot("keys-02-row-focused")
@@ -179,7 +171,6 @@ class MobileTabletPowerProofTest {
         press(KeyEvent.KEYCODE_FORWARD_DEL)
         compose.waitUntil(TIMEOUT_MS) { files.deleted == listOf(NOTES.id to FilesDeleteMode.TRASH) }
         compose.onNodeWithText("Moved to trash").assertExists()
-        // The focused row left the listing; keyboard focus stays in it, on the row now in its place.
         awaitCondition("a row keeps focus") { rowFocused("poster.jpg") }
         screenshot("keys-07-delete-moved-to-trash")
 
@@ -228,13 +219,11 @@ class MobileTabletPowerProofTest {
             )
             awaitCondition("probe beside put.io") { probeWindow() != null && host.isInMultiWindowMode }
             SystemClock.sleep(SETTLE_MS)
-            // The split resized the window without recreating it: the same Activity and player play on.
             assertSame(host, compose.activity)
             assertEquals(1, players.created.get())
             awaitCondition("video still playing") { player { it.isPlaying } == true }
             screenshot("drag-02-video-keeps-playing-in-split-screen")
 
-            // The app opened beside put.io holds key focus; a tap on put.io's pane gives it back.
             tap(hostCenter())
             press(KeyEvent.KEYCODE_ESCAPE)
             awaitCondition("Files in the split") { rowExists("poster.jpg") }
@@ -265,13 +254,10 @@ class MobileTabletPowerProofTest {
             SystemClock.sleep(SETTLE_MS)
             screenshot("drag-06-torrent-opened-add-transfer")
 
-            // An open sheet is its own window and takes no drops, so the next drag starts from Transfers.
             compose.onNodeWithText("Cancel").performClick()
-            // A drag registers its windows when it starts; wait until the sheet's window is gone.
             awaitCondition("the sheet's window to close") { appWindowCount() == 1 }
             SystemClock.sleep(SETTLE_MS)
             touchDrag(from = probeCenter("Magnet link"), to = hostCenter())
-            // Cancel kept the torrent as a draft, so the drop asks before replacing it, as a share does.
             compose.waitUntil(TIMEOUT_MS) {
                 compose.onAllNodes(hasText("Use shared link")).fetchSemanticsNodes().isNotEmpty()
             }
@@ -352,10 +338,6 @@ class MobileTabletPowerProofTest {
 
     private fun tagExists(tag: String): Boolean = compose.onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isNotEmpty()
 
-    /**
-     * Enter plays a video below 840dp; from 840dp it selects the file into the detail pane, whose Play
-     * starts it.
-     */
     private fun playVideo(name: String) {
         focusRow(name)
         press(KeyEvent.KEYCODE_ENTER)
@@ -367,7 +349,6 @@ class MobileTabletPowerProofTest {
         if (inDetail()) compose.onNodeWithTag(MOBILE_FILES_DETAIL_PRIMARY_TAG).performClick()
     }
 
-    /** Arrows walk the listing to [name]; the order is Shows, Harbor film.mp4, poster.jpg, notes.txt. */
     private fun focusRow(name: String) {
         repeat(MAX_TABS) { if (ROOT_ORDER.none(::rowFocused)) press(KeyEvent.KEYCODE_TAB) }
         repeat(ROOT_ORDER.size * 2) {
@@ -386,7 +367,6 @@ class MobileTabletPowerProofTest {
         SystemClock.sleep(pauseMs)
     }
 
-    /** A finger held past the long-press timeout, then moved across windows and lifted. */
     private fun touchDrag(from: PointF, to: PointF, beforeRelease: () -> Unit = {}) {
         val downTime = SystemClock.uptimeMillis()
         inject(MotionEvent.ACTION_DOWN, downTime, from)
@@ -435,7 +415,6 @@ class MobileTabletPowerProofTest {
         return PointF(origin[0] + offset.x, origin[1] + offset.y)
     }
 
-    /** Android's first-use full-screen hint takes key focus from the player; the proof answers it once. */
     private fun dismissFullScreenHint() {
         SystemClock.sleep(SETTLE_MS)
         uiAutomation.windows.filter { it.root?.packageName != context.packageName }
@@ -474,12 +453,10 @@ class MobileTabletPowerProofTest {
         compose.waitForIdle()
         instrumentation.waitForIdleSync()
         uiAutomation.waitForIdle(100, 3_000)
-        // Holds each state long enough for a screen recording to show it.
         SystemClock.sleep(STEP_PAUSE_MS)
         saveProofScreenshot(proofDirectory("tablet-proof-${runId()}"), label)
     }
 
-    /** The probe's reports, which it broadcasts to this app after each drop. */
     private inner class ProbeReports : Closeable {
         private val queue = LinkedBlockingQueue<Intent>()
         private val receiver = object : BroadcastReceiver() {
@@ -551,7 +528,6 @@ class MobileTabletPowerProofTest {
         }
     }
 
-    /** Root and one folder; Trash removes an item, and an exact-ID read then reports it gone. */
     private class ProofFiles(posterSize: Long) : FilesRepository {
         val loads = AtomicInteger()
         private val root = mutableListOf(SHOWS, FILM, POSTER.copy(sizeBytes = posterSize), NOTES)
@@ -602,7 +578,6 @@ class MobileTabletPowerProofTest {
     }
 
     private class LocalVideo(file: File) : PlaybackRepository {
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         private val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
 
@@ -625,10 +600,6 @@ class MobileTabletPowerProofTest {
         override suspend fun findNextVideo(target: PlaybackTarget) = PlaybackNextResult.Ended
     }
 
-    /**
-     * The production renderers on a player that reads local files; the production player streams
-     * through the download cache's HTTP source. It never attaches to a real audio session.
-     */
     private class ProofPlayers : MobilePlayerFactory {
         val created = AtomicInteger()
 
@@ -652,7 +623,6 @@ class MobileTabletPowerProofTest {
         override fun stopAudio(context: Context) = Unit
     }
 
-    /** Serves poster.jpg for the drag-out reads, whole or from a range; the session travels only in the header. */
     private class PosterSource(private val body: ByteArray) : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
             val request = chain.request()

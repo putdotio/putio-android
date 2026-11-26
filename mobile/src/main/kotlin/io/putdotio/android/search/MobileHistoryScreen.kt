@@ -87,7 +87,6 @@ import io.putdotio.android.MobileIconButton
 internal const val MOBILE_HISTORY_LIST_TAG = "mobile-history-list"
 internal const val MOBILE_HISTORY_OVERFLOW_TAG = "mobile-history-overflow"
 
-/** The History tab. */
 @Composable
 internal fun MobileHistoryScreen(
     historyState: HistoryState,
@@ -113,7 +112,6 @@ internal fun MobileHistoryScreen(
     }
 }
 
-/** Today's date, moved on at midnight and on every resume, so Today and Yesterday stay true. */
 @Composable
 private fun rememberToday(): LocalDate {
     var today by remember { mutableStateOf(LocalDate.now()) }
@@ -209,7 +207,6 @@ private fun MobileHistoryList(
     }
 }
 
-/** One event: a neutral glyph, the name it concerns cut in the middle, then what happened and when. */
 @Composable
 private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (HistoryEvent) -> Unit) {
     val fileId = item.kind.navigableFileId()
@@ -227,7 +224,6 @@ private fun MobileHistoryRow(item: HistoryItem, text: HistoryRowText, onEvent: (
         },
         headline = { MobileMiddleCutText(item.title(LocalContext.current)) },
         meta = {
-            // The kind gives way at large font sizes; separators and time always show.
             Row {
                 kind?.let {
                     Text(
@@ -264,7 +260,6 @@ private fun HistoryMetaSeparator() {
     )
 }
 
-/** The tab title's overflow: Clear history, which asks first. */
 @Composable
 internal fun MobileHistoryOverflow(clearing: HistoryClearing, onEvent: (HistoryEvent) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
@@ -411,7 +406,6 @@ private fun HistoryItem.day(zone: ZoneId): HistoryDayKey =
     parsePutioTimestamp(createdAt)?.atZone(zone)?.toLocalDate()?.let { HistoryDayKey.Date(it) }
         ?: HistoryDayKey.Raw(createdAt)
 
-/** Today, Yesterday, then the date in words, with the year only when it is not this one. */
 private fun LocalDate.label(context: Context, today: LocalDate, zone: ZoneId): String =
     when (this) {
         today -> context.getString(R.string.mobile_history_today)
@@ -438,7 +432,6 @@ private fun HistoryItem.timeLabel(context: Context): String {
     return DateUtils.formatDateTime(context, created.toEpochMilli(), DateUtils.FORMAT_SHOW_TIME)
 }
 
-/** The name the event concerns; an event without one reads No title. */
 private fun HistoryItem.title(context: Context): String =
     when (val value = kind) {
         is HistoryEventKind.File -> value.name ?: context.getString(R.string.mobile_history_no_title)
@@ -447,7 +440,6 @@ private fun HistoryItem.title(context: Context): String =
         is HistoryEventKind.Other -> context.getString(R.string.mobile_history_no_title)
     }
 
-/** What happened, before the time; an event of a type with no copy gives its time alone. */
 private fun HistoryItem.kindLabel(context: Context): String? =
     when (val value = kind) {
         is HistoryEventKind.File -> value.sharedBy?.takeIf(String::isNotBlank)
@@ -467,7 +459,6 @@ private fun HistoryItem.kindLabel(context: Context): String? =
         is HistoryEventKind.Other -> null
     }
 
-/** Neutral glyphs: the event's kind, never the file's type. */
 @DrawableRes
 private fun HistoryEventKind.glyph(): Int =
     when (this) {
@@ -487,5 +478,4 @@ private fun HistoryEventKind.glyph(): Int =
 
 private const val HISTORY_META_SEPARATOR = " · "
 private val HISTORY_GLYPH_SIZE = 24.dp
-/** Past midnight before the date is read again, so the new day has begun. */
 private const val MIDNIGHT_SLACK_MILLIS = 1_000L

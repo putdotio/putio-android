@@ -65,11 +65,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The production Downloads screen, controller and engine over a real Media3
- * manager and progressive downloader. The source is a generated local file read
- * at about 1 MB/s, so no API call, account or session is involved.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
 class MobileDownloadsProgressProofTest {
@@ -119,7 +114,6 @@ class MobileDownloadsProgressProofTest {
             val database = DefaultDatabaseProvider(ProofDatabase())
             val cache = SimpleCache(File(workDirectory, "cache"), NoOpCacheEvictor(), database)
             val executor = Executors.newSingleThreadExecutor()
-            // Seeded before the manager exists: reconcile drops an accepted row its index read cannot see.
             val index = DefaultDownloadIndex(database).apply {
                 putDownload(Download(
                     DownloadRequest.Builder("$USER_ID:${FILE_ID.value}", Uri.fromFile(source)).build(),
@@ -182,7 +176,6 @@ class MobileDownloadsProgressProofTest {
         compose.waitForIdle()
         compose.onNodeWithText("On this device", substring = true).assertExists()
         screenshot("completed")
-        // Transitions alone would show 0 % and then Completed; polling shows the bytes in between.
         assertTrue("Only saw $seen", seen.count { it in 1L until SOURCE_BYTES.toLong() } >= MIN_PROGRESS_STEPS)
     }
 
@@ -198,7 +191,6 @@ class MobileDownloadsProgressProofTest {
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
     }
 
-    /** Local bytes at a steady rate, so the transfer spans several poll ticks. */
     private class ThrottledFileSource : DataSource {
         private val file = FileDataSource()
 

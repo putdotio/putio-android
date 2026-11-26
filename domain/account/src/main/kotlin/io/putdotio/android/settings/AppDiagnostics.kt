@@ -1,10 +1,5 @@
 package io.putdotio.android.settings
 
-/**
- * Support-safe facts about this install. Values follow the frontend analytics
- * contract's allowed dimensions: coarse classes and versions only, never
- * device model strings, build fingerprints, identifiers, or account data.
- */
 public data class AppDiagnostics(
     val appVersion: String,
     val versionCode: Int,
@@ -38,7 +33,6 @@ public data class AppDiagnostics(
         Tv("tv"),
     }
 
-    /** Plain-text block for pasting into a support ticket; one `key: value` per line. */
     public fun supportText(): String =
         listOf(
             "app" to runtime.wireValue,

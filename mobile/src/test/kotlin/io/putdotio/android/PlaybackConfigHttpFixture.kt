@@ -12,7 +12,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/** Synthetic SDK responses and an empty live playlist keep source-ownership proof independent of decoding. */
 internal class PlaybackConfigHttpFixture(
     private val responseOverride: (method: String, path: String) -> Pair<Int, String>? = { _, _ -> null },
 ) : Closeable {

@@ -67,31 +67,23 @@ internal fun FilesSortKey.orderLabel(ascending: Boolean): Int =
             if (ascending) R.string.mobile_files_sort_oldest_first else R.string.mobile_files_sort_newest_first
     }
 
-/**
- * The sort button and its menu in three labelled groups, with a check on the current choice: Sort
- * by, Order and Videos. The current choice is the folder's own sort, else the account's default,
- * which the button's state then names; with neither known, it names none.
- */
 @Composable
 internal fun MobileFilesSortMenu(
     folder: FilesFolderState,
     onSelect: (FilesSort) -> Unit,
     accountSort: FilesSort? = null,
     colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
-    /** The overflow button sits right of sort; the menu's end then lines up with it. */
     besideNewFolder: Boolean = false,
 ) {
     var expanded by remember(folder.folder.id.value) { mutableStateOf(false) }
     val current = folder.folder.sort ?: accountSort
     val sortLabel = stringResource(R.string.mobile_files_sort)
     val currentLabel = current?.labelResource()?.let { stringResource(it) }
-    // A loading or failed folder keeps the button in place but has no listing to order yet.
     val enabled = folder.operation.canStartOperation && folder.content is FilesContent.Ready
 
     LaunchedEffect(enabled) {
         if (!enabled) expanded = false
     }
-    // The current sort stays choosable: after a failed reload it retries the order on screen.
     val choose = { sort: FilesSort ->
         expanded = false
         onSelect(sort)

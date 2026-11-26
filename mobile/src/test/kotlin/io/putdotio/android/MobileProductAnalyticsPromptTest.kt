@@ -182,7 +182,6 @@ class MobileProductAnalyticsPromptTest {
             }
         }
         compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG).assertDoesNotExist()
-        // Opted in, it asks even though the shared account already answered.
         mode = MobileProductAnalyticsPromptMode.Forced
         compose.onNodeWithTag(MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG).assertExists()
     }

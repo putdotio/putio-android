@@ -56,7 +56,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** The Files root's search app bar and a folder's bar: where search goes and what New folder makes. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35])
@@ -135,7 +134,6 @@ class MobileFilesBarsTest {
 
         compose.waitUntil(TIMEOUT) { FilesBrowserEvent.Refresh in events }
         assertEquals(listOf(FilesItemId(7L) to "Shorts"), created)
-        // The folder it was made in goes stale, then reloads when it can.
         val stale = events.filterIsInstance<FilesBrowserEvent.InvalidateRestoredItem>().single()
         assertEquals(FilesItemId(7L), stale.item.parentId)
         assertEquals(FilesBrowserEvent.Refresh, events.last())

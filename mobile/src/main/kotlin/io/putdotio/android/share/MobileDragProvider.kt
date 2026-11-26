@@ -15,12 +15,6 @@ import androidx.annotation.VisibleForTesting
 import java.io.FileNotFoundException
 import java.io.IOException
 
-/**
- * Serves a file dragged out of Files to the app it was dropped on. Not exported: only the drop's read
- * grant reaches it. Opening hands out a read-only proxy descriptor at once; reads stream the original
- * from put.io with ranges, as the system file picker's documents do, only while the session that
- * started the drag is the signed-in one.
- */
 class MobileDragProvider : ContentProvider() {
     private val dependencies by lazy { MobileFileShareService.shareDependencies(requireNotNull(context)) }
 
@@ -56,8 +50,6 @@ class MobileDragProvider : ContentProvider() {
         }
         val key = uri.pathSegments.firstOrNull() ?: throw FileNotFoundException("No such drag")
         val storage = requireNotNull(context).getSystemService(StorageManager::class.java)
-        // One thread per open file, so a read waiting on the network holds up no other; it starts only once
-        // the drag opened, so a refused open leaves no thread behind.
         val thread = HandlerThread("putio-drag")
         val reader = MobileFileDrags.open(key, dependencies) { thread.quitSafely() }
         var opened = false

@@ -45,7 +45,6 @@ import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 import io.putdotio.android.search.MOBILE_SEARCH_FIELD_TAG
 
-/** Normal-font keyboard proof in the real shell, without an account runtime or API calls. */
 @RunWith(AndroidJUnit4::class)
 class MobileKeyboardNavigationProofTest {
     private val compose = createComposeRule()
@@ -71,7 +70,6 @@ class MobileKeyboardNavigationProofTest {
     fun keyboardKeepsNavigationAndTheFocusedSearchEditor() {
         val orientation = InstrumentationRegistry.getArguments().getString("putio.accessibility.orientation")
         require(orientation == "portrait" || orientation == "landscape")
-        // A phone in landscape is compact in height, so it keeps the bar.
         val navigationTag = MOBILE_NAV_BAR_TAG
         var query by mutableStateOf("")
         val mounted = mutableStateOf(true)

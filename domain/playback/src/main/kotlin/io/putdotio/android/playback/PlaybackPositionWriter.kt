@@ -16,7 +16,6 @@ import java.io.Closeable
 import java.util.UUID
 import io.putdotio.android.PutioFailure
 
-/** All access belongs to the application's main thread, including the final authorization check. */
 @MainThread
 public class PlaybackPositionWriter(
     private val scope: CoroutineScope,
@@ -35,7 +34,6 @@ public class PlaybackPositionWriter(
     public fun register(fileId: Long, authorized: () -> Boolean): String {
         check(!closed)
         require(fileId > 0L)
-        // A reopened file supersedes its old producer, including a queued exit snapshot.
         leases.entries.removeAll { it.value.fileId == fileId }
         while (leases.size >= MAX_LEASES) leases.remove(leases.keys.first())
         val token = UUID.randomUUID().toString()
@@ -44,23 +42,10 @@ public class PlaybackPositionWriter(
         return token
     }
 
-    /**
-     * Runs [block] between this writer's requests, for another writer of the same positions: no
-     * request starts until the one before has finished, so put.io applies them in the order sent.
-     */
     public suspend fun <T> exclusive(block: suspend () -> T): T = requests.withLock { block() }
 
-    /**
-     * Runs [block], another write of [fileId]'s position, as the last word on it: positions this
-     * writer took for the file before the call are dropped unless already sent, and one already
-     * sent finishes before [block] starts.
-     */
     public suspend fun <T> supersede(fileId: Long, block: suspend () -> T): T = supersede(listOf(fileId), block)
 
-    /**
-     * Runs [block], another write for [fileIds], after invalidating all pending leases for those
-     * files atomically and waiting for any in-flight write to finish.
-     */
     public suspend fun <T> supersede(fileIds: Iterable<Long>, block: suspend () -> T): T {
         val targets = fileIds.toSet()
         if (targets.isNotEmpty()) {
@@ -77,8 +62,6 @@ public class PlaybackPositionWriter(
         val lease = leases[token]?.takeIf { !closed && offeredMillis >= 0L && it.authorized() } ?: return
         val positionMillis = offeredMillis.takeIf { it >= MIN_SAVED_POSITION_MILLIS } ?: 0L
         if (lease.delivery.covers(positionMillis)) return
-        // One in-flight request and one latest snapshot bound memory during slow requests
-        // and rapid file switches. Intermediate queued exit positions may be superseded.
         pending?.let { leases[it.token]?.settle(it.generation, it.attempt, Delivery.Unsent) }
         val snapshot = Snapshot(token, lease.fileId, positionMillis, lease.generation, ++attempts)
         lease.delivery = Delivery.Sending(positionMillis, snapshot.attempt)
@@ -86,7 +69,6 @@ public class PlaybackPositionWriter(
         drain()
     }
 
-    /** Discards revoked work; this is deliberately different from a player's trailing flush. */
     public fun reconcile() {
         leases.values.filterNot { it.authorized() }.forEach { it.delivery = Delivery.Unsent }
         if (pending?.allowed() == false) pending = null
@@ -120,11 +102,8 @@ public class PlaybackPositionWriter(
         active = snapshot
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
-                // Waiting for an exclusive block comes before authorization and outside the timeout.
                 requests.withLock {
                     if (snapshot.allowed()) {
-                        // The SDK captures the current credential before suspending. Do not add
-                        // a dispatcher hop between authorization and this asynchronous request.
                         val result = withTimeout(WRITE_TIMEOUT_MILLIS) {
                             if (snapshot.allowed()) write(snapshot.fileId, snapshot.positionMillis / MILLIS_PER_SECOND)
                             else null

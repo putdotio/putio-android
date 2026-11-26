@@ -66,11 +66,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Live devs-auto API through the app's signed-in session: a switch to converted that resolves to no
- * converted stream, and a Direct play download whose lookup outlasts a restart. Reads only; the
- * download is local and removed.
- */
 @RunWith(AndroidJUnit4::class)
 class MobilePlaybackPickProofTest {
     @get:Rule

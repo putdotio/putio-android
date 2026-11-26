@@ -50,8 +50,6 @@ class MainActivityShareTest {
 
     @Test
     fun freshSharesAreReceivedWhileHistoryReplaysAreOnlyScrubbed() {
-        // ActivityScenario matches lifecycle callbacks against the launch intent's action.
-        // This test deliberately replaces that action, so own the Activity lifecycle directly.
         Robolectric.buildActivity(MainActivity::class.java).setup().use { controller ->
             with(controller.get()) {
                 val history = share().addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)

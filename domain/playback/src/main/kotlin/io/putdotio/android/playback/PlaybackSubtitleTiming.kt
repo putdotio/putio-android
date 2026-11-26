@@ -12,12 +12,6 @@ import androidx.media3.exoplayer.Renderer
 
 private const val MICROS_PER_MILLI = 1_000L
 
-/**
- * A text renderer that reads its cues [leadUs] ahead of the playback position, from the samples
- * already buffered, so subtitles show sooner. Media3 has no subtitle timing of its own; later
- * subtitles wait in [DelayedSubtitleCues] instead, because reading behind would need samples a seek
- * has already passed.
- */
 @UnstableApi
 internal class SubtitleLeadRenderer(renderer: Renderer) : ForwardingRenderer(renderer) {
     @Volatile
@@ -39,9 +33,6 @@ internal class SubtitleLeadRenderer(renderer: Renderer) : ForwardingRenderer(ren
         super.resetPosition(positionUs + leadUs, sampleStreamIsResetToKeyFrame)
     }
 
-    // Media3 gives the final stream's end time only to a renderer that is a TextRenderer, so the
-    // wrapped one would wait out a cue that runs past the media. Read to the end, it holds up
-    // nothing; the player keeps rendering it until audio and video end.
     override fun isEnded(): Boolean = super.isEnded() || hasReadStreamToEnd()
 
     companion object {
@@ -49,12 +40,6 @@ internal class SubtitleLeadRenderer(renderer: Renderer) : ForwardingRenderer(ren
     }
 }
 
-/**
- * Shows this player's subtitles [leadMillis] sooner. The text renderer drops cues behind where it
- * has read, so with [reread] the player seeks a millisecond on and reads its subtitles again; Media3
- * skips a seek to the position it is already at. Players built without the app's renderers, such
- * as test fakes and media controllers, keep their timing.
- */
 @UnstableApi
 public fun Player.setSubtitleLead(leadMillis: Long, reread: Boolean = false) {
     val player = this as? ExoPlayer ?: return
@@ -70,11 +55,6 @@ public fun Player.setSubtitleLead(leadMillis: Long, reread: Boolean = false) {
     }
 }
 
-/**
- * The cues the player showed, by the position it showed them at, so they can show again later.
- * Only what played since the last seek is here: after a seek, a delay leaves its first stretch
- * without subtitles.
- */
 public class DelayedSubtitleCues(private val retainMillis: Long = DEFAULT_RETAIN_MILLIS) {
     private val shown = ArrayDeque<Pair<Long, List<Cue>>>()
 
@@ -90,15 +70,12 @@ public class DelayedSubtitleCues(private val retainMillis: Long = DEFAULT_RETAIN
         synchronized(shown) { shown.clear() }
     }
 
-    /** What showed [delayMillis] before [positionMillis]; nothing when that was before the record. */
     public fun at(positionMillis: Long, delayMillis: Long): List<Cue> = atOrNull(positionMillis, delayMillis).orEmpty()
 
-    /** What showed [delayMillis] before [positionMillis], or null when that was before the record. */
     public fun atOrNull(positionMillis: Long, delayMillis: Long): List<Cue>? =
         synchronized(shown) { shown.lastOrNull { it.first + delayMillis <= positionMillis }?.second }
 
     private companion object {
-        // Past the longest delay the viewer can pick.
         const val DEFAULT_RETAIN_MILLIS = 12_000L
     }
 }

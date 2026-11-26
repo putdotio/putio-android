@@ -8,16 +8,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Expected values come from DESIGN.md's typography front matter and its Typography section. */
 class PutioTypographyTest {
     @Test
     fun materialSlotsStockComponentsReadCarryTheContract() {
         val type = putioTypography
-        assertStyle(type.titleLarge, size = 22, lineHeight = 28, weight = 500) // top app bar
-        assertStyle(type.headlineSmall, size = 22, lineHeight = 28, weight = 500) // dialog title
-        assertStyle(type.bodyLarge, size = 16, lineHeight = 22, weight = 400) // list headline
-        assertStyle(type.bodyMedium, size = 14, lineHeight = 20, weight = 400) // dialog and snackbar body
-        assertStyle(type.labelMedium, size = 12, lineHeight = 16, weight = 500) // nav label
+        assertStyle(type.titleLarge, size = 22, lineHeight = 28, weight = 500)
+        assertStyle(type.headlineSmall, size = 22, lineHeight = 28, weight = 500)
+        assertStyle(type.bodyLarge, size = 16, lineHeight = 22, weight = 400)
+        assertStyle(type.bodyMedium, size = 14, lineHeight = 20, weight = 400)
+        assertStyle(type.labelMedium, size = 12, lineHeight = 16, weight = 500)
     }
 
     @Test
@@ -34,7 +33,7 @@ class PutioTypographyTest {
     fun monoKeepsItsSizeWithTabularFiguresAndAFloor() {
         val meta = monoNumbers(TextStyle(fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight(500)))
         assertEquals(PutioFontFamily.berkeleyMono, meta.fontFamily)
-        assertEquals(FontWeight(400), meta.fontWeight) // DESIGN.md's mono weight, the one face it embeds
+        assertEquals(FontWeight(400), meta.fontWeight)
         assertEquals("\"tnum\"", meta.fontFeatureSettings)
         assertEquals(13.sp, meta.fontSize)
         assertEquals(12.sp, monoNumbers(TextStyle(fontSize = 11.sp)).fontSize)

@@ -5,7 +5,6 @@ plugins {
 android {
     namespace = "io.putdotio.android.auth"
 
-    // Fakes other modules' tests reuse.
     testFixtures.enable = true
 }
 

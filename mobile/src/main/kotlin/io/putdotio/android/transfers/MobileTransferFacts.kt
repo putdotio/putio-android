@@ -8,7 +8,6 @@ import io.putdotio.android.files.toAgo
 import java.text.NumberFormat
 import kotlin.math.roundToLong
 
-/** Where a transfer card sits on Transfers. */
 internal enum class MobileTransferSection(@StringRes val label: Int) {
     Active(R.string.mobile_transfers_section_active),
     NeedsAttention(R.string.mobile_transfers_section_attention),
@@ -25,7 +24,6 @@ internal val TransferItem.section: MobileTransferSection
         else -> MobileTransferSection.Active
     }
 
-/** The state dot's colour; its word always sits next to it. */
 internal enum class MobileTransferDot { Downloading, Waiting, Failed, Done }
 
 internal val TransferItem.dot: MobileTransferDot
@@ -40,7 +38,6 @@ internal val TransferItem.dot: MobileTransferDot
             }
     }
 
-/** How much of the card fills: a running transfer's progress, a seeding one in full, nothing otherwise. */
 internal val TransferItem.fillFraction: Float
     get() = when {
         status == AppTransferStatus.Seeding -> 1f
@@ -48,10 +45,8 @@ internal val TransferItem.fillFraction: Float
         else -> ((percentDone ?: 0.0) / PERCENT).toFloat().coerceIn(0f, 1f)
     }
 
-/** One piece of a card's or sheet's meta; [mono] marks a number. */
 internal data class MobileTransferPart(val text: String, val mono: Boolean = false)
 
-/** A size, or "847 MB of 3.42 GB" while a transfer is still getting its bytes. */
 internal fun TransferItem.sizeParts(context: Context): List<MobileTransferPart> {
     val total = sizeBytes?.takeIf { it > 0.0 }?.let { size(it) }
     val done = downloadedBytes?.takeIf { section == MobileTransferSection.Active && it >= 0.0 }
@@ -89,10 +84,8 @@ internal fun TransferItem.ratioText(): String? =
         }.format(ratio)
     }
 
-/** "3 hr. ago" from put.io's finish time, in words, as dates read. */
 internal fun TransferItem.finishedAgo(nowMillis: Long): String? = finishedAt?.toAgo(nowMillis)
 
-/** "2m 48s", "1h 05m", "3d 04h": the two largest units. */
 internal fun timeLeft(context: Context, seconds: Long): String {
     val minutes = seconds / SECONDS_PER_MINUTE
     val hours = minutes / MINUTES_PER_HOUR
@@ -104,10 +97,6 @@ internal fun timeLeft(context: Context, seconds: Long): String {
     }
 }
 
-/**
- * A transfer name on one line, cut in the middle when it runs past [budget] characters: its start,
- * an ellipsis, and its last characters, which keep the extension ("The.Wire.S03E04.…-DEMAND.mkv").
- */
 internal fun middleCut(name: String, budget: Int = TRANSFER_NAME_BUDGET): String {
     if (name.codePointCount(0, name.length) <= budget) return name
     val tail = minOf(TRANSFER_NAME_TAIL, budget / 2)

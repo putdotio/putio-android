@@ -49,7 +49,6 @@ public sealed interface PlaybackRepositoryResult<out T> {
 public sealed interface PlaybackFailure {
     public val cause: Throwable
 
-    /** A failure in the shared taxonomy: from a put.io request ([toPlaybackFailure]) or from the player. */
     public data class Putio(
         val failure: PutioFailure,
     ) : PlaybackFailure {
@@ -61,25 +60,17 @@ public sealed interface PlaybackFailure {
         override val cause: Throwable,
     ) : PlaybackFailure
 
-    /** The device cannot decode or parse this media; resolving it again plays nothing. */
     public data class MediaUnsupported(
         override val cause: Throwable,
     ) : PlaybackFailure
 }
 
-/** The put.io failure behind this one; null for a media failure only playback explains. */
 public val PlaybackFailure.putioFailure: PutioFailure?
     get() = (this as? PlaybackFailure.Putio)?.failure
 
-/** put.io's own reason for a refused request; the surface's copy applies when it is null. */
 public val PlaybackFailure.apiReason: String?
     get() = putioFailure?.apiReason
 
-/**
- * Whether trying again can succeed: a network, rate-limit, server, request-timeout or
- * expired-link failure can, a rejected session, a refused or rejected request, or media the
- * device cannot play cannot.
- */
 public val PlaybackFailure.retryable: Boolean
     get() = when (this) {
         is PlaybackFailure.MediaCredentialUnavailable -> true
@@ -103,13 +94,11 @@ public val PlaybackFailure.retryable: Boolean
     }
 
 public interface PlaybackRepository {
-    /** [convertedOnly] never resolves an original video. */
     public suspend fun resolve(
         target: PlaybackTarget,
         convertedOnly: Boolean = false,
     ): PlaybackRepositoryResult<PlaybackResolution>
 
-    /** Starts converting [target] to MP4, then resolves it again as [resolve] does. */
     public suspend fun startConversion(
         target: PlaybackTarget,
         convertedOnly: Boolean = false,
@@ -126,19 +115,9 @@ public interface PlaybackRepository {
 
     public fun forgetSwitchedToConverted(target: PlaybackTarget): Unit = Unit
 
-    /**
-     * The files of [target]'s media type on either side of it in its folder, in name order, and
-     * the folder's name. The API has no queue, so audio's skip buttons and Up next read this.
-     */
     public suspend fun findNeighbours(target: PlaybackTarget): PlaybackRepositoryResult<PlaybackNeighbours> =
         PlaybackRepositoryResult.Success(PlaybackNeighbours())
 
-    /**
-     * [source] as a Cast receiver plays it ([toCastMedia]), with the account's download token on
-     * every URL, as Open in VLC hands it. No download token fails as
-     * [PlaybackFailure.MediaCredentialUnavailable]; a source no receiver can reach as
-     * [PlaybackFailure.MediaUnsupported].
-     */
     public suspend fun castMedia(
         target: PlaybackTarget,
         source: PlaybackSource,
@@ -147,7 +126,6 @@ public interface PlaybackRepository {
         PlaybackRepositoryResult.Failure(PlaybackFailure.MediaUnsupported(UncastableSourceException()))
 }
 
-/** What sits around a playing file in its folder; null where there is nothing, or nothing known. */
 public data class PlaybackNeighbours(
     val previous: PlaybackTarget? = null,
     val next: PlaybackTarget? = null,
@@ -227,7 +205,6 @@ internal class SdkPlaybackRepository internal constructor(
                     capabilities = PlaybackCapabilities(
                         originalVideoPlayable = !convertedOnly && target.mediaType == PlaybackMediaType.VIDEO,
                     ),
-                    // hide_subtitles asks for no subtitles at all, as every reference player does.
                     includeSidecarSubtitles = !hideSubtitles,
                     maxSubtitleCount = if (hideSubtitles) 0 else null,
                 ),
@@ -258,7 +235,6 @@ internal class SdkPlaybackRepository internal constructor(
         activeSubtitleKey: String?,
     ): PlaybackRepositoryResult<PlaybackCastMedia> =
         try {
-            // Never the session's access token: the receiver keeps what it is sent.
             val token = loadAccount().downloadToken
             val media = token?.let { source.toCastMedia(target, it.value, activeSubtitleKey) }
             when {
@@ -324,7 +300,6 @@ internal class SdkPlaybackRepository internal constructor(
             PlaybackRepositoryResult.Failure(PlaybackFailure.Putio(PutioFailure.Unexpected(unexpected)))
         }
 
-    /** The playing file as put.io holds it now; null once it is gone. */
     private suspend fun currentFile(target: PlaybackTarget): PutioFile? =
         try {
             loadFile(target.fileId.value)
@@ -360,7 +335,6 @@ internal class SdkPlaybackRepository internal constructor(
             }
             next != null
         }
-        // A file the listing no longer holds has no place in it, so nothing sits on either side.
         return PlaybackNeighbours(
             previous = previous?.takeIf { foundCurrent }?.toPlaybackTarget(target.mediaType),
             next = next?.toPlaybackTarget(target.mediaType),
@@ -368,12 +342,6 @@ internal class SdkPlaybackRepository internal constructor(
         )
     }
 
-    /**
-     * Walks [parentId]'s files of [mediaType] page by page until [visit] returns true or the
-     * folder ends, and returns the folder as its first page names it. The next-file endpoint can
-     * cross folders and fall back to a random account video, so this walks the server's explicit
-     * name ordering instead, stopping at this folder's end.
-     */
     private suspend fun walkFolder(
         parentId: Long,
         mediaType: PlaybackMediaType,
@@ -382,7 +350,6 @@ internal class SdkPlaybackRepository internal constructor(
         val fileType = mediaType.fileType()
         var page = listFolder(
             parentId,
-            // Video metadata carries the duration TV needs to offer resume for the next video.
             FilesListQuery(
                 perPage = AUTOPLAY_PAGE_SIZE,
                 fileType = fileType,
@@ -411,7 +378,6 @@ internal class SdkPlaybackRepository internal constructor(
     }
 }
 
-// The near-end rule needs a video's duration, and so does Continue watching, even for a video never started.
 private fun PlaybackTarget.needsDuration(): Boolean =
     durationSeconds == null && mediaType == PlaybackMediaType.VIDEO
 
@@ -430,15 +396,8 @@ private fun PutioFile.toPlaybackTarget(mediaType: PlaybackMediaType): PlaybackTa
         posterUrl = screenshot?.takeIf(String::isNotBlank),
     )
 
-/**
- * [delegate] plus the SDK's MP4 conversion start and subtitle listing. The player starts a conversion
- * when a video it opens reads not available, and when the viewer converts again after a failure (see
- * [PlaybackContent.Conversion.starting]); the resolver itself never does (putio-sdk-kotlin
- * `docs/ARCHITECTURE.md`, conversion handling).
- */
 public class ConvertingPlaybackRepository internal constructor(
     private val delegate: PlaybackRepository,
-    /** Starts the conversion; true when the server accepted it (any status but not available). */
     private val startMp4Conversion: suspend (Long) -> Boolean,
     private val switchedToConverted: SwitchedToConvertedFiles = SwitchedToConvertedFiles.None,
 ) : PlaybackRepository by delegate {
@@ -497,8 +456,6 @@ public class ConvertingPlaybackRepository internal constructor(
             val resolved = delegate.resolve(target, convertedOnly = true)
             val read = (resolved as? PlaybackRepositoryResult.Success)?.value as? PlaybackResolution.Conversion
             val stillNotAvailable = read?.state == PlaybackConversionState.NotAvailable
-            // A status read that has not caught up with an accepted start polls once more before
-            // it is final.
             if (accepted && stillNotAvailable) {
                 PlaybackRepositoryResult.Success(PlaybackResolution.Conversion(PlaybackConversionState.Queued))
             } else {
@@ -534,13 +491,9 @@ public sealed interface PlaybackResolution {
     public data class Ready(
         val source: PlaybackSource,
         val useStartFrom: Boolean = false,
-        /** Resolved for a `hide_subtitles` account, whose settings the player may not have yet. */
         val subtitlesHidden: Boolean = false,
-        /** The media's duration when the target did not carry one; see [PlaybackTarget.durationSeconds]. */
         val durationSeconds: Double? = null,
-        /** Plays a download on this device, though [source] still names put.io's URL. */
         val offline: Boolean = false,
-        /** Plays converted because the viewer switched this video to converted on this device. */
         val switchedToConverted: Boolean = false,
     ) : PlaybackResolution
 
@@ -553,11 +506,6 @@ public sealed interface PlaybackResolution {
     ) : PlaybackResolution
 }
 
-/**
- * Playback's reading of a put.io error, unlike [toPutioFailure]: an API error under the SDK's
- * operation wrappers outranks a wrapper's contract status, and the HTTP status, not the
- * envelope's, classifies it.
- */
 public fun PutioException.toPlaybackFailure(): PlaybackFailure {
     var current: PutioException = this
     val visited = mutableSetOf<PutioException>()

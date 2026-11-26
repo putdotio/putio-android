@@ -44,10 +44,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The real share service and MainActivity with a controlled session and an in-process download source;
- * no API call, credential or sign-in UI. A control run proves the lane sees a chooser when one opens.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileShareSessionProofTest {
     @get:Rule val optIn = TestRule { base, _ ->
@@ -85,7 +81,6 @@ class MobileShareSessionProofTest {
                 source.release()
                 awaitCondition("control chooser") { choosers.hits == 1 }
                 awaitCondition("chooser window") { activeWindowPackage() !in listOf(null, context.packageName) }
-                // The sheet slides in after its window takes focus.
                 SystemClock.sleep(SETTLE_MS)
                 screenshot("control-chooser-opens")
                 instrumentation.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
@@ -97,7 +92,6 @@ class MobileShareSessionProofTest {
                 screenshot("export-running")
                 auth.value = MobileAuthState.SigningOut
                 auth.value = MobileAuthState.SignedOut()
-                // The download finishes after the session ended; delivery must still drop it.
                 source.release()
                 awaitCondition("share folder removed") { !MobileFileShareService.shareRoot(context).exists() }
                 SystemClock.sleep(SETTLE_MS)
@@ -140,7 +134,6 @@ class MobileShareSessionProofTest {
     private val instrumentation: Instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
 
-    /** Holds each download until released, so the session can end while the export is running. */
     private class GatedSource(private val body: ByteArray) : Interceptor {
         @Volatile private var requested = CountDownLatch(1)
         @Volatile private var gate = CountDownLatch(1)

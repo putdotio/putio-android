@@ -73,7 +73,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/** Real video, tracks, cues, window rotation and insets; saved-state recreation uses the Compose test harness. */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class MobileFullscreenVideoProofTest {
@@ -113,7 +112,6 @@ class MobileFullscreenVideoProofTest {
             screenshot("landscape-direct-controls")
             compose.onNodeWithContentDescription("Playback speed 1×").performTouchInput { click() }
             screenshot("landscape-speed-sheet")
-            // The stepper walks the presets: 1×, then 1.25×, then 1.5×.
             compose.onNodeWithContentDescription("Faster, 1.25×").performTouchInput { click() }
             compose.onNodeWithContentDescription("Faster, 1.5×").performTouchInput { click() }
             closeSheet()
@@ -135,7 +133,6 @@ class MobileFullscreenVideoProofTest {
             }
             awaitPlayer(factory) { it.playbackState == Player.STATE_READY && it.currentPosition >= 45_000L }
             val positionBeforeRestore = compose.runOnIdle { originalPlayer.currentPosition }
-            // Android pauses the Activity before saving it; playback snapshots its live position there.
             compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
             restoration.emulateSavedInstanceStateRestore()
             compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
@@ -187,7 +184,6 @@ class MobileFullscreenVideoProofTest {
                     it.currentPosition > 500 && factory.renderedFrame
             }
             awaitWindow(Configuration.ORIENTATION_PORTRAIT, barsVisible = false)
-            // Give a landscape request time to land before checking that none did.
             compose.mainClock.advanceTimeBy(1_000)
             Thread.sleep(1_000)
             compose.runOnIdle {
@@ -264,7 +260,6 @@ class MobileFullscreenVideoProofTest {
         compose.onNode(probe).assertIsDisplayed()
     }
 
-    /** How the side sheet names a track: its language in its own words, else its label. */
     private fun PlaybackAudioTrack.rowName(): String = languageName(identity.language) ?: checkNotNull(label)
     private fun PlaybackSubtitleTrack.rowName(): String = languageName(identity.language) ?: checkNotNull(label)
 
@@ -316,7 +311,6 @@ class MobileFullscreenVideoProofTest {
         argument: String = "putio.video.fullscreen.fixture",
     ): PlaybackState {
         val file = proofFixture(argument)
-        // The SDK owns production URLs. This proof reads only its caller-owned local fixture.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(Uri.fromFile(file).toString())
         return playbackState(
@@ -367,6 +361,5 @@ private class FullscreenProofPlayerFactory : MobilePlayerFactory {
                 override fun onRenderedFirstFrame() { renderedFrame = true }
             })
         }
-    // This private-video proof must not stop an unrelated real audio session.
     override fun stopAudio(context: Context) = Unit
 }

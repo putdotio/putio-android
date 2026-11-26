@@ -28,7 +28,6 @@ internal object MobileResumedActivity {
         if (current === activity) current = null
     }
 
-    /** Cancellation may arrive off the main thread, so registration and removal share one lock. */
     suspend fun await(): Activity = suspendCancellableCoroutine { continuation ->
         val waiter: (Activity) -> Unit = { if (continuation.isActive) continuation.resume(it) }
         val now = synchronized(waiters) { current.also { if (it == null) waiters += waiter } }

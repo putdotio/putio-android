@@ -89,7 +89,6 @@ class SdkHistoryRepositoryTest {
             event(2, HistoryEventType.FILE_FROM_RSS_DELETED_FOR_SPACE, fileName = "Old episode.mkv", fileId = 502L),
             event(3, HistoryEventType.TRANSFER_FROM_RSS_ERROR, transferName = "Feed item"),
             event(4, HistoryEventType.TRANSFER_CALLBACK_ERROR, transferName = "Callback transfer"),
-            // The name its copy states is missing: nothing to say but its type.
             event(5, HistoryEventType.TRANSFER_ERROR, fileName = "not the transfer name"),
             event(6, HistoryEventType.VOUCHER, fileName = "unused"),
             event(7, HistoryEventType.fromRaw("brand_new_event"), transferName = "unused"),

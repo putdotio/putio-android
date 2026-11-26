@@ -47,7 +47,6 @@ class PlaybackSubtitleTimingTest {
         assertEquals(first, cues.at(10_500L, delayMillis = 500L))
         assertEquals(second, cues.at(16_400L, delayMillis = 3_000L))
         assertEquals(emptyList<Cue>(), cues.at(19_000L, delayMillis = 3_000L))
-        // A seek back replaces what came after it.
         cues.record(12_000L, second)
         assertEquals(second, cues.at(15_000L, delayMillis = 3_000L))
         cues.clear()

@@ -71,10 +71,6 @@ public fun Tracks.playbackAudioTracks(): List<PlaybackAudioTrack> =
                 }
         }
 
-/**
- * The track's language, or null when it has none. MP4 and Matroska extractors pass an
- * undetermined `und` tag through as is, and it names no language.
- */
 public fun Format.knownLanguage(): String? =
     language?.takeUnless { it.isBlank() || it == C.LANGUAGE_UNDETERMINED }
 
@@ -127,13 +123,10 @@ public fun TrackSelectionParameters.withRetainedAudioSelection(
             selected.mediaTrackGroup.getFormat(index).toAudioTrackIdentity()
         }
     }
-    // Empty discovery cannot invalidate the live choice. Fresh preparation clears overrides explicitly.
     if (tracks.isEmpty() && selection is AudioSelection.Track && selection.identity == pendingIdentity) return this
     val liveTrack = tracks.singleOrNull { track ->
         overrides[track.group]?.trackIndices == listOf(track.trackIndex)
     }
-    // The live override identifies a concrete row even when format metadata collides.
-    // Fresh preparation clears it before retained identities resolve against new tracks.
     return if (selection is AudioSelection.Track && liveTrack != null && liveTrack.identity == selection.identity) {
         withAudioTrack(liveTrack)
     } else {

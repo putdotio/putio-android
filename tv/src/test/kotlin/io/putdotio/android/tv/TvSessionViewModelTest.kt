@@ -110,11 +110,9 @@ class TvSessionViewModelTest {
     private val watched = FakeWatchedRepository()
     private val playbackRepository = FakePlaybackRepository()
     private var appConfigPreferences = AndroidAppConfigPreferences()
-    /** Listing an item's own id returns it as the parent, as the API does for a file. */
     private val listedItems = mutableMapOf<FilesItemId, FilesItem>()
     private val heldListings = mutableMapOf<FilesItemId, CompletableDeferred<Unit>>()
     private var historyItems = emptyList<HistoryItem>()
-    /** The root listing's pages, continued by `page-N` cursors; empty lists an empty root. */
     private var rootPages = emptyList<FilesPage>()
     private var streamResult: (FilesItemId) -> FilesStreamUrlResult = {
         FilesStreamUrlResult.Ready("https://api.put.io/v2/files/${it.value}/stream?oauth_token=t")
@@ -714,7 +712,6 @@ class TvSessionViewModelTest {
 
         session.play(video)
         session.stopPlayback()
-        // The exit write lands after playback has gone.
         session.watchNextPlayback.saved(9L, 120.0)
         session.watchNextPlayback.saved(10L, 30.0)
         session.setWatched(video, watched = true)
@@ -1129,10 +1126,8 @@ private class FakePlaybackRepository : PlaybackRepository {
     var preference: () -> PlaybackPreference = { error("No preference wired") }
     val preferencesSeen = mutableListOf<PlaybackPreference>()
 
-    /** The account's saved position for every file, with resume playback on when positive. */
     var savedSeconds = 0.0
 
-    /** Durations the file's own listing carries, filled in for a video target without one. */
     val listedDurations = mutableMapOf<FilesItemId, Double>()
 
     override suspend fun resolve(
@@ -1152,7 +1147,6 @@ private class FakePlaybackRepository : PlaybackRepository {
         )
     }
 
-    /** The video after each one in its folder; anything else is the folder's last. */
     val next = mutableMapOf<FilesItemId, PlaybackTarget>()
 
     override suspend fun findNextVideo(target: PlaybackTarget): PlaybackNextResult =

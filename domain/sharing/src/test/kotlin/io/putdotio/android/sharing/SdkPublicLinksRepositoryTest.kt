@@ -32,7 +32,6 @@ class SdkPublicLinksRepositoryTest {
         assertEquals(FilesItemId(70L), link.fileId)
         assertEquals("Harbor été.mp4", link.fileName)
         assertEquals(PutioFileType.VIDEO, link.fileType)
-        // put.io sends UTC without an offset.
         assertEquals(Instant.parse("2026-10-07T19:36:01.325208Z"), link.expiresAt)
         assertFalse(link.toString().contains("aB3-x_9"))
     }

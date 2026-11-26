@@ -1,6 +1,5 @@
 package io.putdotio.android.auth
 
-/** An OAuth access token. Never logged or rendered; [reveal] only for the SDK and secure storage. */
 public class AccessToken private constructor(
     private val value: String,
 ) {

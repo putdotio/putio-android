@@ -9,17 +9,11 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
-/**
- * Keeps a debug-only activity out of release builds. A variant with [present] false must not
- * declare [activity] in its merged manifest; one with [present] true must, so a rename cannot leave
- * the release check guarding a name nothing uses.
- */
 abstract class VerifyDebugOnlyActivityTask : DefaultTask() {
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val mergedManifest: RegularFileProperty
 
-    /** Fully qualified activity class name as written in the merged manifest. */
     @get:Input
     abstract val activity: Property<String>
 

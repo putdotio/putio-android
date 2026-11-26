@@ -73,13 +73,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Synthetic proof of the documents provider through the system file picker: another activity sends
- * ACTION_OPEN_DOCUMENT, the real DocumentsUI lists the put.io root and pages a folder in, and the picked documents
- * are read through the production provider's proxy descriptors. A faked session and Files repository stand in for
- * put.io; the remote file comes through the share-out download request served in-process, and the local one from a
- * stand-in for a completed download. No API call, credential or sign-in UI.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileDocumentsPickerProofTest {
     @get:Rule val optIn = TestRule { base, _ ->
@@ -130,7 +123,6 @@ class MobileDocumentsPickerProofTest {
                 showRoots()
                 awaitText(ROOT_SUMMARY)
                 screenshot("01-picker-lists-putio")
-                // The root's title also names other nodes; its summary, the account name, is unique.
                 tap(ROOT_SUMMARY)
                 awaitText(FOLDER.name)
                 screenshot("02-putio-root")
@@ -175,7 +167,6 @@ class MobileDocumentsPickerProofTest {
                 picker.show("${AUDIO.name}: ${LOCAL_COPY.size} bytes read from this device, no request", null)
                 screenshot("06-picked-local-copy")
 
-                // What the auth runtime runs when a session ends.
                 auth.value = MobileAuthState.SignedOut()
                 MobileDocumentsProvider.sessionLeft(context)
                 awaitCondition("root removed") { rootCount() == 0 }
@@ -187,7 +178,6 @@ class MobileDocumentsPickerProofTest {
                 SystemClock.sleep(SETTLE_MS)
                 assertFalse("The put.io root must be gone", hasText(ROOT_SUMMARY))
                 screenshot("08-signed-out-no-root")
-                // Back closes the roots drawer first, then cancels the picker.
                 repeat(2) { if (activeWindowPackage() != context.packageName) back() }
                 assertNull(picker.await())
             }
@@ -211,7 +201,6 @@ class MobileDocumentsPickerProofTest {
             null,
         )?.use { it.count } ?: 0
 
-    /** The test activity: shows what it picked and asks the system picker through the activity result API. */
     private inner class Picker(private val scenario: ActivityScenario<ComponentActivity>) {
         private val results = LinkedBlockingQueue<Result<Uri?>>()
         private lateinit var status: TextView
@@ -242,7 +231,6 @@ class MobileDocumentsPickerProofTest {
             }
         }
 
-        /** Shows a step's outcome long enough for a screen recording to hold it. */
         fun show(text: String, bitmap: Bitmap?) {
             scenario.onActivity {
                 status.text = text
@@ -283,13 +271,11 @@ class MobileDocumentsPickerProofTest {
         SystemClock.sleep(SETTLE_MS)
     }
 
-    /** Exact text or content description in the active window. */
     private fun findNode(text: String): AccessibilityNodeInfo? =
         instrumentation.uiAutomation.rootInActiveWindow
             ?.findAccessibilityNodeInfosByText(text)
             ?.firstOrNull { (it.text?.toString() ?: it.contentDescription?.toString()) == text && it.isVisibleToUser }
 
-    /** A real touch: the picker closes its drawer and opens items on touch, not on an accessibility click. */
     private fun tapNode(node: AccessibilityNodeInfo) {
         val bounds = Rect().also(node::getBoundsInScreen)
         instrumentation.uiAutomation.executeShellCommand("input tap ${bounds.centerX()} ${bounds.centerY()}")
@@ -318,7 +304,6 @@ class MobileDocumentsPickerProofTest {
     private val instrumentation: Instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val context get() = instrumentation.targetContext
 
-    /** A root with a folder of three pages, a poster put.io streams and an audio file with a local copy. */
     private class ProofFiles : StubFilesRepository() {
         @Volatile var pagesServed = 0
 
@@ -335,7 +320,6 @@ class MobileDocumentsPickerProofTest {
             PutioResult.Success(listOf(FOLDER, POSTER, AUDIO).first { it.id == itemId })
 
         private suspend fun page(number: Int): PutioResult<FilesPage> {
-            // Slow enough that the picker shows each page arriving.
             delay(PAGE_DELAY_MS)
             val first = (number - 1) * PAGE_SIZE + 1
             val items = (first until first + PAGE_SIZE).filter { it <= FOLDER_ITEMS }.map { index ->
@@ -353,7 +337,6 @@ class MobileDocumentsPickerProofTest {
         override suspend fun loadNextPage(cursor: FilesCursor): PutioResult<SearchPage> = error("No paging")
     }
 
-    /** Serves the poster for the share-out download request, honouring its byte range. */
     private class PosterSource(val body: ByteArray) : Interceptor {
         val requests = CopyOnWriteArrayList<Request>()
 

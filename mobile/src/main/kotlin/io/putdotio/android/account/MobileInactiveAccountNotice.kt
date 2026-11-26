@@ -27,10 +27,6 @@ import io.putdotio.android.design.putioMono
 
 internal const val MOBILE_INACTIVE_ACCOUNT_NOTICE_TAG = "mobile-inactive-account-notice"
 
-/**
- * The inactive-account notice card under the top bar. A red warning glyph leads; the card and its words
- * stay neutral, with the deletion countdown's days in mono. It only informs, so nothing in it is clickable.
- */
 @Composable
 internal fun MobileInactiveAccountNotice(
     notice: InactiveAccountNotice,
@@ -79,7 +75,6 @@ internal fun MobileInactiveAccountNotice(
     }
 }
 
-/** [message] with its first [number] in [mono]; the plural's words stay in the UI face. */
 private fun monoNumber(
     message: String,
     number: String?,

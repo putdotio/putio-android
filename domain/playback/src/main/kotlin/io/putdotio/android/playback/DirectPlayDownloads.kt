@@ -22,7 +22,6 @@ public enum class DirectPlayDownloadSource {
     Unavailable,
 }
 
-/** What a Direct play video download fetches: one progressive file, and the subtitle files that go with it. */
 public data class DirectPlayDownload(
     val source: DirectPlayDownloadSource,
     val subtitles: List<FileSubtitle> = emptyList(),
@@ -50,10 +49,6 @@ public class DirectPlayDownloads internal constructor(
         listSubtitles = { fileId -> client.files.listSubtitles(fileId) },
     )
 
-    /**
-     * Null when the file could not be read within [budget]; subtitles are best effort within what is left of it
-     * and never fail the answer.
-     */
     public suspend fun resolve(
         fileId: FilesItemId,
         includeSubtitles: Boolean,

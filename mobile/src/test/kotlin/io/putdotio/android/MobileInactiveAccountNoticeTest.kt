@@ -65,7 +65,6 @@ class MobileInactiveAccountNoticeTest {
         assertNoActionOrPaymentWording()
     }
 
-    /** Google Play's payments policy: no link out to billing and no call to pay, renew or subscribe. */
     private fun assertNoActionOrPaymentWording() {
         compose.onAllNodes(hasClickAction()).assertCountEquals(0)
         compose.onAllNodesWithText("app.put.io", substring = true).assertCountEquals(0)

@@ -46,18 +46,14 @@ class MainActivity : BasePutioActivity() {
 
     private val pendingNowPlayingRequest = MutableStateFlow(false)
 
-    /** Stays pending until the shell has acted on it, so a recreation mid-flight cannot lose it. */
     internal val nowPlayingRequests: NowPlayingRequests =
         NowPlayingRequests(pendingNowPlayingRequest) { pendingNowPlayingRequest.value = false }
 
-    // Survives a configuration change but not a system destroy, which is exactly the line
-    // between "same launch intent again" and "a new instance answering a fresh tap".
     private val launch: NowPlayingLaunchState by lazy { ViewModelProvider(this)[NowPlayingLaunchState::class.java] }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
-        // Before this activity resumes, so Cast looks for receivers while it shows.
         MobileCast.follow(this)
         if (savedInstanceState == null) {
             lifecycleScope.launch(Dispatchers.IO) { MobileFileShareService.pruneStale(applicationContext) }
@@ -100,7 +96,6 @@ class MainActivity : BasePutioActivity() {
         super.onPause()
     }
 
-    /** Fills the system Keyboard Shortcuts Helper (Meta + /) with the shortcuts the app takes. */
     override fun onProvideKeyboardShortcuts(data: MutableList<KeyboardShortcutGroup>, menu: Menu?, deviceId: Int) {
         super.onProvideKeyboardShortcuts(data, menu, deviceId)
         data += mobileKeyboardShortcutGroups(this)
@@ -135,7 +130,6 @@ class MainActivity : BasePutioActivity() {
         }
     }
 
-    /** A link the shell has not routed yet, for example one received signed out, survives process death. */
     private fun restorePendingDeepLink(savedInstanceState: Bundle?) {
         if (deepLinkRequests.pending.value != null) return
         val saved = savedInstanceState?.getString(STATE_DEEP_LINK_PENDING) ?: return
@@ -159,7 +153,6 @@ internal class NowPlayingLaunchState : ViewModel() {
     var deepLinkLaunchConsumed = false
 }
 
-/** A request to open the live audio player; [acknowledge] clears it once handled. */
 internal class NowPlayingRequests(
     internal val pending: StateFlow<Boolean>,
     internal val acknowledge: () -> Unit,
@@ -172,7 +165,6 @@ internal class NowPlayingRequests(
 private val Intent?.isNowPlayingAction: Boolean
     get() = this?.action == MobilePlaybackService.ACTION_OPEN_NOW_PLAYING
 
-// A task reopened from recents replays its original launch intent; that is not a new tap.
 internal fun shouldPublishLaunchIntent(
     intent: Intent?,
     alreadyConsumed: Boolean,

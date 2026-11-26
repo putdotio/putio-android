@@ -24,11 +24,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * A download notification's actions: Try again on a failed download, Pause and Cancel on the running
- * one. Not exported, so only this app's own pending intents reach it, and the work runs without
- * opening the app.
- */
 internal class MobileDownloadActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val link = parseMobileDeepLink(intent.data) as? MobileDeepLink.Downloads
@@ -49,7 +44,6 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
         const val ACTION_PAUSE = "io.putdotio.android.downloads.action.PAUSE"
         const val ACTION_CANCEL = "io.putdotio.android.downloads.action.CANCEL"
 
-        /** The proof lane replaces the session and the transfer with its own. */
         @Volatile
         internal var retriesForTest: DownloadNotificationRetries? = null
 
@@ -64,22 +58,14 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
 
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-        /**
-         * Restoring a session in a cold process reads put.io. Android lets an app start a foreground
-         * service for about 10 s after a notification tap, so past this the tap does nothing and the
-         * notification stays for another tap, which finds the session already restored.
-         */
         private val SESSION_TIMEOUT = 5.seconds
 
-        /** An explicit, immutable broadcast; the data keeps one pending intent per account and file. */
         fun retry(context: Context, userId: Long, fileId: FilesItemId): PendingIntent =
             broadcast(context, ACTION_RETRY, MobileDeepLink.Downloads(fileId, userId = userId))
 
-        /** Pauses every live download of [userId]; each stays paused until Resume in Downloads. */
         fun pauseAll(context: Context, userId: Long): PendingIntent =
             broadcast(context, ACTION_PAUSE, MobileDeepLink.Downloads(userId = userId))
 
-        /** Cancels every live download of [userId], as Remove does for an unfinished row. */
         fun cancelAll(context: Context, userId: Long): PendingIntent =
             broadcast(context, ACTION_CANCEL, MobileDeepLink.Downloads(userId = userId))
 
@@ -196,19 +182,12 @@ internal class MobileDownloadActionReceiver : BroadcastReceiver() {
     }
 }
 
-/** [userId]'s downloads on their way: queued or running, not paused, parked or being removed. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun DownloadManager.liveDownloadsOf(userId: Long): List<FilesItemId> =
     currentDownloads
         .filter { it.stopReason == Download.STOP_REASON_NONE && it.state != Download.STATE_REMOVING }
         .mapNotNull { fileIdOf(userId, it.request.id) }
 
-/**
- * The viewer's pause, written to the index before Media3's stop reason as the engine's own Pause
- * does, so a live engine holds Media3 to it and Downloads shows the row paused. Media3 decides what
- * is live: a row can still read failed after a background Try again until an engine reconciles it.
- * Without a row, Media3's stop reason alone stands until reconcile rebuilds the row from it.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal suspend fun pauseFromNotification(
     store: MobileDownloadStore,
@@ -223,11 +202,6 @@ internal suspend fun pauseFromNotification(
     }
 }
 
-/**
- * Cancels as a confirmed Remove does: the row is marked first, so a process death before Media3
- * deletes the bytes still ends with the row gone on the next start. [remove] takes the request id;
- * production sends it through the download service, whose queue runs it after any add already sent.
- */
 internal suspend fun cancelFromNotification(
     store: MobileDownloadStore,
     userId: Long,
@@ -238,7 +212,6 @@ internal suspend fun cancelFromNotification(
     remove(downloadContentId(userId, fileId))
 }
 
-/** Who is signed in once the session settles; unknown while put.io cannot confirm a stored session. */
 internal sealed interface SignedInAccount {
     data class User(val userId: Long) : SignedInAccount
 
@@ -248,16 +221,12 @@ internal sealed interface SignedInAccount {
 }
 
 internal enum class DownloadRetryOutcome {
-    /** Media3 queues the download again; the row and notification follow its transfer. */
     STARTED,
 
-    /** Another account, or nobody, is signed in: the notification goes and nothing else happens. */
     REFUSED,
 
-    /** The row is gone, deleting, or no longer failed; the stale notification goes. */
     NOT_RETRYABLE,
 
-    /** The session could not be confirmed in time, or the service could not start; the notification stays. */
     UNCONFIRMED,
 
     UNAVAILABLE,
@@ -270,7 +239,6 @@ internal class DownloadRetryDecision(
     val failed: (userId: Long, entry: DownloadEntry) -> Unit = { _, _ -> },
 )
 
-/** A notification's Retry, acting only for the account that owns the download and only while it is signed in. */
 internal class DownloadNotificationRetries(
     private val signedIn: suspend () -> SignedInAccount,
     private val find: (userId: Long, fileId: FilesItemId) -> DownloadEntry?,
@@ -286,7 +254,6 @@ internal class DownloadNotificationRetries(
                     ?: DownloadRetryOutcome.NOT_RETRYABLE
             else -> DownloadRetryOutcome.REFUSED
         }
-        // Another account's outcome, or a stale one, must not stay on screen.
         if (outcome == DownloadRetryOutcome.REFUSED || outcome == DownloadRetryOutcome.NOT_RETRYABLE) {
             dismiss(userId, fileId)
         }
@@ -323,7 +290,6 @@ internal class DownloadNotificationRetries(
             start(userId, chosen)
             DownloadRetryOutcome.STARTED
         } catch (_: IllegalStateException) {
-            // The system refused to start the download service from the background; Downloads still offers it.
             DownloadRetryOutcome.UNCONFIRMED
         }
     }
@@ -331,10 +297,6 @@ internal class DownloadNotificationRetries(
 
 private val RETRY_LOOKUP_BUDGET = 4.seconds
 
-/**
- * The running notification's Pause and Cancel. Each acts on every live download of the account the
- * notification was built for, only while that account is signed in, and returns how many it reached.
- */
 internal class DownloadNotificationControls(
     private val signedIn: suspend () -> SignedInAccount,
     private val live: suspend (userId: Long) -> List<FilesItemId>,

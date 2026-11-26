@@ -16,7 +16,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.core.view.ViewCompat
 
-/** What a hardware key asks for once no focused control used it. */
 internal enum class MobileKeyCommand { Back, Search, Refresh, Delete, Open, PlayPause, SeekBack, SeekForward }
 
 internal enum class MobileShortcutScope(@StringRes val labelRes: Int) {
@@ -32,11 +31,6 @@ internal class MobileKeyboardShortcut(
     val command: MobileKeyCommand,
 )
 
-/**
- * The shortcuts the app takes, which also fill the system Keyboard Shortcuts Helper. Android's own
- * shortcuts use Meta or Alt, so these take only bare keys and Ctrl. Enter is listed but belongs to the
- * focused row, which opens on it like a tap.
- */
 internal val MobileKeyboardShortcuts: List<MobileKeyboardShortcut> = listOf(
     files(R.string.mobile_shortcut_open, KeyEvent.KEYCODE_ENTER, MobileKeyCommand.Open),
     files(R.string.mobile_shortcut_back, KeyEvent.KEYCODE_DEL, MobileKeyCommand.Back),
@@ -58,7 +52,6 @@ private fun files(@StringRes label: Int, keyCode: Int, command: MobileKeyCommand
 private fun player(@StringRes label: Int, keyCode: Int, command: MobileKeyCommand) =
     MobileKeyboardShortcut(MobileShortcutScope.Player, label, keyCode, ctrl = false, command)
 
-/** The command [keyCode] with [metaState] gives in [scope]; Shift, Alt, Meta and any other combination give none. */
 internal fun mobileKeyCommand(scope: MobileShortcutScope, keyCode: Int, metaState: Int): MobileKeyCommand? {
     val ctrl = when {
         KeyEvent.metaStateHasNoModifiers(metaState) -> false
@@ -96,12 +89,6 @@ internal fun mobileKeyboardShortcutGroups(context: Context): List<KeyboardShortc
         )
     }
 
-/**
- * Runs [onCommand] for keys of [scope] that reached the window unused, so a text field keeps Backspace
- * and a focused button keeps Enter. Returning true consumes the key, Escape included, which Android
- * would otherwise turn into Back and leave the app from its top screen. A held key repeats only when
- * [repeats] says so.
- */
 @Composable
 internal fun MobileUnhandledKeyEffect(
     scope: MobileShortcutScope,

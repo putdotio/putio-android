@@ -13,11 +13,6 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import io.putdotio.sdk.files.PlaybackStreamFormat
 import java.util.Locale
 
-/**
- * A player failure as put.io's `playback_failure` report (schema 2), in codes only: the
- * exception's message and cause chain can quote media URLs. [firstFrameSource] is the last
- * [readySource] whose first frame the player showed.
- */
 public fun PlaybackState.playerFailureTelemetry(
     failure: PlaybackFailure,
     platform: PlaybackPlatform,
@@ -30,11 +25,9 @@ public fun PlaybackState.playerFailureTelemetry(
     return playbackFailureTelemetry(failure, platform, played, started)
 }
 
-/** The source this state plays, to name the one whose first frame showed. */
 public val PlaybackState.readySource: PlaybackSource?
     get() = (content as? PlaybackContent.Ready)?.source
 
-/** The same report for a player no [PlaybackState] follows, such as the background audio service's. */
 public fun Player.playerFailureTelemetry(
     error: PlaybackException,
     mediaType: PlaybackMediaType,
@@ -46,11 +39,6 @@ public fun Player.playerFailureTelemetry(
     return playbackFailureTelemetry(error.toPlaybackFailure(), platform, played, started)
 }
 
-/**
- * A rejected original as a rescue in the same report: the converted file takes over before the
- * first frame, so it goes as a warning with the reason's code. A viewer's own switch and Cast's
- * Standard rescue nothing, so they report nothing.
- */
 public fun PlaybackState.originalFallbackTelemetry(
     reason: PlaybackFallbackReason,
     platform: PlaybackPlatform,
@@ -66,7 +54,6 @@ public fun PlaybackState.originalFallbackTelemetry(
         PlaybackSourceKind.ORIGINAL,
     )
     val code = reason.rescueReason
-    // The rejection keeps only its reason, not the engine error or response behind it.
     val tags = played.tags(platform, RESCUED, started = false) + mapOf(
         "failure_mode" to reason.failureMode,
         "rescue_reason" to code,
@@ -120,7 +107,6 @@ private fun report(
         ),
     )
 
-/** What the resolved plan played; [kind] stands in for a [source] the caller can't see. */
 private class PlayedSource(
     val fileId: Long?,
     val mediaType: PlaybackMediaType,
@@ -144,8 +130,6 @@ private class PlayedSource(
             "file_id" to (fileId?.toString() ?: UNKNOWN),
         ) + mediaFacts(source?.mediaInfo)
 
-    // Standard plays HLS only and Direct play the file stream only, so a video's format names its
-    // method; audio plays the original file with both.
     private fun streamingMethod(): String =
         method?.wireValue ?: when {
             source == null || offline || mediaType == PlaybackMediaType.AUDIO -> UNKNOWN
@@ -162,7 +146,6 @@ private class PlayedSource(
             else -> UNKNOWN
         }
 
-    // An original video streams only after the device check passed it; audio and downloads skip it.
     private fun deviceCheck(): String =
         when {
             kind == null -> UNKNOWN
@@ -171,7 +154,6 @@ private class PlayedSource(
         }
 }
 
-/** Android's reason codes in the Streaming contract's terms. */
 private val PlaybackFallbackReason.rescueReason: String
     get() = if (this == PlaybackFallbackReason.NoMediaInfo) "not_ready" else code
 
@@ -183,7 +165,6 @@ private fun PlaybackFailure.engineFacts(): Pair<PlaybackException?, Int?> {
     return causes.filterIsInstance<PlaybackException>().firstOrNull() to causes.responseStatus()
 }
 
-/** The failure as product analytics' `error`: `source` is a deleted, unpaid or throttled file. */
 internal fun PlaybackFailure.analyticsError(): AnalyticsEvent.PlaybackError {
     val (exception, status) = engineFacts()
     return when (failureMode(this, exception?.errorCode, status)) {

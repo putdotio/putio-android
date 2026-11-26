@@ -5,19 +5,9 @@ import android.content.ClipDescription
 import android.content.ContentResolver
 import android.net.Uri
 
-/**
- * Whether a drag carries something the Add transfer sheet takes: links as text, or a `.torrent`
- * file, which file managers often label as plain bytes. Other files have no intake, so the drop
- * target does not light up for them.
- */
 internal fun ClipDescription.isMobileTransferDrop(): Boolean =
     mimeTypes().any { ClipDescription.compareMimeTypes(it, "text/*") || it.isTorrentLike() }
 
-/**
- * What a drop asks the intake for, read as untrusted input like a share: the first content URI when
- * the drag says it carries a torrent, otherwise every text or link item as shared text. A drop with
- * neither gives nothing. Item text is read as given; a content URI is never opened here.
- */
 internal fun ClipData.toMobileIncomingTransfer(): MobileIncomingTransfer? {
     val items = (0 until itemCount).map(::getItemAt)
     val torrent = items
@@ -33,11 +23,6 @@ internal fun ClipData.toMobileIncomingTransfer(): MobileIncomingTransfer? {
     }
 }
 
-/**
- * Takes an intent's or a drop's payload into the draft. A torrent is read from [resolver] off the main
- * thread, never from this app's own providers, and [afterRead] runs once that read is over, including
- * when a newer intake cancelled it before it began.
- */
 internal fun MobileTransferDraft.receive(
     incoming: MobileIncomingTransfer,
     resolver: ContentResolver,

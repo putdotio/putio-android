@@ -119,7 +119,6 @@ class MobilePublicLinksTest {
         compose.runOnIdle {
             assertEquals(listOf(video.id), repository.created)
             assertEquals(created.url.value, clipboardText())
-            // A bearer link: Android 13+ hides it from the clipboard preview.
             val extras = clipboard().primaryClip?.description?.extras
             assertTrue(extras?.getBoolean(ClipDescription.EXTRA_IS_SENSITIVE) == true)
         }

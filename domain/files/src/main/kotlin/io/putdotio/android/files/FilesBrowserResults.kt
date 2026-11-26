@@ -61,7 +61,6 @@ private fun FilesFolderState.loadSucceeded(
         replaceFirstPage(requestId, page)
     } else {
         when (val state = content) {
-            // A loading folder's own listing is settled by [listingLoaded].
             is FilesContent.Loading -> null
 
             is FilesContent.Empty,
@@ -153,8 +152,6 @@ internal fun contentFor(
     viewport: FilesViewportPosition = FilesViewportPosition(),
 ): FilesContent =
     if (items.isEmpty()) {
-        // An empty page has nothing to scroll to; a retained index would reopen a
-        // later repopulated folder far below its first item.
         FilesContent.Empty(paging = paging)
     } else {
         FilesContent.Ready(items = items.distinctBy(FilesItem::id), paging = paging, viewport = viewport)

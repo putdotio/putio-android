@@ -18,14 +18,12 @@ import kotlinx.coroutines.sync.withLock
 internal data class MobileTransferDraftState(
     val input: String = "",
     val torrent: TorrentUpload? = null,
-    /** Null saves to the account's default download folder. */
     val destination: FilesFolder? = null,
     val open: Boolean = false,
     val validation: MobileShareValidation? = null,
     val incomingRequestId: Long? = null,
     val pendingReplacement: Boolean = false,
     val submitting: Boolean = false,
-    /** A `.torrent` picked from the sheet is still being read; nothing submits until it settles. */
     val readingTorrent: Boolean = false,
 ) {
     override fun toString(): String =
@@ -35,7 +33,6 @@ internal data class MobileTransferDraftState(
             "readingTorrent=$readingTorrent)"
 }
 
-/** Activity-owned memory only: signed URLs must never enter a saved-state registry. */
 internal class MobileTransferDraft private constructor(
     private val ioDispatcher: CoroutineDispatcher,
     private val mutableState: MutableStateFlow<MobileTransferDraftState>,
@@ -53,7 +50,6 @@ internal class MobileTransferDraft private constructor(
     private var lastSuccessfulAdd: TransfersRequestId? = null
     private var lastMutation: TransferMutation = TransferMutation.Idle
     private var pendingRead: Job? = null
-    /** Moves on whenever the draft is replaced or finished, so a slow picked read can't land in the next one. */
     private var draftGeneration = 0L
     private val readLock = Mutex()
 
@@ -89,7 +85,6 @@ internal class MobileTransferDraft private constructor(
         lastMutation = state.mutation
     }
 
-    /** Whether a share or drop arrived, read or still reading, so the shell skips asks that would cover it. */
     internal var receivedShare: Boolean = false
         private set
 
@@ -99,13 +94,6 @@ internal class MobileTransferDraft private constructor(
         deliver(shared)
     }
 
-    /**
-     * Reads a shared `.torrent` off the main thread; the result arrives like any other share. A newer
-     * intake or a session change cancels the read so none lands out of order. A provider may ignore the
-     * interrupt, so the lock is held until the read actually returns: at most one runs at a time.
-     * [onDone] runs once the read has finished, failed or been cancelled. A torrent the user [picked]
-     * from the open sheet goes straight into it instead ([attachTorrent]).
-     */
     internal fun receiveLater(
         onDone: () -> Unit = {},
         picked: Boolean = false,
@@ -122,7 +110,6 @@ internal class MobileTransferDraft private constructor(
                 generation == draftGeneration -> attachTorrent(shared)
             }
         }.apply {
-            // Also when a newer intake cancels this read before it began.
             invokeOnCompletion {
                 if (pendingRead === this) mutableState.update { it.copy(readingTorrent = false) }
                 onDone()
@@ -148,15 +135,10 @@ internal class MobileTransferDraft private constructor(
         }
     }
 
-    /**
-     * put.io refused [rejectedLinks]; they stay in the draft for the user to fix or drop, after the
-     * lines that never went because they didn't parse or were parked behind an uploaded torrent.
-     */
     internal fun submissionSucceeded(rejectedLinks: List<String> = emptyList()) {
         val current = mutableState.value
         val pending = replacement
         draftGeneration++
-        // Behind an uploaded torrent every typed line is unsent; otherwise only the lines that didn't parse.
         val unsent = if (current.torrent == null) {
             checkMobileTransferLines(current.input).badText
         } else {
@@ -171,7 +153,6 @@ internal class MobileTransferDraft private constructor(
                 incomingRequestId = current.incomingRequestId,
                 pendingReplacement = pending != null,
             )
-            // A chosen folder lasts for the session, like web's "custom folder in this session".
             pending == null -> mutableState.value = MobileTransferDraftState(destination = current.destination)
             else -> present(pending, current.incomingRequestId)
         }

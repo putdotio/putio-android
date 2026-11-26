@@ -25,7 +25,6 @@ internal fun TrashMachine.completeAction(
     return if (submission == TrashActionSubmission.REJECTED) next else next.startActionCheck() ?: next
 }
 
-/** Applied after an initial page that verifies a pending action has been accepted into state. */
 internal fun TrashMachine.verifyActionAgainstPage(page: TrashContent.Loaded): TrashMachine {
     val outcome = state.actionOutcome?.takeIf { it.check == TrashActionCheck.CHECKING } ?: return this
     val check = outcome.verify(page)
@@ -42,8 +41,6 @@ private fun TrashActionOutcome.verify(page: TrashContent.Loaded): TrashActionChe
     is TrashAction.RestoreSelected ->
         if (page.passed(action.items)) TrashActionCheck.VERIFIED else TrashActionCheck.INCONCLUSIVE
     TrashAction.Empty -> if (page.isKnownEmpty) TrashActionCheck.VERIFIED else TrashActionCheck.FAILED
-    // Bulk restore drains asynchronously. Items deleted after the snapshot were never part of the
-    // request, so a complete page holding only those still verifies it.
     TrashAction.RestoreAll -> verifyRestoreAll(page)
 }
 

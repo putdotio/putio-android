@@ -173,7 +173,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** JVM proof for the mobile Material 3 shell; LaunchSmokeTest owns device launch proof. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35])
@@ -401,7 +400,6 @@ class MobileShellTest {
             }
         }
 
-        // Five destinations scroll in the compact drawer.
         compose.onNodeWithTag(MOBILE_NAV_MENU_TAG).performClick()
         compose.onNode(hasText("Account") and hasAnyAncestor(hasTestTag(MOBILE_NAV_DRAWER_TAG)))
             .performScrollTo().performClick()
@@ -734,8 +732,6 @@ class MobileShellTest {
             MobileDeepLink.Trash to MobileDeepLink.Trash,
         )
         for ((tab, link) in cases) {
-            // A video opened on the tab, then a hop away, saves the tab with the player on top.
-            // The player covers the navigation bar.
             open(tab)
             compose.runOnIdle { opens.trySend(FilesExternalOpen(video, FilesOpenOrigin.HISTORY)) }
             compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
@@ -745,7 +741,6 @@ class MobileShellTest {
             compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         }
 
-        // A link to a video still opens the player, with Files below it as on a cold start.
         open(MobileDeepLink.File(video.id))
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
     }
@@ -853,7 +848,6 @@ class MobileShellShareTest {
         }
     }
 
-    /** Transfers is resolving request 3's file until [resolved] completes. */
     private fun setResolvingTransferShell(
         draft: MobileTransferDraft,
         resolved: CompletableDeferred<PutioResult<FilesItem>>,
@@ -1146,7 +1140,6 @@ class MobileShellFilesTest {
         compose.runOnIdle { settings = readyAccountSettingsState(preferences = optimistic) }
         compose.onNodeWithText("Delete permanently").assertIsEnabled().performClick()
         compose.onNodeWithText("Trash is off for this account, so this can’t be undone.").assertIsDisplayed()
-        // Trash turning back on withdraws the permanent confirmation instead of rewording it.
         compose.runOnIdle { settings = readyAccountSettingsState(preferences = original) }
         compose.onNodeWithText("Delete").assertDoesNotExist()
         compose.onNodeWithText("Move to trash").assertIsEnabled()
@@ -1170,7 +1163,6 @@ class MobileShellFilesTest {
                 ),
             )
             .performClick()
-        // Three labelled groups; the field and the order each carry a check.
         listOf("Sort by", "Order", "Videos").forEach { compose.onNodeWithText(it).assertExists() }
         val options = listOf(
             "Name", "Size", "Date added", "Date modified", "Type",
@@ -1183,9 +1175,7 @@ class MobileShellFilesTest {
                 .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
             if (label == "Name" || label == "A to Z") option.assertIsSelected() else option.assertIsNotSelected()
         }
-        // A field keeps the order; the order's words follow the field.
         val choose = { label: String ->
-            // The menu scrolls on the test's small screen.
             compose.onNodeWithText(label).performScrollTo().performClick()
             compose.waitUntil(5_000L) { compose.onAllNodesWithText("Sort by").fetchSemanticsNodes().isEmpty() }
         }
@@ -1282,7 +1272,6 @@ class MobileShellFilesTest {
     @Test
     fun acceptedDefaultSortChangeInvalidatesSortOrderOnceAndNotOnFirstLoad() {
         val events = mutableListOf<FilesBrowserEvent>()
-        // Starts as a server value this app does not know; saving a known sort must still invalidate.
         var settingsState by mutableStateOf(readyAccountSettingsState(preferences = DefaultAccountSettingsPreferences))
         compose.setBuiltContent {
             PutioTheme {
@@ -1318,7 +1307,6 @@ class MobileShellFilesTest {
         }
         compose.runOnIdle { assertEquals(emptyList<FilesBrowserEvent>(), events) }
 
-        // Accepted write, refresh failed: the server holds the new order, so listings are stale now.
         compose.runOnIdle {
             settingsState = readyAccountSettingsState(
                 preferences = applied,
@@ -1778,7 +1766,6 @@ class MobileShellExternalOpenTest {
         compose.onNodeWithText("notes.pdf").assertIsSelected()
         compose.onNode(hasText("cover.jpg") and isSelected()).assertDoesNotExist()
         compose.onNodeWithContentDescription("Back").performClick()
-        // History is a tab of its own, so Back returns there rather than to Search.
         compose.onNode(hasText("History") and hasAnyAncestor(hasTestTag(MOBILE_NAV_BAR_TAG))).assertIsSelected()
         compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("History")
     }
@@ -1962,8 +1949,6 @@ class MobileShellPlaybackTest {
         }
         compose.onNodeWithText("episode.mkv").performClick()
         compose.runOnIdle { assertEquals(1, created) }
-        // Bar, then the drawer in a window past the 840dp list-detail width, then the rail beside
-        // list-detail, then a phone in landscape: the player behind each must be the same one.
         for (next in listOf(DpSize(914.dp, 260.dp), DpSize(1280.dp, 800.dp), DpSize(914.dp, 411.dp))) {
             compose.runOnIdle { size = next }
             compose.waitForIdle()
@@ -2009,8 +1994,6 @@ class MobileShellPlaybackTest {
         val account = hasText("Account") and hasAnyAncestor(hasTestTag(navigationTag))
         compose.onNode(account).performClick()
         compose.onNode(account).assertIsSelected()
-        // The scroll position is the destination's own saved state: a list that lost it would
-        // show its identity row at the top again.
         val identity = hasText(Account.username) and hasAnyAncestor(hasTestTag(MOBILE_ACCOUNT_LIST_TAG))
         compose.onNode(identity).assertExists()
         compose.onNodeWithTag(MOBILE_ACCOUNT_LIST_TAG).performScrollToNode(hasText("Sign out"))
@@ -2212,7 +2195,6 @@ class MobileShellPlaybackTest {
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.onAllNodesWithTag(MOBILE_NAV_BAR_TAG).assertCountEquals(0)
         compose.runOnIdle {
-            // The screen adopts the session item; nothing is re-prepared.
             assertEquals(1, session.prepareCalls)
             assertEquals(1, session.mediaItemUpdates)
         }
@@ -2253,7 +2235,6 @@ class MobileShellPlaybackTest {
         compose.onNodeWithTag(MOBILE_AUDIO_NEXT_TAG).performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.runOnIdle { session.currentMediaItem?.mediaId == "10" } }
         compose.runOnIdle { assertEquals(1.5f, session.playbackParameters.speed) }
-        // The skip replaced Now Playing: one Back returns to the shell.
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
     }
@@ -2351,7 +2332,6 @@ class MobileShellPlaybackTest {
             playback = ShellPlayback(repository, factory),
             nowPlayingRequests = NowPlayingRequests(pending) { pending.value = false },
         )
-        // Lookup found file 9, but the session is empty when the route actually connects.
         compose.runOnIdle { pending.value = true }
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.runOnIdle {
@@ -2380,7 +2360,6 @@ class MobileShellPlaybackTest {
         compose.onNodeWithTag(MOBILE_AUDIO_COVER_TAG).assertIsDisplayed()
         compose.onAllNodesWithText("Converting to MP4").assertCountEquals(0)
         compose.runOnIdle { assertEquals(1, session.prepareCalls) }
-        // The video route was replaced, not stacked: one Back returns to the shell.
         compose.onNodeWithContentDescription("Back").performClick()
         compose.onNodeWithTag(MOBILE_NAV_BAR_TAG).assertIsDisplayed()
         compose.onNodeWithText("episode.mkv").assertIsDisplayed()
@@ -2544,7 +2523,6 @@ class MobileShellPlaybackTest {
     }
 }
 
-/** The audio session plays file 9, as the playback service would after a tap on song.mp3. */
 private fun Media3Player.playSong() {
     setMediaItem(
         MediaItem.Builder()

@@ -219,7 +219,6 @@ private fun TvDialogFrame(
                 overflow = TextOverflow.Ellipsis,
             )
             if (message != null) {
-                // Bounded so a long server-supplied name cannot push the actions off screen.
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodySmall.let {

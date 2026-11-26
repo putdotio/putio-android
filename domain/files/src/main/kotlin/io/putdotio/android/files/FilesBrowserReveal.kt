@@ -2,18 +2,8 @@ package io.putdotio.android.files
 
 import io.putdotio.android.PutioFailure
 
-/**
- * The most pages a folder reads to find its [FilesFolderState.revealItemId]: 10 pages of 50 rows.
- * Past it, as when the folder ends first, the folder shows the rows read so far from the top,
- * with Load more if it has more, and drops the item: a later page that brings it reveals nothing.
- */
 internal const val MAX_REVEAL_PAGES = 10
 
-/**
- * Later pages being read to find [FilesFolderState.revealItemId]. The folder shows as loading
- * meanwhile, so it opens once at the item rather than jumping to it under the user; the request
- * belongs to the folder, so leaving it cancels the search.
- */
 @ConsistentCopyVisibility
 public data class FilesRevealSearch internal constructor(
     internal val requestId: FilesRequestId,
@@ -21,7 +11,6 @@ public data class FilesRevealSearch internal constructor(
     internal val items: List<FilesItem>,
 )
 
-/** A listing page for a loading folder: its first page, or the next page of a reveal search. */
 internal fun FilesBrowserState.listingLoaded(
     index: Int,
     folder: FilesFolderState,
@@ -29,8 +18,6 @@ internal fun FilesBrowserState.listingLoaded(
     page: FilesPage,
 ): FilesBrowserTransition {
     val search = folder.revealSearch?.takeIf { it.requestId == requestId }
-    // A folder an outside open pushed takes its name from the listing (the root keeps its
-    // localized title); later pages carry no folder.
     val named = if (search == null) {
         val name = folder.folder.name ?: page.parent?.takeIf { it.id != FilesFolder.Root.id }?.name
         folder.copy(folder = folder.folder.copy(sort = page.sort ?: folder.folder.sort, name = name))
@@ -44,7 +31,6 @@ internal fun FilesBrowserState.listingLoaded(
     return settleReveal(index, summarized.copy(consumedCursors = consumedCursors), items, paging)
 }
 
-/** A reveal search page failed: the rows read so far show, with a retry for the rest, and the item is dropped. */
 internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failure: PutioFailure): FilesFolderState? {
     val search = revealSearch?.takeIf { it.requestId == requestId } ?: return null
     return copy(
@@ -54,7 +40,6 @@ internal fun FilesFolderState.revealPageFailed(requestId: FilesRequestId, failur
     )
 }
 
-/** Stops revealing a row: a running search shows the rows read so far, with the rest left to load. */
 internal fun FilesFolderState.withoutReveal(): FilesFolderState {
     val search = revealSearch
     val shown = if (search == null) content else contentFor(search.items, FilesPaging.Available(search.cursor))

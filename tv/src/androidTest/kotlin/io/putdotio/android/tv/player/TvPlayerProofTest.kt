@@ -621,11 +621,6 @@ class TvPlayerProofTest {
         screenshot(label)
     }
 
-    /**
-     * On the base fixture: the Audio, Subtitles and Speed sheets pick a track, turn subtitles off
-     * (they stay off after a seek) and set the speed, and Back closes an open sheet before the
-     * controls.
-     */
     @Test
     fun audioSubtitlesAndSpeedSheetsJoinTheBackStack() {
         val factory = mountFilesWithPlayer(SubtitleStartupPolicy(showSubtitles = true, autoSelectSubtitles = true))
@@ -653,7 +648,6 @@ class TvPlayerProofTest {
         compose.waitUntil(10_000) { compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithContentDescription(AUDIO, substring = true).assertIsSelected()
 
-        // Subtitles: focus opens on the shown track; Up is Off.
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
         compose.onNodeWithContentDescription(SUBTITLES, substring = true).assertIsSelected()
         press(KeyEvent.KEYCODE_DPAD_CENTER)
@@ -682,7 +676,6 @@ class TvPlayerProofTest {
         press(KeyEvent.KEYCODE_DPAD_CENTER)
         awaitPlayer(factory) { !it.playWhenReady }
 
-        // Speed: Back with the sheet open closes only the sheet.
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_DOWN)
         press(KeyEvent.KEYCODE_DPAD_RIGHT)
@@ -703,7 +696,6 @@ class TvPlayerProofTest {
         compose.waitUntil(10_000) { compose.onAllNodes(isDialog()).fetchSemanticsNodes().isEmpty() }
         compose.onNodeWithContentDescription("$SPEED 1.25×").assertIsSelected()
 
-        // Back hides the controls, then leaves to the row.
         press(KeyEvent.KEYCODE_BACK)
         compose.onNodeWithTag(TV_PLAYER_CONTROLS_TAG).assertDoesNotExist()
         compose.runOnIdle { assertNotNull(playing) }

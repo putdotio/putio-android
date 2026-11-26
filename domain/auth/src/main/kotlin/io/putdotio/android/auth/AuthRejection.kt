@@ -4,10 +4,6 @@ import io.putdotio.android.findPutioApiException
 import io.putdotio.sdk.errors.PutioOperationErrorReason
 import io.putdotio.sdk.errors.PutioOperationException
 
-/**
- * A 401/403 verdict anywhere in the wrapper chain is an authoritative rejection
- * of the session; every other failure is a retryable unknown.
- */
 public fun Throwable.isAuthoritativeAuthRejection(): Boolean {
     val operationReason = (this as? PutioOperationException)?.reason
     if (operationReason is PutioOperationErrorReason.StatusCode && operationReason.statusCode.isAuthRejectionStatus()) {

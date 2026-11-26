@@ -81,27 +81,18 @@ internal fun mobileDeviceClass(smallestScreenWidthDp: Int): AppDiagnostics.Devic
 
 private const val TABLET_SMALLEST_WIDTH_DP = 600
 
-// Media3 is the only player; the stream method is the one playback actually uses,
-// which falls back to HLS while config is loading and ignores unconfirmed saves.
 private fun playerLabel(playbackPreference: PlaybackPreference): String =
     when (playbackPreference) {
         PlaybackPreference.HLS -> "media3/hls"
         PlaybackPreference.MP4 -> "media3/mp4"
     }
 
-/** The player's name on the App info page; the support text keeps the stream method too. */
 private const val PLAYER_NAME = "Media3"
 
-/**
- * App info, a subpage of Account: what support asks for as value rows, the privacy note, and a tonal
- * Copy for support that puts [AppDiagnostics.supportText] on the clipboard.
- */
 @Composable
 internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier = Modifier) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
-    // Keyed on the support text: if playback config settles after the copy, the
-    // clipboard holds stale details and the confirmation must not claim otherwise.
     val supportText = remember(diagnostics) { diagnostics.supportText() }
     var copied by remember(supportText) { mutableStateOf(false) }
     val mono = MaterialTheme.typography.bodySmall.putioMono().toSpanStyle()
@@ -159,7 +150,6 @@ internal fun MobileAppInfoScreen(diagnostics: AppDiagnostics, modifier: Modifier
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 32.dp, vertical = 12.dp),
         )
-        // The confirmation replaces the button label so it announces from a fixed position.
         FilledTonalButton(
             onClick = {
                 scope.launch {

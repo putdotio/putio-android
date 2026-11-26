@@ -80,7 +80,6 @@ internal const val MOBILE_TRANSFER_ADD_CONFIRM_TAG = "mobile-transfer-add-confir
 internal const val MOBILE_TRANSFER_PASTE_TAG = "mobile-transfer-paste"
 internal const val MOBILE_TRANSFER_PICK_TORRENT_TAG = "mobile-transfer-pick-torrent"
 
-/** The Add transfer sheet, its destination picker and the replace-draft question, while the draft is open. */
 @Composable
 internal fun MobileAddTransfer(
     draft: MobileTransferDraft,
@@ -205,10 +204,6 @@ private fun MobileShareReplacementDialog(
     )
 }
 
-/**
- * One field for links and magnets, checked a line at a time, with Paste and .torrent chips under it;
- * then where the transfers save, and Cancel and Add, which counts the links that will go.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MobileAddTransferSheet(
@@ -224,8 +219,6 @@ private fun MobileAddTransferSheet(
     ModalBottomSheet(
         onDismissRequest = actions.onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        // A compact-height window, such as a phone in landscape, scrolls this sheet's content
-        // under the handle, so it gives the handle's 48dp to the content; Cancel and Back close it.
         dragHandle = if (isCompactHeightWindow()) null else {
             { MobileSheetHandle() }
         },
@@ -317,7 +310,6 @@ private fun MobileAddTransferField(
     )
 }
 
-/** Lines that won't go stay in the field, dimmed, so the good ones read first. */
 private class DimBadLines(
     private val ranges: List<IntRange>,
     private val color: Color,
@@ -367,7 +359,6 @@ private fun MobileAddTransferChips(enabled: Boolean, value: String, actions: Mob
         AssistChip(
             onClick = {
                 scope.launch {
-                    // Text and link items only: coerceToText would read a content URI on the main thread.
                     val item = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)
                     val link = item?.uri?.takeIf { it.scheme in PASTE_SCHEMES }?.toString()
                     val pasted = (item?.text?.toString() ?: link)?.trim()
@@ -447,10 +438,6 @@ private fun MobileAddTransferButtons(
     }
 }
 
-/**
- * What the sheet says under the field: the draft's own problem first, then why put.io refused the last
- * Add, then the lines that won't parse.
- */
 @Composable
 private fun MobileTransferDraftState.reason(lines: MobileTransferLines, failure: String?): String? {
     val own = validation?.takeUnless { it == MobileShareValidation.InvalidLink && lines.badLines.isNotEmpty() }

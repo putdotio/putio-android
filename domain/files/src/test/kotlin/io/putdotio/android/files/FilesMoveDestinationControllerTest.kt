@@ -90,7 +90,6 @@ class FilesMoveDestinationControllerTest {
         try {
             controller.awaitState { it.current.content is FilesContent.Ready }
             val created = folder(11L)
-            // A folder from elsewhere, a file, or one already open is not this picker's new folder.
             val elsewhere = created.copy(parentId = target.id)
             assertFalse(controller.dispatch(FilesMoveDestinationEvent.FolderCreated(elsewhere)))
             assertFalse(

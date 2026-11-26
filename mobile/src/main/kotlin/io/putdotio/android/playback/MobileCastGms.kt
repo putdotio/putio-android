@@ -78,10 +78,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
-/**
- * The process's Cast controller, started on first use; null where Google Play services is missing.
- * The Cast framework loads off the main thread, so starting it costs the launch nothing.
- */
 internal object MobileCast {
     @Volatile
     @VisibleForTesting
@@ -93,7 +89,6 @@ internal object MobileCast {
     internal var castScope: CoroutineScope = MainScope()
         private set
 
-    /** Google Play services, which runs Cast in its own process. */
     @VisibleForTesting
     var playServices: (Context) -> Boolean = ::playServicesAvailable
 
@@ -125,7 +120,6 @@ internal object MobileCast {
             controller ?: run {
                 val gateway = createGateway(appContext)
                 MobileCastController(gateway, castScope, SystemClock::elapsedRealtime).also { cast ->
-                    // The receiver's positions reach put.io as the local player's do, under the item's lease.
                     DefaultMobilePlayerFactory.observePositions(appContext, cast.remotePlayer)
                     castScope.launch { cast.finished.collect { onCastFinished(it) } }
                     holdSessionWhileCasting(appContext, cast)
@@ -135,7 +129,6 @@ internal object MobileCast {
         }
     }
 
-    /** Starts Cast for MainActivity, which looks for receivers itself while it shows. */
     fun follow(activity: ComponentActivity) {
         val gateway = controller(activity)?.gateway as? GmsCastGateway ?: return
         activity.lifecycle.addObserver(
@@ -152,10 +145,6 @@ internal object MobileCast {
         )
     }
 
-    /**
-     * The signed-in [session] left: the receiver plays with the account's download token, so the
-     * Cast session ends with it, a session the Cast SDK resumes for a fresh process included.
-     */
     fun sessionLeft(context: Context, session: Any?) {
         Handler(Looper.getMainLooper()).post {
             controller(context)?.let {
@@ -166,10 +155,6 @@ internal object MobileCast {
         }
     }
 
-    /**
-     * The file a session plays now, for the session notification's tap; null without one. A process
-     * the tap just started resumes the session first, so this waits a moment for the receiver's word.
-     */
     suspend fun castingTarget(context: Context): PlaybackTarget? {
         val cast = controller(context) ?: return null
         return withTimeoutOrNull(SESSION_RESUME_WAIT_MILLIS) {
@@ -303,12 +288,6 @@ private fun defaultCastPlayer(
         .build()
 }
 
-/**
- * Google's Default Media Receiver, or the put.io receiver once the account opts in; the gateway
- * switches between them as the account's choice changes. The audio session's CastPlayer carries the
- * remote controls, so the Cast SDK shows neither a notification nor a media session of its own. The
- * system's output switcher can move a session back to this device.
- */
 class MobileCastOptionsProvider : OptionsProvider {
     override fun getCastOptions(context: Context): CastOptions =
         CastOptions.Builder()
@@ -494,10 +473,6 @@ private class GmsCastContextHandle(private val cast: CastContext) : CastContextH
     override fun endCurrentSession(stopCasting: Boolean) = cast.sessionManager.endCurrentSession(stopCasting)
 }
 
-/**
- * [CastGateway] over the Cast SDK and MediaRouter. Without Google Play services, or when Cast fails
- * to start, it stays [CastAvailability.Unsupported] and touches nothing else.
- */
 internal class GmsCastGateway @VisibleForTesting internal constructor(
     private val context: Context,
     private val routes: GmsCastRoutes,
@@ -559,10 +534,6 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         updateAvailability()
     }
 
-    /**
-     * Connected spans exactly the time a media client is attached: a screen that sees it can load at
-     * once, and the receiver's last status is out before a screen sees the session gone.
-     */
     private fun updateAvailability() {
         val cast = castContext ?: return
         val device = cast.currentCastSession?.castDevice?.friendlyName
@@ -596,7 +567,6 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         }
 
         override fun onSessionStarted(session: CastSession, sessionId: String) {
-            // A new session is not the one a sign-out ended.
             signOut.sessionStarted()
             remote.discardHandback = false
             attach(session)
@@ -607,7 +577,6 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
             receivers.sessionGone()
         }
 
-        // The receiver's last position, read while the session still answers.
         override fun onSessionEnding(session: CastSession) = remote.publish()
 
         override fun onSessionEnded(session: CastSession, error: Int) {
@@ -647,7 +616,6 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         updateAvailability()
     }
 
-    /** Ends the session, or, before Cast has resumed one, the session it resumes next. */
     override fun endForSignOut() {
         remote.discardHandback = true
         signOut.requested()
@@ -657,12 +625,6 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         castContext?.endCurrentSession(true)
     }
 
-    /**
-     * Once the app has been in the background, as on the trip to the sign-in tab, Cast on some
-     * phones never sees it return: it stops looking for receivers and reports none until the
-     * process restarts. So the app looks for them itself while it shows, and a receiver it finds
-     * offers Cast whatever Cast's own state says.
-     */
     fun shown(owner: LifecycleOwner, shown: Boolean) {
         if (shown) {
             val becameVisible = startedOwners.isEmpty()
@@ -690,7 +652,6 @@ private fun Context.localNetworkNotGranted(): Boolean =
 private fun loadCastContext(context: Context): Task<CastContext> =
     CastContext.getSharedInstance(context, BackgroundExecutor.get())
 
-/** The receivers MediaRouter finds for the Cast framework's selector, while the picker asks. */
 internal class GmsCastRoutes(private val context: Context) : CastRoutes {
     private val mutableDevices = MutableStateFlow<List<CastDevice>>(emptyList())
     override val devices: StateFlow<List<CastDevice>> = mutableDevices
@@ -723,7 +684,6 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
         updateCallback()
     }
 
-    /** The passive search while the app shows; the picker's active scan rides on the same callback. */
     fun watch() {
         if (selector == null || watching) return
         watching = true
@@ -739,7 +699,6 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
     private fun updateCallback() {
         val selector = selector ?: return
         val router = MediaRouter.getInstance(context)
-        // Adding a callback again only widens its flags, so the scan narrows by starting over.
         router.removeCallback(callback)
         when {
             discovering -> router.addCallback(
@@ -775,7 +734,6 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
         onDevicesChanged()
     }
 
-    /** The Cast framework's selector after the receiver changed: the search starts over with it. */
     fun reselect(selector: MediaRouteSelector?) {
         if (selector == null || selector == this.selector) return
         this.selector = selector
@@ -804,35 +762,22 @@ internal class GmsCastRemote : CastRemote {
 
     private val latestLoad = CastLoad()
 
-    /** The latest load's playlist subtitle, until the receiver lists the stream's text tracks. */
     private var pendingSubtitle: Pair<Long, PlaybackCastPlaylistSubtitle>? = null
 
-    /** Whether the session runs the put.io receiver, which takes [PlaybackCastMedia.receiverLoad]. */
     private var putioReceiver = false
 
-    /** The latest load and where it started, for a failure the put.io receiver reports later. */
     private var lastLoad: Pair<PlaybackCastMedia, Long>? = null
 
-    /** The put.io receiver's word that the latest load's stream failed, which a resolved load can hide. */
     private var receiverFailure: CastRemoteStatus? = null
 
-    /** A failed file the receiver named before any status placed it. */
     private var unplacedFailure: Long? = null
 
-    /** Whether play was last asked for, which a loading receiver's status does not say. */
     private var playIntent: Boolean? = null
 
-    /**
-     * Whether the receiver has said what it plays. A resumed session can attach before its first
-     * status, and a screen must not take "nothing yet" for "nothing", or it would load over the
-     * receiver's own position.
-     */
     private var statusKnown = false
 
-    /** Set when signing out ends the session: its end hands nothing back. */
     var discardHandback = false
 
-    /** Runs when [attached] changes, so availability follows it. */
     var onAttachedChanged: () -> Unit = {}
 
     val attached: Boolean get() = client != null && statusKnown
@@ -844,15 +789,10 @@ internal class GmsCastRemote : CastRemote {
         }
     }
 
-    /** A receiver that answered with no media plays nothing, whatever it played before. */
     private val clearIfEmpty = {
         if (client?.mediaStatus == null) mutableStatus.value = null
     }
 
-    /**
-     * Sends the latest load's playlist subtitle once that load has answered: before then the
-     * receiver's status still describes the media before it, which can be the same file.
-     */
     private val showPendingSubtitle = {
         val remote = client
         if (!latestLoad.inFlight && remote != null) {
@@ -882,8 +822,6 @@ internal class GmsCastRemote : CastRemote {
         client = remote?.also {
             it.registerCallback(callback)
             it.addProgressListener(progress, PROGRESS_INTERVAL_MILLIS)
-            // An answered first status request settles whether the receiver plays anything; without an
-            // answer the next status update does.
             it.requestStatus().setResultCallback { result ->
                 if (client === it && result.status.isSuccess) {
                     clearIfEmpty()
@@ -895,7 +833,6 @@ internal class GmsCastRemote : CastRemote {
         publish()
     }
 
-    /** The session ended: one last status, then none, so the app hands the file back. */
     fun detach() {
         publish()
         release()
@@ -925,19 +862,15 @@ internal class GmsCastRemote : CastRemote {
     fun publish() {
         val remote = client ?: return
         val media = remote.mediaStatus ?: return
-        // A finished file's status drops its media; it still belongs to the file it finished, with the
-        // title and kind it was sent with. Media another sender sent, untagged, belongs to no file.
         val info = remote.mediaInfo
         val fileId = info?.putioFileId()
             ?: lastFileId.takeIf { info == null && media.playerState == MediaStatus.PLAYER_STATE_IDLE }
         val previous = mutableStatus.value?.takeIf { info == null && it.fileId == fileId }
         val state = media.castRemoteState()
         noteReport(fileId, state)
-        // Media another sender loaded since is no longer the file that failed.
         receiverFailure = receiverFailure?.takeIf {
             info == null || it.fileId == fileId || it.fileId == lastLoad?.first?.fileId
         }
-        // Only the put.io receiver's tracks are switched from here; Google's receiver keeps speed alone.
         val tracks = info?.mediaTracks.orEmpty().takeIf { putioReceiver }.orEmpty()
         val status = CastRemoteStatus(
             fileId = fileId,
@@ -959,20 +892,14 @@ internal class GmsCastRemote : CastRemote {
         mutableStatus.value = latestLoad.failure ?: receiverFailure ?: status
     }
 
-    /** A failure the receiver named before any status placed its file fails where [status] stands. */
     private fun placeUnplacedFailure(status: CastRemoteStatus) {
         if (status.fileId == null || unplacedFailure != status.fileId) return
         unplacedFailure = null
         receiverFailure = status.copy(state = CastRemoteState.Failed)
     }
 
-    /**
-     * The receiver reported [state] for [fileId]. A report never settles a load: one for the same file
-     * sent again can be about the media before it, so only the load's own result does.
-     */
     private fun noteReport(fileId: Long?, state: CastRemoteState) {
         lastFileId = fileId
-        // A load's own intent stands until its result: reports on the media before it say nothing of it.
         if (!latestLoad.inFlight && (state == CastRemoteState.Playing || state == CastRemoteState.Paused)) {
             playIntent = state == CastRemoteState.Playing
         }
@@ -988,7 +915,6 @@ internal class GmsCastRemote : CastRemote {
         receiverFailure = null
         unplacedFailure = null
         remote.load(media.loadRequest(startMillis, autoplay, speed, putioReceiver)).setResultCallback { result ->
-            // A refused or timed-out load says so for its file, unless another load followed it.
             val failure = media.failedAt(startMillis).takeUnless { result.status.isSuccess }
             if (client === remote && latestLoad.settle(request, failure)) {
                 if (failure == null) {
@@ -1001,10 +927,6 @@ internal class GmsCastRemote : CastRemote {
         }
     }
 
-    /**
-     * The put.io receiver said how its load went. A failure for the latest load's file, or one it
-     * could not tie to a file while that load is in flight, stands until the next load.
-     */
     fun receiverReported(state: PutioReceiverState) {
         when (state) {
             is PutioReceiverState.Failed ->
@@ -1014,7 +936,6 @@ internal class GmsCastRemote : CastRemote {
         }
     }
 
-    /** The receiver's stream for [fileId] failed: it shows failed where it stood, until the next load. */
     private fun receiverFailed(fileId: Long) {
         val now = SystemClock.elapsedRealtime()
         val shown = mutableStatus.value?.takeIf { it.fileId == fileId }
@@ -1023,7 +944,6 @@ internal class GmsCastRemote : CastRemote {
             ?.copy(state = CastRemoteState.Failed, positionMillis = shown.positionAt(now), sampledAtMillis = now)
             ?: loaded?.let { (media, start) -> media.failedAt(start) }
         if (failure == null) {
-            // A resumed session hears of the failure before any status names its file.
             unplacedFailure = fileId
             return
         }
@@ -1097,7 +1017,6 @@ internal class CastLoad {
     }
 }
 
-/** The presets a Cast receiver plays: it takes 0.5x to 2x. */
 internal val CAST_PLAYBACK_SPEEDS: List<Float> = PLAYBACK_SPEEDS.filter {
     it.toDouble() in MediaLoadRequestData.PLAYBACK_RATE_MIN..MediaLoadRequestData.PLAYBACK_RATE_MAX
 }
@@ -1115,10 +1034,6 @@ private fun MediaStatus.castRemoteState(): CastRemoteState =
         else -> CastRemoteState.Idle
     }
 
-/**
- * Turns on the playlist subtitle a load asked for, once the receiver lists the text tracks of that
- * file's stream: an HLS playlist's own tracks exist only after it loads. Returns what still waits.
- */
 private fun RemoteMediaClient.showPlaylistSubtitle(
     pending: Pair<Long, PlaybackCastPlaylistSubtitle>,
     keepAudio: Boolean,
@@ -1127,7 +1042,6 @@ private fun RemoteMediaClient.showPlaylistSubtitle(
     val tracks = mediaInfo?.takeIf { it.putioFileId() == fileId }
         ?.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
     if (tracks.isEmpty()) return pending
-    // On the put.io receiver the audio track playing stays; only the text track changes.
     val kept = mediaStatus?.activeTrackIds?.toSet().orEmpty().takeIf { keepAudio }.orEmpty() -
         tracks.map { it.id }.toSet()
     playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)

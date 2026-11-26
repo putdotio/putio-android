@@ -33,7 +33,6 @@ private fun FilesBrowserState.move(event: FilesBrowserEvent.Move): FilesBrowserT
             val updated = started.state.current.copy(
                 moveOutcome = FilesMoveOutcome(effect.requestId, intent, items.first().name), deleteOutcome = null,
             )
-            // Either destination or source ancestors can have changed once the POST is submitted.
             val ancestors = started.state.stack.dropLast(1).map {
                 it.copy(needsReload = true, content = it.content.withoutActivePagingRequest())
             }
@@ -105,10 +104,6 @@ private fun FilesBrowserState.moveChecked(event: FilesBrowserEvent.MoveChecked):
 public val FilesFolderOperation.pendingMove: FilesFolderOperationIntent.Move?
     get() = pendingIntent()
 
-/**
- * A page that lists a moved item again: the move left it here, whatever the check said. A refused
- * move keeps its status and counts the item too.
- */
 internal fun FilesMoveOutcome.afterFolderPage(page: FilesPage): FilesMoveOutcome {
     val listed = page.items.mapNotNullTo(mutableSetOf()) { item -> item.id.takeIf { it in intent.itemIds } }
     return when {

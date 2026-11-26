@@ -56,7 +56,6 @@ internal fun idleMain() = shadowOf(Looper.getMainLooper()).idle()
 
 internal data class Load(val fileId: Long, val startMillis: Long, val autoplay: Boolean, val speed: Float)
 
-/** The Cast SDK's side: a session the test opens and closes, and the receiver's reports. */
 internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
     override val availability = MutableStateFlow<CastAvailability>(CastAvailability.Available)
     override val status = MutableStateFlow<CastRemoteStatus?>(null)
@@ -77,7 +76,6 @@ internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
         idleMain()
     }
 
-    /** As the SDK ends a session: the last status kept, then cleared, all before any collector runs. */
     fun end() {
         endedStatus = status.value?.copy(endedAtMillis = clock())
         availability.value = CastAvailability.Available
@@ -124,7 +122,6 @@ internal class FakeCastGateway(private val clock: () -> Long) : CastGateway {
     }
 
     override fun endForSignOut() {
-        // As the SDK may: the receiver's status lands before the session's end does.
         if (reportsOnSignOut) report(CastRemoteState.Playing, positionMillis = 90_000L)
         availability.value = CastAvailability.Available
         endedStatus = null

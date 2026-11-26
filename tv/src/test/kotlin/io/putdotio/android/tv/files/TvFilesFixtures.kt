@@ -63,7 +63,6 @@ internal fun ComposeContentTestRule.waitForMeta(start: String) =
 
 internal fun networkFailure() = PutioFailure.NetworkUnavailable(PutioConfigurationException("x"))
 
-/** [TvFilesScreen]; the lambdas are read during composition so tests can swap their values. */
 internal fun ComposeContentTestRule.showFiles(
     state: () -> FilesBrowserState,
     onEvent: (FilesBrowserEvent) -> Boolean = { true },

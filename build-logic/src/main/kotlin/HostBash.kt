@@ -1,6 +1,5 @@
 import java.io.File
 
-/** The bash the scripts expect: on Windows a bare `bash` is the WSL launcher, so use Git for Windows' own. */
 object HostBash {
     val isWindows: Boolean = System.getProperty("os.name").startsWith("Windows")
 

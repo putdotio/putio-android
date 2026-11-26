@@ -9,7 +9,6 @@ import androidx.compose.runtime.setValue
 import io.putdotio.android.telemetry.AnalyticsEvent
 import io.putdotio.android.telemetry.ProductAnalytics
 
-// Downloads is local to the device, so the contract has no screen for it.
 internal fun analyticsScreen(
     destination: MobileDestination,
     isPlayback: Boolean,
@@ -29,10 +28,6 @@ internal fun analyticsScreen(
         }
     }
 
-/**
- * Once per screen entered, not per folder; saved, so recreating the activity sends nothing, and
- * keyed to the session, so another account's first screen still counts.
- */
 @Composable
 internal fun ScreenViewedEffect(screen: AnalyticsEvent.Screen?, sessionKey: Any) {
     var sent by rememberSaveable(sessionKey) { mutableStateOf<AnalyticsEvent.Screen?>(null) }

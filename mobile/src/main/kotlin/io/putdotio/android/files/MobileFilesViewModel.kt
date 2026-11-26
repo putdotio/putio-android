@@ -32,7 +32,6 @@ internal class MobileFilesViewModel(
         close = FilesBrowserController::close,
     )
 
-    // Lives with the session, not the screen, so a rotation does not read every entry again.
     private val continueWatching = SessionScopedHolder<MobileAuthState, MobileSessionKey, ContinueWatching>(
         authState = authState,
         keyOf = MobileAuthState::sessionKey,
@@ -53,7 +52,6 @@ internal class MobileFilesViewModel(
         close = MobilePinnedFiles::close,
     )
 
-    // The sheet's own requests outlive a rotation, so a restore put.io accepted still settles the folder.
     private val actions = SessionScopedHolder<MobileAuthState, MobileSessionKey, MobileFilesActionsController>(
         authState = authState,
         keyOf = MobileAuthState::sessionKey,

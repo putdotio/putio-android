@@ -41,7 +41,6 @@ internal fun MobileFilesMoveStatus(outcome: FilesMoveOutcome, onRetry: (() -> Un
     }
 }
 
-/** The settled move's line: the item by name, or several by count; a lone name clash names it. */
 @Composable
 private fun FilesMoveOutcome.statusMessage(retryable: Boolean): String? {
     val collision = errors?.singleOrNull()?.takeIf { error ->
@@ -66,10 +65,8 @@ private fun FilesMoveOutcome.statusMessage(retryable: Boolean): String? {
     }
 }
 
-/** A refused move: a clash names its item when it is the one refusal; several count. */
 @Composable
 private fun FilesMoveOutcome.rejectedMessage(collision: FileMoveError?, many: Boolean): String {
-    // An unnamed clash among several items can't be named: the first item's name may not be its.
     val clashName = collision?.name ?: itemName.takeUnless { many }
     return when {
         collision != null && clashName != null && (!many || refusedCount == 1) ->
@@ -79,18 +76,12 @@ private fun FilesMoveOutcome.rejectedMessage(collision: FileMoveError?, many: Bo
     }
 }
 
-/**
- * The items put.io's answer refused, by ID, and any the check or a later page found outside the
- * destination; when neither names one, every item counts.
- */
 private val FilesMoveOutcome.refusedCount: Int
     get() {
         val refused = intent.itemIds.filter { id -> errors.orEmpty().any { it.id == id.value } }.toSet()
         return (refused + remainingIds).size.takeIf { it > 0 } ?: itemCount
     }
 
-// put.io answers a move with a bare 403 only when the destination is the item or a folder inside
-// it; the app never sends the negative IDs that also get one.
 @Composable
 private fun PutioFailure.moveFailureMessage(): String =
     if (this is PutioFailure.AccessDenied) stringResource(R.string.mobile_files_move_into_itself) else mobileMessage()

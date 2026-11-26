@@ -24,11 +24,6 @@ internal fun interface MobilePlayerFactory {
 
     fun observePositions(context: android.content.Context, player: Media3Player): Closeable = Closeable {}
 
-    /**
-     * Attaches to the audio session. [onResult] may run synchronously or later on the
-     * main thread; closing the returned handle detaches without stopping playback.
-     * The default is a private player that lives and dies with the handle.
-     */
     fun connectAudio(
         context: android.content.Context,
         onResult: (Result<Media3Player>) -> Unit,
@@ -38,14 +33,10 @@ internal fun interface MobilePlayerFactory {
         return Closeable { player.release() }
     }
 
-    /** Ends session audio so a private video player owns the media controls. */
     fun stopAudio(context: android.content.Context) {}
 
-    /** The file the audio session currently holds, or null when idle or unreachable. */
     suspend fun activeAudio(context: android.content.Context): ActiveAudio? =
         suspendCancellableCoroutine { continuation ->
-            // The callback may run before connectAudio returns, so whichever side finishes
-            // second closes the handle.
             var handle: Closeable? = null
             var delivered = false
             handle = connectAudio(context) { result ->
@@ -89,12 +80,10 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         context: android.content.Context,
         onResult: (Result<Media3Player>) -> Unit,
     ): Closeable {
-        // The controller can outlive the screen that asked for it.
         val appContext = context.applicationContext
         val future =
             MediaController.Builder(appContext, MobilePlaybackService.sessionToken(appContext)).buildAsync()
         future.addListener(
-            // A cancelled connection still answers, so no caller waits forever.
             { onResult(runCatching { future.get() }) },
             ContextCompat.getMainExecutor(appContext),
         )
@@ -106,8 +95,6 @@ internal object DefaultMobilePlayerFactory : MobilePlayerFactory {
         context: android.content.Context,
         mediaType: PlaybackMediaType,
     ): Media3Player {
-        // Completed downloads play from the cache; everything else streams through the same source.
-        // Local schemes such as file:// bypass it; network URLs still go through the cache.
         val dataSource = DefaultDataSource.Factory(
             context,
             MobileDownloadCache.get(context).playbackFactory(),

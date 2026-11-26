@@ -38,12 +38,6 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/**
- * Owns the audio player so playback outlives the player screen: the session
- * drives the foreground notification, lock-screen and headset controls, and
- * audio focus while the app is in the background. While a Cast session runs
- * the session drives the receiver instead, whatever it plays.
- */
 class MobilePlaybackService : MediaSessionService() {
     private var session: MediaSession? = null
     private var local: Media3Player? = null
@@ -61,7 +55,6 @@ class MobilePlaybackService : MediaSessionService() {
         super.onCreate()
         val player = createLocalPlayer(this)
         local = player
-        // Streaming with the screen off needs the CPU and radio awake; a foreground service alone does not.
         (player as? ExoPlayer)?.setWakeMode(C.WAKE_MODE_NETWORK)
         val downloads = MobileDownloadCache.get(this)
         val runtime = MobileOAuthRuntime.get(this)
@@ -97,7 +90,6 @@ class MobilePlaybackService : MediaSessionService() {
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(this).apply { setSmallIcon(DesignR.drawable.ic_ph_file_audio_fill) },
         )
-        // The sleep timer outlives Now Playing, so the service that owns the player carries it out.
         scope.launch { MobileSleepTimer.Shared.pauseWhenDue { session?.player?.pause() } }
     }
 
@@ -119,14 +111,11 @@ class MobilePlaybackService : MediaSessionService() {
             }
         }
 
-    // The app reconnecting means a task exists again; pausing inside it must not stop us.
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         if (controllerInfo.packageName == packageName) taskRemoved = false
         return session
     }
 
-    // Bound controllers keep the service alive past stopService, so a stop must end
-    // playback itself instead of waiting for onDestroy.
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             positionObserver?.flush()
@@ -140,7 +129,6 @@ class MobilePlaybackService : MediaSessionService() {
         return super.onStartCommand(intent, flags, startId)
     }
 
-    // Active playback outlives the task; once it pauses, ends, or fails afterwards the listener stops us.
     override fun onTaskRemoved(rootIntent: Intent?) {
         taskRemoved = true
         val player = session?.player
@@ -169,7 +157,6 @@ class MobilePlaybackService : MediaSessionService() {
     }
 
     companion object {
-        /** Launcher intent action from the media notification: land on the live player. */
         const val ACTION_OPEN_NOW_PLAYING = "io.putdotio.android.action.OPEN_NOW_PLAYING"
         private const val ACTION_STOP = "io.putdotio.android.action.STOP_PLAYBACK"
 
@@ -191,11 +178,8 @@ class MobilePlaybackService : MediaSessionService() {
             SessionToken(context, ComponentName(context, MobilePlaybackService::class.java))
 
         fun stop(context: Context) {
-            // Both stop paths below end playback, so neither may leave a timer to pause the next audio.
             MobileSleepTimer.Shared.cancel()
             val intent = Intent(context, MobilePlaybackService::class.java).setAction(ACTION_STOP)
-            // In the background a start command may be refused; a bind-only controller can
-            // still stop the player, and stopService then lets the unbound service die.
             try {
                 context.startService(intent)
             } catch (_: IllegalStateException) {
@@ -225,7 +209,6 @@ class MobilePlaybackService : MediaSessionService() {
 private fun Media3Player.stopsWithTask(): Boolean =
     playbackStopsWithTask(playWhenReady, playbackState, mediaItemCount)
 
-// Swiping the task away ends paused or finished audio; active playback keeps going.
 internal fun playbackStopsWithTask(
     playWhenReady: Boolean,
     playbackState: Int,

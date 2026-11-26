@@ -6,7 +6,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** The Diagnostics toggle as telemetry reads it: an opt-out applies at once, an opt-in once put.io confirms it. */
 class AccountSettingsDiagnosticsTest {
     @Test
     fun unloadedSettingsGiveNoAnswer() {

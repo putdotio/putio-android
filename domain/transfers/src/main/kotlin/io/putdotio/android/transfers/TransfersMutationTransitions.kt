@@ -130,7 +130,6 @@ private fun applyMutationSuccess(
             items.filterNot {
                 it.status == AppTransferStatus.Completed || it.id in event.affectedIds
             }
-        // put.io reports what it deleted; a transfer it kept stays listed.
         is TransferAction.Remove -> items.filterNot { it.id == action.id && it.id in event.affectedIds }
     }
 

@@ -165,13 +165,6 @@ internal fun MobileInlineError(
 internal val FilesFailure?.isUnreachable: Boolean
     get() = this is PutioFailure.NetworkUnavailable || this is PutioFailure.Timeout
 
-/**
- * Calls [onRetry] once the default network is validated again, while this is on screen and the app
- * is started, and on a slow clock: the network may have returned before this was on screen, or
- * put.io itself was down. Keyed on [failure], so a retry that fails again before a frame draws
- * still restarts the clock; each return to the foreground restarts it too, and retries at once
- * when the network is validated by then.
- */
 @Composable
 internal fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
     val context = LocalContext.current
@@ -183,8 +176,6 @@ internal fun RetryWhenOnline(failure: Any?, onRetry: () -> Unit) {
             retry()
         }
     }
-    // Only a network that was missing or unvalidated, or a return from the background, and then a
-    // validated network counts, so a put.io outage on a working network does not retry in a loop.
     val waiting = remember(context) {
         AtomicBoolean(!context.getSystemService(ConnectivityManager::class.java).defaultNetworkValidated())
     }
@@ -260,7 +251,6 @@ private fun MobileMessageState(
             .padding(24.dp),
         propagateMinConstraints = true,
     ) {
-        // In a list item, the parent already owns scrolling and supplies unbounded height.
         val scrolling = if (constraints.hasBoundedHeight) Modifier.verticalScroll(rememberScrollState()) else Modifier
         Column(
             modifier = Modifier.fillMaxSize().then(scrolling),

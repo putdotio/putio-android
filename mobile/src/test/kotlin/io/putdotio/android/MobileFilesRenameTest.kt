@@ -217,7 +217,6 @@ class MobileFilesRenameTest {
                 .fetchSemanticsNode().config[SemanticsActions.OnClick].action,
         )
         compose.runOnIdle {
-            // Dispatch a queued refresh before the Save callback from the last composition.
             val refresh = FilesBrowserReducer.reduce(state, FilesBrowserEvent.Refresh)
             state = refresh.state
             queuedSave()

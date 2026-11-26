@@ -58,7 +58,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
 @RunWith(AndroidJUnit4::class)
-// Tall enough that the whole queue is composed at once.
 @Config(sdk = [35], qualifiers = "en-rUS-w400dp-h1600dp")
 class MobileDownloadsScreenTest {
     @get:Rule val compose = createComposeRule()
@@ -105,7 +104,6 @@ class MobileDownloadsScreenTest {
         compose.setBuiltContent { PutioTheme { DownloadsTab(state, { events += it; true }) } }
 
         compose.onNodeWithText("Downloading").assertIsDisplayed()
-        // An original's size is known; HLS shows its segment percentage, or bytes before its playlists are read.
         compose.onNodeWithText("1.4 MB of 3.3 MB · 12 MB/s").assertIsDisplayed()
         compose.onNodeWithText("4.1 kB").assertIsDisplayed()
         compose.onNodeWithText("41%").assertIsDisplayed()
@@ -118,7 +116,6 @@ class MobileDownloadsScreenTest {
         compose.onNodeWithText("Needs attention").assertIsDisplayed()
         compose.onNodeWithText("No longer on this device").assertIsDisplayed()
 
-        // A known percentage fills the ring; an HLS rendition before its playlists spins.
         compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.42f, 0f..1f)), useUnmergedTree = true)
             .assertExists()
         compose.onNode(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.41f, 0f..1f)), useUnmergedTree = true)
@@ -225,7 +222,6 @@ class MobileDownloadsScreenTest {
         compose.onNodeWithText("Sintel.mkv").performTouchInput { longClick() }
         compose.onNodeWithText("Tears.mkv").performClick()
         compose.onNodeWithText("2 selected").assertIsDisplayed()
-        // The selection bar replaces the tab title.
         compose.onNodeWithTag(MOBILE_DOWNLOADS_OVERFLOW_TAG).assertDoesNotExist()
         compose.onNodeWithTag(MOBILE_DOWNLOADS_SELECTION_DELETE_TAG).performClick()
 
@@ -425,7 +421,6 @@ class MobileDownloadsScreenTest {
         compose.onNodeWithTag(MOBILE_DOWNLOADS_PAUSE_OR_RESUME_ALL_TAG).assertDoesNotExist()
     }
 
-    /** The tab as the shell draws it: the top bar over the list, sharing one selection. */
     @Composable
     private fun DownloadsTab(state: DownloadsState, onEvent: (DownloadsEvent) -> Boolean) {
         val selection = rememberDownloadsSelection()

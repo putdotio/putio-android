@@ -103,9 +103,7 @@ internal fun MobileNowPlayingScreen(
     modifier: Modifier = Modifier,
     sleepTimer: MobileSleepTimer = MobileSleepTimer.Shared,
     castButton: @Composable (Modifier) -> Unit = {},
-    /** "Playing on Living room TV" while a receiver plays the file; the sleep timer then stays here. */
     castLabel: String? = null,
-    /** Try again beside [castLabel], when the file's lookup for the receiver failed. */
     onCastRetry: (() -> Unit)? = null,
 ) {
     val options = rememberPlayerOptionsSnapshot(player)
@@ -129,7 +127,6 @@ internal fun MobileNowPlayingScreen(
                     onScrub = onScrub,
                     onPlay = onPlay,
                     chips = {
-                        // A receiver without speed control leaves the chip out.
                         if (castLabel == null || options.canChangeSpeed) {
                             MobileSpeedChip(options, { sheet = NowPlayingSheet.Speed }, onPage = true)
                         }
@@ -140,8 +137,6 @@ internal fun MobileNowPlayingScreen(
                 )
             }
             if (maxWidth >= WIDE_LAYOUT_WIDTH && maxWidth > maxHeight) {
-                // Side by side: the details keep room for the transport and scroll; the glyph takes the rest,
-                // and a pane too short for the smallest glyph leaves it out.
                 val artwork = minOf(maxHeight - 16.dp, maxWidth - ARTWORK_INSET - WIDE_DETAILS_WIDTH, MAX_ARTWORK)
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                     if (artwork >= MIN_ARTWORK) {
@@ -177,10 +172,6 @@ internal fun MobileNowPlayingScreen(
     )
 }
 
-/**
- * Room for the top bar's back, which the player screen draws, then where a receiver plays the file,
- * Cast, and More when there is a choice in it.
- */
 @Composable
 private fun NowPlayingTopBar(
     canChooseAudio: Boolean,
@@ -292,10 +283,6 @@ private fun NowPlayingDetails(
     }
 }
 
-/**
- * The scrubber and, under it, the elapsed and remaining times in mono. The times sit 10dp under
- * the track's centre, inside the lower half of its 48dp touch band, which nothing else takes.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun NowPlayingTimeline(player: Player, onScrub: () -> Unit, modifier: Modifier) {
@@ -337,10 +324,6 @@ private fun NowPlayingTimeline(player: Player, onScrub: () -> Unit, modifier: Mo
     }
 }
 
-/**
- * Back 15 and Previous, the 88dp play and pause, then Next and Forward 30, on the board's spacing.
- * A narrower window closes the gaps first, then shrinks the play button down to the small ones.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun NowPlayingTransport(
@@ -350,7 +333,6 @@ private fun NowPlayingTransport(
     neighbours: PlaybackNeighbours,
     onPlay: (PlaybackTarget) -> Unit,
 ) {
-    // The chips' 48dp touch band adds 8dp above them, so the bottom padding leaves the board's 20dp.
     BoxWithConstraints(
         Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp),
         contentAlignment = Alignment.Center,
@@ -359,7 +341,6 @@ private fun NowPlayingTransport(
         val room = maxWidth - buttons - PLAY_RING
         val gaps = (room / (SMALL_GAP * 2 + BIG_GAP * 2)).coerceIn(0f, 1f)
         val ring = (maxWidth - buttons).coerceIn(TRANSPORT_TARGET, PLAY_RING)
-        // Narrower than the five 48dp targets, the row wraps rather than squeeze them.
         FlowRow(
             horizontalArrangement = Arrangement.Center,
             itemVerticalAlignment = Alignment.CenterVertically,
@@ -406,7 +387,6 @@ private fun AudioSeekButton(direction: SeekDirection, enabled: Boolean, onClick:
     }
 }
 
-/** Plays [target], the file before or after this one in its folder; off while there is none. */
 @Composable
 private fun SkipButton(
     target: PlaybackTarget?,
@@ -468,7 +448,6 @@ private fun PlayPauseButton(player: Player, ring: Dp) {
     }
 }
 
-/** "Sleep timer" while off; while on, the time left in mono on a filled chip. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun SleepTimerChip(timer: MobileSleepTimer, onClick: () -> Unit) {
@@ -487,7 +466,6 @@ private fun SleepTimerChip(timer: MobileSleepTimer, onClick: () -> Unit) {
     )
 }
 
-/** What is left of [run], counted down once a second. */
 @Composable
 private fun rememberRemaining(timer: MobileSleepTimer, run: MobileSleepTimer.Run): Long {
     var remaining by remember(run) { mutableLongStateOf(timer.remainingMillis(run)) }
@@ -520,7 +498,6 @@ internal enum class NowPlayingSheet(@StringRes val title: Int) {
     AudioTrack(R.string.mobile_playback_audio_track),
 }
 
-/** Each chip's choices in a bottom sheet; a choice that plays or sets something closes it. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -592,7 +569,6 @@ private fun SleepTimerChoices(timer: MobileSleepTimer, onDone: () -> Unit) {
     }
 }
 
-/** "15 minutes", "1 hour", with the number in mono. */
 @Composable
 private fun sleepChoiceLabel(minutes: Int) = buildAnnotatedString {
     val hours = minutes % MINUTES_PER_HOUR == 0
@@ -620,7 +596,6 @@ private fun sleepChoiceLabel(minutes: Int) = buildAnnotatedString {
     }
 }
 
-/** The next file in the folder, as a file row; a tap plays it. */
 @Composable
 private fun UpNextRow(next: PlaybackTarget, onClick: () -> Unit) {
     MobileRow(
@@ -643,11 +618,9 @@ private fun UpNextRow(next: PlaybackTarget, onClick: () -> Unit) {
 
 private val TOP_BAR_HEIGHT = 64.dp
 
-/** The player screen's 48dp back sits at the bar's start. */
 private val TOP_BAR_BACK_ROOM = 48.dp
 private val WIDE_LAYOUT_WIDTH = 600.dp
 
-/** Beside the glyph, the details need the transport's 288dp and their 16dp gutters. */
 private val WIDE_DETAILS_WIDTH = 320.dp
 private val ARTWORK_INSET = 32.dp
 private val ARTWORK_TOP = 24.dp
@@ -655,26 +628,21 @@ private val ARTWORK_GLYPH = 120.dp
 private val MIN_ARTWORK = 96.dp
 private val MAX_ARTWORK = 480.dp
 
-/** What the details under the glyph need at the default font scale, so the glyph leaves them room. */
 private val DETAILS_HEIGHT = 368.dp
 
-/** The board's Now Playing title: 20sp medium on a 28sp line, wrapping to two lines before the cut. */
 private val TITLE_SIZE = 20.sp
 private val TITLE_LINE = 28.sp
 
-/** Material's slider insets its track by half the 16dp thumb, so the track spans the 32dp gutters. */
 private val SCRUBBER_INSET = ARTWORK_INSET - 8.dp
 private val TIMES_BELOW_TRACK_CENTRE = 10.dp
 private val TRANSPORT_GLYPH = 30.dp
 private val PLAY_BUTTON = 88.dp
 private val PLAY_GLYPH = 38.dp
 
-/** The buffering ring circles the 88dp button, 4dp out. */
 private val PLAY_RING_MARGIN = 4.dp
 private val PLAY_RING = PLAY_BUTTON + PLAY_RING_MARGIN * 2
 private val TRANSPORT_TARGET = 48.dp
 
-/** The board's 28dp between glyphs, less the 48dp touch targets' and the ring's own margins. */
 private val SMALL_GAP = 10.dp
 private val BIG_GAP = 15.dp
 private const val TICK_MILLIS = 1_000L

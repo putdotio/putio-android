@@ -122,13 +122,11 @@ internal fun MobilePlayerScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onOriginalRejected: (PlaybackFallbackReason, Long) -> Boolean = { _, _ -> false },
-    /** The player showed the current source's first frame. */
     onFirstFrame: () -> Unit = {},
     onOriginalChosen: ((Long) -> Unit)? = null,
     autoplayNextVideo: Boolean = false,
     rotateToLandscape: Boolean = true,
     onPlaybackEnded: () -> Unit = {},
-    /** The file's end, whatever autoplay does next, and Cast handovers. */
     analytics: PlaybackAnalyticsReporter = PlaybackAnalyticsReporter.None,
     playerFactory: MobilePlayerFactory = DefaultMobilePlayerFactory,
     subtitleStartupPolicy: SubtitleStartupPolicy? = null,
@@ -144,14 +142,11 @@ internal fun MobilePlayerScreen(
     onPlayUpNext: (PlaybackTarget) -> Unit = {},
     neighbours: PlaybackNeighbours = PlaybackNeighbours(),
     onPlay: (PlaybackTarget) -> Unit = {},
-    /** Hands the original to VLC when this player can't play it; null where VLC isn't offered. */
     onOpenInVlc: (() -> Unit)? = null,
-    /** The Cast session; with [castMedia], the top bar offers Cast once a receiver is in reach. */
     cast: MobileCastController? = null,
     castMedia: MobileCastMediaLoader? = null,
     onCastEnded: (() -> Unit)? = null,
 ) {
-    // Like iOS, the window turns only for a landscape video; the last shape holds across autoplay.
     var landscapeVideo by rememberSaveable { mutableStateOf(false) }
     val preferences = rememberRetainedPlayerPreferences(state.target.fileId.value)
     val pictureInPicture = rememberPictureInPictureMode()
@@ -161,7 +156,6 @@ internal fun MobilePlayerScreen(
             landscape = landscapeVideo,
             rotateToLandscape = rotateToLandscape,
         )
-        // A closed window stopped the video; the next visit finds it paused instead of playing on.
         PictureInPictureDismissalEffect { preferences.resumeAfterLifecyclePause = false }
     }
     val keyboardNavigation = rememberSaveable(state.target.fileId.value) { mutableStateOf(false) }
@@ -205,7 +199,6 @@ internal fun MobilePlayerScreen(
                 onKeyboardNavigation = { keyboardNavigationActive = true },
             ),
     ) {
-        // The open device picker is modal: TalkBack reaches only it.
         Box(Modifier.fillMaxSize().hiddenFromAccessibility(castPicker.value)) {
             val isVideo = state.target.mediaType == PlaybackMediaType.VIDEO
             val shown = state.shownContent(playerCast, onResume, onCastEnded)
@@ -274,13 +267,6 @@ internal fun MobilePlayerScreen(
     }
 }
 
-/**
- * What the screen shows: a receiver already playing the file takes the place of a resume prompt,
- * which is answered with the saved position so a session that ends hands back as from any ready
- * file, and of a local failure, which leaves that receiver in reach. A session that already ended
- * answers the prompt too: the file resumes where the receiver stopped. An original that played
- * converted only for the receiver loads as the original again once the session is gone.
- */
 @Composable
 private fun PlaybackState.shownContent(
     playerCast: PlayerCast,
@@ -293,7 +279,6 @@ private fun PlaybackState.shownContent(
     }
     val prompt = content as? PlaybackContent.AwaitingResume
     val attached = playerCast.attaches(target.fileId.value) && content.attachable
-    // Where a receiver stopped is the answer the prompt would ask for, so it is not asked.
     if (prompt != null && (attached || playerCast.handsBack(target.fileId.value))) {
         LaunchedEffect(prompt) { onResume() }
     }
@@ -302,19 +287,13 @@ private fun PlaybackState.shownContent(
 
 private val ReopeningOriginal = PlaybackContent.Loading(PlaybackRequestId(0L))
 
-/** States a receiver that already plays the file stands in for: none needs the viewer first. */
 private val PlaybackContent.attachable: Boolean
     get() = this is PlaybackContent.Loading || this is PlaybackContent.AwaitingResume ||
         this is PlaybackContent.Conversion || this is PlaybackContent.Failed
 
-/** Leaves this content out of accessibility while something modal covers it. */
 private fun Modifier.hiddenFromAccessibility(hidden: Boolean): Modifier =
     if (hidden) clearAndSetSemantics {} else this
 
-/**
- * The player once it has something to play: the receiver's controls while a Cast session runs,
- * otherwise the local player, which picks a file up where a session that just ended left it.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileReadyContent(
@@ -418,10 +397,6 @@ private fun MobileReadyContent(
     }
 }
 
-/**
- * Back where the player's own controls are not up: with the filename for video. Audio always has
- * it here, a caret down at the start of Now Playing's 64dp top bar, whatever state it is in.
- */
 @Composable
 private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, modifier: Modifier) {
     if (state.target.mediaType == PlaybackMediaType.VIDEO) {
@@ -433,14 +408,9 @@ private fun MobilePlayerSeparateBack(state: PlaybackState, onBack: () -> Unit, m
     }
 }
 
-// The receiver's controls draw the video's own top bar, as the ready player does.
 private fun PlaybackState.showsSeparateBack(shown: PlaybackContent): Boolean =
     target.mediaType == PlaybackMediaType.AUDIO || (shown !is PlaybackContent.Ready && shown != PlaybackContent.Session)
 
-/**
- * Back and the filename over a video that is not playing yet or cannot: the resume prompt, the
- * conversion, a failure. It sits where the player's own top bar does.
- */
 @Composable
 internal fun MobilePlayerFrameBar(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Row(
@@ -539,7 +509,6 @@ private fun MobileReadyPlayer(
     val currentOnPositionChanged = rememberUpdatedState(onPositionChanged)
     val currentSubtitleStartupPolicy = rememberUpdatedState(subtitleStartupPolicy)
     val currentPreferences = rememberUpdatedState(preferences)
-    // A session player outlives this screen: it is never paused, released, or recreated here.
     val ownsPlayer = sessionPlayer == null
     val player = remember(context, lifecycle, playerFactory, playerGeneration.intValue, mediaType, sessionPlayer) {
         sessionPlayer ?: playerFactory.create(context, mediaType)
@@ -640,10 +609,8 @@ private fun MobileReadyPlayer(
         currentOnPositionChanged = currentOnPositionChanged,
         pictureInPicture = pictureInPicture,
     )
-    // The window's seek actions reach the screen's own seek, which owns the pending-seek bookkeeping.
     val pictureInPictureSeeks = remember(player) { SeekRelay() }
     val enterPictureInPicture = if (!isAudio) {
-        // Whatever holds the screen on is playing; anything else shows Play, as Media3's button does.
         rememberMobilePictureInPicture(
             playing = playerState.keepScreenOn,
             videoSize = playerState.videoSize,
@@ -716,10 +683,6 @@ private fun PlaybackSource?.streamSwitch(
     }
 }
 
-/**
- * What the screen tracks about one player. It is remembered with that player, so a recreated
- * player starts from fresh state while the route's saveable state carries over.
- */
 @Stable
 private class ReadyPlayerState(
     val player: Media3Player,
@@ -732,13 +695,10 @@ private class ReadyPlayerState(
     var playerReleased by mutableStateOf(false)
     val defaultTrackSelection: TrackSelectionParameters = player.trackSelectionParameters
 
-    // A route that already handled the session keeps an ended file ended; a route opened
-    // fresh onto an ended file prepares it again.
     var activeFileId by mutableStateOf(player.sessionFileId(sessionHandled))
     var optionsInitialized by mutableStateOf(false)
     var cues by mutableStateOf(player.currentCues.cues)
 
-    /** What showed, by position, for subtitles the viewer delayed. */
     val cueHistory = DelayedSubtitleCues()
     var trackSelection = player.trackSelectionParameters
     var videoSize by mutableStateOf(player.videoSize)
@@ -753,7 +713,6 @@ private class ReadyPlayerState(
     var seekWindow by mutableStateOf(player.currentSeekWindow())
     var nextSeekRequestId by mutableLongStateOf(0L)
 
-    /** The video frame's full-screen bounds in the window, which picture-in-picture animates from. */
     var videoFrame by mutableStateOf<Rect?>(null)
 
     val recovery = PlaybackTrackRecovery(
@@ -762,7 +721,6 @@ private class ReadyPlayerState(
         manifestSubtitleUris = player::manifestSubtitleUris,
     )
 
-    /** The player's own snackbar lines, as string resources; each waits for the screen to show it. */
     val notices = Channel<Int>(Channel.BUFFERED)
 
     fun audioSwitching(preferences: RetainedPlayerPreferences) {
@@ -852,7 +810,6 @@ private fun PlaybackPreparationEffect(
             onSessionHandled()
             preferences.adoptPlaybackOptions(player)
             playerState.optionsInitialized = true
-            // Returning to audio that kept playing: adopt the live position instead of restarting.
             val livePosition = player.currentPosition.coerceAtLeast(0L)
             retainedPosition.longValue = livePosition
             currentOnPositionChanged.value(livePosition)
@@ -884,8 +841,6 @@ private fun PlaybackPreparationEffect(
                 )
         }
         playerState.activeFileId = fileId
-        // A file taking over session audio, from Now Playing's skips say, keeps the listener's speed, even
-        // after the last file ended.
         if (!playerState.ownsPlayer && replacingFileId != fileId && player.mediaItemCount > 0) {
             preferences.playbackSpeed = player.playbackParameters.speed
         }
@@ -899,7 +854,6 @@ private fun PlaybackPreparationEffect(
         player.setMediaItem(playerFactory.reportableItem(preparedPlayback.mediaItem, useStartFrom), replacementPosition)
         player.prepare()
         playerState.seekWindow = player.currentSeekWindow()
-        // Session audio plays behind a dialog or a stopped screen; only a private player waits.
         playerState.playerWantsToPlay =
             if (playerState.ownsPlayer) {
                 lifecycleAllowsAutoplay(lifecycle.currentState, playerState.retainedPlayIntent)
@@ -922,7 +876,6 @@ private fun SubtitleStartupEffect(
     val player = playerState.player
     LaunchedEffect(player, playerState.activeFileId, subtitleStartupPolicy, retainedSubtitleSelection) {
         val policy = subtitleStartupPolicy ?: return@LaunchedEffect
-        // Hiding also overrides a pick made before the settings arrived.
         if (playerState.activeFileId == fileId && (retainedSubtitleSelection == null || !policy.showSubtitles)) {
             val current = player.trackSelectionParameters
             val parameters =
@@ -960,8 +913,6 @@ private fun ControlsVisibilityEffects(
     controlsActivity: MutableIntState,
 ) {
     val accessibilityManager = LocalAccessibilityManager.current
-    // The tap layer has no accessibility click semantics, so a service enabled
-    // mid-playback needs the controls back on screen to reach them.
     LaunchedEffect(touchExplorationEnabled) {
         controlsVisible.value = controlsVisibleForTouchExploration(controlsVisible.value, touchExplorationEnabled)
     }
@@ -1013,7 +964,6 @@ private fun HostViewEffects(
 ) {
     val hostView = LocalView.current
     DisposableEffect(hostView, playerState.keepScreenOn) {
-        // Captured, not re-read: by onDispose the state already holds the next value.
         val holdsScreen = playerState.keepScreenOn && !hostView.keepScreenOn
         if (holdsScreen) hostView.keepScreenOn = true
         onDispose {
@@ -1050,10 +1000,6 @@ private fun PlayerLifecycleEffects(
     val activity = LocalActivity.current
     val player = playerState.player
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) {
-        // Entering picture-in-picture pauses the Activity and the video plays on in the window. The
-        // Activity's own flag is already set when the pause arrives; mode listeners hear it later.
-        // A paused split-screen or freeform window is still on screen too; Android's multi-window
-        // guidance keeps video going until the window stops.
         val enteringPictureInPicture = pictureInPicture.value || activity?.isInPictureInPictureMode == true
         val stillVisible = enteringPictureInPicture || activity?.isInMultiWindowMode == true
         if (playerState.ownsPlayer && !playerState.playerReleased && !stillVisible) {
@@ -1099,10 +1045,6 @@ private fun PlayerLifecycleEffects(
     }
 }
 
-/**
- * In the window the video plays whenever its play intent says so: a player prepared there, such
- * as autoplay's next video, and one a pause stopped before the Activity's flag was set.
- */
 @Composable
 private fun PictureInPictureResumeEffect(playerState: ReadyPlayerState, pictureInPicture: Boolean) {
     val player = playerState.player
@@ -1137,14 +1079,9 @@ private fun PlayerListenerEffect(
     val activity = LocalActivity.current
     val player = playerState.player
     DisposableEffect(player) {
-        // A started split-screen or freeform window is on screen as a picture-in-picture one is, so a pause
-        // or play made there, from a headset say, is what the next resume keeps.
         fun lifecycleState() = lifecycle.currentState.withPictureInPicture(
             pictureInPicture.value || activity?.isInMultiWindowMode == true,
         )
-        // A picked track is found again in each new track list, and automatic subtitles find the
-        // account's default. The pick is read live: tracks can change before recomposition
-        // passes it back as retainedSubtitleSelection.
         fun resolveRetainedSubtitleSelection(tracks: List<PlaybackSubtitleTrack>) {
             val parameters = player.trackSelectionParameters.withSubtitleTracks(
                 retained = currentPreferences.value.subtitleSelection,
@@ -1193,7 +1130,6 @@ private fun PlayerListenerEffect(
                 }
 
                 override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) {
-                    // Off or another subtitle track: what showed before must not replay after a delay.
                     if (!parameters.sameSubtitleChoice(playerState.trackSelection)) playerState.cueHistory.clear()
                     playerState.trackSelection = parameters
                 }
@@ -1203,7 +1139,6 @@ private fun PlayerListenerEffect(
                     newPosition: Media3Player.PositionInfo,
                     reason: Int,
                 ) {
-                    // What showed before a seek no longer lines up with the new position.
                     if (reason == Media3Player.DISCONTINUITY_REASON_SEEK) playerState.cueHistory.clear()
                 }
 
@@ -1401,8 +1336,6 @@ private fun MobileReadyPlayerContent(
         player.seekTo(request.targetPositionMillis)
     }
     SideEffect { pictureInPictureSeeks.seek = ::seek }
-    // The player holds keyboard focus itself, so Space and the arrows reach it before any control is
-    // focused; Tab still walks the controls, and a focused control keeps the keys it uses.
     val keyFocus = remember { FocusRequester() }
     LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
 
@@ -1413,7 +1346,6 @@ private fun MobileReadyPlayerContent(
     }
     var footerHeight by remember { mutableStateOf(0.dp) }
     val appearance = rememberSubtitleAppearanceStore()
-    // The window shows only the video, so a sheet open when it starts goes with the controls.
     val sheetState = rememberSaveable(fileId) { mutableStateOf<MobileVideoSheet?>(null) }
     var sheet by sheetState
     SheetClosingEffect(sheetState, pictureInPicture, subtitlesHidden = subtitleStartupPolicy?.showSubtitles == false)
@@ -1497,7 +1429,6 @@ private fun MobileReadyPlayerContent(
             )
             MobileSeekFeedbackLayer(pendingSeek.value)
         } else if (stall.allowsChrome(pictureInPicture) && sheet == null) {
-            // The window shows only the video and its subtitles; its own menu carries the controls.
             MobilePlayerChrome(
                 player = player,
                 title = title,
@@ -1580,10 +1511,6 @@ private fun MobileReadyPlayerContent(
     }
 }
 
-/**
- * Sooner subtitles: the text renderer reads ahead by the lead, and a playing player whose lead
- * changed reads its subtitles again. Later subtitles wait in the cue history instead.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun SubtitleOffsetEffect(player: Media3Player, offsetMillis: Long) {
@@ -1595,7 +1522,6 @@ private fun SubtitleOffsetEffect(player: Media3Player, offsetMillis: Long) {
     }
 }
 
-/** The cues on screen: as the player shows them, or what it showed [delayMillis] ago. */
 @Composable
 private fun rememberShownCues(playerState: ReadyPlayerState, delayMillis: Long): List<Cue> {
     if (delayMillis <= 0L) return playerState.cues
@@ -1612,10 +1538,6 @@ private fun rememberShownCues(playerState: ReadyPlayerState, delayMillis: Long):
 
 private const val DELAYED_CUE_TICK_MILLIS = 50L
 
-/**
- * The window shows only the video, so a sheet open when it starts goes with the controls; hidden
- * subtitles take their sheets with them.
- */
 @Composable
 private fun SheetClosingEffect(
     sheet: MutableState<MobileVideoSheet?>,
@@ -1628,24 +1550,20 @@ private fun SheetClosingEffect(
     }
 }
 
-/** The open sheet holds the controls up; closing it hands keyboard focus back to the player. */
 @Composable
 private fun SheetFocusEffect(open: Boolean, controlsMenuOpen: MutableState<Boolean>, keyFocus: FocusRequester) {
     var wasOpen by remember { mutableStateOf(false) }
     LaunchedEffect(open) {
         controlsMenuOpen.value = open
-        // So Space and the arrows reach the player again.
         if (!open && wasOpen) keyFocus.requestFocus()
         wasOpen = open
     }
 }
 
-/** The pending seek's feedback on the side it seeks toward. */
 @Composable
 private fun MobileSeekFeedbackLayer(request: PendingSeek?, fold: TabletopFold? = null) {
     if (request == null) return
     Box(Modifier.videoArea(fold).zIndex(3f)) {
-        // Identical text still needs a fresh accessibility event for each seek.
         key(request.requestId) {
             MobileSeekFeedback(
                 request = request,
@@ -1665,16 +1583,10 @@ private fun MobileSeekFeedbackLayer(request: PendingSeek?, fold: TabletopFold? =
     }
 }
 
-/** Hands the window's seek actions to the composed screen's seek. */
 private class SeekRelay {
     var seek: (SeekDirection) -> Unit = {}
 }
 
-/**
- * Space plays or pauses, Left and Right seek like the 10-second buttons, and Escape or Backspace
- * leave. A held arrow keeps seeking; a held Space or Escape acts once. The release of a taken key is
- * taken too.
- */
 internal fun playerKeyCommand(event: KeyEvent, run: (MobileKeyCommand) -> Unit): Boolean {
     val command = mobileKeyCommand(MobileShortcutScope.Player, event.keyCode, event.metaState) ?: return false
     val repeats = command == MobileKeyCommand.SeekBack || command == MobileKeyCommand.SeekForward
@@ -1715,10 +1627,8 @@ private fun BoxScope.MobileVideoLayers(
         player = player,
         modifier = Modifier
             .videoArea(fold)
-            // Letterbox and pillarbox bars are black like every video player, not the app's surface.
             .background(Color.Black)
             .onGloballyPositioned {
-                // Inside the window these are its own bounds; the next window still starts from full screen.
                 if (!currentPictureInPicture) playerState.videoFrame = it.boundsInWindow()
             },
         surfaceType = playbackSurfaceType(Build.VERSION.SDK_INT, Build.HARDWARE),
@@ -1748,7 +1658,6 @@ private fun BoxScope.MobileVideoLayers(
             .zIndex(0.5f)
             .testTag(MOBILE_PLAYER_GESTURE_TAG),
     ) {
-        // Separate physical regions keep taps across the midpoint as independent single taps.
         for (direction in SeekDirection.entries) {
             Box(
                 Modifier
@@ -1795,11 +1704,6 @@ private fun BoxScope.MobileVideoLayers(
     if (pictureInPicture) MobilePictureInPictureProgress(player, Modifier.align(Alignment.BottomStart).zIndex(3f))
 }
 
-/**
- * Beside an open side sheet the subtitles stay clear of the dimming: they lay out in the video that
- * still shows, at the video's height, so they wrap there at the size they play at and Size and
- * timing previews them as they will look.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileSubtitleLayer(
@@ -1819,7 +1723,6 @@ private fun MobileSubtitleLayer(
         )
         val sheetWidth = if (besideSheet) MOBILE_PLAYER_SIDE_SHEET_WIDTH.coerceAtMost(maxWidth) else 0.dp
         val area = subtitleArea(frame, aspectRatio, sheetWidth)
-        // A sheet as wide as the window leaves no video to show subtitles in.
         if (sheetWidth > 0.dp && area == null) return@BoxWithConstraints
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
             SubtitleCueOverlay(
@@ -1834,7 +1737,6 @@ private fun MobileSubtitleLayer(
     }
 }
 
-/** The window's thin yellow line of how far the video has played. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobilePictureInPictureProgress(player: Media3Player, modifier: Modifier) {
@@ -1852,10 +1754,6 @@ private fun MobilePictureInPictureProgress(player: Media3Player, modifier: Modif
     )
 }
 
-/**
- * Video owns a private player. Audio attaches to the session service's player, so the
- * content composes only once the connection resolves; a failed connection is recoverable.
- */
 @Composable
 private fun MobileSessionPlayerHost(
     mediaType: PlaybackMediaType,
@@ -1864,7 +1762,6 @@ private fun MobileSessionPlayerHost(
 ) {
     val context = LocalContext.current
     if (mediaType != PlaybackMediaType.AUDIO) {
-        // Otherwise the notification and media buttons keep targeting the old audio.
         LaunchedEffect(context, playerFactory) { playerFactory.stopAudio(context) }
         content(null)
         return
@@ -1893,8 +1790,6 @@ private fun MobileSessionPlayerHost(
     }
 }
 
-// The file the session is currently prepared for, if any; idle sessions carry nothing, and while
-// casting the session shows the receiver's media, which the Cast screens own.
 internal fun Media3Player.activeSessionFileId(): Long? =
     if (playbackState == Media3Player.STATE_IDLE || deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) {
         null
@@ -1902,7 +1797,6 @@ internal fun Media3Player.activeSessionFileId(): Long? =
         currentMediaItem?.mediaId?.toLongOrNull()
     }
 
-// A file the session can carry on with; an ended one must be prepared again.
 internal fun Media3Player.resumableSessionFileId(): Long? =
     activeSessionFileId()?.takeIf { playbackState != Media3Player.STATE_ENDED }
 

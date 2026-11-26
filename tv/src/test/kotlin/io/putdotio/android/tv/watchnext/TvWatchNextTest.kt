@@ -92,7 +92,6 @@ class TvWatchNextTest {
         val recorder = watchNext().recorder(1L, TvAuthSessionId(1L))
         recorder.positionSaved(video(7L), 120.0)
 
-        // A quiet sign-out lands where every process starts; only the count tells them apart.
         auth.value = TvAuthState.Initializing
         assertEquals(1, store.rows.size)
         quietSignOuts.value = 1
@@ -279,7 +278,6 @@ class TvWatchNextTest {
     )
 }
 
-/** The provider's rows for this app, with the `browsable` flag the launcher clears on removal. */
 private class FakeWatchNextStore : TvWatchNextStore {
     data class Row(
         val rowId: Long,

@@ -9,10 +9,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.mapNotNull
 
-/**
- * Sends `settings_changed` once per save put.io accepts; privacy controls send nothing. Also keeps
- * the route `app_opened` reports.
- */
 public suspend fun Flow<AccountSettingsState>.captureSavedSettings() {
     captureSaved({ it.mutation.step() }, AccountSettingsChange::analyticsEvent) { state ->
         val ready = state.content as? AccountSettingsContent.Ready
@@ -20,14 +16,9 @@ public suspend fun Flow<AccountSettingsState>.captureSavedSettings() {
     }
 }
 
-/**
- * Each new answer these settings give. A save of another setting re-emits the answer they loaded,
- * which a consent check may have replaced since, so an unchanged answer is not repeated.
- */
 public fun Flow<AccountSettingsState>.productAnalyticsAnswers(): Flow<Boolean> =
     mapNotNull { it.productAnalyticsAllowed() }.distinctUntilChanged()
 
-/** Answers a [ProductAnalytics.setConsentCheck] for [accountId] from put.io; a failed read keeps the last answer. */
 public suspend fun AccountSettingsRepository.confirmProductAnalytics(check: ConsentCheck, accountId: Long?) {
     val enabled = accountId?.let {
         (load() as? AccountSettingsRepositoryResult.Success)?.value?.productAnalyticsEnabled
@@ -35,7 +26,6 @@ public suspend fun AccountSettingsRepository.confirmProductAnalytics(check: Cons
     ProductAnalytics.confirm(check, accountId, enabled)
 }
 
-/** Sends `settings_changed` once per app config save put.io accepts; the prompt's answer sends nothing. */
 public suspend fun Flow<AndroidAppConfigState>.captureSavedAppConfig() {
     captureSaved({ it.mutation.step() }, AndroidAppConfigChange::analyticsEvent)
 }
@@ -54,7 +44,6 @@ private suspend fun <S, C> Flow<S>.captureSaved(
     }
 }
 
-/** One settings controller's mutation, as save detection reads it. */
 internal sealed interface SaveStep<out C> {
     data class Saving<C>(val requestId: Any, val change: C, val saving: Boolean) : SaveStep<C>
 
@@ -63,11 +52,6 @@ internal sealed interface SaveStep<out C> {
     data object Idle : SaveStep<Nothing>
 }
 
-/**
- * The change [previous] was saving, once that save left its `Save` step without failing there. A
- * collector may never see the `Refresh` step, so landing anywhere else counts, except the same
- * change saving again: that is a retry of a failure the collector missed.
- */
 internal fun <C> SaveStep<C>.savedAfter(previous: SaveStep<C>): C? {
     val saving = (previous as? SaveStep.Saving)?.takeIf { it.saving } ?: return null
     val saved = when (this) {
@@ -94,7 +78,6 @@ internal fun AndroidAppConfigMutation.step(): SaveStep<AndroidAppConfigChange> =
         AndroidAppConfigMutation.Idle -> SaveStep.Idle
     }
 
-/** A sort or route is `changed`, so its value never leaves the device. */
 internal fun AccountSettingsChange.analyticsEvent(): AnalyticsEvent.SettingsChanged? =
     when (this) {
         is AccountSettingsChange.Toggle -> when (key) {

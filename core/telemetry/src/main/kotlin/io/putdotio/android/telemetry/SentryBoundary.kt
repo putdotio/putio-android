@@ -34,8 +34,6 @@ import java.util.concurrent.FutureTask
 internal object SentryBoundary {
     const val FAILURE_HINT: String = "io.put.failure"
 
-    // Steps run in order off the caller's thread, since closing flushes and a first launch's cache
-    // wipe walks storage. A step that throws is dropped instead of crashing the app.
     @Volatile
     var executor: Executor = Executors.newSingleThreadExecutor()
 
@@ -59,8 +57,6 @@ internal object SentryBoundary {
         }
     }
 
-    // A start after launch drops events stamped before it: Android hands the SDK ANRs from its exit
-    // history, which can date from an opted-out period, and Sentry marks a dropped one as reported.
     fun open(launch: Boolean): Period =
         Period(if (launch) 0 else System.currentTimeMillis(), confirmed = !launch).also { current = it }
 
@@ -168,10 +164,6 @@ internal class DiagnosticsFiles(val cache: File, val sentryInstallation: File, v
     }
 }
 
-/**
- * Copies listed fields into a new event, so unlisted ones, including any a Sentry upgrade adds,
- * stay on the device. A throwable's message can quote a media title, so exceptions keep their type.
- */
 private fun allowlisted(event: SentryEvent, installation: String?, surface: String, failure: TelemetryFailure?) =
     SentryEvent(event.timestamp).apply {
         eventId = event.eventId

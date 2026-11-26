@@ -77,14 +77,8 @@ internal const val MOBILE_PRODUCT_ANALYTICS_PROMPT_TAG = "mobile-product-analyti
 internal const val MOBILE_PRODUCT_ANALYTICS_ALLOW_TAG = "mobile-product-analytics-allow"
 internal const val MOBILE_PRODUCT_ANALYTICS_DENY_TAG = "mobile-product-analytics-deny"
 
-/** The launch extra a debug build needs to show the prompt; `adb shell am start --ez` sets it. */
 internal const val EXTRA_HARNESS_ANALYTICS_PROMPT = "putio.harness.analytics_prompt"
 
-/**
- * Whether the signed-in shell may ask. Debug builds keep the prompt out of harness, proof and test
- * launches, which share an account, unless the launch opts in; an opted-in launch asks whatever the
- * account and config hold, so the shared account never needs its answer reset.
- */
 internal enum class MobileProductAnalyticsPromptMode {
     Ask,
     Suppressed,
@@ -101,15 +95,9 @@ internal enum class MobileProductAnalyticsPromptMode {
     }
 }
 
-// MainActivity provides the launch's mode; any other debug composition, such as a proof's, stays quiet.
 internal val LocalMobileProductAnalyticsPromptMode =
     staticCompositionLocalOf { MobileProductAnalyticsPromptMode.of(BuildConfig.DEBUG, harnessAsks = false) }
 
-/**
- * Asks once whether the account allows product analytics. An answer saves the account setting, then
- * records the answer in this app's config; a failed setting records nothing. Closing it without
- * answering writes nothing, so the next launch asks again.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileProductAnalyticsPrompt(
@@ -120,8 +108,6 @@ internal fun MobileProductAnalyticsPrompt(
     onDismiss: () -> Unit,
 ) {
     var choice by rememberSaveable { mutableStateOf<Boolean?>(null) }
-    // A new choice that saves its setting first sets aside the previous answer's failure; the next
-    // answer write replaces it.
     var failureSetAside by rememberSaveable { mutableStateOf(false) }
     val answerFailed = appConfigState.productAnalyticsAnswerFailed()
     val progress = choice?.let {
@@ -139,7 +125,6 @@ internal fun MobileProductAnalyticsPrompt(
             ProductAnalyticsAnswerStep.Wait -> Unit
         }
     }
-    // Once put.io holds the setting, the answer follows; the shell also records it, whichever lands first.
     LaunchedEffect(choice, progress, settingsState, appConfigState) {
         val enabled = choice ?: return@LaunchedEffect
         if (progress != ProductAnalyticsAnswerProgress.Saving) return@LaunchedEffect
@@ -183,7 +168,6 @@ private fun MobileProductAnalyticsPromptContent(
     onAnswer: (Boolean) -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
-    // The sheet adds the navigation bar inset; over a gesture bar this makes the board's 28dp.
     Column(
         modifier = Modifier
             .verticalScroll(rememberScrollState())
@@ -220,7 +204,6 @@ private fun MobileProductAnalyticsPromptContent(
                 )
             }
         }
-        // Equal heights when a large font wraps one label.
         Row(
             modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -261,7 +244,6 @@ private fun MobileProductAnalyticsPromptContent(
     }
 }
 
-/** Side by side when the sheet is wide enough, as on iOS; stacked on a phone. */
 @Composable
 private fun PromptLists() {
     BoxWithConstraints {
@@ -329,8 +311,6 @@ private fun PromptList(
             modifier = Modifier.padding(bottom = 2.dp).semantics { heading() },
         )
         val itemStyle = MaterialTheme.typography.bodyMedium
-        // Sized in sp and centred on the first line, so a wrapped or scaled item keeps its glyph
-        // beside where it starts.
         val firstLine = with(LocalDensity.current) { itemStyle.lineHeight.toDp() }
         val glyph = with(LocalDensity.current) { PROMPT_GLYPH_SIZE.toDp() }
         items.forEach { item ->

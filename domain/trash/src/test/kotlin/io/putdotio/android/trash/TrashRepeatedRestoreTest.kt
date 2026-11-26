@@ -38,7 +38,6 @@ class TrashRepeatedRestoreTest {
             controller.awaitState { (it.content as? TrashContent.Loaded)?.isRefreshing == false }
             assertTrue(controller.state.value.canRestore(original.id))
 
-            // A later stale initial response must not undo the original occurrence's suppression.
             repository.onLoad = { page(original) }
             controller.dispatch(TrashEvent.Refresh)
             controller.awaitState { (it.content as? TrashContent.Loaded)?.isRefreshing == false }

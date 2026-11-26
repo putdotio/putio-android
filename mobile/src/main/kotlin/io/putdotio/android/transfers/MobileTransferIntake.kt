@@ -80,7 +80,6 @@ internal fun MobileTransferDestinationRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        // The labels, not the buttons' padding, line up with the field's edge above.
         Row(modifier = Modifier.offset(x = TEXT_BUTTON_INSET)) {
             if (destination != null) {
                 TextButton(colors = neutralTextButtonColors(), onClick = onReset, enabled = enabled) {
@@ -101,7 +100,6 @@ internal fun MobileTransferDestinationRow(
     }
 }
 
-/** Material's text button pads its label by 12dp on each side. */
 private val TEXT_BUTTON_INSET = 12.dp
 
 @Composable
@@ -128,7 +126,6 @@ internal fun MobileTransferTorrentRow(torrent: TorrentUpload, enabled: Boolean, 
     }
 }
 
-/** The Files move picker, choosing where a new transfer saves instead of where an item moves. */
 @Composable
 internal fun MobileTransferDestinationPicker(
     repository: FilesRepository,

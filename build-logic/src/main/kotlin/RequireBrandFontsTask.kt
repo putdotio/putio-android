@@ -9,10 +9,6 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
-/**
- * Fails unless every locked brand font is installed and matches its digest. Release bundles depend
- * on it, so a bundle for Google Play never falls back to the system face.
- */
 @CacheableTask
 abstract class RequireBrandFontsTask : DefaultTask() {
 

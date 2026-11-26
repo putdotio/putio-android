@@ -8,7 +8,6 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
-/** Fails when DESIGN.md's `colors` block differs from the one the token graph generates. */
 @CacheableTask
 abstract class CheckDesignMdColorsTask : DefaultTask() {
 

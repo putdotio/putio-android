@@ -46,14 +46,12 @@ class TrashActionTest {
             val failed = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.FAILED }
             assertEquals(TrashActionSubmission.UNCERTAIN, failed.actionOutcome?.submission)
             assertNull(failed.actionOutcome?.checkFailure)
-            // The complete read that still lists the item answers the question: nothing happened.
             assertFalse(failed.hasPendingAction)
             assertTrue(failed.canDelete(trashItem().id))
             assertTrue(failed.canRestore(trashItem().id))
             assertTrue(failed.canActOnAll)
             assertFalse(controller.dispatch(TrashEvent.CheckAction))
             assertTrue(controller.dispatch(TrashEvent.DismissActionOutcome))
-            // Selecting a new action would also have cleared the settled outcome.
             assertTrue(controller.dispatch(TrashEvent.SelectEmpty))
             assertTrue(controller.dispatch(TrashEvent.CancelAction))
             assertEquals(1, repository.deletedIds.size)
@@ -89,8 +87,6 @@ class TrashActionTest {
 
     @Test
     fun deleteAbsentFromAPartialFirstPageIsInconclusiveUntilTrashSaysSo() = runBlocking {
-        // The deleted item lives on page two; after an uncertain submission the fresh first page
-        // still has a cursor, so its absence there proves nothing.
         val repository = FakeTrashRepository().apply {
             onDelete = { PutioResult.Failure(offlineFailure()) }
             onLoad = { PutioResult.Success(TrashPage(listOf(trashItem(8L)), FilesCursor("more"), 60, 1L)) }
@@ -277,7 +273,6 @@ class TrashActionTest {
     fun restoreAllVerifiesAgainstItsSnapshotSoLaterDeletionsDoNotStrandRecovery() = runBlocking {
         val newer = trashItem(9L).copy(deletedAt = "2026-09-07T10:00:00")
         val older = trashItem(3L).copy(deletedAt = "2026-09-01T10:00:00")
-        // Loaded IDs only: a complete page without any of them is verified whatever else arrived.
         val idsRepository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
         TrashController(idsRepository, this).use { controller ->
             controller.openLoaded()
@@ -287,7 +282,6 @@ class TrashActionTest {
             assertFalse(verified.hasPendingAction)
             assertTrue(verified.canActOnAll)
         }
-        // A submitted ID still listed is still draining, whatever else the page holds.
         val listedRepository = FakeTrashRepository().apply { onLoad = { page(trashItem(), trashItem(8L)) } }
         TrashController(listedRepository, this).use { controller ->
             controller.openLoaded()
@@ -296,7 +290,6 @@ class TrashActionTest {
             val draining = controller.awaitState { it.actionOutcome?.check == TrashActionCheck.INCONCLUSIVE }
             assertTrue(draining.hasPendingAction)
         }
-        // A cursor covers unloaded IDs too: only rows deleted after the newest loaded one are provably new.
         val cursorRepository = FakeTrashRepository().apply {
             onLoad = { PutioResult.Success(TrashPage(listOf(trashItem()), FilesCursor("snapshot"), 80, 5L)) }
         }
@@ -318,7 +311,6 @@ class TrashActionTest {
             assertFalse(verified.hasPendingAction)
             assertEquals(1, cursorRepository.bulkRestores.size)
         }
-        // A loaded row without a usable deleted_at leaves the bound unknown, so only empty verifies.
         val unboundedRepository = FakeTrashRepository().apply {
             onLoad = { PutioResult.Success(TrashPage(
                 listOf(trashItem(), trashItem(8L).copy(deletedAt = null)), FilesCursor("snapshot"), 80, 5L)) }

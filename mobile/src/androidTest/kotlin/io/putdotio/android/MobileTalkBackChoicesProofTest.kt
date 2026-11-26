@@ -25,10 +25,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Observes actual UI callbacks while the host drives TalkBack via `scripts/talkback-input.py`
- * without a second accessibility service.
- */
 @RunWith(AndroidJUnit4::class)
 class MobileTalkBackChoicesProofTest {
     @get:Rule val optIn = accessibilityProofOptIn()
@@ -46,7 +42,6 @@ class MobileTalkBackChoicesProofTest {
         }) { "Actual TalkBack is required" }
         directory = accessibilityProofDirectory()
         require(File(directory, "talkback-choices-stage.txt").createNewFile()) { "Use a fresh proof run ID" }
-        // Three host phases at their documented limit, with launch slack.
         deadline = SystemClock.uptimeMillis() + 400_000
         var surface by mutableStateOf(ChoiceSurface.SignIn)
         ActivityScenario.launch(MobileFullscreenProofActivity::class.java).use { scenario ->

@@ -87,7 +87,6 @@ class MobileDocumentsProviderTest {
             assertEquals("$ALICE:0", roots.string(Root.COLUMN_DOCUMENT_ID))
             assertEquals("put.io", roots.string(Root.COLUMN_TITLE))
             assertEquals("alice", roots.string(Root.COLUMN_SUMMARY))
-            // Search only: nothing can be created, and the root offers no recents or tree access.
             assertEquals(Root.FLAG_SUPPORTS_SEARCH, roots.int(Root.COLUMN_FLAGS))
             assertEquals(DocumentsContract.buildRootsUri(fixture.authority), roots.notificationUri)
         }
@@ -210,7 +209,6 @@ class MobileDocumentsProviderTest {
             )
         }
         fixture.settle()
-        // Showing the failure starts nothing, so a page that keeps failing cannot loop the picker.
         assertEquals(listOf(ROOT), fixture.files.folderLoads)
         assertTrue(fixture.rejected.isEmpty())
 
@@ -232,7 +230,6 @@ class MobileDocumentsProviderTest {
         fixture.children("$ALICE:0").close()
         fixture.settle()
         assertEquals(listOf(folderUri), fixture.notified())
-        // The picker registered after the page landed and heard nothing; the page is announced again.
         fixture.advance(500L)
         assertEquals(listOf(folderUri, folderUri), fixture.notified())
 
@@ -278,12 +275,10 @@ class MobileDocumentsProviderTest {
         fixture.auth.value = signedIn(BOB, session = 2)
         fixture.settle()
 
-        // Alice's ids do not resolve under Bob's session, even for a document she had open.
         assertNull(fixture.documentOrNull("$ALICE:7"))
         assertNull(fixture.childrenOrNull("$ALICE:0"))
         assertThrows(ErrnoException::class.java) { reader.onRead(4L, 4, buffer) }
         assertThrows(FileNotFoundException::class.java) { fixture.documents.open("$ALICE:7") }
-        // Bob's root reads put.io afresh rather than anything Alice listed.
         fixture.children("$BOB:0").use { bobs ->
             assertEquals(0, bobs.count)
             assertTrue(bobs.extras.getBoolean(DocumentsContract.EXTRA_LOADING))
@@ -318,11 +313,9 @@ class MobileDocumentsProviderTest {
         val buffer = ByteArray(16)
         assertEquals(16, remote.onRead(0L, 16, buffer))
         assertArrayEquals(remoteBytes.copyOfRange(0, 16), buffer)
-        // Reading on, or a short jump ahead, keeps the same request.
         assertEquals(16, remote.onRead(16L, 16, buffer))
         assertEquals(16, remote.onRead(200L, 16, buffer))
         assertArrayEquals(remoteBytes.copyOfRange(200, 216), buffer)
-        // The end of the file reads short; a jump back asks again from that offset.
         assertEquals(10, remote.onRead(990L, 16, buffer))
         assertArrayEquals(remoteBytes.copyOfRange(990, 1_000), buffer.copyOf(10))
         assertEquals(4, remote.onRead(4L, 4, buffer))
@@ -348,7 +341,6 @@ class MobileDocumentsProviderTest {
         fixture.auth.value = MobileAuthState.SignedOut()
         fixture.settle()
 
-        // The refused read closes the stream; it does not wait for the holder to close the descriptor.
         assertThrows(ErrnoException::class.java) { reader.onRead(4L, 4, ByteArray(4)) }
         assertEquals(1, fixture.closedStreams)
     }
@@ -385,7 +377,6 @@ class MobileDocumentsProviderTest {
 
         assertThrows(OperationCanceledException::class.java) { fixture.provider.openDocument("$ALICE:10", "r", signal) }
 
-        // Far inside the 15 s the read would otherwise hold the binder thread.
         assertTrue(System.nanoTime() - started < 5_000_000_000L)
         assertEquals(1, fixture.files.resolvesCancelled)
     }
@@ -419,7 +410,6 @@ class MobileDocumentsProviderTest {
         assertEquals(16, wholeFile.onRead(300L, 16, buffer))
         assertArrayEquals(bytes.copyOfRange(300, 316), buffer)
 
-        // A 206 that starts somewhere else would hand the wrong bytes to the reader.
         fixture.answer = Answer.WRONG_RANGE
         val wrongRange = fixture.documents.open("$ALICE:10")
         assertThrows(ErrnoException::class.java) { wrongRange.onRead(300L, 16, buffer) }
@@ -433,7 +423,6 @@ class MobileDocumentsProviderTest {
         for (mode in listOf("w", "rw", "wa", "rwt")) {
             assertThrows(FileNotFoundException::class.java) { fixture.provider.openDocument("$ALICE:9", mode, null) }
         }
-        // Refused before the document is looked up, so no write mode reaches its bytes.
         assertEquals(0, fixture.offlineLookups)
     }
 
@@ -493,7 +482,6 @@ class MobileDocumentsProviderTest {
         var closedStreams = 0
         var now = 0L
 
-        /** How the stand-in for put.io answers a ranged download. */
         var answer = Answer.PARTIAL
         var downloadTokenLoads = 0
         val rejected = mutableListOf<MobileAuthSessionId>()
@@ -559,10 +547,8 @@ class MobileDocumentsProviderTest {
             scheduler.runCurrent()
         }
 
-        // DocumentsProvider answers only the Bundle form the platform has used since Android O.
         fun query(uri: Uri): Cursor? = context.contentResolver.query(uri, null, Bundle(), null)
 
-        /** DocumentsUI sends the search term as a query argument; the URI only names the root. */
         fun search(rootId: String, term: String): Cursor? =
             context.contentResolver.query(
                 DocumentsContract.buildSearchDocumentsUri(authority, rootId, term),
@@ -626,7 +612,6 @@ class MobileDocumentsProviderTest {
             return checkNotNull(continuations[cursor.value])
         }
 
-        /** Set to hold every single-file read until it is cancelled. */
         var resolveHangs = false
         var resolvesCancelled = 0
 

@@ -20,13 +20,10 @@ internal data class TvAccount(
     val username: String,
     val email: String,
     val storage: AccountStorage = AccountStorage(),
-    /** The account's `history_enabled` setting; History is a disabled pane without it. */
     val historyEnabled: Boolean = false,
     val avatarUrl: String? = null,
     val inactiveNotice: InactiveAccountNotice? = null,
-    /** The account's `diagnostics_enabled` at sign-in; the session's settings answers supersede it. */
     val diagnosticsEnabled: Boolean = true,
-    /** The account's `product_analytics_enabled` at sign-in; the session's settings answers supersede it. */
     val productAnalyticsEnabled: Boolean = false,
 )
 
@@ -67,8 +64,6 @@ internal class PutioTvSessionGateway(
         boundary.clearAccessToken()
     }
 
-    // A false verdict or a 401/403 anywhere in the chain is authoritative; every
-    // other failure keeps the stored token so the user can retry when put.io is back.
     override suspend fun validateSession(): TvSessionValidation =
         try {
             if (!boundary.validateToken()) {
@@ -85,7 +80,6 @@ internal class PutioTvSessionGateway(
         }
 }
 
-/** The SDK calls behind the gateway, seamed so the verdict mapping is testable without a transport. */
 internal interface TvSdkBoundary {
     fun link(): Flow<DeviceCodeAuthState>
 
@@ -126,13 +120,10 @@ internal fun AccountInfo.toTvAccount(): TvAccount =
     )
 
 internal enum class TvLinkFailure {
-    /** No route to put.io; the same code cannot be reused, so the screen offers a fresh one. */
     NETWORK,
 
-    /** The build carries no usable OAuth client; only a new build fixes this. */
     MISCONFIGURED,
 
-    /** put.io answered with an error the app cannot act on. */
     SERVER,
 }
 

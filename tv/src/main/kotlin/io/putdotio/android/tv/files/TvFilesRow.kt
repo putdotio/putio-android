@@ -70,7 +70,6 @@ internal fun TvFilesRow(
     text: TvFilesRowText,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Long-press Center or the Menu key; null when the row offers nothing beyond opening. */
     onActions: (() -> Unit)? = null,
     showsFocus: Boolean = true,
     place: TvFilesRowPlace = TvFilesRowPlace.Listing,
@@ -108,11 +107,9 @@ internal fun TvFilesRow(
     }
 }
 
-/** A file's size, or a folder's own; the shared folders have none. */
 internal val FilesItem.metaSize: String?
     get() = formatFileSize(sizeBytes).takeIf { !isFolder || folderType == PutioFolderType.REGULAR }
 
-/** A folder dates itself by its last change, "3 days ago"; a file by when it was added, "Oct 13". */
 @Composable
 internal fun rememberMetaDate(item: FilesItem): String? {
     val context = LocalContext.current

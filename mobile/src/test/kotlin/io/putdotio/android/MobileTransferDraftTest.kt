@@ -264,7 +264,6 @@ class MobileTransferDraftTest {
         settle()
         assertNull(draft.state.value.torrent)
 
-        // A slow read that outlives its draft does not land in the next one.
         draft.open()
         draft.receiveLater(picked = true) { MobileSharedTransfer(torrent = TORRENT) }
         draft.submissionSucceeded()
@@ -313,7 +312,6 @@ class MobileTransferDraftTest {
         val other = TorrentUpload("Other.torrent", TORRENT.content)
         fun read(torrent: TorrentUpload, stuck: Boolean): () -> MobileSharedTransfer = {
             mostRunning.accumulateAndGet(running.incrementAndGet(), ::maxOf)
-            // Like a provider call that ignores interrupts, this read keeps going until released.
             while (stuck && !awaitIgnoringInterrupts(release)) Unit
             running.decrementAndGet()
             MobileSharedTransfer(torrent = torrent)
@@ -356,7 +354,6 @@ class MobileTransferDraftTest {
                 onDone = { done += "first" },
             )
             check(started.await(5, TimeUnit.SECONDS))
-            // Waits behind the first read, which ignores interrupts, then a third intake supersedes it.
             draft.receiveLater(read = { MobileSharedTransfer(torrent = TORRENT) }, onDone = { done += "second" })
             shadowOf(Looper.getMainLooper()).idle()
             draft.receiveLater(read = { MobileSharedTransfer(torrent = other) }, onDone = { done += "third" })

@@ -44,7 +44,6 @@ class SearchFolderNamesTest {
                     file(7L, parent = 6L),
                 )
                 repeat(3) { yield() }
-                // The next page brings the same parent while its read is still out, and again after.
                 search.value = ready(null, file(3L, parent = 9L), file(8L, parent = 9L))
                 repeat(3) { yield() }
                 answer.complete(Unit)
@@ -112,7 +111,6 @@ class SearchFolderNamesTest {
                 repeat(3) { yield() }
                 assertEquals(emptyMap<FilesItemId, String>(), names.names.value)
 
-                // A page asked for is no landing.
                 val landed = search.value.content as SearchContent.Ready
                 val asked = SearchPaging.Loading(FilesCursor("n"), SearchRequestId(2L))
                 search.value = search.value.copy(content = landed.copy(paging = asked))
@@ -121,7 +119,6 @@ class SearchFolderNamesTest {
                 search.value = ready(null, file(1L, parent = 9L))
                 repeat(3) { yield() }
                 assertEquals(2, attempts)
-                // The same rows searched again land again, though they equal the last ones.
                 search.value = ready(null, file(1L, parent = 9L)).copy(query = "again")
                 awaitNames(names) { 9L in it }
                 assertEquals(3, attempts)

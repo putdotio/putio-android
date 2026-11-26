@@ -81,11 +81,6 @@ import io.putdotio.android.MobileIconButton
 internal const val MOBILE_SEARCH_RESULTS_TAG = "mobile-search-results"
 internal const val MOBILE_SEARCH_FILTERS_TAG = "mobile-search-filters"
 
-/**
- * Expanded search under its bar: type chips, then recent searches while the query is empty, or the
- * results under put.io's match total, grouped into Folders and Files. A search that finds nothing of any
- * type gives the whole screen to its empty state, as there is nothing a chip could narrow.
- */
 @Composable
 internal fun MobileSearchScreen(
     searchState: SearchState,
@@ -100,7 +95,6 @@ internal fun MobileSearchScreen(
     onFilterSelected: (SearchFilter) -> Unit = {},
     folderNames: Map<FilesItemId, String> = emptyMap(),
     downloadStatus: (FilesItemId) -> DownloadStatus? = { null },
-    /** A result's actions sheet; until it is wired, results open on tap only. */
     onResultActions: ((FilesItem) -> Unit)? = null,
 ) {
     val content = searchState.content
@@ -150,10 +144,6 @@ internal fun MobileSearchScreen(
     }
 }
 
-/**
- * One chip per type, one chosen at a time; the row scrolls when the chips don't fit. Each 32dp chip
- * keeps a 48dp touch target, which already leaves 8dp above and below it.
- */
 @Composable
 private fun MobileSearchFilters(selected: SearchFilter, onSelect: (SearchFilter) -> Unit) {
     Row(
@@ -252,7 +242,6 @@ private fun MobileRecentSearchFailureText(failure: PutioFailure, modifier: Modif
     }
 }
 
-/** A clock, the term, and its removal; Clear empties the list. */
 @Composable
 private fun MobileRecentSearches(
     terms: List<SearchTerm>,
@@ -296,10 +285,6 @@ private fun MobileRecentSearches(
     }
 }
 
-/**
- * "Recent searches" and Clear on one line. Clear keeps its whole 48dp target inside the line, so it
- * never overlaps the first row; DESIGN.md's minimum target wins over the board's tighter line.
- */
 @Composable
 private fun MobileRecentHeader(onClear: () -> Unit) {
     Row(
@@ -325,7 +310,6 @@ private fun MobileRecentHeader(onClear: () -> Unit) {
     }
 }
 
-/** `¯\_(ツ)_/¯` Nothing matches, naming the term; pages that held nothing of this type load on. */
 @Composable
 private fun MobileSearchEmpty(
     term: SearchTerm,
@@ -336,7 +320,6 @@ private fun MobileSearchEmpty(
 ) {
     LoadNextPageNow(nextPage = paging as? SearchPaging.Available, onLoadNextPage = onNextPage)
     Box(modifier = modifier.fillMaxSize()) {
-        // The column takes at least the whole height, so the state sits in the middle and scrolls when taller.
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -366,7 +349,6 @@ private fun MobileSearchEmpty(
     }
 }
 
-/** The message with the term in the headline's colour and weight. */
 @Composable
 private fun noResultsMessage(term: SearchTerm): AnnotatedString {
     val message = stringResource(R.string.mobile_search_no_results_message, TERM_MARK)
@@ -379,7 +361,6 @@ private fun noResultsMessage(term: SearchTerm): AnnotatedString {
     }
 }
 
-/** How a result row reads its folder's name and on-device state, and what it opens. */
 private class MobileSearchRows(
     val folderNames: Map<FilesItemId, String>,
     val downloadStatus: (FilesItemId) -> DownloadStatus?,
@@ -457,7 +438,6 @@ private fun LazyListScope.resultGroup(
     items(items, key = { it.id.value }, contentType = { "row" }) { row(it) }
 }
 
-/** The shared file row, naming the folder the result sits in once that name is known. */
 @Composable
 private fun MobileSearchResultRow(item: FilesItem, rows: MobileSearchRows, rootName: String, text: FilesRowText) {
     val folderName = item.parentId?.let { parent ->
@@ -507,9 +487,7 @@ private fun MobileSearchPaging(
     }
 }
 
-/** Stands in for the term while the message is split around it; no translation contains it. */
 private const val TERM_MARK = ""
 private val CHIP_CHECK_SIZE = 16.dp
 private val RECENT_GLYPH_SIZE = 24.dp
-/** The header line below its 16dp top padding, as tall as the section labels' text line. */
 private val MIN_TARGET = 48.dp

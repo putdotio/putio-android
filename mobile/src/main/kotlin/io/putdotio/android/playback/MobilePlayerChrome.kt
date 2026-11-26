@@ -175,7 +175,6 @@ private fun MobileVideoLayout(
                         )
                     },
                     chips = {
-                        // Narrow or large-text windows wrap the chips instead of squeezing them.
                         FlowRow(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -216,7 +215,6 @@ private fun MobileVideoLayout(
     }
 }
 
-/** The filename on one line, cut in the middle as file rows cut it, so its start and extension stay. */
 @Composable
 internal fun MobilePlayerTitle(title: String, modifier: Modifier = Modifier) {
     MobileMiddleCutText(
@@ -226,7 +224,6 @@ internal fun MobilePlayerTitle(title: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Dark behind the top bar, nearly clear across the picture, darkest behind the controls. */
 internal fun videoShade(scrim: Color): Brush =
     Brush.verticalGradient(
         0f to scrim.copy(alpha = SHADE_TOP_ALPHA),
@@ -242,10 +239,6 @@ private const val SHADE_CLEAR_TO = 0.6f
 private const val SHADE_CLEAR_ALPHA = 0.05f
 private const val SHADE_BOTTOM_ALPHA = 0.75f
 
-/**
- * The times, the scrubber, then the chips. The times line overlaps the top of the scrubber's 48dp
- * touch band, which nothing else there can take, so the yellow line sits close under the times.
- */
 @Composable
 private fun MobileVideoFooter(
     modifier: Modifier,
@@ -283,7 +276,6 @@ private fun MobileVideoTimes(player: Player) {
     }
 }
 
-/** A 72dp translucent dark circle for play and pause, between 56dp circles for 10 seconds back and forward. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 private fun MobileVideoTransport(
@@ -339,7 +331,6 @@ private fun MobileVideoTransport(
     }
 }
 
-// The 80dp buffering ring holds the 72dp button, so the 56dp gap between circles loses 4dp each side.
 private val VIDEO_TRANSPORT_GAP = 52.dp
 private const val VIDEO_PLAY_CIRCLE_ALPHA = 0.42f
 
@@ -360,10 +351,6 @@ internal fun rememberBuffering(player: Player): Boolean {
 
 internal enum class PlayerTime { Position, Duration, Remaining }
 
-/**
- * Elapsed, total or remaining time in the inherited style. Media3's PositionText and DurationText
- * pass a fresh style to Text, which drops the provided mono face. Remaining reads "-31:07".
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobileTimeText(player: Player, time: PlayerTime) {
@@ -371,7 +358,6 @@ internal fun MobileTimeText(player: Player, time: PlayerTime) {
     MobileTimeText(time, progress.currentPositionMs, progress.durationMs)
 }
 
-/** [time] from a position and duration already read, in the inherited style with mono numbers. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobileTimeText(

@@ -21,7 +21,6 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** put.io's saved-position calls; [io.putdotio.android.playback.SdkPlaybackPositionRepository] in the app. */
 internal interface PositionRemote {
     suspend fun read(fileId: Long): PlaybackRepositoryResult<Double>
 
@@ -30,25 +29,18 @@ internal interface PositionRemote {
     suspend fun resumeEnabled(): PlaybackRepositoryResult<Boolean>
 }
 
-/** What a confirmed write leaves behind for its file. */
 internal enum class SyncResult {
-    /** Nothing waits any more. */
     SETTLED,
 
-    /** A newer local position arrived during the write and still waits. */
     NEWER_WAITING,
 
-    /** The player's own write was accepted meanwhile; it is newer, so this result is dropped. */
     SUPERSEDED,
 }
 
-/** A position this device played that put.io has not confirmed yet. */
 internal data class PendingPosition(
     val fileId: Long,
     val seconds: Double,
-    /** The server position this device last knew when the first unsent position was saved. */
     val expectedRemote: Double?,
-    /** A write already sent for this file, which may have landed without a reply. */
     val attempted: Double?,
     val revision: Long,
 )
@@ -65,7 +57,6 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
     private val key = "positions-$userId"
     private var snapshot = read()
 
-    /** `use_start_from` as this device last confirmed it; offline playback falls back to it. */
     @get:Synchronized
     val resumeSetting: Boolean? get() = snapshot.resume
 
@@ -86,17 +77,14 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
     @Synchronized
     fun pending(): List<PendingPosition> = snapshot.pending.values.sortedBy { it.revision }
 
-    /** put.io reported or accepted [seconds]; an unsent local position stays pending. */
     @Synchronized
     fun remote(fileId: Long, seconds: Double) =
         write(snapshot.copy(known = snapshot.known + (fileId to seconds)))
 
-    /** put.io took this device's newest position; nothing is left to send. */
     @Synchronized
     fun accepted(fileId: Long, seconds: Double) =
         write(snapshot.copy(known = snapshot.known + (fileId to seconds), pending = snapshot.pending - fileId))
 
-    /** put.io could not take [seconds]; it waits for the next sync. */
     @Synchronized
     fun keep(fileId: Long, seconds: Double) {
         val previous = snapshot.pending[fileId]
@@ -112,13 +100,11 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
         )
     }
 
-    /** put.io now holds [remote] for [update]; what that means for the position still waiting here. */
     @Synchronized
     fun synced(update: PendingPosition, remote: Double): SyncResult {
         val current = snapshot.pending[update.fileId]
         val known = snapshot.known + (update.fileId to remote)
         return when {
-            // The player's own accepted write replaced this one: [known] already holds the newer position.
             current == null -> SyncResult.SUPERSEDED
             current.revision == update.revision -> {
                 write(snapshot.copy(known = known, pending = snapshot.pending - update.fileId))
@@ -132,11 +118,9 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
         }
     }
 
-    /** True while [update] is still the position waiting for its file. */
     @Synchronized
     fun isCurrent(update: PendingPosition): Boolean = snapshot.pending[update.fileId]?.revision == update.revision
 
-    /** put.io refused the file for good (deleted, or access lost): its position can never be sent. */
     @Synchronized
     fun discard(update: PendingPosition) {
         if (isCurrent(update)) write(snapshot.copy(pending = snapshot.pending - update.fileId))
@@ -145,12 +129,10 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
     @Synchronized
     fun attempted(update: PendingPosition) = replaceIfCurrent(update) { it.copy(attempted = update.seconds) }
 
-    /** An earlier write of this device landed; compare later positions against it. */
     @Synchronized
     fun rebase(update: PendingPosition, remote: Double) =
         replaceIfCurrent(update) { it.copy(expectedRemote = remote, attempted = null) }
 
-    /** Another device saved [remote] since this one went offline: theirs is newer, this one is dropped. */
     @Synchronized
     fun yieldTo(update: PendingPosition, remote: Double) {
         if (!isCurrent(update)) return
@@ -158,7 +140,6 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
         write(snapshot.copy(known = known, pending = snapshot.pending - update.fileId))
     }
 
-    /** Resume is off for the account: nothing this device played may reach put.io. */
     @Synchronized
     fun dropPending() = write(snapshot.copy(pending = emptyMap()))
 
@@ -232,17 +213,6 @@ internal class OfflinePositionStore(private val preferences: SharedPreferences, 
     }
 }
 
-/**
- * Saved positions for downloaded files, kept on the device first so offline playback resumes and
- * its progress reaches put.io once it answers again. The sync follows iOS main's
- * `OfflineVideoPlaybackPositionSynchronizer`: a position another device saved since this one
- * went offline wins; otherwise this device's newest position is written. A pass runs for the
- * signed-in user only, stops when that changes, and drops pending positions if the account has
- * resume turned off. Application-owned: playback reports and the sync outlive any screen.
- *
- * Its writes go through [writing], between the player's own, so an older position this device
- * played offline never lands after a newer one the player sent.
- */
 internal class OfflinePositionSession(
     val userId: () -> Long?,
     val captureRejection: () -> () -> Unit = { {} },
@@ -283,10 +253,6 @@ internal class OfflinePlaybackPositions(
             stores.putIfAbsent(userId, created) ?: created
         }
 
-    /**
-     * After a reporting write for a downloaded file: an accepted position becomes the known one,
-     * and one put.io could not take for a transient reason waits for the next sync.
-     */
     fun afterWrite(userId: Long, fileId: Long, seconds: Double, result: PlaybackRepositoryResult<Unit>) {
         val loaded = stores[userId]
         if (loaded != null && lastColdWrite?.isActive != true) {
@@ -307,10 +273,6 @@ internal class OfflinePlaybackPositions(
         }
     }
 
-    /**
-     * Where offline playback of [entry] starts: a position not yet sent, else what put.io reports
-     * within [REFRESH_TIMEOUT_MILLIS], else the last known one, else the listing's at download time.
-     */
     suspend fun resumePosition(userId: Long, entry: DownloadEntry): Double {
         lastColdWrite?.join()
         val store = stores[userId] ?: withContext(session.ioDispatcher) { store(userId) }
@@ -328,7 +290,6 @@ internal class OfflinePlaybackPositions(
         }
     }
 
-    /** Starts a pass unless one is running; a request during a pass runs one more after it. */
     fun requestSync() {
         passRequested = true
         scope.launch {
@@ -341,7 +302,6 @@ internal class OfflinePlaybackPositions(
             } finally {
                 passes.unlock()
             }
-            // A request that landed between the last check and the unlock.
             if (passRequested) requestSync()
         }
     }
@@ -353,7 +313,6 @@ internal class OfflinePlaybackPositions(
         withContext(session.ioDispatcher) {
             val store = store(userId)
             if (store.pending().isEmpty() || session.userId() != userId || !resumeStillOn(store)) return@withContext
-            // A newer local position replacing one since the pass began goes in the next pass.
             for (update in store.pending()) {
                 val keepGoing = session.userId() == userId &&
                     (!store.isCurrent(update) || syncRead(userId, store, update))
@@ -372,7 +331,6 @@ internal class OfflinePlaybackPositions(
         }
     }
 
-    /** Resume turned off on the account: nothing this device played may reach put.io. */
     private suspend fun resumeStillOn(store: OfflinePositionStore): Boolean {
         val rejectIfUnauthorized = session.captureRejection()
         return when (val result = remote.resumeEnabled()) {
@@ -399,18 +357,14 @@ internal class OfflinePlaybackPositions(
         var keepSyncing = true
         when {
             samePosition(current, update.seconds) -> settle(store, update, current)
-            // An earlier write landed without a reply; compare later positions against it.
             attempted != null && samePosition(current, attempted) -> {
                 store.rebase(update, current)
                 passRequested = true
             }
             expected != null && !samePosition(current, expected) -> store.yieldTo(update, current)
             else -> writing {
-                // The player's own write may have landed since the read; the newer position then stands.
                 if (store.isCurrent(update) && session.userId() == userId) {
                     store.attempted(update)
-                    // The player's writes wait meanwhile. Cancelling here would let them overtake a
-                    // request already on its way, so only the transport's own timeouts end it.
                     val rejectIfUnauthorized = session.captureRejection()
                     when (val write = remote.write(update.fileId, update.seconds)) {
                         is PlaybackRepositoryResult.Success ->
@@ -489,7 +443,6 @@ private val PlaybackFailure.isPermanentFileError: Boolean
         else -> false
     }
 
-// put.io may round what it stores; positions within a second are the same position.
 private fun samePosition(first: Double, second: Double): Boolean = abs(first - second) < 1.0
 
 private fun Double.isValidPosition(): Boolean = isFinite() && this >= 0.0

@@ -26,7 +26,6 @@ internal sealed interface TvAuthState {
 
     data object RestoringSession : TvAuthState
 
-    /** The device-code screen. There is no signed-out resting state on TV: a code is always in play or offered. */
     data class Linking(
         val phase: TvLinkPhase,
         val sessionExpired: Boolean = false,
@@ -59,7 +58,6 @@ internal sealed interface TvLinkPhase {
         val code: String?,
     ) : TvLinkPhase
 
-    /** Polling stopped; the user asks for a new code to continue. */
     data class Stopped(
         val reason: TvLinkStop,
         val code: String? = null,
@@ -86,11 +84,6 @@ internal enum class TvSessionValidationSource {
     RETRY,
 }
 
-/**
- * Owns the TV session: restores a stored token, imports a tv-native one when there
- * is none, otherwise drives device-code attempts through [TvDeviceLinking], and
- * persists the linked token in Keystore-backed storage.
- */
 internal class TvAuthController(
     tokenStore: AuthTokenStore,
     sessionGateway: TvSessionGateway,
@@ -107,21 +100,8 @@ internal class TvAuthController(
 
     val state: StateFlow<TvAuthState> = mutableState.asStateFlow()
 
-    /**
-     * How many sessions put.io rejected with no screen to say so (a quiet restore or the system
-     * search provider). Each forgot its token and left [TvAuthState.Initializing], which is also
-     * where every process starts, so this is how followers tell a sign-out from a start.
-     */
     val quietSignOuts: StateFlow<Int> = mutableQuietSignOuts.asStateFlow()
 
-    /**
-     * Restores the stored session at start, else imports a tv-native one, else offers a code.
-     * A caller with no screen (system search) passes [interactive] false: only a stored session
-     * is restored, nothing is imported and no code is requested. A session put.io cannot confirm
-     * right now goes back to [TvAuthState.Initializing] for the app's own start to explain; one
-     * it rejects is forgotten there too (see [quietSignOuts]). True when this leaves the app
-     * signed in.
-     */
     suspend fun restoreSession(interactive: Boolean = true): Boolean = operationMutex.withLock {
         if (mutableState.value != TvAuthState.Initializing) {
             return@withLock mutableState.value is TvAuthState.SignedIn
@@ -137,8 +117,6 @@ internal class TvAuthController(
         try {
             val accessToken = when (val stored = quietToken ?: tokens.readSession(tokenRevocations)) {
                 is StoredToken.Present -> {
-                    // Unread: a Keystore session supersedes it. Deleting here retries a
-                    // cleanup that failed after import.
                     legacySession.delete()
                     stored.accessToken
                 }
@@ -164,18 +142,11 @@ internal class TvAuthController(
         mutableState.value is TvAuthState.SignedIn
     }
 
-    /**
-     * Abandons the current code, if any, and requests another. Ignored while a
-     * code is being validated, and after joining an attempt that was linked
-     * in the meantime: an approved code wins over the request to replace it.
-     */
     suspend fun requestNewCode(): Boolean = operationMutex.withLock {
         val current = mutableState.value as? TvAuthState.Linking ?: return@withLock false
         if (current.phase is TvLinkPhase.Validating) {
             return@withLock false
         }
-        // The caller is a UI scope; if it dies between the join and the launch the old
-        // code would stay on screen with nothing polling it.
         withContext(NonCancellable) {
             linking.cancelAndJoin()
             if (mutableState.value is TvAuthState.Linking) {
@@ -211,9 +182,6 @@ internal class TvAuthController(
         }
     }
 
-    // Only an in-flight validation is rolled back. A verdict that already settled
-    // (signed in, unavailable, or expired with a link attempt running) stands, since
-    // the caller's cancellation arrived after the NonCancellable work finished.
     private fun rollBackInterruptedValidation(previous: TvAuthState) {
         val current = mutableState.value
         if (current is TvAuthState.ValidatingSession || current == TvAuthState.RestoringSession) {
@@ -222,12 +190,6 @@ internal class TvAuthController(
         }
     }
 
-    /**
-     * Ends a session put.io rejected and offers a new code as expired. A caller with no screen
-     * (the system search provider) passes [quiet]: the token is forgotten and the state goes back
-     * to [TvAuthState.Initializing], so no code is requested and polled where nobody can see it;
-     * the app's own start offers one.
-     */
     suspend fun rejectAuthoritativeSession(
         expectedSessionId: TvAuthSessionId? = null,
         quiet: Boolean = false,
@@ -245,7 +207,6 @@ internal class TvAuthController(
             true
         }
 
-    /** Signs out locally without waiting for put.io; the token is revoked in the background. */
     suspend fun logout(): Unit = operationMutex.withLock {
         if (mutableState.value !is TvAuthState.SignedIn) {
             return@withLock
@@ -257,8 +218,6 @@ internal class TvAuthController(
         }
     }
 
-    // The token leaves the SDK exactly once, here; a store failure discards it rather than
-    // running an unpersisted session that would vanish on the next launch.
     private suspend fun persistLinkedSession(
         linked: DeviceCodeAuthState.Linked,
         sessionExpired: Boolean,
@@ -278,7 +237,6 @@ internal class TvAuthController(
         }
     }
 
-    /** [quiet] has no screen to explain a failure on; the app's own start validates again. */
     private suspend fun validateStoredSession(source: TvSessionValidationSource, quiet: Boolean = false) {
         mutableState.value = TvAuthState.ValidatingSession(source)
         val result = tokens.validate()
@@ -294,14 +252,6 @@ internal class TvAuthController(
         }
     }
 
-    /**
-     * Carries a tv-native session over: the token is stored only after put.io
-     * accepts it, and the legacy copy is deleted once the token is stored or
-     * put.io rejects it. Without a verdict (offline, put.io down) the copy stays
-     * and the viewer gets Retry, which comes back here, as does the next launch;
-     * a Keystore write failure also keeps it for the next launch. True when a
-     * legacy token was validated.
-     */
     private suspend fun importLegacySession(source: TvSessionValidationSource): Boolean {
         val legacyToken = legacySession.read()
         if (legacyToken == null) {
@@ -324,7 +274,6 @@ internal class TvAuthController(
                     linking.start(sessionExpired = false)
                 }
                 is TvSessionValidation.Valid -> {
-                    // Like a linked token: one awaiting revocation is kept, one already revoked is not.
                     when (tokenRevocations.keepStored(legacyToken, tokens)) {
                         false -> {
                             legacySession.delete()
@@ -355,12 +304,6 @@ private fun TvAuthState.retriesStoredSession(): Boolean =
     this is TvAuthState.ValidationUnavailable ||
         this is TvAuthState.Linking && (phase as? TvLinkPhase.Stopped)?.reason == TvLinkStop.SessionUnreadable
 
-/**
- * Ends a session put.io rejected while no screen could show it: the token leaves the gateway and
- * storage, the state goes back to [TvAuthState.Initializing] for the app's own start to offer a
- * code, and [signOuts] counts it. A store that cannot be cleared keeps the token, which put.io
- * rejects again at that start.
- */
 private suspend fun TvSessionTokens.signOutQuietly(
     state: MutableStateFlow<TvAuthState>,
     signOuts: MutableStateFlow<Int>,

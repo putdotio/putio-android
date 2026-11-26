@@ -30,7 +30,6 @@ internal sealed interface OAuthBrowserResult {
     data object Failed : OAuthBrowserResult
 }
 
-/** Launches OAuth only through a package verified to implement AndroidX Auth Tab. */
 internal class AuthTabOAuthBrowser internal constructor(
     context: Context,
     private val resolveProvider: (Context) -> String?,
@@ -70,8 +69,6 @@ internal class AuthTabOAuthBrowser internal constructor(
 
 internal fun buildPinnedAuthTabIntent(provider: String): AuthTabIntent =
     AuthTabIntent.Builder().build().also { authTab ->
-        // AuthTabIntent permits a Custom Tabs fallback unless the verified
-        // Auth Tab provider is made explicit.
         authTab.intent.setPackage(provider)
     }
 

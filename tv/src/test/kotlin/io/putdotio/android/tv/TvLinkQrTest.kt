@@ -26,7 +26,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** The sign-in QR code as a phone would read it: decoded from the pixels the screen draws. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "w960dp-h540dp-television")
@@ -42,7 +41,6 @@ class TvLinkQrTest {
         compose.onNodeWithText("Scan with your camera and approve.").assertIsDisplayed()
         val qr = compose.onNodeWithTag(TV_LINK_QR_TAG)
         qr.assertIsDisplayed()
-        // The payload put.io's own QR image for a code (the SDK's qrCodeUrl) carries.
         assertEquals("https://app.put.io/link?code=GIQTKN", scan(qr.captureToImage()))
         assertFalse(isFocusable().matches(qr.fetchSemanticsNode()))
     }
@@ -70,7 +68,6 @@ class TvLinkQrTest {
         return decode(pixels, map.width, map.height)
     }
 
-    // A camera's search, not PURE_BARCODE: the reader finds the code inside whatever surrounds it.
     private fun decode(pixels: IntArray, width: Int, height: Int): String =
         QRCodeReader().decode(
             BinaryBitmap(HybridBinarizer(RGBLuminanceSource(width, height, pixels))),

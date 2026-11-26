@@ -15,7 +15,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** What Cast needs to find receivers on a real device, which the fake gateways never exercise. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileCastStartTest {
@@ -29,7 +28,6 @@ class MobileCastStartTest {
 
     @Test
     fun castStartsBeforeMainActivityResumes() {
-        // Cast discovers only for activities that resume after it started.
         val events = mutableListOf<String>()
         val lifecycle = object : Application.ActivityLifecycleCallbacks {
             override fun onActivityPreResumed(activity: Activity) {
@@ -51,7 +49,6 @@ class MobileCastStartTest {
             override fun onActivityDestroyed(activity: Activity) = Unit
         }
         app.registerActivityLifecycleCallbacks(lifecycle)
-        // No Play services here, so Cast goes no further than asking for it.
         MobileCast.playServices = {
             events += "cast"
             false
@@ -68,7 +65,6 @@ class MobileCastStartTest {
 
     @Test
     fun manifestAsksForTheLocalNetworkCastFindsReceiversOn() {
-        // Android 17 shows an app that targets it no Cast receivers without this permission.
         val requested = app.packageManager
             .getPackageInfo(app.packageName, PackageManager.GET_PERMISSIONS)
             .requestedPermissions

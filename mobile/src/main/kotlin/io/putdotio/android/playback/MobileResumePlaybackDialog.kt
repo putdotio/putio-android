@@ -22,7 +22,6 @@ import io.putdotio.android.R
 import io.putdotio.android.neutralTextButtonColors
 import io.putdotio.android.design.PutioTypeScale
 
-/** "Resume from 18:42?" over the dimmed player, with the time in mono, Start over and a filled Resume. */
 @Composable
 internal fun MobileResumePlaybackDialog(
     startFromSeconds: Double,
@@ -34,7 +33,6 @@ internal fun MobileResumePlaybackDialog(
     val title = stringResource(PlaybackR.string.playback_resume_title, RESUME_TIME_SLOT)
     AlertDialog(
         onDismissRequest = onDismiss,
-        // The platform's default dialog width is narrower than the 380dp the prompt takes.
         modifier = Modifier.width(RESUME_DIALOG_WIDTH).padding(horizontal = 24.dp),
         properties = DialogProperties(usePlatformDefaultWidth = false),
         title = {
@@ -70,7 +68,5 @@ internal fun MobileResumePlaybackDialog(
     )
 }
 
-// Stands in for the time while the localized sentence is split around it.
 private const val RESUME_TIME_SLOT = "\u0000"
-// 380dp of dialog plus its 24dp margins, which keep it off the edges of a narrow window.
 private val RESUME_DIALOG_WIDTH = 428.dp

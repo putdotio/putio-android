@@ -8,7 +8,6 @@ import androidx.core.net.toUri
 import io.putdotio.android.auth.MOBILE_OAUTH_HOST
 import io.putdotio.android.files.FilesItemId
 
-/** Where a supported product link lands; the shell resolves file ids through Files. */
 internal sealed interface MobileDeepLink {
     data object Files : MobileDeepLink
 
@@ -16,7 +15,6 @@ internal sealed interface MobileDeepLink {
 
     data object Transfers : MobileDeepLink
 
-    /** Transfers with the Add transfer sheet open; nothing is added until the viewer taps Add. */
     data object AddTransfer : MobileDeepLink
 
     data object Search : MobileDeepLink
@@ -25,10 +23,6 @@ internal sealed interface MobileDeepLink {
 
     data object Trash : MobileDeepLink
 
-    /**
-     * The Downloads screen, with one row opened when a notification names it; [play] plays that
-     * row's copy on this device instead. A link naming [userId] does nothing under any other account.
-     */
     data class Downloads(
         val fileId: FilesItemId? = null,
         val play: Boolean = false,
@@ -36,20 +30,12 @@ internal sealed interface MobileDeepLink {
     ) : MobileDeepLink
 }
 
-/** Whether the signed-in [userId] may follow this link; one scoped to another account is dropped. */
 internal fun MobileDeepLink.belongsTo(userId: Long): Boolean =
     (this as? MobileDeepLink.Downloads)?.userId?.let { it == userId } ?: true
 
-/**
- * Accepts `https://app.put.io/...` and `putio://...` for the destinations the shell
- * owns. Fragments and queries are ignored, except a Downloads link's `user`; anything
- * else returns null so the app opens normally. Never log the incoming URI: web links
- * can carry tokens.
- */
 internal fun parseMobileDeepLink(uri: Uri?): MobileDeepLink? =
     uri?.productSegments()?.let { deepLinkFor(it, uri.userQuery()) }
 
-/** Non-blank path segments of a product URI, with the `putio://` host as the first one; null otherwise. */
 private fun Uri.productSegments(): List<String>? {
     val host = host?.lowercase()
     return when {
@@ -71,10 +57,8 @@ private fun deepLinkFor(segments: List<String>, user: String?): MobileDeepLink? 
         else -> SECTION_LINKS[section]?.takeIf { segments.size == 1 }
     }
 
-/** An opaque URI such as `putio:x` has no query at all. */
 private fun Uri.userQuery(): String? = if (isHierarchical) getQueryParameter(USER_QUERY) else null
 
-/** `downloads`, `downloads/<id>` or `downloads/<id>/play`; a `user` that is not an account id voids the link. */
 private fun downloadsDeepLink(segments: List<String>, user: String?): MobileDeepLink? {
     val userId = user?.toLongOrNull()?.takeIf { it > 0L }
     val fileId = segments.getOrNull(1)?.toLongOrNull()?.takeIf { it > 0L }?.let(::FilesItemId)
@@ -87,14 +71,12 @@ private fun downloadsDeepLink(segments: List<String>, user: String?): MobileDeep
     return if (valid) MobileDeepLink.Downloads(fileId, play = play == true, userId = userId) else null
 }
 
-/** `files` or `files/<id>`; shared folders such as Items shared with you (-2) have negative ids. */
 private fun filesDeepLink(segments: List<String>): MobileDeepLink? = when (segments.size) {
     0, 1 -> MobileDeepLink.Files
     2 -> segments[1].toLongOrNull()?.takeIf { it != 0L }?.let { MobileDeepLink.File(FilesItemId(it)) }
     else -> null
 }
 
-/** The token-free `putio://` form of a link, for saved state. */
 internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
     MobileDeepLink.Files -> "putio://files"
     is MobileDeepLink.File -> "putio://files/${id.value}"
@@ -111,10 +93,6 @@ internal fun MobileDeepLink.toRouteUri(): Uri = when (this) {
     }
 }.toUri()
 
-/**
- * An explicit, immutable pending intent that opens this link in MainActivity, for notifications and
- * widgets. The link is its data, so each account, row and action keeps its own pending intent.
- */
 internal fun MobileDeepLink.pendingIntent(context: Context): PendingIntent =
     PendingIntent.getActivity(
         context,
@@ -125,11 +103,6 @@ internal fun MobileDeepLink.pendingIntent(context: Context): PendingIntent =
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-/**
- * Removes any product URI, recognised or not, so a replayed launch intent cannot route
- * again and a web link's query never reaches saved state. The OAuth callback and
- * foreign URIs are left alone.
- */
 internal fun Intent.consumeMobileDeepLink(): MobileDeepLink? {
     val uri = data?.takeIf { action == Intent.ACTION_VIEW }
     val segments = uri?.productSegments() ?: return null
@@ -145,7 +118,6 @@ internal const val INTERNAL_LINK_ACTIVITY = "io.putdotio.android.InternalLinkAct
 
 private val WEB_HOSTS = setOf("app.put.io", "put.io", "www.put.io")
 
-/** Scopes a Downloads link to one account; the only query a product link reads. */
 private const val USER_QUERY = "user"
 
 private const val PLAY_SEGMENT = "play"

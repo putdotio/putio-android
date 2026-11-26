@@ -15,7 +15,6 @@ import org.robolectric.Robolectric
 import org.robolectric.annotation.Config
 import org.xmlpull.v1.XmlPullParser
 
-/** The launcher's static shortcuts, read with the platform's own intent parser, as the shortcut service does. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class MobileShortcutsTest {
@@ -25,11 +24,9 @@ class MobileShortcutsTest {
     fun eachShortcutOpensItsProductLinkInThisVariantsMainActivity() {
         val shortcuts = shortcutIntents()
 
-        // The launcher lists them in this order.
         assertEquals(listOf("add-transfer", "search", "downloads"), shortcuts.keys.toList())
         for (intent in shortcuts.values) {
             assertEquals(Intent.ACTION_VIEW, intent.action)
-            // Explicit: another installed channel answering putio:// never receives it.
             assertEquals(ComponentName(context.packageName, MainActivity::class.java.name), intent.component)
         }
         assertEquals(MobileDeepLink.Search, parseMobileDeepLink(shortcuts.getValue("search").data))
@@ -52,14 +49,12 @@ class MobileShortcutsTest {
             val link = parseMobileDeepLink(intent.data)
             Robolectric.buildActivity(MainActivity::class.java, intent).setup().use { controller ->
                 val activity = controller.get()
-                // MainActivity holds the link until the signed-in shell routes it; nothing else runs.
                 assertEquals(id, link, activity.deepLinkRequests.pending.value)
                 assertNull(activity.intent.data)
             }
         }
     }
 
-    /** Shortcut id to the intent the platform builds from `res/xml/shortcuts.xml`. */
     private fun shortcutIntents(): Map<String, Intent> {
         val parser = context.resources.getXml(R.xml.shortcuts)
         val attributes = Xml.asAttributeSet(parser)
@@ -70,7 +65,6 @@ class MobileShortcutsTest {
             when (parser.name) {
                 "shortcut" -> shortcutId = parser.getAttributeValue(ANDROID, "shortcutId")
                 "intent" -> {
-                    // The platform takes the package as written; a resource reference would stay unresolved.
                     assertEquals(context.packageName, parser.getAttributeValue(ANDROID, "targetPackage"))
                     intents[requireNotNull(shortcutId)] = Intent.parseIntent(context.resources, parser, attributes)
                 }

@@ -105,11 +105,8 @@ internal const val MOBILE_PLAYBACK_METHOD_ROW_TAG = "mobile-playback-method-row"
 internal const val MOBILE_PRIVACY_POLICY_ROW_TAG = "mobile-privacy-policy-row"
 internal const val MOBILE_RESET_SORTS_ROW_TAG = "mobile-reset-sorts-row"
 
-/** What Account's Library rows show beside their titles, when the app already knows it. */
 internal data class MobileAccountLibrary(
-    /** The account's exclusive links, once they have loaded; null hides the count. */
     val exclusiveLinkCount: Int? = null,
-    /** What Trash holds, once Trash has loaded; null hides the size. */
     val trashSizeBytes: Long? = null,
 )
 
@@ -121,7 +118,6 @@ internal fun MobileAccountScreen(
     appConfigState: AndroidAppConfigState,
     onSettingsEvent: (AccountSettingsEvent) -> Unit,
     onAppConfigEvent: (AndroidAppConfigEvent) -> Unit,
-    /** Signs out; true also deletes this account's downloads from the device first. */
     onSignOut: (removeDownloads: Boolean) -> Unit,
     modifier: Modifier = Modifier,
     onManageTrash: () -> Unit = {},
@@ -133,7 +129,6 @@ internal fun MobileAccountScreen(
     open: MobileAccountPage? = null,
     listState: LazyListState = rememberLazyListState(),
     library: MobileAccountLibrary = MobileAccountLibrary(),
-    /** Bytes this account's downloads hold on the device; null when it holds none, which hides the option. */
     downloadsOnDeviceBytes: Long? = null,
     loadTunnelRoutes: suspend () -> AccountSettingsRepositoryResult<List<TunnelRouteOption>> = {
         AccountSettingsRepositoryResult.Failure(
@@ -237,7 +232,6 @@ private fun LazyListScope.libraryGroup(
     settingsGroup(LIBRARY_KEY, R.string.mobile_settings_section_library, listOfNotNull(links, trash))
 }
 
-/** Files, or the account settings' loading or failure row while they are not ready. */
 private fun LazyListScope.filesItems(settingsState: AccountSettingsState, rows: AccountRows, onRetryLoad: () -> Unit) {
     when (val content = settingsState.content) {
         is AccountSettingsContent.Loading -> item(key = SETTINGS_LOADING_KEY) { MobileAccountSettingsLoading() }
@@ -259,11 +253,6 @@ private fun LazyListScope.filesItems(settingsState: AccountSettingsState, rows: 
     }
 }
 
-/**
- * Playback mixes account-wide settings (resume, proxy) with this app's `/config` (autoplay, video
- * playback, originals); each row shows once its source has loaded, and `/config`'s loading or failure
- * follows.
- */
 private fun LazyListScope.playbackItems(
     settingsState: AccountSettingsState,
     appConfigState: AndroidAppConfigState,
@@ -300,10 +289,6 @@ private fun LazyListScope.playbackItems(
     }
 }
 
-/**
- * Subtitles and History need the account settings; Privacy controls stays reachable without them,
- * because its page owns the loading and failure states.
- */
 private fun LazyListScope.privacyItems(
     settingsState: AccountSettingsState,
     rows: AccountRows,
@@ -312,7 +297,6 @@ private fun LazyListScope.privacyItems(
 ) {
     val preferences = (settingsState.content as? AccountSettingsContent.Ready)?.preferences
     if (preferences != null) {
-        // Picking subtitles means nothing while they are hidden.
         val pickSubtitles = SettingsRow {
             rows.AccountSwitch(it, R.string.mobile_settings_auto_select_subtitles, R.drawable.ic_ph_list_checks,
                 AccountSettingsKey.AutoSelectSubtitles, preferences.autoSelectSubtitles)
@@ -350,7 +334,6 @@ private fun LazyListScope.privacyItems(
     )
 }
 
-/** About, then Sign out alone, in red. */
 private fun LazyListScope.aboutItems(
     rows: AccountRows,
     onAppInfo: () -> Unit,
@@ -399,7 +382,6 @@ private fun LazyListScope.aboutItems(
     }
 }
 
-/** The open dialog; a choice opens only while its setting has loaded and takes input. */
 @Composable
 private fun MobileAccountDialogs(
     dialog: AccountDialog,
@@ -478,7 +460,6 @@ private fun MobileAccountDialogs(
     }
 }
 
-/** One row of a group; it draws itself into the [SettingsSegment] its place gives it. */
 private class SettingsRow(val content: @Composable (SettingsSegment) -> Unit)
 
 private fun LazyListScope.settingsGroup(key: String, @StringRes label: Int, rows: List<SettingsRow>) {
@@ -493,7 +474,6 @@ private fun LazyListScope.settingsGroup(key: String, @StringRes label: Int, rows
     }
 }
 
-/** The rows' shared wiring: which mutation each one shows, and whether controls take input. */
 private class AccountRows(
     private val settingsState: AccountSettingsState,
     private val appConfigState: AndroidAppConfigState,
@@ -841,11 +821,9 @@ private fun MobileAccountAvatar(avatarUrl: String?, username: String) {
     )
 }
 
-/** The username's first letter on the avatar's disc, as web and iOS draw an account without a picture. */
 @Composable
 private fun MobileAccountAvatarFallback(username: String, modifier: Modifier) {
     Box(modifier = modifier.testTag(MOBILE_ACCOUNT_AVATAR_FALLBACK_TAG), contentAlignment = Alignment.Center) {
-        // Decorative, as the picture is: the identity line already says the name.
         Text(
             text = username.firstOrNull()?.uppercase().orEmpty(),
             style = PutioTypeScale.bodyLg.copy(fontWeight = FontWeight.Medium),

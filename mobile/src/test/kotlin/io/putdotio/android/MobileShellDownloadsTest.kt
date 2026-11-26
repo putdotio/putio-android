@@ -67,7 +67,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** The Downloads screen inside the real shell, with the real controller over a scripted store and engine. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS")
 class MobileShellDownloadsTest {

@@ -16,15 +16,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * One JSON document per user in private SharedPreferences. Rows hold identity,
- * name, type, rendition, status, queue time, a pending-delete mark, the confirmed
- * subtitle setting and the listing's saved position; Media3 owns bytes and URIs.
- * Suspend writes, the viewer's Pause and Cancel among them, return once they are on disk,
- * so they survive an immediate process death; that disk wait never holds the main thread's
- * transitions. Those apply asynchronously, and byte progress is never written: Media3's own
- * index remains the source of truth for both and is reconciled on start.
- */
 internal class MobileDownloadStore internal constructor(
     private val preferences: SharedPreferences,
     private val key: String,
@@ -39,10 +30,6 @@ internal class MobileDownloadStore internal constructor(
     private val document = preferences.readDocument(key)
     private val mutableEntries = MutableStateFlow(document.entries)
 
-    /**
-     * Raw rows this build cannot read, such as a newer build's or a damaged one. They are written
-     * back untouched, so a downgrade or one bad row never erases what the next build can read.
-     */
     private var unreadable = document.unreadable
 
     override val entries: StateFlow<List<DownloadEntry>> = mutableEntries.asStateFlow()
@@ -56,18 +43,10 @@ internal class MobileDownloadStore internal constructor(
         current.filterNot { it.fileId == fileId }
     }
 
-    /**
-     * A viewer's choice, such as a pause or a confirmed delete. It is on disk when this returns, so
-     * the caller tells Media3 only once a process death can no longer lose it.
-     */
     suspend fun updateStatus(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) = write { current ->
         current.map { if (it.fileId == fileId) transform(it) else it }
     }
 
-    /**
-     * Engine transitions arrive on the main thread, ordered with Media3's calls there. They persist
-     * asynchronously; reconcile rebuilds any a process death loses from Media3's index.
-     */
     fun updateStatusBlocking(fileId: FilesItemId, transform: (DownloadEntry) -> DownloadEntry) {
         synchronized(lock) {
             val current = mutableEntries.value
@@ -80,7 +59,6 @@ internal class MobileDownloadStore internal constructor(
         }
     }
 
-    /** A row recovered from Media3's index on the main thread; an existing row for the file wins. */
     fun addBlocking(entry: DownloadEntry) {
         synchronized(lock) {
             if (mutableEntries.value.any { it.fileId == entry.fileId }) return
@@ -90,7 +68,6 @@ internal class MobileDownloadStore internal constructor(
         }
     }
 
-    /** Advances a running row's bytes without a write; a stale report never overrides a transition. */
     fun updateProgressInMemory(fileId: FilesItemId, bytesDownloaded: Long, percent: Float?, contentLength: Long?) {
         synchronized(lock) {
             val current = mutableEntries.value
@@ -111,7 +88,6 @@ internal class MobileDownloadStore internal constructor(
         }
     }
 
-    // A deleted file's unreadable row must not come back as a row in a build that can read it.
     private fun forgetUnreadable(fileId: FilesItemId) {
         unreadable = unreadable.filterNot { (it as? JSONObject)?.optLong("fileId") == fileId.value }
     }
@@ -127,7 +103,6 @@ internal class MobileDownloadStore internal constructor(
         }
 
     companion object {
-        // Keyed by the application too: a process has one, and each JVM test gets a fresh one.
         private val shared = WeakHashMap<Context, MutableMap<Long, MobileDownloadStore>>()
 
         internal fun existingShared(context: Context, userId: Long): MobileDownloadStore? {
@@ -135,10 +110,6 @@ internal class MobileDownloadStore internal constructor(
             return synchronized(shared) { shared[application]?.get(userId) }
         }
 
-        /**
-         * The process's one store for [userId]. Downloads and a notification's actions write through
-         * it, so a pause or cancel from the notification is the row the screen and engine read.
-         */
         fun shared(context: Context, userId: Long): MobileDownloadStore {
             val application = context.applicationContext
             existingShared(application, userId)?.let { return it }
@@ -149,10 +120,6 @@ internal class MobileDownloadStore internal constructor(
             }
         }
 
-        /**
-         * One row as last written, for process-wide readers such as notifications that run
-         * without this user's store. Never writes.
-         */
         fun peek(context: Context, userId: Long, fileId: FilesItemId): DownloadEntry? {
             val loaded = existingShared(context, userId)
             return if (loaded != null) {
@@ -171,7 +138,6 @@ internal class MobileDownloadStore internal constructor(
     }
 }
 
-/** Downloads keep their index, settings and offline positions in this one private file. */
 internal fun downloadPreferences(context: Context): SharedPreferences =
     context.getSharedPreferences(DOWNLOAD_PREFERENCES_NAME, Context.MODE_PRIVATE)
 
@@ -185,11 +151,6 @@ private fun SharedPreferences.flush() {
 
 private class StoredRows(val entries: List<DownloadEntry>, val unreadable: List<Any>)
 
-/**
- * Rows are read one by one, so a row this build cannot read costs only that row. A document
- * that is not a list at all is copied aside once, under `<key>.unreadable`, before the next
- * write replaces it.
- */
 private fun SharedPreferences.readDocument(key: String): StoredRows {
     val raw = getString(key, null)
     val parsed = raw?.let { runCatching { JSONArray(it) }.getOrNull() }
@@ -202,7 +163,6 @@ private fun SharedPreferences.readDocument(key: String): StoredRows {
         val entry = runCatching { (item as? JSONObject)?.toEntryOrNull() }.getOrNull()
         if (entry == null) item?.let(unreadable::add) else entries += entry
     }
-    // Two rows for one file: keep the one with the viewer's own name over a recovered one.
     val rows = entries.groupBy { it.fileId }.values.map { rows -> rows.firstOrNull { !it.recovered } ?: rows.first() }
     return StoredRows(rows, unreadable)
 }
@@ -252,8 +212,6 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
     val type = optString("type").takeIf { it.isNotBlank() }?.let(PutioFileType::fromRaw)
     val artifact = DownloadArtifact.entries.firstOrNull { it.name == optString("artifact") }
     val pauseRequested = optBoolean("pauseRequested", false)
-    // A viewer's pause reads as paused at once, so the row offers Resume, never Cancel, before
-    // reconcile hears from Media3.
     val status = optJSONObject("status")?.toStatusOrNull()?.let { status ->
         if (pauseRequested && status == DownloadStatus.Queued) {
             DownloadStatus.Paused(DownloadPauseReason.USER, optJSONObject("status")?.optLong("bytes") ?: 0L)
@@ -289,7 +247,6 @@ private fun JSONObject.toEntryOrNull(): DownloadEntry? {
 
 private fun JSONObject.toStatusOrNull(): DownloadStatus? =
     when (optString("kind")) {
-        // Neither a transfer nor a pause survives the process; both resume from the cache as Queued.
         "queued", "waiting", "paused", "downloading" -> DownloadStatus.Queued
         "failed" -> DownloadStatus.Failed(
             DownloadFailureReason.entries.firstOrNull { it.name == optString("reason") }

@@ -11,11 +11,6 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.util.ReflectionHelpers
 import org.robolectric.util.ReflectionHelpers.ClassParameter
 
-/**
- * Presses a hardware key the way the input dispatcher delivers one: through the window's
- * ViewRootImpl input stages, so touch mode, unhandled-key listeners, Ctrl shortcuts and focus
- * navigation all run as on a device. Calling View.dispatchKeyEvent skips those stages.
- */
 internal fun Activity.pressHardwareKey(keyCode: Int, metaState: Int = 0, repeats: Int = 0) {
     val root = ReflectionHelpers.callInstanceMethod<Any>(window.decorView, "getViewRootImpl")
     val downTime = SystemClock.uptimeMillis()
@@ -36,13 +31,8 @@ internal fun Activity.pressHardwareKey(keyCode: Int, metaState: Int = 0, repeats
     send(KeyEvent.ACTION_UP, 0)
 }
 
-// Any non-virtual device id: a key from a physical keyboard.
 private const val HARDWARE_KEYBOARD = 1
 
-/**
- * Presses [keyCode] and returns whether the window consumed it. An Escape the app leaves unconsumed is what
- * Android turns into Back, outside the app's process, so the result at the window is what keeps it in the app.
- */
 internal fun Activity.pressHardwareKeyConsumed(keyCode: Int, metaState: Int = 0): Boolean {
     val original = window.callback
     var consumed: Boolean? = null

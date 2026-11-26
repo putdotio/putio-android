@@ -23,7 +23,6 @@ public class FilesMoveDestinationController private constructor(
     // Sets this constructor apart from the public list one; without it both share one JVM signature.
     @Suppress("UNUSED_PARAMETER") marker: Unit,
 ) : Closeable {
-    /** [startPath] is the folder to open at and its ancestors below root; empty opens at root. */
     public constructor(
         sourceItem: FilesItem,
         sourceFolderId: FilesItemId,
@@ -32,7 +31,6 @@ public class FilesMoveDestinationController private constructor(
         startPath: List<FilesFolder> = emptyList(),
     ) : this(listOf(sourceItem), sourceFolderId, repository, parentScope, startPath, Unit)
 
-    /** Moves several items of [sourceFolderId] together; none of them is a destination. */
     public constructor(
         sourceItems: List<FilesItem>,
         sourceFolderId: FilesItemId,
@@ -41,7 +39,6 @@ public class FilesMoveDestinationController private constructor(
         startPath: List<FilesFolder> = emptyList(),
     ) : this(sourceItems, sourceFolderId, repository, parentScope, startPath, Unit)
 
-    /** Picks a folder for new content; every folder, root included, is a valid destination. */
     public constructor(
         repository: FilesRepository,
         parentScope: CoroutineScope,
@@ -93,7 +90,6 @@ public class FilesMoveDestinationController private constructor(
         true
     }
 
-    // One current-folder read is owned at a time; navigation cancels it and IDs reject late completions.
     private fun startRequest(request: FilesMoveDestinationRequest) {
         val next = scope.launch(start = CoroutineStart.LAZY) {
             val result = load(request)

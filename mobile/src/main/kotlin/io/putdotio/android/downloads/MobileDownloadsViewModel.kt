@@ -15,7 +15,6 @@ import io.putdotio.sdk.files.FilesApi
 import java.io.Closeable
 import kotlinx.coroutines.flow.StateFlow
 
-/** Owns one downloads controller per signed-in user; the index and cache outlive sign-out. */
 internal class MobileDownloadsViewModel(
     authState: StateFlow<MobileAuthState>,
 ) : ViewModel() {
@@ -24,7 +23,6 @@ internal class MobileDownloadsViewModel(
         keyOf = MobileAuthState::sessionKey,
         scope = viewModelScope,
         close = ActiveDownloads::close,
-        // The session ended or changed hands: park this user's transfers, then detach.
         onSessionEnded = {
             it.park()
             it.close()

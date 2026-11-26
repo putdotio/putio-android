@@ -14,7 +14,6 @@ public data class AndroidAppConfigPreferences(
     val autoplayNextVideo: Boolean = false,
     val rotateToLandscape: Boolean = true,
     val putioCastReceiver: Boolean = false,
-    // Whether this app recorded an answer to the product analytics prompt.
     val productAnalyticsPromptAnswered: Boolean = false,
 )
 
@@ -46,7 +45,6 @@ public sealed interface AndroidAppConfigChange {
         val enabled: Boolean,
     ) : AndroidAppConfigChange
 
-    /** Records that the product analytics prompt was answered; there is no way back to unanswered. */
     public data object ProductAnalyticsPromptAnswered : AndroidAppConfigChange
 }
 

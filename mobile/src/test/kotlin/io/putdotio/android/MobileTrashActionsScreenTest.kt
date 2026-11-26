@@ -213,7 +213,6 @@ class MobileTrashActionsScreenTest {
         compose.onNodeWithText("Couldn’t delete 2 items.").assertIsDisplayed()
     }
 
-    /** A Trash overflow item, opening the overflow first when it is closed. */
     private fun SemanticsNodeInteractionsProvider.trashMenuItem(tag: String): SemanticsNodeInteraction {
         if (onAllNodes(hasTestTag(tag)).fetchSemanticsNodes().isEmpty()) {
             onNode(hasTestTag(MOBILE_TRASH_MORE_TAG)).performClick()
@@ -221,7 +220,6 @@ class MobileTrashActionsScreenTest {
         return onNode(hasTestTag(tag))
     }
 
-    /** The screen under the overflow its top bar carries in the shell. */
     @Composable
     private fun TrashWithOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean) {
         val selection = rememberTrashSelection(Unit)

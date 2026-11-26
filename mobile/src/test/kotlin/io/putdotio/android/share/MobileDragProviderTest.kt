@@ -193,7 +193,6 @@ class MobileDragProviderTest {
         assertEquals("image/jpeg", MobileFileDrags[posterKey]?.mimeType)
     }
 
-    /** put.io's download endpoint answering a range from the request's offset. */
     private fun ranged(request: Request): Response {
         requests += request
         val start = request.header("Range")?.removePrefix("bytes=")?.substringBefore('-')?.toInt() ?: 0

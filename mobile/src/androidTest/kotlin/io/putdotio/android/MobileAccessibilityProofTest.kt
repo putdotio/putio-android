@@ -48,7 +48,6 @@ import io.putdotio.android.trash.MobileTrashScreen
 import io.putdotio.android.account.MOBILE_ACCOUNT_LIST_TAG
 import io.putdotio.android.account.MobileAccountScreen
 
-/** Controlled production surfaces at 200% system font with animations disabled. */
 @RunWith(AndroidJUnit4::class)
 class MobileAccessibilityProofTest {
     private val compose = createComposeRule()

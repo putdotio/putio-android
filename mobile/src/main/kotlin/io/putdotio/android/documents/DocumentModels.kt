@@ -9,10 +9,6 @@ import io.putdotio.android.search.SearchTerm
 import java.io.InputStream
 import java.util.Locale
 
-/**
- * A document is one account's put.io file: `<userId>:<fileId>`, the root folder being file 0. The account in the id
- * keeps a URI granted under one account from resolving under another; nothing in it is a credential.
- */
 internal data class PutioDocumentId(
     val userId: Long,
     val fileId: FilesItemId,
@@ -38,10 +34,8 @@ internal data class PutioDocumentId(
     }
 }
 
-/** The account's root: one per signed-in account, named by its user id. */
 internal fun rootIdOf(userId: Long): String = userId.toString()
 
-/** What a picker lists: a folder's pages or a search's pages, each with its own change notification. */
 internal sealed interface DocumentsListingKey {
     data class Folder(val folder: PutioDocumentId) : DocumentsListingKey
 
@@ -56,7 +50,6 @@ internal data class DocumentsRoot(
     val summary: String?,
 )
 
-/** One row of document metadata; every document is read-only, so none carries a flag. */
 internal data class DocumentRow(
     val documentId: String,
     val displayName: String,
@@ -65,7 +58,6 @@ internal data class DocumentRow(
     val lastModified: Long?,
 )
 
-/** The rows loaded so far; [loading] while another page is on its way, [failed] when the last page failed. */
 internal data class DocumentsListing(
     val rows: List<DocumentRow>,
     val loading: Boolean,
@@ -89,7 +81,6 @@ internal fun FilesItem.toDocumentRow(userId: Long): DocumentRow =
         lastModified = parsePutioTimestamp(updatedAt ?: createdAt)?.toEpochMilli(),
     )
 
-/** Fallback MIME type by extension when put.io reports no usable `content_type`. */
 internal fun mimeTypeOf(name: String, contentType: String?): String =
     contentType?.normalizedFileMimeType()
         ?: name.substringAfterLast('.', "").lowercase(Locale.ROOT).takeIf { it.isNotEmpty() }
@@ -105,10 +96,6 @@ private fun String.normalizedFileMimeType(): String? {
 private val MIME_TYPE_ESSENCE = Regex("""[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+""")
 private const val GENERIC_MIME_TYPE = "application/octet-stream"
 
-/**
- * A document's bytes: their length and a reader from any offset. [OpenedBytes.interrupt] stops a read blocked on
- * another thread; closing the stream releases it.
- */
 internal class DocumentBytes(
     val size: Long,
     val onDevice: Boolean,

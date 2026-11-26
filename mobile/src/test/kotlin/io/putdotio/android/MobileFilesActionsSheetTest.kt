@@ -100,14 +100,12 @@ class MobileFilesActionsSheetTest {
                 )
             }
         }
-        // The header keeps the whole name the list cut.
         compose.onNodeWithText(started.name).assertIsDisplayed()
         compose.onNodeWithText("3.2 GB").assertIsDisplayed()
         compose.onNodeWithText("Resume from 10:00").assertIsDisplayed()
         compose.onNodeWithText("Download").assertIsDisplayed()
         compose.onNodeWithText("Share").assertIsDisplayed()
         compose.onNodeWithText("Move to trash").performScrollTo().assertIsDisplayed()
-        // A video part-way through can be marked watched; a finished one offers unwatched instead.
         compose.onNodeWithText("Mark as watched").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Exclusive link").performScrollTo().assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_VLC_ACTION_TAG).performScrollTo().performClick()
@@ -235,7 +233,6 @@ class MobileFilesActionsSheetTest {
                 )
             }
         }
-        // Android's minimum touch target; Material's sheet hangs expand and dismiss on the handle.
         compose.onNodeWithContentDescription("Drag handle")
             .assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp)
@@ -328,7 +325,6 @@ class MobileFilesActionsSheetTest {
         compose.runOnIdle { progress = FilesPlaybackProgress(startFromSeconds = 2_850.0, durationSeconds = 3_000.0) }
         compose.onNodeWithText("Play").assertIsDisplayed()
         compose.onNodeWithText("Mark as unwatched").performScrollTo().assertIsDisplayed()
-        // Played with no known length still clears.
         compose.runOnIdle { progress = FilesPlaybackProgress(startFromSeconds = 600.0, durationSeconds = null) }
         compose.onNodeWithText("Mark as unwatched").performScrollTo().assertIsDisplayed()
     }
@@ -375,7 +371,6 @@ class MobileFilesActionsSheetTest {
         assertNull(filesBrowserState(listOf(root, inShared), 1L).sharedByName())
         assertEquals("sam", filesBrowserState(listOf(root, inShared, inFriend), 1L).sharedByName())
         assertEquals("sam", filesBrowserState(listOf(root, inShared, inFriend, inNested), 1L).sharedByName())
-        // A folder opened from Search on top of sam's starts its own path.
         val opened = folder(FilesItem(FilesItemId(70L), FilesItemId(71L), "Mine", PutioFileType.FOLDER, 0L, ""),
             listOf(started)).copy(openedFrom = FilesOpenOrigin.SEARCH)
         assertNull(filesBrowserState(listOf(root, inShared, inFriend, opened), 1L).sharedByName())

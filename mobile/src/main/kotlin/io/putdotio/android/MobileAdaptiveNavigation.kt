@@ -45,18 +45,15 @@ internal const val MOBILE_NAV_DRAWER_TAG = "mobile-navigation-drawer"
 
 internal enum class MobileNavigationLayout { Bar, Rail, Modal }
 
-/** Material's compact window height, a phone in landscape: below 480dp. */
 internal fun isCompactHeight(height: Dp): Boolean = height < 480.dp
 
 internal fun drawsTopBarInContent(filesPane: Boolean, listDetail: Boolean, destination: MobileDestination): Boolean =
     filesPane || listDetail && destination == MobileDestination.Account
 
-/** Whether the app's window is compact in height; its chrome then keeps to one line. */
 @Composable
 internal fun isCompactHeightWindow(): Boolean =
     isCompactHeight(with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() })
 
-/** A window compact in height but at least 600dp wide, such as a phone in landscape, not a narrow split. */
 @Composable
 internal fun isShortWideWindow(): Boolean {
     val size = LocalWindowInfo.current.containerSize
@@ -70,7 +67,6 @@ internal fun mobileNavigationLayout(
     destinations: List<MobileDestination>,
 ): MobileNavigationLayout {
     val density = LocalDensity.current
-    // IME changes must not reparent the shell and dispose a focused editor.
     val insets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
     val direction = LocalLayoutDirection.current
     val availableWidth = width - with(density) {
@@ -83,9 +79,6 @@ internal fun mobileNavigationLayout(
     }
     val widest = with(density) { labels.maxOf { it.width }.toDp() }
     val tallest = with(density) { labels.maxOf { it.height }.toDp() }
-    // Reserve the stock components' icon, label spacing and padding. A bar item grows to an equal
-    // share of the bar and its label may fill it; a label on the 96dp rail takes its width less the
-    // item padding. A compact-height window, such as a phone in landscape, keeps the phone's bar.
     return if (width >= 600.dp && !isCompactHeight(height)) {
         val railHeight = (24.dp + 12.dp + tallest + 24.dp) * destinations.size + 16.dp
         if (widest <= 80.dp && availableHeight >= railHeight) {
@@ -113,7 +106,6 @@ internal fun MobileNavigationContainer(
     destinations: List<MobileDestination> = MobileDestination.entries,
     content: @Composable ((() -> Unit)?) -> Unit,
 ) {
-    // Moving between layouts must keep the content, the open player included, rather than rebuild it.
     val currentContent by rememberUpdatedState(content)
     val slot = remember { movableContentOf<(() -> Unit)?> { currentContent(it) } }
     if (layout != MobileNavigationLayout.Modal) {
@@ -124,7 +116,6 @@ internal fun MobileNavigationContainer(
     val scope = rememberCoroutineScope()
     val visible = drawer.currentValue == DrawerValue.Open || drawer.targetValue == DrawerValue.Open
     val close: () -> Unit = { scope.launch(start = CoroutineStart.UNDISPATCHED) { drawer.close() } }
-    // Playback keeps this container, and a now-playing request can arrive while the drawer is open.
     if (!enabled && visible) LaunchedEffect(drawer) { drawer.snapTo(DrawerValue.Closed) }
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -148,7 +139,6 @@ internal fun MobileNavigationContainer(
                                 )
                             },
                             label = { Text(stringResource(destination.labelRes)) },
-                            // Yellow marks only the selected glyph, as in the bar and the rail.
                             colors = NavigationDrawerItemDefaults.colors(
                                 selectedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unselectedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -162,7 +152,6 @@ internal fun MobileNavigationContainer(
     ) {
         slot { scope.launch(start = CoroutineStart.UNDISPATCHED) { drawer.open() } }
     }
-    // Register with the overlay so NavHost callbacks added after route changes remain underneath it.
     if (visible) BackHandler(onBack = close)
 }
 

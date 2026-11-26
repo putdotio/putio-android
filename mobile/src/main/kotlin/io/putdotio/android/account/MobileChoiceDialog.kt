@@ -43,12 +43,10 @@ internal fun <T> MobileChoiceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        // Full width less 24dp margins, as wide as a description line needs, up to Material's 560dp.
         modifier = modifier.widthIn(max = CHOICE_DIALOG_MAX_WIDTH).fillMaxWidth().padding(horizontal = 24.dp),
         properties = DialogProperties(usePlatformDefaultWidth = false),
         title = { Text(title) },
         text = {
-            // Choice counts and font scale vary; keep every option reachable inside the dialog.
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 message?.let { Text(it, modifier = Modifier.padding(bottom = 12.dp)) }
                 if (choices == null) {
@@ -105,5 +103,4 @@ private fun MobileChoiceRow(label: String, description: String?, selected: Boole
     }
 }
 
-// Material's widest dialog, plus the 24dp margins either side.
 private val CHOICE_DIALOG_MAX_WIDTH = 608.dp

@@ -15,19 +15,11 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import com.google.zxing.qrcode.encoder.Encoder
 import kotlin.math.roundToInt
 
-/**
- * Encodes [text] at error correction M, which a phone camera reads from across a room: the
- * code's square of modules by row, true for dark, without the quiet zone.
- */
 internal fun encodeTvQr(text: String): Array<BooleanArray> {
     val matrix = Encoder.encode(text, ErrorCorrectionLevel.M, mapOf(EncodeHintType.CHARACTER_SET to "UTF-8")).matrix
     return Array(matrix.height) { y -> BooleanArray(matrix.width) { x -> matrix.get(x, y).toInt() == 1 } }
 }
 
-/**
- * [text] as a QR code: [dark] modules on a [light] square with a quiet zone of four and a half
- * modules, or of [quietZone] when set. Module edges snap to whole pixels so no seam blurs them.
- */
 @Composable
 internal fun TvQrCode(
     text: String,

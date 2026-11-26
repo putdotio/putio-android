@@ -29,11 +29,6 @@ public value class SearchTerm(
 
 private const val SHOWN_TERM_LENGTH = 50
 
-/**
- * A folder a search stays inside. put.io takes the scope in the query itself, as `in:<folderId>`,
- * so a scoped search covers the whole folder, not only its loaded pages. put.io ignores `in:` for
- * the virtual shared folders, whose ids are negative, so they search everything instead.
- */
 public data class SearchScope(
     val folderId: FilesItemId,
     val folderName: String?,
@@ -43,15 +38,9 @@ public data class SearchScope(
     }
 }
 
-/** The query put.io receives: the term, then the folder scope when there is one. */
 internal fun SearchTerm.within(scope: SearchScope?): SearchTerm =
     if (scope == null) this else SearchTerm("$value in:${scope.folderId.value}")
 
-/**
- * The type chips under the search field. put.io filters by its `type`, Documents being its PDF and
- * text types, the ones the viewers open; it has no subtitle type, so Subtitles searches every type
- * and keeps subtitle extensions on the device.
- */
 public enum class SearchFilter {
     All,
     Folders,
@@ -62,7 +51,6 @@ public enum class SearchFilter {
     Subtitles,
     ;
 
-    /** The API's `type` filter; empty asks for every type. */
     internal val apiTypes: List<PutioFileType>
         get() =
             when (this) {
@@ -164,17 +152,13 @@ public data class SearchState internal constructor(
     val recentTerms: List<SearchTerm>,
     internal val consumedCursors: Set<FilesCursor>,
     internal val nextRequestValue: Long,
-    /** Whether the account keeps recent searches; null until the shared config has loaded. */
     val recentSearchesEnabled: Boolean? = null,
-    /** The folder this search stays inside; null searches the whole account. */
     val scope: SearchScope? = null,
-    /** The type chip in force: put.io filters by it, and Subtitles filters on the device. */
     val filter: SearchFilter = SearchFilter.All,
     internal val capped: Boolean = false,
 )
 
 public object SearchReducer {
-    /** No query yet; recent searches come from the account once its shared config has loaded. */
     public fun start(
         recentTerms: List<SearchTerm> = emptyList(),
         recentSearchesEnabled: Boolean? = null,
@@ -202,7 +186,6 @@ public sealed interface RecentSearchEdit {
 
     public data object Clear : RecentSearchEdit
 
-    /** Turning history off also clears it, as tv-native's search settings do. */
     public data class SetEnabled(
         val enabled: Boolean,
     ) : RecentSearchEdit
@@ -211,7 +194,6 @@ public sealed interface RecentSearchEdit {
 public interface RecentSearchStore {
     public val terms: StateFlow<List<SearchTerm>>
 
-    /** The account's `searchHistoryEnabled`; null until it has loaded. */
     public val enabled: StateFlow<Boolean?>
 
     public fun record(term: SearchTerm)
@@ -232,7 +214,6 @@ internal fun SearchContent.pagingOrNull(): SearchPaging? =
         SearchContent.Idle, is SearchContent.Debouncing, is SearchContent.Loading, is SearchContent.Failed -> null
     }
 
-/** These results with [itemId]'s position replaced, keeping a known duration; null when no media result is it. */
 internal fun SearchContent.Ready.withPosition(itemId: FilesItemId, seconds: Double): SearchContent.Ready? =
     if (items.none { it.id == itemId && it.isPlayable }) {
         null

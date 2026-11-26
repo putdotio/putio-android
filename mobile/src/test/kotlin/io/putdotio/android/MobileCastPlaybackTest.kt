@@ -432,7 +432,6 @@ class MobileCastPlaybackTest {
         compose.waitForIdle()
     }
 
-    /** A connected receiver that records what it is sent; the test speaks for it. */
     private class ReceiverGateway : CastGateway {
         override val availability = MutableStateFlow<CastAvailability>(CastAvailability.Connected("Living room TV"))
         override val status = MutableStateFlow<CastRemoteStatus?>(null)
@@ -470,7 +469,6 @@ class MobileCastPlaybackTest {
         override fun setActiveTracks(trackIds: Set<Long>) = Unit
     }
 
-    /** Two episodes in one folder: the first one's next is the second, which is the last. */
     private object Episodes : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,
@@ -482,7 +480,6 @@ class MobileCastPlaybackTest {
             if (target == Episode1) PlaybackNextResult.Found(Episode2) else PlaybackNextResult.Ended
     }
 
-    /** An episode put.io streams as HLS, whose playlist carries its subtitles. */
     private object HlsEpisode : PlaybackRepository {
         override suspend fun resolve(
             target: PlaybackTarget,

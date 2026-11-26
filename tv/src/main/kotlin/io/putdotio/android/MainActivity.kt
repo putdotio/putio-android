@@ -20,8 +20,6 @@ class MainActivity : TvActivity() {
         super.onCreate(savedInstanceState)
         configureEdgeToEdge()
         val runtime = TvAuthRuntime.get(applicationContext)
-        // A recreated activity answered its launch intent already; one rebuilt after process
-        // death restores the request it had not handled yet instead.
         val restored = savedInstanceState != null || launchRequests.launchIntentConsumed
         receiveLaunchRequest(intent, fresh = !restored)
         launchRequests.launchIntentConsumed = true
@@ -47,7 +45,6 @@ class MainActivity : TvActivity() {
 
     private fun receiveLaunchRequest(intent: Intent?, fresh: Boolean) {
         val request = intent?.consumeTvLaunchRequest { TvLinkKey.get(applicationContext) } ?: return
-        // Recents replays the intent that started the task; it is not a new request.
         val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
         if (fresh && !fromHistory) {
             ProductAnalytics.didOpenLink()

@@ -29,7 +29,6 @@ class SdkFilesDeleteRepositoryTest {
         }
         repository.delete(listOf(FilesItemId(7L), FilesItemId(8L)), FilesDeleteMode.TRASH)
         assertEquals(listOf(listOf(7L) to false, listOf(7L) to true, listOf(7L, 8L) to false), calls)
-        // A zero or negative ID is a bulk selector at the API boundary, and an empty list deletes nothing.
         for (ids in listOf(listOf(0L), listOf(-1L), listOf(7L, 0L), emptyList())) {
             val response = repository.delete(ids.map(::FilesItemId), FilesDeleteMode.TRASH) as PutioResult.Failure
             assertTrue(response.failure.cause is IllegalArgumentException)

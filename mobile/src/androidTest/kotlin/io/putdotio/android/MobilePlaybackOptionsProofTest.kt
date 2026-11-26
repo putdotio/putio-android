@@ -66,10 +66,8 @@ import io.putdotio.android.playback.languageName
 import io.putdotio.android.playback.MobilePlayerFactory
 import io.putdotio.android.playback.MobilePlayerScreen
 
-/** Real local media and production players; lifecycle and saved-state transitions use a controlled host. */
 @RunWith(AndroidJUnit4::class)
 class MobilePlaybackOptionsProofTest {
-    // Media3 listener coroutines must stay on the main looper; v2's queued dispatcher drains on the test thread.
     private val compose = createAndroidComposeRule<MobileFullscreenProofActivity>()
     private var proofMediaType = PlaybackMediaType.VIDEO
     private val optIn = TestRule { base, _ ->
@@ -82,8 +80,6 @@ class MobilePlaybackOptionsProofTest {
             }
         }
     }
-    // Until someone taps "Got it", System UI's immersive-mode confirmation takes window focus from the
-    // full-screen player. Taps still reach the player, but injected keys go to the confirmation.
     private val immersiveConfirmed = TestRule { base, _ ->
         object : Statement() {
             override fun evaluate() {
@@ -206,7 +202,6 @@ class MobilePlaybackOptionsProofTest {
         compose.onNodeWithText("1.5×").performTouchInput { click() }
         closeVideoSheet()
         val track = compose.runOnIdle { factory.current().currentTracks.playbackAudioTracks()[1] }
-        // Both players' audio sheets name a track by its language in its own words.
         val title = languageName(track.identity.language)
             ?: track.label ?: context.getString(io.putdotio.android.playback.R.string.playback_audio_track_number, 2)
         openAudioOptions()
@@ -224,7 +219,6 @@ class MobilePlaybackOptionsProofTest {
         openSpeedOptions()
         val choice = compose.onNodeWithText("1.25×")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        // Focus opens on the speed track, which takes the arrow keys; Tab moves on to the quick speeds.
         for (ignored in 0 until 12) {
             if (focused("1.25×")) break
             instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_TAB)
@@ -241,7 +235,6 @@ class MobilePlaybackOptionsProofTest {
         it.config.getOrElse(SemanticsProperties.Focused) { false }
     }
 
-    /** The audio choices: the video's Audio side sheet, or Now Playing's sheet under More. */
     private fun showOptions() {
         showControls()
         if (proofMediaType == PlaybackMediaType.VIDEO) {
@@ -265,7 +258,6 @@ class MobilePlaybackOptionsProofTest {
         showOptions()
     }
 
-    /** The speed sheet stays open for speed choices, and the chips return once it closes. */
     private fun closeVideoSheet() {
         if (proofMediaType == PlaybackMediaType.VIDEO) {
             tapThroughAndroid(compose.onNodeWithContentDescription("Close"))
@@ -282,7 +274,6 @@ class MobilePlaybackOptionsProofTest {
         val center = node.fetchSemanticsNode().boundsInWindow.center
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val downTime = SystemClock.uptimeMillis()
-        // Inject through Android so the keyboard-to-touch transition also clears native tooltip focus.
         for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
             val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, center.x, center.y, 0)
             try { instrumentation.sendPointerSync(event) } finally { event.recycle() }
@@ -296,7 +287,6 @@ class MobilePlaybackOptionsProofTest {
             hasContentDescription("Playback speed ", substring = true)
         }
         val displayed = { runCatching { compose.onNode(trigger).assertIsDisplayed() }.isSuccess }
-        // Hidden or fading controls take a tap to show; another tap while they fade in hides them again.
         repeat(3) {
             if (displayed()) return
             compose.onNodeWithTag(MOBILE_PLAYER_GESTURE_TAG).performTouchInput { click() }
@@ -333,7 +323,6 @@ class MobilePlaybackOptionsProofTest {
 
     private fun fixture(mediaType: PlaybackMediaType): PlaybackSource {
         val file = proofFixture("putio.playback.options.${mediaType.name.lowercase()}")
-        // Production credential URLs are SDK-owned; this isolated proof substitutes a caller-owned local file.
         val url = PutioCredentialUrl::class.java.getDeclaredConstructor(String::class.java)
             .newInstance(android.net.Uri.fromFile(file).toString())
         return PlaybackSource(

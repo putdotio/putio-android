@@ -12,7 +12,6 @@ check(ffmpegDecoderVersion.startsWith("$media3Version+")) {
 android {
     namespace = "io.putdotio.android.playback"
 
-    // State builders other modules' tests reuse.
     testFixtures.enable = true
     buildFeatures.buildConfig = true
     defaultConfig.buildConfigField("String", "FFMPEG_DECODER_VERSION", "\"$ffmpegDecoderVersion\"")

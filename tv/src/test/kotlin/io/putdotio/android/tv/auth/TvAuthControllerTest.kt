@@ -166,7 +166,6 @@ class TvAuthControllerTest {
         assertEquals(TvAuthState.Initializing, harness.controller.state.value)
         assertEquals(0, harness.gateway.linkAttempts)
         assertEquals(0, harness.legacySession.reads)
-        // The app's own start still runs the full restore.
         harness.controller.restoreSession()
         assertTrue(harness.controller.state.value is TvAuthState.SignedIn)
     }
@@ -215,7 +214,6 @@ class TvAuthControllerTest {
         assertNull(harness.tokenStore.stored)
         assertEquals(0, harness.gateway.linkAttempts)
         assertEquals(1, harness.controller.quietSignOuts.value)
-        // The app's own start then offers the code.
         harness.controller.restoreSession()
         assertEquals(1, harness.gateway.linkAttempts)
     }

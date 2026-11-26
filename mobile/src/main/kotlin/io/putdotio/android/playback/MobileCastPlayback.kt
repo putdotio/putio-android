@@ -41,17 +41,9 @@ import io.putdotio.sdk.files.PlaybackSourceKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-/**
- * The receiver's form of the file on screen: from its resolved source, or, given none, from a fresh
- * resolution that leaves the screen's own state alone; then the subtitle to show first.
- */
 internal typealias MobileCastMediaLoader =
     suspend (PlaybackSource?, String?) -> PlaybackRepositoryResult<PlaybackCastMedia>
 
-/**
- * [MobileCastMediaLoader] for [target], resolving it again when no source is at hand, or when the
- * source is a video that is not HLS: a receiver gets video only as Standard, whatever the setting.
- */
 internal suspend fun PlaybackRepository.castMediaFor(
     target: PlaybackTarget,
     source: PlaybackSource?,
@@ -78,7 +70,6 @@ private suspend fun PlaybackRepository.resolveForCast(
         resolve(target)
     }
 
-/** A file that resolved to a conversion or an unsupported type has nothing a receiver can play yet. */
 private class UncastableResolution : IllegalStateException("The file resolved to nothing a receiver plays")
 
 internal class SignedInCastAccount(
@@ -112,17 +103,14 @@ internal class SignedInCastAccount(
     }
 }
 
-/** The player screen's Cast: its top-bar button, and the session it casts to while one runs. */
 internal class PlayerCast(
     val controller: MobileCastController?,
     val button: @Composable (Modifier) -> Unit,
     val casting: CastingTarget?,
     val session: Boolean = casting != null,
 ) {
-    /** Whether a session's receiver plays [fileId], so the player attaches instead of asking to resume. */
     fun attaches(fileId: Long): Boolean = casting?.controller?.holds(fileId) == true
 
-    /** Whether a session that ended left [fileId] a place to resume, which answers the resume prompt. */
     fun handsBack(fileId: Long): Boolean = controller?.hasHandover(fileId) == true
 }
 
@@ -132,7 +120,6 @@ internal class CastingTarget(
     val deviceName: String,
 )
 
-/** No Cast without a controller (no Google Play services) or a way to load media. */
 @Composable
 internal fun rememberPlayerCast(
     cast: MobileCastController?,
@@ -143,7 +130,6 @@ internal fun rememberPlayerCast(
     val status by (cast?.status ?: NoStatus).collectAsStateWithLifecycle()
     if (cast == null || castMedia == null) return NoPlayerCast
     val askLocalNetwork = rememberLocalNetworkRequest(cast.gateway::localNetworkAnswered, onOpenPicker)
-    // A session reconnecting still owns playback while the receiver's last status stands.
     val device = availability.connectedDevice
         ?: (availability as? CastAvailability.Connecting)?.takeIf { status != null }?.let { it.deviceName.orEmpty() }
     return PlayerCast(
@@ -160,11 +146,6 @@ private val NoCast: StateFlow<CastAvailability> = MutableStateFlow(CastAvailabil
 private val NoStatus: StateFlow<CastRemoteStatus?> = MutableStateFlow(null)
 private val NoPlayerCast = PlayerCast(controller = null, button = {}, casting = null)
 
-/**
- * Where the local player picks [fileId] up after a Cast session ended, taken once. It moves into the
- * preferences at once, which then answer as local playback moves on, so a player recreated later
- * starts where local playback got to rather than where the receiver stopped.
- */
 @Composable
 internal fun rememberCastHandover(
     playerCast: PlayerCast,
@@ -182,7 +163,6 @@ internal fun rememberCastHandover(
     return handover
 }
 
-/** The device picker over the whole player, except in the picture-in-picture window. */
 @Composable
 internal fun MobileCastPickerHost(
     cast: MobileCastController?,
@@ -194,12 +174,6 @@ internal fun MobileCastPickerHost(
     MobileCastPicker(cast.gateway, onDismiss = { open.value = false }, modifier = modifier)
 }
 
-/**
- * The player while a Cast session runs. Local playback has stopped: the video's own player left with
- * the local screen, and session audio stops here. The file goes to the receiver from where local
- * playback stood, unless the receiver already plays it; the transport, scrubber and speed drive the
- * receiver. Ending the session brings the local player back where the receiver stopped.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobileCastPlayback(
@@ -227,12 +201,10 @@ internal fun MobileCastPlayback(
     val source = (state.content as? PlaybackContent.Ready)?.source
     var failed by remember(fileId) { mutableStateOf(false) }
     var played by remember(fileId) { mutableStateOf(false) }
-    // Try again reruns the handover: a lookup that failed for a moment never needs a new session.
     var attempt by remember(fileId) { mutableIntStateOf(0) }
     val currentPolicy by rememberUpdatedState(subtitleStartupPolicy)
     val currentOnSourceRequired by rememberUpdatedState(onSourceRequired)
     val currentOnOriginalRejected by rememberUpdatedState(onOriginalRejected)
-    // A session reconnecting holds the handover until it answers again.
     val connected = cast.availability.collectAsStateWithLifecycle().value is CastAvailability.Connected
     LaunchedEffect(fileId, source, connected, attempt) {
         if (!connected) return@LaunchedEffect
@@ -243,7 +215,6 @@ internal fun MobileCastPlayback(
         }
         failed = false
         if (!held) played = false
-        // One player at a time: session audio stops once the receiver takes over, for a video too.
         playerFactory.stopAudio(context)
         val load: suspend (PlaybackSource?) -> PlaybackRepositoryResult<PlaybackCastMedia> = { source ->
             val selection = preferences.subtitleSelection
@@ -266,7 +237,6 @@ internal fun MobileCastPlayback(
     val player = cast.remotePlayer
     val status by cast.status.collectAsStateWithLifecycle()
     val current = status?.takeIf { it.fileId == fileId }
-    // A receiver that failed to load the file no longer holds it, so another handover sends it again.
     val castFailed = failed || current?.state == CastRemoteState.Failed
     LaunchedEffect(current?.state) {
         if (current?.state in PLAYED_STATES) played = true
@@ -277,7 +247,6 @@ internal fun MobileCastPlayback(
     val intervals = if (target.mediaType == PlaybackMediaType.AUDIO) AudioSeekIntervals else VideoSeekIntervals
     val seek = { direction: SeekDirection -> player.seekBy(intervals, direction) }
 
-    // Space and the arrows drive the receiver as they drive the local player.
     val keyFocus = remember { FocusRequester() }
     LaunchedEffect(keyFocus) { keyFocus.requestFocus() }
     val keys = Modifier
@@ -330,7 +299,6 @@ private fun FollowCastFinish(
     }
 }
 
-/** The Cast video's option sheets. */
 internal enum class CastVideoSheet(@StringRes val title: Int) {
     Audio(R.string.mobile_playback_audio_control),
     Subtitles(R.string.mobile_playback_subtitles_title),
@@ -362,7 +330,6 @@ private fun MobileCastVideo(
         player.setActiveTracks(tracks)
         sheet = null
     }
-    // Back from the keyboard closes a sheet before it leaves the player, as on local video.
     val closeSheet = Modifier.onPreviewKeyEvent { event ->
         val key = event.nativeKeyEvent
         val back = mobileKeyCommand(MobileShortcutScope.Player, key.keyCode, key.metaState) == MobileKeyCommand.Back
@@ -418,10 +385,6 @@ private fun androidx.media3.common.Player.runCastKey(
     }
 }
 
-/**
- * Sends the file to the receiver from where local playback stood, attaches to it when the receiver
- * already plays it, or asks for a source first. False when the file cannot go to a receiver.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private suspend fun MobileCastController.handOver(
     state: PlaybackState,
@@ -433,15 +396,12 @@ private suspend fun MobileCastController.handOver(
     val target = state.target
     val fileId = target.fileId.value
     val ready = state.content as? PlaybackContent.Ready
-    // Unknown stays unknown, so resolving a source still finds put.io's saved position.
     val retained = preferences.positionMillis ?: state.resumePositionMillis
     val holds = holds(fileId)
     if (!holds && ready == null) {
         onSourceRequired(retained)
         return CastHandoverOutcome.SourceRequested
     }
-    // The controls follow this file at once, so a failed lookup never leaves them driving another file;
-    // the media resolves after, for Play to send again once the file has finished there.
     attach(item)
     val loaded = castMedia(ready?.source) as? PlaybackRepositoryResult.Success
     when {
@@ -463,7 +423,6 @@ private fun PlaybackState.castStartMillis(preferences: RetainedPlayerPreferences
     preferences.positionMillis ?: resumePositionMillis
         ?: (content as? PlaybackContent.Ready)?.source?.startFromSeconds?.toPlaybackMillis() ?: 0L
 
-/** Session audio reopens without a source; its lease rests on the account's resume setting alone. */
 private fun PlaybackState.castItem(playerFactory: MobilePlayerFactory, appName: String): MediaItem {
     val ready = content as? PlaybackContent.Ready
     return playerFactory.reportableItem(
@@ -483,14 +442,12 @@ private fun PlaybackAnalyticsReporter.report(outcome: CastHandoverOutcome) {
     }
 }
 
-/** [intervals]' step from where the receiver is, within the file. */
 private fun androidx.media3.common.Player.seekBy(intervals: SeekIntervals, direction: SeekDirection) {
     val step = intervals.millis(direction)
     val position = currentPosition + if (direction == SeekDirection.Backward) -step else step
     seekTo(position.coerceIn(0L, duration.takeIf { it > 0L } ?: Long.MAX_VALUE))
 }
 
-/** A receiver already playing [fileId], reached without a source: controls only, no reporting lease. */
 private fun bareItem(fileId: Long, title: String, artist: String): MediaItem =
     MediaItem.Builder()
         .setMediaId(fileId.toString())

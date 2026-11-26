@@ -90,12 +90,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * The production Downloads screen, controller, engine and notifications over a real Media3
- * manager reading generated local files, so no API call, account or session is involved. Five
- * files queue at a limit of 2, wait while the system reports low storage, and the third fails
- * for storage until it is retried.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
 class MobileDownloadsQueueProofTest {
@@ -183,7 +177,6 @@ class MobileDownloadsQueueProofTest {
                 scope,
                 manager,
             )
-            // Adds and removes go to this manager; the app's own service drives the real one.
             val local = object : DownloadEngine by engine {
                 override suspend fun start(entry: DownloadEntry) =
                     manager.addDownload(request(entry.fileId.value, sources.getValue(entry.fileId.value)))
@@ -207,7 +200,6 @@ class MobileDownloadsQueueProofTest {
             val state by controller.state.collectAsStateWithLifecycle()
             PutioTheme {
                 Surface(Modifier.fillMaxSize()) {
-                    // The tab as the shell draws it: the top bar over the list, sharing one selection.
                     val selection = rememberDownloadsSelection()
                     Column(Modifier.safeDrawingPadding()) {
                         MobileDownloadsTopBar("Downloads", null, state, selection, controller::dispatch)
@@ -217,14 +209,12 @@ class MobileDownloadsQueueProofTest {
             }
         }
 
-        // Two transfers at the limit, three waiting in the order they were added.
         awaitState { it.running() == 2 && it.queue.size == FILES.size }
         val waiting = controller.state.value.queue.filter { it.status == DownloadStatus.Queued }
         assertEquals(FILES.drop(2).map { it.first }, waiting.map { it.fileId.value })
         assertEquals(listOf(1, 2, 3), waiting.map { controller.state.value.queuePosition(it.fileId) })
         screenshot("queue-at-limit-2")
 
-        // The system reports low storage: every transfer waits, keeps its bytes and says why.
         shell("cmd devicestoragemonitor force-low -f")
         awaitState { state -> state.queue.all { it.status is DownloadStatus.Paused } }
         val paused = controller.state.value.queue.map { it.status }
@@ -241,7 +231,6 @@ class MobileDownloadsQueueProofTest {
 
         instrumentation.uiAutomation.grantRuntimePermission(context.packageName, Manifest.permission.POST_NOTIFICATIONS)
         failing = false
-        // A failed row retries from its own button.
         compose.onNodeWithContentDescription("Retry download").performClick()
         awaitState { it.entry(FailingId)?.isCompleted == true }
         awaitCondition { "download:$USER_ID:$FAILING" in activeTags() }
@@ -263,7 +252,6 @@ class MobileDownloadsQueueProofTest {
         compose.onNodeWithTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG).performClick()
         awaitState { it.entries.isEmpty() }
         assertTrue(manager.currentDownloads.isEmpty())
-        // Let the dialog's exit animation finish before the capture.
         awaitCondition {
             compose.onAllNodesWithTag(MOBILE_DOWNLOADS_REMOVE_CONFIRM_TAG).fetchSemanticsNodes().isEmpty()
         }
@@ -308,7 +296,6 @@ class MobileDownloadsQueueProofTest {
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
     }
 
-    /** Local bytes at a steady rate; the failing file reports a full disk until it is retried. */
     private inner class ProofSource : DataSource {
         private val file = FileDataSource()
 

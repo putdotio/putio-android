@@ -14,15 +14,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * The harness launch proof: the shell reaches RESUMED, stays there through a
- * stability window, and actually composites pixels. `:mobile:verifyCiPhoneLaunchProof`
- * runs this on the `ciPhone` Gradle Managed Device; a crash or ANR fails the instrumentation.
- *
- * The pixel assertion exists because a resumed activity can still render
- * black under emulator load; the shell's dark surface (#161616) composites
- * at mean luma ~22, so below 16 means nothing reached the screen.
- */
 @RunWith(AndroidJUnit4::class)
 class LaunchSmokeTest {
 
@@ -31,14 +22,9 @@ class LaunchSmokeTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
 
-            // Stability window: a crash-restart or overlay steal within 3 s
-            // is a failed launch even though the first RESUMED was real.
             Thread.sleep(3_000)
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
 
-            // Bounded main-thread round-trip: RESUMED alone survives a
-            // blocked main thread, and an unbounded runOnMainSync would hang
-            // the instrumentation instead of failing it.
             val mainThreadResponsive = CountDownLatch(1)
             Handler(Looper.getMainLooper()).post { mainThreadResponsive.countDown() }
             assertTrue(

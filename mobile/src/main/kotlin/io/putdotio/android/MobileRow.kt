@@ -55,7 +55,6 @@ internal fun MobileRow(
     }
 }
 
-/** A section label over rows: label-md in `on-surface-variant`, with an optional mono figure at the end. */
 @Composable
 internal fun MobileSectionLabel(
     text: String,

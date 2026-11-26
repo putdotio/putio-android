@@ -109,7 +109,6 @@ internal fun MobileTrashItemSheet(
     }
 }
 
-/** The overflow Trash's top bar carries, while Trash is the route on screen. */
 internal fun trashTopBarActions(
     route: String?,
     states: State<TrashState>?,
@@ -122,7 +121,6 @@ internal fun trashTopBarActions(
         null
     }
 
-/** Select, Refresh, Restore all and Empty trash, from the overflow in Trash's top bar. */
 @Composable
 internal fun MobileTrashOverflow(state: TrashState, onEvent: (TrashEvent) -> Boolean, onSelect: () -> Unit) {
     val content = state.content as? TrashContent.Loaded

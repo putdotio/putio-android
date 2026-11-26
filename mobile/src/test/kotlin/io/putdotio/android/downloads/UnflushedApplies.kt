@@ -2,10 +2,6 @@ package io.putdotio.android.downloads
 
 import android.content.SharedPreferences
 
-/**
- * A process that dies before the system flushes an apply: applied edits stay in memory, and only
- * a commit writes the memory, theirs included, to the disk.
- */
 internal class UnflushedApplies(private val disk: SharedPreferences) : SharedPreferences by disk {
     private val memory = mutableMapOf<String, String?>()
 

@@ -63,7 +63,6 @@ class MobileSearchScreensLayoutTest {
         val edits = mutableListOf<RecentSearchEdit>()
         setScreen(actions = MobileSearchHistoryActions(onRecentSearch = searches::add, onRecentEdit = edits::add))
 
-        // The header's line grows with the text rather than crop it.
         assertFalse("The label is not cropped", textLayout("Recent searches").didOverflowHeight)
         assertFalse("Clear is not cropped", textLayout("Clear").didOverflowHeight)
         val termLayout = textLayout(TERM)
@@ -73,7 +72,6 @@ class MobileSearchScreensLayoutTest {
         val remove = compose.onNodeWithContentDescription("Remove $TERM from recent searches")
             .fetchSemanticsNode().boundsInRoot
         val viewport = compose.onNodeWithTag(VIEWPORT).fetchSemanticsNode().boundsInRoot
-        // The row's clock glyph and removal take their fixed slots; the term keeps the rest.
         assertTrue("Term keeps most of the row width", term.width >= viewport.width * 0.6f)
         assertTrue("Removal does not crowd the term", remove.width <= viewport.width * 0.18f)
         val minimumTarget = 48f * termLayout.layoutInput.density.density
@@ -94,7 +92,6 @@ class MobileSearchScreensLayoutTest {
             history = HistoryEventKind.Transfer(null, HistoryFileId(7), HISTORY_NAME),
             actions = MobileSearchHistoryActions(onHistoryEvent = { if (it != HistoryEvent.Refresh) events += it }),
         )
-        // At twice the font size the cut name stays on one line, and accessibility reads it whole.
         val nameNode = compose.onNodeWithText(HISTORY_NAME, useUnmergedTree = true).fetchSemanticsNode()
         val shown = nameNode.config[MiddleCutShown]
         assertTrue(shown, shown.startsWith("Harbor") && shown.endsWith(HISTORY_NAME.takeLast(11)) && "…" in shown)
@@ -104,7 +101,6 @@ class MobileSearchScreensLayoutTest {
         val lineHeight = 22f * 2f * compose.density.density
         assertTrue("The name takes one line", name.height < lineHeight * 1.5f)
         assertTrue("Metadata follows the name", metadata.top >= name.bottom)
-        // The time, the only text here with a colon, is never what the kind's ellipsis takes.
         val time = mutableListOf<TextLayoutResult>()
         compose.onNodeWithText(":", substring = true, useUnmergedTree = true).assertIsDisplayed()
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(time) }

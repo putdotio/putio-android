@@ -46,7 +46,6 @@ class PlaybackAudioSelectionTest {
 
     @Test
     fun anUndeterminedLanguageGivesAnUnlabelledTrackNoLabel() {
-        // Media3's MP4 and Matroska extractors keep the container's "und" tag, as ffmpeg writes it.
         val tracks = Tracks(
             listOf(
                 Tracks.Group(

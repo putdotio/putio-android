@@ -19,7 +19,6 @@ public class PlaybackController(
     private val repository: PlaybackRepository,
     parentScope: CoroutineScope,
     startup: PlaybackStartup = PlaybackStartup.Resolve,
-    /** Sends this playback's product analytics events; off where nothing plays, as in tests. */
     analytics: Boolean = false,
 ) : Closeable {
     private val lock = Any()
@@ -36,7 +35,6 @@ public class PlaybackController(
     private val analyticsTracker =
         if (analytics) PlaybackAnalyticsTracker(ProductAnalytics::capture, System::currentTimeMillis) else null
 
-    /** Where the players report what the controller's states don't show. */
     public val analyticsReporter: PlaybackAnalyticsReporter = analyticsTracker ?: PlaybackAnalyticsReporter.None
 
     init {

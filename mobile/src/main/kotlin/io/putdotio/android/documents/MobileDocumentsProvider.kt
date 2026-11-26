@@ -32,12 +32,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import io.putdotio.android.design.R as DesignR
 
-/**
- * Lists the signed-in account's put.io Files in the system file picker, read-only. Signed out there is no root.
- * Listings arrive a page at a time with [DocumentsContract.EXTRA_LOADING] and a change notification per page, and
- * an opened document is a seekable proxy descriptor over its bytes: a completed download of the original from disk,
- * otherwise the share-out download from put.io. No credential reaches a URI, column or log.
- */
 class MobileDocumentsProvider : DocumentsProvider() {
     private val production: MobileDocuments by lazy { productionDocuments(checkNotNull(context)) }
 
@@ -55,7 +49,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
                 .add(Root.COLUMN_TITLE, context.getString(DesignR.string.app_name))
                 .add(Root.COLUMN_SUMMARY, root.summary)
                 .add(Root.COLUMN_ICON, DesignR.drawable.putio_icon)
-                // Read-only: no FLAG_SUPPORTS_CREATE, and no recents or tree access.
                 .add(Root.COLUMN_FLAGS, Root.FLAG_SUPPORTS_SEARCH)
         }
         cursor.setNotificationUri(context.contentResolver, DocumentsContract.buildRootsUri(authority(context)))
@@ -63,7 +56,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
     }
 
     override fun queryDocument(documentId: String, projection: Array<out String>?): Cursor {
-        // Look up first: a document that isn't there throws before any cursor exists to leak.
         val row = documents().document(documentId)
         return MatrixCursor(projection ?: DOCUMENT_COLUMNS).apply { add(row) }
     }
@@ -89,8 +81,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
             throw FileNotFoundException("put.io documents are read-only")
         }
         val storage = checkNotNull(context).getSystemService(StorageManager::class.java)
-        // One thread per open document, so a read waiting on the network holds up no other document. It starts
-        // only once the document opened, so a refused open leaves no thread behind.
         val thread = HandlerThread("putio-document")
         val reader = documents().open(documentId, signal) { thread.quitSafely() }
         var opened = false
@@ -122,10 +112,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
             .add(Document.COLUMN_FLAGS, 0)
     }
 
-    /**
-     * The cursor listens before [listing] reads, so a page that lands during the read still notifies it; a listing
-     * that throws closes it.
-     */
     private fun listingCursor(
         projection: Array<out String>?,
         notificationUri: Uri,
@@ -152,7 +138,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
     }
 
     companion object {
-        /** Replaces the provider's documents, session and network included; tests reset it. */
         @VisibleForTesting
         @Volatile
         internal var documentsForTest: MobileDocuments? = null
@@ -182,13 +167,8 @@ class MobileDocumentsProvider : DocumentsProvider() {
 
         internal fun authority(context: Context): String = "${context.packageName}.documents"
 
-        /** A session started: pickers read the roots again, so the account's root appears. */
         fun sessionStarted(context: Context) = notifyRoots(context)
 
-        /**
-         * A session ended: every grant other apps hold on put.io documents goes, persisted ones included, and pickers
-         * read the roots again, so the account's root disappears.
-         */
         fun sessionLeft(context: Context) {
             val everyDocument = Uri.Builder()
                 .scheme(ContentResolver.SCHEME_CONTENT)
@@ -213,7 +193,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
                     DocumentsContract.buildSearchDocumentsUri(authority(context), key.rootId, key.query)
             }
 
-        /** The documents over [backend], notifying listings through [context]'s resolver. */
         internal fun documents(
             context: Context,
             backend: MobileDocumentsBackend,
@@ -230,7 +209,6 @@ class MobileDocumentsProvider : DocumentsProvider() {
         private fun productionDocuments(context: Context): MobileDocuments {
             val app = context.applicationContext
             val runtime = MobileOAuthRuntime.get(app)
-            // A picker can start the process; restore the stored session so the root can appear.
             runtime.ensureSessionRestored {}
             val share = MobileShareDependencies.from(app)
             val offline by lazy { OfflineOriginals.from(app) }

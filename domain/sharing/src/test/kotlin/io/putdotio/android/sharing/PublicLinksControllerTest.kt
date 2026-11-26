@@ -104,7 +104,6 @@ class PublicLinksControllerTest {
         val failure = PutioFailure.ApiRejected(404, "NotFound", refusalException(404, "NotFound"))
         repository.onRevoke = { PutioResult.Failure(failure) }
         val controller = loaded(repository)
-        // Revoked on web, or expired, after this list was read.
         repository.links.remove(gone)
 
         controller.dispatch(PublicLinksEvent.Revoke(gone.id))

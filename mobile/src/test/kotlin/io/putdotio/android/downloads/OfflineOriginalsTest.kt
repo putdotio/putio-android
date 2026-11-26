@@ -29,7 +29,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** A real Media3 cache and download index; only the bytes are written directly instead of downloaded. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -63,7 +62,6 @@ class OfflineOriginalsTest {
     @Test
     fun onlyTheOwnersCompleteOriginalQualifies() {
         download(fileId = 9L, DownloadArtifact.ORIGINAL)
-        // A video download holds the HLS rendition, not the file a picker asked for.
         download(fileId = 10L, DownloadArtifact.HLS)
         download(fileId = 11L, DownloadArtifact.ORIGINAL, row = DownloadStatus.Downloading(0L, null))
         download(fileId = 12L, DownloadArtifact.ORIGINAL, state = Download.STATE_REMOVING)
@@ -87,7 +85,6 @@ class OfflineOriginalsTest {
             .setUpstreamDataSourceFactory { ByteArrayDataSource(bytes.copyOf(cachedBytes)) }
             .createDataSource()
         CacheWriter(writer, DataSpec(uri), null, null).cache()
-        // A transfer cut short knows the whole length but holds only part of it.
         val key = keys.buildCacheKey(DataSpec(uri))
         cache.applyContentMetadataMutations(
             key,

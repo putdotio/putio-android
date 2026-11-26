@@ -134,13 +134,10 @@ class SdkPlaybackRepositoryTest {
             val hidden = repository(hideSubtitles = true).resolve(Target)
             val shown = repository(hideSubtitles = false).resolve(Target)
 
-            // Hidden: no HLS renditions and no sidecar list, as every reference player asks.
             assertEquals(0, requests[0].maxSubtitleCount)
             assertFalse(requests[0].includeSidecarSubtitles)
-            // Shown: the server's own default, every rendition.
             assertNull(requests[1].maxSubtitleCount)
             assertTrue(requests[1].includeSidecarSubtitles)
-            // The player hides the picker from this before the account settings load.
             assertTrue(((hidden as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
             assertFalse(((shown as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).subtitlesHidden)
         }
@@ -167,11 +164,9 @@ class SdkPlaybackRepositoryTest {
                 ((result as PlaybackRepositoryResult.Success).value as PlaybackResolution.Ready).durationSeconds
 
             assertEquals(1_260.0, duration(repository(1_255.0).resolve(Target)))
-            // A video never started needs it too: Continue watching records a video only with its duration.
             assertEquals(1_260.0, duration(repository(0.0).resolve(Target)))
             assertEquals(1_260.0, duration(repository(0.0, useStartFrom = false).resolve(Target)))
             assertEquals(listOf(42L, 42L, 42L), listed)
-            // A listing's duration is enough, and audio never needs one.
             assertNull(duration(repository(1_255.0).resolve(Target.copy(durationSeconds = 1_260.0))))
             assertNull(duration(repository(1_255.0).resolve(Target.copy(mediaType = PlaybackMediaType.AUDIO))))
             assertEquals(listOf(42L, 42L, 42L), listed)

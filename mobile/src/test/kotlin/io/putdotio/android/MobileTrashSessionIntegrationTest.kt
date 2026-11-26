@@ -88,7 +88,6 @@ class MobileTrashSessionIntegrationTest {
         }
         compose.onNodeWithContentDescription("Actions for deleted.txt").performClick()
         compose.onNodeWithTag(MOBILE_TRASH_ITEM_RESTORE_TAG).performClick()
-        // The restore's own check gets 404; only the check asked for after it gets 401.
         compose.waitUntil(5_000L) {
             compose.onAllNodesWithText("Not available in Files yet. Check status again in a moment.")
                 .fetchSemanticsNodes().isNotEmpty()

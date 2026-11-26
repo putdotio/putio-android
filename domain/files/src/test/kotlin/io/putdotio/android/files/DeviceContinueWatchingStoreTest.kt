@@ -23,7 +23,6 @@ class DeviceContinueWatchingStoreTest {
         assertTrue(DeviceContinueWatchingStore(context, 2L).read().isEmpty())
 
         DeviceContinueWatchingStore.clearAll(context)
-        // A read the ended session still had out lands after the wipe and writes nothing.
         first.write(listOf(entry))
 
         assertTrue(DeviceContinueWatchingStore(context, 1L).read().isEmpty())

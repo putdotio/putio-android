@@ -24,16 +24,10 @@ import java.io.FileNotFoundException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-/** The drag's own marker, visible only inside this app: which drag of ours this is. */
 internal class MobileFileDrag(val key: String, val itemId: FilesItemId)
 
-/** Other apps may read the dropped URI, and only read it; no prefix, write or persistable grant. */
 internal const val MOBILE_FILE_DRAG_FLAGS: Int = View.DRAG_FLAG_GLOBAL or View.DRAG_FLAG_GLOBAL_URI_READ
 
-/**
- * The drag payload: one content URI on this app's drag provider, named by a random key and the file's
- * safe name. No token, account id or API URL travels with it.
- */
 internal fun mobileFileDragClip(authority: String, key: String, name: String, mimeType: String): ClipData {
     val uri = Uri.Builder()
         .scheme(ContentResolver.SCHEME_CONTENT)
@@ -46,11 +40,6 @@ internal fun mobileFileDragClip(authority: String, key: String, name: String, mi
 
 internal fun mobileDragAuthority(context: Context): String = "${context.packageName}.drag"
 
-/**
- * Files dragged out of the app, by the random key in their URI. Nothing is copied: opening a drag's URI
- * streams the original from put.io with ranged reads, as the system file picker does, for the session that
- * started the drag and only while it is the signed-in one. Leaving that session stops every read.
- */
 internal object MobileFileDrags {
     class Drag(
         val session: MobileSessionKey,
@@ -77,7 +66,6 @@ internal object MobileFileDrags {
             val evicted = mutableListOf<Drag>()
             synchronized(lock) {
                 drags[key] = drag
-                // A dropped file stays readable; only the latest drags are kept, so this never grows.
                 while (drags.size > MAX_DRAGS) drags.remove(drags.keys.first())?.let(evicted::add)
             }
             evicted.forEach(::stop)
@@ -85,12 +73,10 @@ internal object MobileFileDrags {
 
     operator fun get(key: String): Drag? = synchronized(lock) { drags[key] }
 
-    /** A drag nobody took; its URI never reached another app. */
     fun forget(key: String) {
         synchronized(lock) { drags.remove(key) }?.let(::stop)
     }
 
-    /** Leaving a session stops its readers and forgets its drags; a later session's drags stay. */
     fun endSession(session: MobileAuthSessionId?) {
         val ended = synchronized(lock) {
             drags.filterValues { it.session.sessionId == session }.keys.mapNotNull(drags::remove)
@@ -98,10 +84,6 @@ internal object MobileFileDrags {
         ended.forEach(::stop)
     }
 
-    /**
-     * A reader for the drag behind [key]. It returns at once; bytes are fetched as they are read, and each
-     * read checks that the drag's session is still the signed-in one.
-     */
     fun open(key: String, dependencies: MobileShareDependencies, onReleased: () -> Unit): DocumentReader {
         val drag = get(key)?.takeIf { dependencies.authState.value.sessionKey() == it.session }
             ?: throw FileNotFoundException("No such drag")
@@ -113,7 +95,6 @@ internal object MobileFileDrags {
             onReleased()
         }
         drag.readers += reader
-        // A session that ended while this opened has already stopped the drag's other readers.
         if (get(key) !== drag) {
             reader.revoke()
             throw FileNotFoundException("The session ended")
@@ -132,10 +113,6 @@ internal object MobileFileDrags {
     private const val MAX_DRAGS = 32
 }
 
-/**
- * Starts dragging a file out of Files for [session]. The drop target receives the provider URI with a
- * read grant for that drop; the bytes stream from put.io only when it reads them.
- */
 internal class MobileFileDragOut(private val context: Context, private val session: MobileSessionKey) {
     fun start(view: View, item: FilesItem, shadow: View.DragShadowBuilder): Boolean {
         if (item.isFolder || item.id.value <= 0L) return false
@@ -151,13 +128,11 @@ internal class MobileFileDragOut(private val context: Context, private val sessi
         return started
     }
 
-    /** A drag nobody took is forgotten; a dropped one stays readable by the app it landed in. */
     fun ended(drag: MobileFileDrag, dropped: Boolean) {
         if (!dropped) MobileFileDrags.forget(drag.key)
     }
 }
 
-/** The file's name on a rounded chip under the pointer; the row itself stays where it is. */
 internal class MobileFileDragShadow(
     name: String,
     density: Float,

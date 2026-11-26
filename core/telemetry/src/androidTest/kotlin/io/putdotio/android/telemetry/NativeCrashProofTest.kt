@@ -25,13 +25,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Opt-in, no API calls, two runs: [aSignalEndsTheProcess] starts Sentry as a launch does and raises
- * SIGSEGV, which ends the process; [theNextLaunchSendsTheCrashAsCodes], run after it, answers for the
- * account and checks the event the transport receives. The transport stays on the device.
- *
- * Arguments: `putio.nativeCrash.enabled=true`.
- */
 @RunWith(AndroidJUnit4::class)
 class NativeCrashProofTest {
     private val arguments: Bundle = InstrumentationRegistry.getArguments()

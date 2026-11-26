@@ -24,7 +24,6 @@ import org.robolectric.annotation.Config
 import java.security.ProviderException
 import javax.crypto.AEADBadTagException
 
-// Drives the controller through the production Keystore store with a scripted cipher.
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class MobileAuthStorageRecoveryTest {

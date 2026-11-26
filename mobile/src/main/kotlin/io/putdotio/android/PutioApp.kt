@@ -81,7 +81,6 @@ private fun MobileAuthRoot(
     val context = LocalContext.current
     val authController = runtime.authController
     val authState by authController.state.collectAsStateWithLifecycle()
-    // Session exit must clear sensitive drafts even while lifecycle-aware UI collection is stopped.
     LaunchedEffect(authController, transferDraft) {
         authController.state.collect { state ->
             transferDraft.reconcileSession((state as? MobileAuthState.SignedIn)?.sessionId)

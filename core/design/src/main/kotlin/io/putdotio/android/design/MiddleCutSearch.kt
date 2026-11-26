@@ -4,12 +4,6 @@ import java.text.Bidi
 import java.text.BreakIterator
 import kotlin.math.abs
 
-/**
- * The longest start of [text] that fits [maxWidth] with an ellipsis and the last [MIDDLE_CUT_TAIL]
- * characters; [text] itself when it fits. A width too narrow for that tail keeps fewer of its last
- * characters; one too narrow for an ellipsis and a single character leaves the end cut to the
- * text's own ellipsis.
- */
 internal fun middleCut(text: String, maxWidth: Int, widthOf: (String) -> Int): String =
     middleCutWhere(text, maxWidth) { widthOf(it) <= maxWidth }
 
@@ -28,7 +22,6 @@ internal fun middleCut(text: String, maxWidth: Int, layout: MiddleCutLayout, wid
     return priced?.tries(text)?.firstOrNull(fits) ?: middleCutWhere(text, maxWidth, fits)
 }
 
-/** [middleCut] for any room: the longest cut that [fits], or [text] itself when it fits. */
 internal fun middleCutWhere(text: String, maxWidth: Int, fits: (String) -> Boolean): String {
     if (maxWidth !in 1 until Int.MAX_VALUE || fits(text)) return text
     val boundaries = text.characterBoundaries()
@@ -75,7 +68,6 @@ private fun String.trimmedEnd(end: Int): Int = substring(0, end).trimEnd().lengt
 private fun cutAt(text: String, startEnd: Int, tailStart: Int): String =
     text.substring(0, startEnd).trimEnd() + ELLIPSIS + text.substring(tailStart)
 
-/** The cut with the longest start that still fits, by binary search over the boundaries before the tail. */
 private fun longestFit(
     text: String,
     starts: List<Int>,

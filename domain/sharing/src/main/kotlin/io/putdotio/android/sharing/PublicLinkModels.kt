@@ -11,10 +11,6 @@ public value class PublicLinkId(
     public val value: Long,
 )
 
-/**
- * Where put.io serves a public link: web's `/exclusive-access/<token>` page. The token is a bearer
- * secret for the shared item, so the address never prints.
- */
 @JvmInline
 public value class PublicLinkUrl internal constructor(
     public val value: String,
@@ -22,7 +18,6 @@ public value class PublicLinkUrl internal constructor(
     override fun toString(): String = "PublicLinkUrl(<redacted>)"
 
     internal companion object {
-        /** The address of the link put.io issued [token] for. */
         fun of(token: String): PublicLinkUrl {
             require(token.isNotBlank()) { "A public link token cannot be blank" }
             return PublicLinkUrl(PUBLIC_LINK_BASE_URL + token.encodePathSegment())
@@ -30,18 +25,15 @@ public value class PublicLinkUrl internal constructor(
     }
 }
 
-/** An exclusive-access link to one of the viewer's own files or folders. */
 public data class PublicLink(
     val id: PublicLinkId,
     val fileId: FilesItemId,
     val fileName: String,
     val fileType: PutioFileType,
     val url: PublicLinkUrl,
-    /** When put.io stops serving it; null when put.io's timestamp does not parse. */
     val expiresAt: Instant?,
 )
 
-/** A refusal put.io names for a new link, which web words itself rather than showing put.io's text. */
 public enum class PublicLinkRefusal {
     PLAN_NOT_ALLOWED,
     UNSUPPORTED_FILE_TYPE,
@@ -52,10 +44,6 @@ public enum class PublicLinkRefusal {
     WEEKLY_LIMIT,
 }
 
-/**
- * The refusal behind a failed create, read from put.io's error type wherever the SDK wrapped it:
- * these come back as 403s, which the shared taxonomy files under access denied.
- */
 internal val PutioFailure.publicLinkRefusal: PublicLinkRefusal?
     get() = when (cause.findPutioApiException()?.errorType) {
         "PUBLIC_SHARE_NOT_ALLOWED_PLAN" -> PublicLinkRefusal.PLAN_NOT_ALLOWED
@@ -71,7 +59,6 @@ internal val PutioFailure.publicLinkRefusal: PublicLinkRefusal?
         else -> null
     }
 
-// RFC 3986 unreserved characters pass; anything else is percent-encoded as UTF-8.
 private fun String.encodePathSegment(): String =
     buildString {
         for (byte in this@encodePathSegment.encodeToByteArray()) {

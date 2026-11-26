@@ -62,16 +62,11 @@ import androidx.compose.material3.IconButtonDefaults
 
 internal const val MOBILE_PLAYER_SIDE_SHEET_TAG = "mobile-player-side-sheet"
 
-/** The panels the video's option chips open from the right. */
 internal enum class MobileVideoSheet { Audio, Subtitles, SubtitleAppearance, Speed, Stream }
 
 internal val MOBILE_PLAYER_SIDE_SHEET_WIDTH = 340.dp
 private const val SIDE_SHEET_SCRIM_ALPHA = 0.55f
 
-/**
- * A 340dp side sheet from the right over the dimmed video. It lives in the player's own window, so
- * the system bars stay hidden; Back and a tap on the dimmed video close it.
- */
 @Composable
 internal fun MobilePlayerSideSheet(
     visible: Boolean,
@@ -109,7 +104,6 @@ internal fun MobilePlayerSideSheet(
                         MaterialTheme.colorScheme.surfaceContainerLow,
                         RoundedCornerShape(topStart = PutioRadius.extraLarge, bottomStart = PutioRadius.extraLarge),
                     )
-                    // A tap inside the panel never reaches the scrim behind it.
                     .pointerInput(Unit) { detectTapGestures {} }
                     .windowInsetsPadding(
                         WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.End),
@@ -159,7 +153,6 @@ private fun MobileSideSheetHeader(title: String, onClose: () -> Unit, onBack: ((
     }
 }
 
-/** A small section label inside a side sheet. */
 @Composable
 internal fun MobileSideSheetLabel(text: String, modifier: Modifier = Modifier) {
     Text(
@@ -170,7 +163,6 @@ internal fun MobileSideSheetLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** A radio row: the check marks the current choice, and its row takes a tonal step up. */
 @Composable
 internal fun MobileSideSheetOption(
     label: String,

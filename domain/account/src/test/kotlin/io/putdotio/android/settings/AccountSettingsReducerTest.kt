@@ -267,7 +267,6 @@ class AccountSettingsReducerTest {
         assertEquals(ConfirmedDefaultSort(FilesSort.NAME_ASCENDING), loaded.confirmedDefaultSort())
         assertEquals(ConfirmedDefaultSort(null), loadedState(Preferences).confirmedDefaultSort())
 
-        // The server accepted the write; a failed follow-up refresh must not hide the new value.
         val requestId = saving.saveRequestId()
         val refreshing = saving.state.reduce(AccountSettingsEvent.SaveSucceeded(requestId))
         assertEquals(ConfirmedDefaultSort(FilesSort.DATE_ADDED_DESCENDING), refreshing.state.confirmedDefaultSort())

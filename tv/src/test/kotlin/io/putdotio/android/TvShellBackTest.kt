@@ -559,7 +559,6 @@ class TvShellBackTest {
         onExit: () -> Unit = {},
     ) {
         compose.setContent {
-            // Registered first, so it stands in for the system leaving the app.
             BackHandler(onBack = onExit)
             CompositionLocalProvider(LocalBuildDispatcher provides Dispatchers.Unconfined) {
                 PutioTvTheme {

@@ -54,10 +54,6 @@ internal const val MOBILE_DOWNLOADS_SELECTION_PAUSE_TAG = "mobile-downloads-sele
 internal const val MOBILE_DOWNLOADS_SELECTION_RESUME_TAG = "mobile-downloads-selection-resume"
 internal const val MOBILE_DOWNLOADS_SELECTION_DELETE_TAG = "mobile-downloads-selection-delete"
 
-/**
- * Downloads selection, shared by the top bar and the list. Select opens an empty selection and a
- * long press opens one with its row; rows that leave the store, or start deleting, leave it.
- */
 @Stable
 internal class DownloadsSelection(private val selection: MobileSelection = MobileSelection()) {
     fun selected(state: DownloadsState): Set<FilesItemId> =
@@ -93,11 +89,6 @@ internal class DownloadsSelection(private val selection: MobileSelection = Mobil
 internal fun rememberDownloadsSelection(): DownloadsSelection =
     rememberSaveable(saver = DownloadsSelection.Saver) { DownloadsSelection() }
 
-/**
- * The Downloads tab's top: the tab title with its storage summary and an overflow holding Select,
- * Pause all or Resume all, and the concurrency limit, or, in selection, a bar with close, the count
- * and select all.
- */
 @Composable
 internal fun MobileDownloadsTopBar(
     title: String,
@@ -198,10 +189,6 @@ private fun DownloadsOverflow(
     }
 }
 
-/**
- * The selection's floating toolbar: Pause and Resume each show when a selected row allows them
- * and act on those rows; Remove asks before it removes every selected local copy.
- */
 @Composable
 internal fun DownloadsSelectionToolbar(
     state: DownloadsState,

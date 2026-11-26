@@ -82,11 +82,6 @@ internal const val MOBILE_TRANSFERS_SNACKBAR_TAG = "mobile-transfers-snackbar"
 internal const val MOBILE_TRANSFERS_ADD_FAB_TAG = "mobile-transfers-add-fab"
 internal const val MOBILE_TRANSFERS_OVERFLOW_TAG = "mobile-transfers-overflow"
 
-/**
- * Transfers: sections of transfer cards (Active, Needs attention, Completed), a yellow extended FAB
- * that opens Add transfer, and Transfer actions for one card. The tab title and its overflow belong
- * to the shell ([MobileTransfersOverflow]).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileTransfersScreen(
@@ -156,7 +151,6 @@ internal fun MobileTransfersScreen(
         filesRepository = filesRepository,
         onFilesAuthenticationRequired = onFilesAuthenticationRequired,
     )
-    // Outside the sheet: the copy outlives the sheet it closes.
     val copy = rememberSourceCopy(snackbarHostState)
     val actionsItem = actionsFor?.let { id -> (state.content as? TransfersContent.Ready)?.items?.find { it.id == id } }
     if (actionsItem != null) {
@@ -209,7 +203,6 @@ internal fun MobileTransfersScreen(
     MobileTransferActionFailure(state.mutation, onEvent)
 }
 
-/** Started transfers and retry results, each once, replacing a visible snackbar instead of queueing. */
 @Composable
 private fun MobileTransfersNews(
     state: TransfersState,
@@ -219,13 +212,11 @@ private fun MobileTransfersNews(
 ) {
     val addedCount = state.lastAddReceipt?.addedCount ?: 0
     val addedMessage = pluralStringResource(R.plurals.mobile_transfers_added, addedCount, addedCount)
-    // The successful add id changes once per accepted submission; the first value is history, not news.
     var announcedAdd by remember(sessionId) { mutableStateOf(state.lastSuccessfulAddRequestId) }
     LaunchedEffect(state.lastSuccessfulAddRequestId) {
         val added = state.lastSuccessfulAddRequestId
         if (added != null && added != announcedAdd) {
             announcedAdd = added
-            // Refused links reopen the draft with their own message; only started transfers are news.
             if (addedCount > 0) {
                 snackbarHostState.currentSnackbarData?.dismiss()
                 snackbarHostState.showSnackbar(addedMessage)
@@ -259,10 +250,6 @@ private fun rememberSourceCopy(snackbarHostState: SnackbarHostState): (TransferS
     }
 }
 
-/**
- * A source can carry a tracker passkey or a signed URL, so the clipboard keeps it out of previews.
- * Android documents the literal key for releases before `ClipDescription.EXTRA_IS_SENSITIVE` existed.
- */
 private fun sensitiveClip(label: String, link: String): ClipData =
     ClipData.newPlainText(label, link).apply {
         description.extras = PersistableBundle().apply { putBoolean(CLIP_IS_SENSITIVE, true) }
@@ -270,7 +257,6 @@ private fun sensitiveClip(label: String, link: String): ClipData =
 
 private const val CLIP_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
 
-/** Material clears the label's semantics so a collapsed FAB keeps one name; the FAB carries it instead. */
 @Composable
 private fun MobileAddTransferFab(expanded: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.mobile_transfers_add)
@@ -287,11 +273,6 @@ private fun MobileAddTransferFab(expanded: Boolean, onClick: () -> Unit, modifie
     )
 }
 
-/**
- * The Transfers tab's overflow in the tab-title row: Refresh once the list has loaded, empty included,
- * so keyboard and TalkBack users need no pull; Clear completed, which confirms, while transfers are
- * listed; and Clear failed, which confirms too, while a failed one is listed.
- */
 @Composable
 internal fun MobileTransfersOverflow(
     state: TransfersState,
@@ -382,7 +363,6 @@ private fun MobileTransfersContent(
             MobileEmptyState(
                 title = stringResource(R.string.mobile_transfers_empty_title),
                 message = stringResource(R.string.mobile_transfers_empty_message),
-                // The state sits a little above the middle, clear of the navigation.
                 modifier = Modifier.padding(bottom = 56.dp),
                 glyph = PutioEmptyGlyph.NoTransfers,
             ) {
@@ -458,7 +438,6 @@ private fun MobileTransfersList(
     }
 }
 
-/** The time completed cards measure "3 hr. ago" from, moved on once a minute while shown. */
 @Composable
 private fun produceMinuteClock(): State<Long> = produceState(System.currentTimeMillis()) {
     while (true) {
@@ -601,7 +580,6 @@ private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
         is TransferRetryOutcome.Failed ->
             stringResource(
                 R.string.mobile_transfers_retry_failed,
-                // put.io answers 403 when the transfer has no error left to retry.
                 if (outcome.failure is PutioFailure.AccessDenied) {
                     stringResource(R.string.mobile_transfers_retry_not_failed)
                 } else {
@@ -610,7 +588,6 @@ private fun retryOutcomeMessage(outcome: TransferRetryOutcome): String =
             )
     }
 
-/** The status a card shows; the home-screen widget shows the same words. */
 @StringRes
 internal fun TransferItem.statusLabelRes(): Int =
     when (status) {
@@ -671,7 +648,6 @@ private fun TransferAction.targets(id: TransferId): Boolean =
         is TransferAction.Add -> false
     }
 
-/** Room the FAB takes above the list's end and the snackbar: 56dp and its 16dp margins. */
 private val FAB_CLEARANCE = 88.dp
 private val TRANSFER_CARD_MIN_WIDTH = 360.dp
 private const val MINUTE_MILLIS = 60_000L

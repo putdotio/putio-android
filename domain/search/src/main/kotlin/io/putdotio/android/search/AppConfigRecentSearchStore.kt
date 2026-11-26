@@ -108,8 +108,6 @@ public class AppConfigRecentSearchStore(
 
     private suspend fun reload(): Boolean = loadConfigOrNull()?.also(writes::load) != null
 
-    // Another client may have changed the history since it loaded, so each edit applies to what
-    // the server holds now: turning it off clears that, and a recorded term keeps the others.
     private suspend fun apply(edit: RecentSearchMutation): Boolean {
         if (!reload()) return false
         val terms = writes.storedTerms
@@ -123,11 +121,6 @@ public class AppConfigRecentSearchStore(
     }
 }
 
-/**
- * The account's recent searches as far as the store knows, published to its flows, and the
- * writes that change them, each rolled back if the server refuses it. Only the store's
- * command loop calls in.
- */
 private class RecentSearchWrites(
     private val saveTerms: suspend (List<String>) -> Unit,
     private val saveEnabled: suspend (Boolean) -> Unit,
@@ -147,13 +140,11 @@ private class RecentSearchWrites(
         publish(StoredRecentSearches(config.enabled, loaded))
     }
 
-    /** Nothing is recorded or edited while the account has history turned off. */
     suspend fun editTerms(terms: List<SearchTerm>): Boolean = !stored.enabled || writeTerms(terms)
 
     suspend fun writeEnabled(enabled: Boolean): Boolean =
         when {
             enabled == stored.enabled -> true
-            // Turning history off clears the stored terms first, as tv-native does.
             !enabled && !writeTerms(emptyList()) -> false
             else -> write(stored.copy(enabled = enabled)) { saveEnabled(enabled) }
         }
@@ -182,7 +173,6 @@ private class RecentSearchWrites(
 
     private fun publish(next: StoredRecentSearches) {
         stored = next
-        // A disabled history keeps whatever the server holds out of sight.
         terms.value = if (next.enabled) next.terms else emptyList()
         enabled.value = next.enabled
     }

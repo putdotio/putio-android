@@ -626,7 +626,6 @@ class FilesBrowserReducerTest {
         ).state
         assertEquals(FilesFolderSummary(6, 19_400_000_000L), loaded.current.summary)
 
-        // A continuation carries no total; the first page's count stays.
         val paging = FilesBrowserReducer.reduce(loaded, FilesBrowserEvent.LoadNextPage)
         val pageRequest = (paging.effect as FilesBrowserEffect.LoadNextPage).requestId
         val nextPage = FilesPage(listOf(item(9L, "episode2.mkv", PutioFileType.VIDEO)), null)
@@ -636,7 +635,6 @@ class FilesBrowserReducerTest {
         ).state
         assertEquals(FilesFolderSummary(6, 19_400_000_000L), paged.current.summary)
 
-        // A refresh reads the first page again and takes its count.
         val refreshing = FilesBrowserReducer.reduce(paged, FilesBrowserEvent.Refresh)
         val refreshRequest = (refreshing.effect as FilesBrowserEffect.LoadFolder).requestId
         val smaller = firstPage.copy(total = 5, parent = parent.copy(sizeBytes = 1L))

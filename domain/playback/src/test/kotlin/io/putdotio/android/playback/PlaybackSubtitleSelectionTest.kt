@@ -100,7 +100,6 @@ class PlaybackSubtitleSelectionTest {
         assertFalse(C.TRACK_TYPE_TEXT in forcedOnly.disabledTrackTypes)
         assertTrue(automatic.selectTextByDefault)
         assertFalse(C.TRACK_TYPE_TEXT in automatic.disabledTrackTypes)
-        // hide_subtitles outranks a retained pick; its picker is gone.
         assertFalse(retained.selectTextByDefault)
         assertTrue(C.TRACK_TYPE_TEXT in retained.disabledTrackTypes)
     }
@@ -317,15 +316,11 @@ class PlaybackSubtitleSelectionTest {
                 .withSubtitleTracks(retained, policy, tracks, deviceDefaults)
 
         assertEquals("en", selectedTextId(arrived(SubtitleStartupPolicy(true, autoSelectSubtitles = true)), flagged))
-        // dont_autoselect_subtitles keeps forced tracks only; the default flag is ignored.
         assertNull(selectedTextId(arrived(SubtitleStartupPolicy(true, autoSelectSubtitles = false)), flagged))
         assertNull(selectedTextId(arrived(SubtitleStartupPolicy(false, autoSelectSubtitles = true)), flagged))
-        // The viewer's pick still decides.
         val picked = SubtitleSelection.Track(tracks.single { it.identity.id == "tr" }.identity)
         assertEquals("tr", selectedTextId(arrived(SubtitleStartupPolicy(true, true), picked), flagged))
-        // Except under hide_subtitles, which outranks it.
         assertNull(selectedTextId(arrived(SubtitleStartupPolicy(false, true), picked), flagged))
-        // A retained Off outlives a recreated player even while the account auto-selects.
         assertNull(selectedTextId(arrived(SubtitleStartupPolicy(true, true), SubtitleSelection.Off), flagged))
     }
 
@@ -579,7 +574,6 @@ class PlaybackSubtitleSelectionTest {
 
     private fun startupTextTrack(settings: AccountSettingsState): String? = selectedTextId(startupParameters(settings))
 
-    /** The text track DefaultTrackSelector picks from [text] for [parameters], or null when none shows. */
     private fun selectedTextId(parameters: TrackSelectionParameters, text: TrackGroup = TextGroup): String? {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val selector = DefaultTrackSelector(context, parameters)
@@ -594,7 +588,6 @@ class PlaybackSubtitleSelectionTest {
         return result.selections[1]?.selectedFormat?.id.also { selector.release() }
     }
 
-    /** put.io's subtitles for a Turkish-locale device: the account ranks English first. */
     private fun serverTracks(defaultId: String?): TrackGroup =
         TrackGroup(
             *listOf("tr" to "Turkish", "en" to "English").map { (language, label) ->
@@ -612,7 +605,6 @@ class PlaybackSubtitleSelectionTest {
         (0 until length).map { PlaybackSubtitleTrack(this, it, label = getFormat(it).label, selected = false) }
 
     private companion object {
-        // A device whose caption settings ask for English captions.
         val CaptionDefaults: TrackSelectionParameters =
             TrackSelectionParameters.Builder()
                 .setPreferredTextLanguages("en")

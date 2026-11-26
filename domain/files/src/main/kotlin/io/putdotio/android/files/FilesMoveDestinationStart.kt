@@ -6,10 +6,6 @@ import io.putdotio.android.PutioResult
 internal fun FilesMoveDestinationState.withoutRememberedTargetCheck() =
     if (opensRememberedTarget) copy(opensRememberedTarget = false) else this
 
-/**
- * Web reopens at root when the remembered folder can't be read; a rejected session stays visible so
- * the app signs out. Null leaves the read to the ordinary listing.
- */
 internal fun FilesMoveDestinationState.completeRememberedRead(
     request: FilesMoveDestinationRequest,
     result: PutioResult<FilesPage>,
@@ -20,10 +16,6 @@ internal fun FilesMoveDestinationState.completeRememberedRead(
         if (current.remembered && request.cursor == null) reconcileRemembered(request, result) else null
 }
 
-/**
- * Each remembered folder is checked when first read: it takes its current name, one moved elsewhere
- * keeps only root above it, and one now directly inside an item being moved restarts at root.
- */
 private fun FilesMoveDestinationState.reconcileRemembered(
     request: FilesMoveDestinationRequest,
     result: PutioResult.Success<FilesPage>,
@@ -53,9 +45,7 @@ private fun FilesMoveDestinationState.restartAtRoot(): FilesMoveDestinationTrans
     )
 }
 
-/** Root keeps its localized heading, so it is never checked against a listing. */
 internal fun unreadFolder(folder: FilesFolder) =
     FilesMoveDestinationFolder(folder, FilesContent.Loading(UNREAD), remembered = folder.id != FilesFolder.Root.id)
 
-/** Never issued: request IDs start at 1. */
 private val UNREAD = FilesRequestId(0L)

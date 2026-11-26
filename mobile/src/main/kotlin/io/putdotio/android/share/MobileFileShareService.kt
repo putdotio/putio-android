@@ -150,7 +150,6 @@ class MobileFileShareService : Service() {
                 } finally {
                     exportInProgress = false
                 }
-                // The share sheet opens next; the in-app dialog has nothing left to show.
                 MobileShareProgress.end()
                 deliver(name, session) { shareChooser(file) }
             }
@@ -160,17 +159,14 @@ class MobileFileShareService : Service() {
             clearShares(dependencies.io)
             stopForegroundAndClear(ServiceCompat.STOP_FOREGROUND_REMOVE)
         } catch (error: IOException) {
-            // A cancelled call surfaces as IOException; cancellation is not a failure to report.
             currentCoroutineContext().ensureActive()
             fail(name)
         } catch (error: RuntimeException) {
-            // FileProvider, notification posting and Activity launch report failure as runtime errors.
             currentCoroutineContext().ensureActive()
             fail(name)
         }
     }
 
-    /** Runs [block] while [session] stays current; leaving it cancels [block] and throws [SessionEndedException]. */
     private suspend fun boundTo(session: MobileAuthSessionId, block: suspend () -> Unit) = coroutineScope {
         val watcher = launch {
             dependencies.authState.first { it.sessionId != session }
@@ -183,7 +179,6 @@ class MobileFileShareService : Service() {
         }
     }
 
-    /** Foreground updates need no POST_NOTIFICATIONS grant; detaching keeps the result visible. */
     private fun fail(name: String) {
         if (timedOut) return
         notifications.update(NOTIFICATION_ID, notifications.failed(name))
@@ -194,10 +189,6 @@ class MobileFileShareService : Service() {
     internal suspend fun deliverForTest(chooser: Intent, name: String, session: MobileAuthSessionId) =
         deliver(name, session) { chooser }
 
-    /**
-     * A resumed Activity opens the chooser; without one the ready notification brings the app back first.
-     * The session is checked again at launch, so a resume that races a sign-out never shows the export.
-     */
     private suspend fun deliver(name: String, session: MobileAuthSessionId, chooser: () -> Intent) {
         if (MobileResumedActivity.current == null && !timedOut) {
             notifications.update(NOTIFICATION_ID, notifications.ready(name))
@@ -205,7 +196,6 @@ class MobileFileShareService : Service() {
         val resumed: Activity? = try {
             withTimeoutOrNull(dependencies.readyTimeout) { MobileResumedActivity.await() }
         } catch (error: CancellationException) {
-            // A dismissed or superseded wait drops its export together with the notification.
             clearShares(dependencies.io)
             throw error
         }
@@ -267,16 +257,13 @@ class MobileFileShareService : Service() {
         internal const val NOTIFICATION_ID = 3001
         private const val STALE_EXPORT_MS = 24L * 60L * 60L * 1000L
 
-        /** Replaces the network, session and clock for services created afterwards; tests reset it. */
         @androidx.annotation.VisibleForTesting
         @Volatile
         internal var dependenciesForTest: MobileShareDependencies? = null
 
-        /** The network, session and clock the service and the drag provider share. */
         internal fun shareDependencies(context: Context): MobileShareDependencies =
             dependenciesForTest ?: MobileShareDependencies.from(context)
 
-        /** Cancels the running export, as the notification's Cancel does. */
         fun cancel(context: Context) {
             val intent = Intent(context, MobileFileShareService::class.java).setAction(ACTION_CANCEL)
             try {
@@ -300,20 +287,11 @@ class MobileFileShareService : Service() {
 
         internal fun shareRoot(context: Context): File = File(context.filesDir, "shares")
 
-        /**
-         * Session ids restart in every process, so each process keeps its exports under its own
-         * directory; a restored session cannot otherwise tell an earlier process's exports from its own.
-         */
         private val processShares: String = UUID.randomUUID().toString()
 
         internal fun sessionShares(context: Context, session: MobileAuthSessionId): File =
             File(File(shareRoot(context), processShares), session.value.toString())
 
-        /**
-         * Leaving [session] drops every export it made and every export an earlier process left, but
-         * nothing another session of this process made; a recipient already reading keeps its descriptor.
-         * A null session is one an earlier process left behind, whose id this process never knew.
-         */
         fun endSession(context: Context, session: MobileAuthSessionId?) {
             shareRoot(context).listFiles()
                 ?.filter { it.name != processShares }
@@ -321,7 +299,6 @@ class MobileFileShareService : Service() {
             session?.let { sessionShares(context, it).deleteRecursively() }
         }
 
-        /** Exports a recipient may still read are kept for a day; older leftovers go on launch. */
         fun pruneStale(context: Context, now: Long = System.currentTimeMillis()) {
             shareRoot(context).listFiles()
                 ?.filter { now - it.lastModified() > STALE_EXPORT_MS }
@@ -330,7 +307,6 @@ class MobileFileShareService : Service() {
     }
 }
 
-/** Everything the service reaches outside itself; tests replace the network, session and clock. */
 internal class MobileShareDependencies(
     val http: Call.Factory,
     val authState: StateFlow<MobileAuthState>,
@@ -355,7 +331,6 @@ internal class MobileShareDependencies(
 
 internal val sharedHttp: OkHttpClient by lazy { PutioHttpClient.newBuilder().build() }
 
-/** Stream only. Recipients receive a read grant on the content URI and nothing else. */
 private fun Context.shareChooser(file: File): Intent {
     val uri = FileProvider.getUriForFile(this, "$packageName.share", file)
     return shareChooserFor(uri, contentResolver.getType(uri))
@@ -377,14 +352,8 @@ private suspend fun Context.clearShares(io: CoroutineDispatcher) {
 private val MobileAuthState.sessionId: MobileAuthSessionId?
     get() = (this as? MobileAuthState.SignedIn)?.sessionId
 
-/** The export's session ended before the chooser opened; the export is dropped without a failure notice. */
 private class SessionEndedException : Exception()
 
-/**
- * Keeps the original name readable while making it a safe single path segment: no separators, no
- * control or bidi formatting characters that could disguise the extension, and at most
- * [MAX_NAME_BYTES] UTF-8 bytes, since file systems limit names in bytes, not characters.
- */
 internal fun String.sanitizedFileName(): String {
     val visible = buildString {
         this@sanitizedFileName.codePoints().forEach { codePoint ->
@@ -403,7 +372,6 @@ internal fun String.sanitizedFileName(): String {
     }
 }
 
-/** Truncation keeps a short extension so the chooser still sees the file type. */
 private fun String.truncatedName(): String {
     val extension = substringAfterLast('.', "")
         .takeIf { it.isNotEmpty() && it.utf8Size() < MAX_EXTENSION_BYTES }
@@ -415,7 +383,6 @@ private fun String.truncatedName(): String {
 
 private fun String.utf8Size(): Int = toByteArray(Charsets.UTF_8).size
 
-/** The longest prefix that fits in [limit] UTF-8 bytes without splitting a code point. */
 private fun String.takeUtf8Bytes(limit: Int): String {
     var bytes = 0
     var end = 0
@@ -432,7 +399,6 @@ private fun String.takeUtf8Bytes(limit: Int): String {
 private const val MAX_NAME_BYTES = 200
 private const val MAX_EXTENSION_BYTES = 16
 
-/** Controls, formatting (bidi overrides, isolates, zero-width marks), separators and lone surrogates. */
 private val INVISIBLE_TYPES = setOf(
     Character.CONTROL,
     Character.FORMAT,

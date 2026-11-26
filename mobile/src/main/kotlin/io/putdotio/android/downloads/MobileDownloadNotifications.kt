@@ -26,21 +26,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** What a finished transfer tells the viewer; Media3 reports both on its process-wide manager. */
 internal sealed interface DownloadOutcome {
     data object Completed : DownloadOutcome
 
     data class Failed(val reason: DownloadFailureReason) : DownloadOutcome
 }
 
-/**
- * Tells the viewer when a download finishes or fails, with or without the app open. The name
- * comes from the owner's index row; no URL or token reaches a notification. Each file has one
- * slot, replaced by its next outcome and cleared by a retry, a delete or the owner's sign-out; a
- * tap opens the row in Downloads; a finished copy offers Play, a failed one Try again and Open in Downloads.
- * Nothing is posted while the app's notifications are off, the channel is blocked, or, from
- * Android 13, POST_NOTIFICATIONS is not granted, nor for an account other than the one signed in now.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class MobileDownloadNotifications(
     private val context: Context,
@@ -57,7 +48,6 @@ internal class MobileDownloadNotifications(
         download: Download,
         finalException: Exception?,
     ) {
-        // Most changes are progress; only outcomes read the index.
         val outcome = when (download.state) {
             Download.STATE_COMPLETED -> DownloadOutcome.Completed
             Download.STATE_FAILED -> DownloadOutcome.Failed(finalException.toFailureReason())
@@ -66,7 +56,6 @@ internal class MobileDownloadNotifications(
         val owner = download.request.ownerUserId()
         val fileId = owner?.let { fileIdOf(it, download.request.id) }
         if (outcome == null || owner == null || fileId == null) return
-        // A row being deleted, or one this device never indexed, stays quiet.
         if (download.fallingBackToConverted(finalException)) {
             fallBackIfEligible(downloadManager, owner, fileId)
         } else if (owner == signedInUser()) {
@@ -133,7 +122,6 @@ internal class MobileDownloadNotifications(
         private const val CHANNEL_ID = "download-updates"
         private const val NOTIFICATION_ID = 2002
 
-        /** Whether an outcome would be shown now; the Downloads screen offers to turn them on otherwise. */
         fun canPost(context: Context): Boolean {
             val manager = NotificationManagerCompat.from(context)
             val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -154,7 +142,6 @@ internal class MobileDownloadNotifications(
                     .build(),
             )
             val notification = outcomeNotification(context, userId, entry, outcome).build()
-            // The grant can be revoked between the check and this call.
             try {
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
@@ -171,7 +158,6 @@ internal class MobileDownloadNotifications(
             NotificationManagerCompat.from(context).cancel(tag(userId, fileId), NOTIFICATION_ID)
         }
 
-        /** A session ended: outcomes of every account but [signedInUser], who may already be the next one, go. */
         fun cancelOtherAccounts(context: Context, signedInUser: Long?) {
             val manager = NotificationManagerCompat.from(context)
             for (posted in manager.activeNotifications) {
@@ -181,11 +167,6 @@ internal class MobileDownloadNotifications(
             }
         }
 
-        /**
-         * One outcome's notification. Its tap and actions carry [userId], so they do nothing under
-         * another account: Play and Open route through MainActivity's product links, Retry through
-         * [MobileDownloadActionReceiver], which only this app can reach.
-         */
         internal fun outcomeNotification(
             context: Context,
             userId: Long,
@@ -210,7 +191,6 @@ internal class MobileDownloadNotifications(
                 DownloadOutcome.Completed -> R.drawable.ic_ph_check
                 is DownloadOutcome.Failed -> R.drawable.ic_ph_warning_circle
             }
-            // The lock screen shows the outcome without the file name.
             val public = NotificationCompat.Builder(context, CHANNEL_ID)
                 .setSmallIcon(icon)
                 .setColor(ContextCompat.getColor(context, DesignR.color.putio_yellow_solid))
@@ -242,7 +222,6 @@ internal class MobileDownloadNotifications(
                 .setAutoCancel(true)
                 .setContentIntent(openRow)
                 .addAction(primary)
-            // A finished copy's one action is Play; its tap already opens the row.
             if (outcome is DownloadOutcome.Failed) {
                 builder.addAction(
                     R.drawable.ic_ph_download_simple,
@@ -259,7 +238,6 @@ internal class MobileDownloadNotifications(
     }
 }
 
-/** The sentence a failed row and its notification show. */
 @StringRes
 internal fun DownloadFailureReason.message(): Int =
     when (this) {

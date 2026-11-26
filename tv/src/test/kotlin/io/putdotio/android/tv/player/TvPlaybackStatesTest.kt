@@ -76,7 +76,6 @@ class TvPlaybackStatesTest {
         compose.mainClock.advanceTimeBy(200L)
         compose.runOnIdle { assertEquals(1, refreshes) }
 
-        // While that read runs nothing else is asked; its answer starts the next wait.
         change(PlaybackContent.Conversion(PlaybackConversionState.Queued, PlaybackRequestId(2L)))
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 2)
         compose.runOnIdle { assertEquals(1, refreshes) }
@@ -86,7 +85,6 @@ class TvPlaybackStatesTest {
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS + 100L)
         compose.runOnIdle { assertEquals(2, refreshes) }
 
-        // Check again reads it now, and stays focused while that read runs.
         change(PlaybackContent.Conversion(PlaybackConversionState.Converting(42.4)))
         compose.onNodeWithText("Check again").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(3, refreshes) }
@@ -102,7 +100,6 @@ class TvPlaybackStatesTest {
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS * 3)
         compose.runOnIdle { assertEquals(0, refreshes) }
 
-        // Back in the foreground, a full wait starts again.
         moveTo(Lifecycle.State.RESUMED)
         compose.mainClock.advanceTimeBy(PLAYBACK_CONVERSION_POLL_MILLIS - 100L)
         compose.runOnIdle { assertEquals(0, refreshes) }
@@ -188,7 +185,6 @@ class TvPlaybackStatesTest {
 
     @Test
     fun aVideoThatCannotBeConvertedOffersNothingButBack() {
-        // The app's own start still found no conversion.
         content = PlaybackContent.Conversion(PlaybackConversionState.NotAvailable)
         show()
         compose.onNodeWithText("This video cannot be converted.").assertIsDisplayed()
@@ -278,7 +274,6 @@ class TvPlaybackStatesTest {
         compose.onNodeWithText("Go back").assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
         compose.runOnIdle { assertEquals(1, backs) }
 
-        // A refused request shows put.io's own reason; a bare error code keeps the app's copy.
         change(PlaybackContent.Failed(putioRefusal(400, putioErrorBody(400, "not a video")).toPlaybackFailure()))
         compose.onNodeWithText("not a video").assertIsDisplayed()
         compose.onNodeWithText("Go back").assertIsFocused()
@@ -336,7 +331,6 @@ class TvPlaybackStatesTest {
     private fun change(next: PlaybackContent) {
         compose.runOnIdle {
             content = next
-            // The clock is manual, so publish the write before the next frame.
             Snapshot.sendApplyNotifications()
         }
         compose.mainClock.advanceTimeBy(50L)

@@ -108,7 +108,6 @@ class TvPlayerConversionTest {
 
                 override suspend fun findNextVideo(target: PlaybackTarget) = error("No next video expected")
             },
-            // Each read settles before the next frame, so the screen never sees it in flight.
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
         )
         compose.mainClock.autoAdvance = false

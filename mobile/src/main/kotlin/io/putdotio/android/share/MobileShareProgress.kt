@@ -40,7 +40,6 @@ import androidx.compose.ui.window.DialogProperties
 
 internal const val MOBILE_SHARE_PROGRESS_TAG = "mobile-share-progress"
 
-/** A running share export: its name, and its bytes once the download reports a size. */
 internal data class MobileShareProgressState(
     val name: String,
     val copiedBytes: Long = 0L,
@@ -50,13 +49,10 @@ internal data class MobileShareProgressState(
         get() = totalBytes?.takeIf { it > 0L }?.let { (copiedBytes * EXPORT_PROGRESS_MAX / it).toInt() }
 }
 
-/** The export the share service runs now, for the in-app dialog; null when none runs. */
 internal object MobileShareProgress {
     private val mutableState = MutableStateFlow<MobileShareProgressState?>(null)
     val state: StateFlow<MobileShareProgressState?> = mutableState.asStateFlow()
 
-    // Cancel reaches the service asynchronously; until the export ends, its progress stays hidden.
-    // Progress arrives on IO and Cancel on Main, so the check and the write happen under one lock.
     private val lock = Any()
     private var dismissed = false
 
@@ -79,10 +75,6 @@ internal object MobileShareProgress {
     }
 }
 
-/**
- * While a file downloads to be shared: its name, a bar with the progress in mono, and Cancel. The
- * dialog leaves when the share sheet opens or the export ends; a failure keeps its notification.
- */
 @Composable
 internal fun MobileShareProgressDialog(onCancel: () -> Unit) {
     val progress by MobileShareProgress.state.collectAsStateWithLifecycle()

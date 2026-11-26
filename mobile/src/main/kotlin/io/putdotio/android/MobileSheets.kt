@@ -22,10 +22,6 @@ import androidx.compose.ui.unit.dp
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioRadius
 
-/**
- * A sheet's 32x4dp handle in `--solid`, 16dp under the sheet's top edge. Material's sheet hangs its
- * expand and dismiss actions on the handle, so it is a labelled 48dp touch target.
- */
 @Composable
 internal fun MobileSheetHandle() {
     val description = stringResource(R.string.mobile_sheet_handle_description)
@@ -43,10 +39,6 @@ internal fun MobileSheetHandle() {
     }
 }
 
-/**
- * Snackbars with the 16dp gutter, 8dp corners and at most one text action in `--yellow-solid` that
- * DESIGN.md gives them, 8dp over what sits under the host.
- */
 @Composable
 internal fun MobileSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
     SnackbarHost(hostState, modifier) { data ->

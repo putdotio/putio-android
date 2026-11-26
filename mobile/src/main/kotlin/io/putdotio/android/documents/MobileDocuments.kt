@@ -29,23 +29,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** What the documents surface reads: the session, put.io through the Files and Search repositories, and bytes. */
 internal class MobileDocumentsBackend(
     val authState: StateFlow<MobileAuthState>,
     val files: FilesRepository,
     val search: SearchRepository,
-    /** A completed download of the file's original bytes, read from disk, or null. */
     val offline: (userId: Long, fileId: FilesItemId) -> DocumentBytes?,
     val remote: (fileId: FilesItemId, size: Long) -> DocumentBytes,
-    /** put.io rejected the session with a 401; the app signs it out as anywhere else. */
     val onAuthenticationRequired: (MobileAuthSessionId) -> Unit,
 )
 
-/**
- * The signed-in account's Files tree as read-only documents. Listings page in through [DocumentListings]; a single
- * document is read from them or from put.io. Everything held here belongs to one session and goes, with every
- * reader it opened, when that session ends. A document id names its account, so nothing resolves under another.
- */
 internal class MobileDocuments(
     private val backend: MobileDocumentsBackend,
     private val scope: CoroutineScope,
@@ -62,7 +54,6 @@ internal class MobileDocuments(
         }
     }
 
-    /** The account's root while signed in; signed out there is none, as the platform's guide asks. */
     fun root(): DocumentsRoot? {
         val signedIn = backend.authState.value as? MobileAuthState.SignedIn ?: return null
         val userId = signedIn.account.userId
@@ -93,10 +84,6 @@ internal class MobileDocuments(
         return session.listing(DocumentsListingKey.Search(session.key.userId, query, term))
     }
 
-    /**
-     * A completed download of the original is read from disk; anything else streams from put.io. [signal] cancels
-     * the waits for the session and the file, which then throw [android.os.OperationCanceledException].
-     */
     fun open(documentId: String, signal: CancellationSignal? = null, onReleased: () -> Unit = {}): DocumentReader {
         val (session, id) = signedIn(documentId, signal)
         val bytes = session.bytes(id, signal)
@@ -126,17 +113,12 @@ internal class MobileDocuments(
         return session to id
     }
 
-    /**
-     * The settled session. A query can arrive before a cold start has restored it; that wait is bounded, and a
-     * session still unsettled afterwards reads as signed out.
-     */
     private fun awaitSession(signal: CancellationSignal? = null): Session? {
         val state = backend.authState.value.takeIf { it.isSettled() }
             ?: blocking(signal, SETTLE_TIMEOUT) { backend.authState.first { it.isSettled() } }
         return enter(state?.sessionKey())
     }
 
-    /** Leaving a session drops what it loaded and stops every reader it opened. */
     private fun enter(key: MobileSessionKey?): Session? =
         synchronized(lock) {
             val current = session
@@ -164,7 +146,6 @@ internal class MobileDocuments(
             )
         }
 
-        /** From a listing this session holds, else one exact-ID read from put.io, kept for the session. */
         fun item(fileId: FilesItemId, signal: CancellationSignal? = null): FilesItem =
             listings.find(fileId) ?: synchronized(lock) { resolved[fileId] } ?: resolve(fileId, signal)
 
@@ -196,10 +177,6 @@ internal class MobileDocuments(
     }
 }
 
-/**
- * Runs [block] on this thread until it returns, [timeout] passes (null), or [signal] cancels it, which throws
- * [android.os.OperationCanceledException]. A provider call blocks a binder thread; the caller can give it up.
- */
 private fun <T> blocking(signal: CancellationSignal?, timeout: Duration, block: suspend () -> T): T? {
     val result = runBlocking {
         val work = async { withTimeoutOrNull(timeout) { block() } }

@@ -64,11 +64,6 @@ import io.putdotio.android.R
 import io.putdotio.android.design.PutioTypeScale
 import io.putdotio.android.design.putioMono
 
-/**
- * An outlined chip on the video, at least 48dp tall to touch, named for what it changes. On a page
- * rather than over video, [onPage] gives it the page's outline; [selected] fills it while its
- * setting is on.
- */
 @Composable
 internal fun MobilePlayerChip(
     label: String,
@@ -149,7 +144,6 @@ internal fun MobileSpeedChip(
     )
 }
 
-/** Audio: the tracks by language, each with its channels and codec. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @Composable
 internal fun MobileAudioSheetContent(
@@ -179,10 +173,6 @@ internal fun MobileAudioSheetContent(
     }
 }
 
-/**
- * Speed: the value large between − and +, which step through the presets; a stepped track over
- * the presets; then quick choices. Every control snaps to a preset.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptionsSnapshot) {
@@ -206,7 +196,6 @@ internal fun MobileSpeedSheetContent(player: Media3Player, snapshot: PlayerOptio
             enabled = enabled && slower != null,
             onClick = { slower?.let(player::setPlaybackSpeed) },
         )
-        // The buttons keep their 56dp; the value takes what is left and shrinks to fit large text.
         BasicText(
             buildAnnotatedString {
                 append(formatPlaybackSpeed(speed))
@@ -281,7 +270,6 @@ private fun SpeedStepButton(@DrawableRes icon: Int, description: String, enabled
     }
 }
 
-/** The presets as stops: passed ones and the track up to the current stop in yellow. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SpeedTrack(speed: Float, speeds: List<Float>, enabled: Boolean, value: String, onSpeed: (Float) -> Unit) {

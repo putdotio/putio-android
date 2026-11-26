@@ -1,6 +1,5 @@
 package io.putdotio.android.transfers
 
-/** A Transfers state as the reducer would hold it, for tests outside this module. */
 public fun transfersState(
     content: TransfersContent,
     refresh: TransfersRefresh = TransfersRefresh.Idle,
@@ -20,7 +19,6 @@ public fun transfersState(
         lastAddReceipt = lastAddReceipt,
     )
 
-/** [copy] for tests outside this module; request ids and paging keep their place in this state. */
 public fun TransfersState.copyForTest(
     content: TransfersContent = this.content,
     refresh: TransfersRefresh = this.refresh,

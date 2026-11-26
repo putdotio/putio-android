@@ -14,11 +14,6 @@ import androidx.media3.datasource.cache.ContentMetadata
 import java.io.ByteArrayInputStream
 import java.io.IOException
 
-/**
- * Serves HLS playlists with every `oauth_token` query removed, so the copies a download stores hold no
- * credential; the resolver authenticates the URLs they list when they are fetched. A playlist is read whole
- * and served from the requested position. Every other resource passes through.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal class TokenFreePlaylistDataSource(private val upstream: DataSource) : DataSource by upstream {
     private var playlist: ByteArrayInputStream? = null
@@ -52,17 +47,11 @@ private const val PLAYLIST_EXTENSION = ".m3u8"
 
 private val OAUTH_TOKEN_PARAMETER = Regex("""([?&])$OAUTH_TOKEN_QUERY=[^&"\s]*(&?)""")
 
-/** The playlist text with each URL's `oauth_token` parameter removed and the rest of its query kept. */
 internal fun withoutOauthTokens(playlist: ByteArray): ByteArray =
     String(playlist, Charsets.UTF_8)
         .replace(OAUTH_TOKEN_PARAMETER) { match -> if (match.groupValues[2].isEmpty()) "" else match.groupValues[1] }
         .toByteArray(Charsets.UTF_8)
 
-/**
- * Rewrites playlists an earlier build stored with `oauth_token` in their URLs, so completed downloads keep playing
- * offline and the resolver never resends that token. A partly stored playlist is removed; its download fetches it
- * again through [TokenFreePlaylistDataSource].
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 internal fun Cache.sanitizeSignedPlaylists() {
     for (key in keys) {

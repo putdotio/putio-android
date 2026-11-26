@@ -14,13 +14,9 @@ internal fun FilesBrowserState.invalidateRestoredItem(item: FilesItem): FilesBro
     return FilesBrowserTransition(copy(stack = invalidated))
 }
 
-// A bulk restore can return items to any folder; mark every cached level stale without navigating.
 internal fun FilesBrowserState.invalidateAllFolders(): FilesBrowserTransition =
     FilesBrowserTransition(copy(stack = stack.map { it.copy(needsReload = true) }))
 
-// The server reports every folder's effective `sort_by`, so cached state cannot tell an
-// inherited order from an explicit one. Treat all levels as reordered: mark them stale and
-// drop their scroll positions, since an index into the old order is meaningless in the new one.
 internal fun FilesBrowserState.invalidateSortOrder(): FilesBrowserTransition =
     FilesBrowserTransition(
         copy(
@@ -34,8 +30,6 @@ internal fun FilesBrowserState.invalidateSortOrder(): FilesBrowserTransition =
         ),
     )
 
-// Duration comes only from a cached progress; a row without one shows the unlabelled watched
-// indicator until the next read supplies it.
 internal fun FilesBrowserState.updatePlaybackPosition(itemId: FilesItemId, seconds: Double): FilesBrowserTransition {
     if (itemId.value <= 0L || !seconds.isFinite() || seconds < 0.0) {
         return FilesBrowserTransition(this, consumed = false)
@@ -54,7 +48,6 @@ internal fun FilesBrowserState.updatePlaybackPosition(itemId: FilesItemId, secon
                 }
             }
         }
-    // A reveal search holds the rows it has read until it settles; they take the position too.
     val updated = stack.map { folder ->
         val content = folder.content as? FilesContent.Ready
         val search = folder.revealSearch

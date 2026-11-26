@@ -10,17 +10,12 @@ internal interface MobileTransferDraftEdits {
 
     fun removeTorrent()
 
-    /**
-     * A `.torrent` picked from the open sheet takes the field's place without asking; the typed links
-     * come back when it is removed. A read that failed shows why in the sheet.
-     */
     fun attachTorrent(picked: MobileSharedTransfer)
 
     fun chooseDestination(folder: FilesFolder?)
 
     fun dismiss()
 
-    /** The add to dispatch, or null after marking what the user must fix. */
     fun validate(): TransfersEvent?
 
     fun setSubmitting(submitting: Boolean)
@@ -30,7 +25,6 @@ internal interface MobileTransferDraftEdits {
     fun restoreRejectedTorrent(file: TorrentUpload)
 }
 
-/** Edits that touch only the visible draft; [MobileTransferDraft] keeps share intake and the session. */
 internal class MobileTransferDraftEditor(
     private val mutableState: MutableStateFlow<MobileTransferDraftState>,
 ) : MobileTransferDraftEdits {
@@ -77,7 +71,6 @@ internal class MobileTransferDraftEditor(
                 null
             current.torrent != null -> TransfersEvent.AddTorrent(current.torrent, saveParentId)
             else -> {
-                // Good lines go; a bad line stays in the field with its reason for the user to fix.
                 val lines = checkMobileTransferLines(current.input)
                 val links = lines.links.takeIf { it.isNotEmpty() && it.size <= MAX_TRANSFER_LINKS }
                 mutableState.value = current.copy(

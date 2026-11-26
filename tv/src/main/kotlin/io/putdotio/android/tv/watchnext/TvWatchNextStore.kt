@@ -18,23 +18,19 @@ import io.putdotio.android.tv.tvLauncherFallbackArt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Whose card a stored program is: the signed-in user it was published for, and its file. */
 internal data class TvWatchNextOwner(
     val userId: Long,
     val fileId: Long,
 )
 
-/** A program this app published, as the system provider holds it. */
 internal data class TvStoredWatchNextProgram(
     val rowId: Long,
-    /** Null for a row this app cannot attribute; it is removed rather than trusted. */
     val owner: TvWatchNextOwner?,
     val program: TvWatchNextProgram,
     val engagedAtMillis: Long,
     val outdated: Boolean = false,
 )
 
-/** The system's Watch Next programs this app owns; the provider refuses anyone else's. */
 internal interface TvWatchNextStore {
     suspend fun programs(): List<TvStoredWatchNextProgram>
 
@@ -45,11 +41,6 @@ internal interface TvWatchNextStore {
     suspend fun delete(rowId: Long)
 }
 
-/**
- * [TvWatchNextStore] on the Android TV provider. Watch Next is best effort: a device without
- * the provider (Fire TV) or one that revokes access reads as empty and drops writes, and the
- * provider rejects selections, so every lookup reads this app's rows and filters them here.
- */
 internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
     private val context = context.applicationContext
     private val resolver = this.context.contentResolver
@@ -99,7 +90,6 @@ internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
             } catch (_: SecurityException) {
                 fallback
             } catch (_: IllegalArgumentException) {
-                // No TV provider on this device: the URI is unknown.
                 fallback
             } catch (_: IllegalStateException) {
                 fallback
@@ -109,12 +99,6 @@ internal class TvProviderWatchNextStore(context: Context) : TvWatchNextStore {
         }
 }
 
-/**
- * The provider row for [program]: a movie-type Continue card whose intent reopens the file in
- * this app and continues it. Leaves `browsable` out, so a card the viewer removed from the row
- * stays removed when its position changes. The platform's `TvContract` (API 26, the app's
- * minimum) names the columns; androidx.tvprovider's builder sits on library-restricted classes.
- */
 internal fun watchNextProgramValues(
     context: Context,
     owner: TvWatchNextOwner,
@@ -137,7 +121,6 @@ internal fun watchNextProgramValues(
         put(WatchNextPrograms.COLUMN_INTERNAL_PROVIDER_ID, owner.toInternalId())
     }
 
-/** Opens the file in this app's activity and continues it from the saved position. */
 internal fun watchNextIntent(context: Context, fileId: Long): Intent =
     Intent(
         Intent.ACTION_VIEW,

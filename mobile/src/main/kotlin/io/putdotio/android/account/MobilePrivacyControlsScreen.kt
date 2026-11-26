@@ -42,8 +42,6 @@ internal const val MOBILE_PRIVACY_CONTROLS_LIST_TAG = "mobile-privacy-controls-l
 internal const val MOBILE_PRIVACY_CONTROLS_ROW_TAG = "mobile-privacy-controls-row"
 internal const val MOBILE_STRICTLY_NECESSARY_TAG = "mobile-strictly-necessary"
 
-// Purpose-based opt-outs per the frontend analytics contract. Strictly necessary
-// processing is disclosed, never toggled; both account keys are cross-client.
 @Composable
 internal fun MobilePrivacyControlsScreen(
     settingsState: AccountSettingsState,
@@ -84,7 +82,6 @@ internal fun MobilePrivacyControlsScreen(
                     MobileSettingsGroup {
                         MobileSettingsSegment(
                             segment = SettingsSegment.First,
-                            // One focus stop: TalkBack reads the title, Always on, and the description together.
                             modifier = Modifier
                                 .semantics(mergeDescendants = true) {}
                                 .testTag(MOBILE_STRICTLY_NECESSARY_TAG),
@@ -157,7 +154,6 @@ internal fun MobilePrivacyControlsScreen(
     }
 }
 
-/** A two-line privacy row: the glyph and the trailing control sit on the title's line. */
 @Composable
 private fun PrivacyLine(
     @StringRes title: Int,
@@ -207,7 +203,6 @@ private fun PrivacyToggle(
     val failure = (mutation as? AccountSettingsMutation.Failed)?.takeIf { it.change.key == key }
     MobileSettingsSegment(
         segment = segment,
-        // The description is part of the switch's node, so TalkBack reads it with the control.
         interaction = Modifier.toggleable(
             value = checked,
             enabled = enabled,

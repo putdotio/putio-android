@@ -38,12 +38,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * On-device safe-area proof for the signed-in TV shell at the emulator's
- * current `wm size`. Placeholder panes and a synthetic account: no API calls.
- * Screenshots outline the safe edge in red, then the test asserts every label
- * and focus target lies inside it.
- */
 @OptIn(ExperimentalTestApi::class)
 @RunWith(AndroidJUnit4::class)
 class TvSafeAreaProofTest {
@@ -160,7 +154,6 @@ class TvSafeAreaProofTest {
     }
 
     private companion object {
-        /** Sub-pixel float noise from scaled focus targets, not a layout tolerance. */
         const val EPSILON = 0.5f
 
         val visibleContent = SemanticsMatcher("text, description or click target") {

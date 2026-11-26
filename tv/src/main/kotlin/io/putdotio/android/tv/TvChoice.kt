@@ -42,11 +42,6 @@ internal data class TvChoice<T>(
     val label: String,
 )
 
-/**
- * Centred M3 choice dialog per the TV contract: 28dp corner, one radio row per
- * choice, focus lands on the current choice (or the first row when there is none),
- * Back dismisses without a change.
- */
 @Composable
 internal fun <T> TvChoiceDialog(
     title: String,
@@ -58,12 +53,8 @@ internal fun <T> TvChoiceDialog(
     val selectedFocus = remember { FocusRequester() }
     val bringSelectedIntoView = remember { BringIntoViewRequester() }
     Dialog(onDismissRequest = onDismiss) {
-        // Requested from inside the dialog window, after its content has attached. The
-        // rows are scrolled first so a choice below the fold is on screen when it lights up.
-        // Nothing carries the requesters when there are no choices, so nothing is requested.
         LaunchedEffect(choices.isEmpty()) {
             if (choices.isEmpty()) return@LaunchedEffect
-            // The rows are laid out one frame after the window opens.
             withFrameNanos {}
             bringSelectedIntoView.bringIntoView()
             selectedFocus.requestFocus()
@@ -71,12 +62,10 @@ internal fun <T> TvChoiceDialog(
         Column(
             modifier = Modifier
                 .width(560.dp)
-                // Twelve rows outgrow a 540dp canvas; the bound is what lets the rows scroll.
                 .heightIn(max = 480.dp)
                 .background(PutioDesignTokens.componentBgHover, RoundedCornerShape(PutioRadius.extraLarge))
                 .padding(24.dp),
         ) {
-            // Outside the scrolling rows, so bringing a choice into view never scrolls it away.
             Text(
                 text = title,
                 style = MaterialTheme.typography.headlineSmall,

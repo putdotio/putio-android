@@ -32,15 +32,6 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Opt-in, no API calls: plays a local file on the app's renderers, muted, and reports which decoder
- * took each track and whether the device inventory counts the file's codecs.
- *
- * Arguments: `putio.ffmpegAudio.enabled=true`; `putio.ffmpegAudio.file`, a file name in this test
- * package's external files directory; `putio.ffmpegAudio.audioMime`, the audio track to prefer;
- * `putio.ffmpegAudio.expect`, `decoded` (audio the platform lacks plays on FFmpeg, video on MediaCodec)
- * or `rejected` (no decoder takes the video, as for AV1 on a device without one).
- */
 @RunWith(AndroidJUnit4::class)
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 class FfmpegAudioProofTest {

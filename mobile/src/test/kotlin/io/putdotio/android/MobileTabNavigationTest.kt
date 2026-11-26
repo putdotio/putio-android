@@ -50,7 +50,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** DESIGN.md Layout: five tabs, each with its own back stack; Back pops the tab, then returns to Files. */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "en-rUS-w360dp-h640dp-port")
@@ -75,7 +74,6 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
         tab("Transfers").performClick()
         compose.onNodeWithTag(MOBILE_TAB_TITLE_TAG).assertTextEquals("Transfers")
         tab("Account").performClick()
-        // Account comes back on Trash, where it was left.
         tab("Account").assertIsSelected()
         compose.onNode(hasText("Trash") and !hasAnyAncestor(hasTestTag(MOBILE_ACCOUNT_LIST_TAG))).assertExists()
 
@@ -94,7 +92,6 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
     fun searchOpensOverFilesStaysOpenAcrossTabsAndBackClosesIt() {
         mount(nested = true)
         compose.onNodeWithTag(MOBILE_FILES_SEARCH_TAG).performClick()
-        // The pill hands its cursor to the expanded field.
         compose.onNodeWithTag(MOBILE_SEARCH_FIELD_TAG).assertIsFocused()
         tab("Files").assertIsSelected()
 
@@ -111,7 +108,6 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
     fun aCancelledBackGestureKeepsTheFolderAndACommittedOneLeavesIt() {
         val events = mutableListOf<FilesBrowserEvent>()
         mount(nested = true, onFilesEvent = { events += it; true })
-        // The opened folder is still loading; its skeleton stands for the folder's content.
         val list = compose.onNodeWithContentDescription("Loading files")
         val resting = list.fetchSemanticsNode().boundsInRoot.width
         val dispatcher = backOwner.onBackPressedDispatcher
@@ -120,7 +116,6 @@ class MobileTabNavigationTest : NavigationShellFixture(1f) {
             dispatcher.dispatchOnBackProgressed(BackEventCompat(40f, 0f, 0.5f, BackEventCompat.EDGE_LEFT))
         }
         compose.waitForIdle()
-        // Mid-gesture the folder shrinks toward the edge it is dragged from.
         assertTrue(list.fetchSemanticsNode().boundsInRoot.width < resting * 0.97f)
         compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
         compose.waitForIdle()
@@ -218,7 +213,6 @@ class MobileTabSummaryTest {
             ),
         )
         val summary = summaryOf(transfersSummaryParts(context, state), mono)!!
-        // Queued transfers wait; only the downloading one counts as active.
         assertEquals("1 active · 1 failed · 1.4 MB/s", summary.text)
         val monoRuns = summary.spanStyles.filter { it.item == mono }.map { summary.text.substring(it.start, it.end) }
         assertEquals(listOf("1", "1", "1.4 MB/s"), monoRuns)

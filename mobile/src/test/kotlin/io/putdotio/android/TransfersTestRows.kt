@@ -17,7 +17,6 @@ import io.putdotio.android.transfers.TransfersState
 import io.putdotio.android.transfers.copyForTest
 import io.putdotio.android.transfers.transfersState
 
-/** The Add transfer FAB, named through its semantics, or the empty state's button. */
 internal val AddTransferAction = hasContentDescription("Add transfer") or hasText("Add transfer")
 
 internal fun transfersTestState(

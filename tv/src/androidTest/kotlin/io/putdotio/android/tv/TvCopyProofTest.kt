@@ -35,11 +35,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.RunWith
 import org.junit.runners.model.Statement
 
-/**
- * Controlled-state captures of the History, quota and Trash copy on the real signed-in TV
- * shell: History lists every event the phone lists, the quota follows
- * `show_optimistic_usage`, Trash states its 14 days. No API calls.
- */
 @RunWith(AndroidJUnit4::class)
 class TvCopyProofTest {
     private val compose = createAndroidComposeRule<TvProofActivity>()
@@ -130,7 +125,6 @@ class TvCopyProofTest {
         52_428_800, "2026-09-28T12:00:00Z", "2026-10-12T12:00:00Z",
     )
 
-    /** Walks the D-pad down until the row reading [label] holds focus. */
     private fun focusText(label: String) {
         repeat(MAX_STEPS) {
             val focused = compose.onAllNodesWithText(label).fetchSemanticsNodes()

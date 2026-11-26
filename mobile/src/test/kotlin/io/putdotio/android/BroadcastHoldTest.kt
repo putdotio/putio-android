@@ -9,7 +9,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** A receiver's broadcast ends within the 10 s a foreground-queue delivery gets, exactly once. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
 class BroadcastHoldTest {

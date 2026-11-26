@@ -41,7 +41,6 @@ internal interface PendingOAuthAttemptStore {
     suspend fun clear()
 }
 
-/** The sign-in attempt this device waits on: its OAuth state, when it started, and when it expires. */
 internal class OAuthAttempts(
     private val store: PendingOAuthAttemptStore,
     private val stateGenerator: OAuthStateGenerator = SecureOAuthStateGenerator(),
@@ -49,19 +48,15 @@ internal class OAuthAttempts(
 ) {
     fun newState(): String = stateGenerator.generate()
 
-    /** Throws [PendingOAuthAttemptStorageException] when the attempt is not durable. */
     suspend fun record(state: String) {
         store.write(PendingOAuthAttempt(state = state, createdAtEpochMillis = clock.nowEpochMillis()))
     }
 
-    /** The recorded attempt, or null when there is none or it expired; throws like [record]. */
     suspend fun readUnexpired(): PendingOAuthAttempt? =
         store.read()?.takeUnless { it.isExpired(clock.nowEpochMillis()) }
 
-    /** Throws like [record]. */
     suspend fun exists(): Boolean = store.read() != null
 
-    /** False when the store could not be cleared. */
     suspend fun clear(): Boolean =
         try {
             store.clear()

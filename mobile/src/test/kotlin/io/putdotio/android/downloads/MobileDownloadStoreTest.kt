@@ -68,14 +68,11 @@ class MobileDownloadStoreTest {
         val reloaded = MobileDownloadStore(preferences, "user-3", Dispatchers.Unconfined)
             .entries.value.sortedBy { it.fileId.value }
         assertEquals(missing, reloaded[0])
-        // A pause resumes by itself, so the next process starts it from the queue.
         assertEquals(paused.copy(status = DownloadStatus.Queued), reloaded[1])
-        // The viewer's pause holds, so the row offers Resume before Media3 reports.
         val held = entry(3L, DownloadStatus.Paused(DownloadPauseReason.USER, 9L)).copy(pauseRequested = true)
         store.upsert(held)
         val heldAgain = MobileDownloadStore(preferences, "user-3", Dispatchers.Unconfined).find(FilesItemId(3L))
         assertEquals(held, heldAgain)
-        // A row written before these fields existed: queued when created, setting unknown.
         preferences.edit().putString(
             "user-4",
             """[{"fileId":5,"name":"old","type":"${PutioFileType.VIDEO.raw}","artifact":"HLS","createdAt":50,""" +
@@ -91,7 +88,6 @@ class MobileDownloadStoreTest {
     fun aRowThisBuildCannotReadCostsOnlyThatRowAndSurvivesTheNextWrite() = runBlocking {
         val good = """{"fileId":5,"name":"good","type":"VIDEO","artifact":"HLS","createdAt":50,""" +
             """"accepted":true,"status":{"kind":"completed","bytes":7}}"""
-        // A newer build's rendition and a damaged row.
         val newer = """{"fileId":6,"name":"newer","type":"VIDEO","artifact":"DASH","createdAt":60,""" +
             """"status":{"kind":"completed","bytes":8}}"""
         preferences.edit().putString("user-5", "[$good,$newer,\"damaged\"]").commit()
@@ -106,7 +102,6 @@ class MobileDownloadStoreTest {
         assertEquals(listOf(7L), MobileDownloadStore(preferences, "user-5", Dispatchers.Unconfined)
             .entries.value.map { it.fileId.value })
 
-        // Deleting that file drops its unreadable row too, so a later build cannot bring it back.
         store.remove(FilesItemId(6L))
         assertTrue(!preferences.getString("user-5", "").orEmpty().contains("DASH"))
     }

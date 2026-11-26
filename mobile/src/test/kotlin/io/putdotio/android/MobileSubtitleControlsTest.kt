@@ -99,7 +99,6 @@ private fun ImageBitmap.hasVisiblePixel(): Boolean {
     return false
 }
 
-/** The row below the lowest pixel unlike the top-left corner's background, or 0 when there is none. */
 private fun ImageBitmap.drawnBottom(): Int {
     val pixels = toPixelMap()
     val background = pixels[0, 0]
@@ -151,7 +150,6 @@ class MobileSubtitleControlsTest {
         compose.runOnIdle { player.trackSelectionParameters = defaults }
         compose.setBuiltContent { SubtitleSheet(player, defaults, sidecar) { selection = it } }
         compose.onNodeWithText("No captions available").assertIsDisplayed()
-        // Tracks arrive after the sheet is up.
         val group = sourcedSubtitleGroup()
         compose.runOnIdle { player.discover(group) }
         compose.onNodeWithText("No captions available").assertDoesNotExist()
@@ -190,7 +188,6 @@ class MobileSubtitleControlsTest {
         compose.runOnIdle { assertTrue(C.TRACK_TYPE_TEXT in player.trackSelectionParameters.disabledTrackTypes) }
         compose.onNode(hasText("English") and isSelectable()).performClick()
         compose.runOnIdle {
-            // Subtitle choices leave the audio preference alone.
             assertEquals(listOf("de"), player.trackSelectionParameters.preferredAudioLanguages)
             assertTrue(C.TRACK_TYPE_TEXT !in player.trackSelectionParameters.disabledTrackTypes)
             assertEquals(listOf(2), player.trackSelectionParameters.overrides.getValue(group).trackIndices)
@@ -272,10 +269,8 @@ class MobileSubtitleControlsTest {
         }
     }
 
-    /** Four supported tracks, one of them embedded in the stream, and one the device can't render. */
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     private fun sourcedSubtitleGroup(): TrackGroup = TrackGroup(
-        // Media3 prefixes a merged period's format ids with its index.
         Format.Builder().setId("1:os-tr").setLanguage("tr").setLabel("Turkish")
             .setSampleMimeType(MimeTypes.APPLICATION_SUBRIP).build(),
         Format.Builder().setId("2:mkv-en").setLanguage("en").setLabel("English")
@@ -333,7 +328,6 @@ class MobileSubtitleControlsTest {
     @Test
     @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
     fun unplacedSubtitleCuesRiseAboveControlsAndReturnWhenTheyHide() {
-        // HLS subtitle renditions are WebVTT; sidecar files are often SubRip.
         val webvtt = "WEBVTT\n\n00:00.000 --> 00:05.000\nA subtitle line\n".toByteArray()
         val subrip = "1\n00:00:00,000 --> 00:00:05,000\nA subtitle line\n".toByteArray()
         val parsed = mapOf(

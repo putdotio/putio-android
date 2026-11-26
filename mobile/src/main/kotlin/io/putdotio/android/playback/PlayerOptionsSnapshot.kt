@@ -38,7 +38,6 @@ internal class PlayerOptionsSnapshot(player: Media3Player) {
         } ?: audioTracks.firstOrNull { it.selected }
 }
 
-/** A Cast receiver plays fewer presets than this device. */
 private fun Media3Player.playbackSpeeds(): List<Float> =
     if (deviceInfo.playbackType == DeviceInfo.PLAYBACK_TYPE_REMOTE) CAST_PLAYBACK_SPEEDS else PLAYBACK_SPEEDS
 

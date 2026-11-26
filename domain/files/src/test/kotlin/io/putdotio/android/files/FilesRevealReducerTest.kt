@@ -235,7 +235,6 @@ class FilesRevealReducerTest {
         assertNull(elsewhere.effect)
     }
 
-    /** Answers every listing request from [pages] and returns the settled state and the cursors read. */
     private fun drive(
         transition: FilesBrowserTransition,
         pages: List<FilesPage>,

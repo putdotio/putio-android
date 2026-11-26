@@ -94,7 +94,6 @@ internal const val MOBILE_FILES_SKELETON_TAG = "mobile-files-skeleton"
 internal const val MOBILE_FILES_OFFLINE_TAG = "mobile-files-offline"
 internal const val MOBILE_FILES_NEW_FOLDER_TAG = "mobile-files-new-folder"
 
-/** What sits above a listing's rows: the root's Continue watching row, or a folder's count line. */
 internal data class MobileFilesHeaders(
     val continueWatching: List<ContinueWatchingEntry> = emptyList(),
     val pinned: List<FilesItem> = emptyList(),
@@ -103,7 +102,6 @@ internal data class MobileFilesHeaders(
     private val sections: Boolean
         get() = continueWatching.isNotEmpty() || pinned.isNotEmpty()
 
-    /** List items above the first row; the viewport counts rows only. */
     val itemCount: Int
         get() = when {
             sections -> 1 + (if (continueWatching.isNotEmpty()) CONTINUE_WATCHING_ITEMS else 0) +
@@ -126,10 +124,6 @@ internal class MobilePinnedRows(
 internal fun MobileFilesItemActions.pinnedActions(onOpen: (FilesItem) -> Unit): MobilePinnedActions =
     MobilePinnedActions(onOpen = onOpen, onUnpin = onSetPinned?.let { set -> { item -> set(item, false) } })
 
-/**
- * The items above the first row. [hidden] in selection draws them empty but keeps them in the list,
- * so entering selection neither shifts row indices nor cancels the long-press that started it.
- */
 internal fun LazyListScope.mobileFilesHeaderItems(
     headers: MobileFilesHeaders,
     pinnedRows: MobilePinnedRows,
@@ -251,7 +245,6 @@ private fun MobileFilesSectionLabel(
     }
 }
 
-/** "6 items" with the count in mono, and the folder's total size in mono at the end. */
 @Composable
 private fun MobileFolderSummaryLine(summary: FilesFolderSummary) {
     val style = MaterialTheme.typography.titleSmall
@@ -299,7 +292,6 @@ private fun MobileContinueWatchingRow(
     }
 }
 
-/** A started video: its name, a yellow progress line and the time left in mono. */
 @Composable
 private fun MobileContinueWatchingCard(
     entry: ContinueWatchingEntry,
@@ -397,7 +389,6 @@ private fun remainingLabel(left: String): AnnotatedString {
     }
 }
 
-/** "4:12" under an hour, "1:13:40" from one. */
 internal fun formatRemaining(seconds: Long): String {
     val hours = seconds / SECONDS_PER_HOUR
     val minutes = seconds % SECONDS_PER_HOUR / SECONDS_PER_MINUTE
@@ -405,7 +396,6 @@ internal fun formatRemaining(seconds: Long): String {
     return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, rest) else "%d:%02d".format(minutes, rest)
 }
 
-/** Skeleton rows in the row's slots, pulsing on surface-container-high; held still when motion is off. */
 @Composable
 internal fun MobileFilesSkeleton(
     modifier: Modifier = Modifier,
@@ -485,20 +475,13 @@ private fun SkeletonBlock(color: Color, modifier: Modifier, radius: Dp = 6.dp) {
     Box(modifier.clip(RoundedCornerShape(radius)).background(color))
 }
 
-/**
- * put.io didn't answer: what's on this device stays usable under a banner, then the offline state.
- * It tries again by itself once the system reports a working network.
- */
 @Composable
 internal fun MobileFilesOffline(
     onDevice: List<FilesItem>,
-    /** Null while a retry runs: Try again waits and no other retry starts. */
     onRetry: (() -> Unit)?,
     onPlayMedia: (FilesItem) -> Unit,
     modifier: Modifier = Modifier,
-    /** The failure on screen; each new one restarts the retry clock. */
     failure: Any? = null,
-    /** Opens a row's sheet of what works offline. */
     onActions: ((FilesItem) -> Unit)? = null,
 ) {
     onRetry?.let { RetryWhenOnline(failure, it) }
@@ -559,7 +542,6 @@ private fun MobileOfflineBanner() {
     }
 }
 
-/** The put.io empty-state voice placed for Files: centred a little above the middle, as the board sets it. */
 @Composable
 internal fun MobileFilesEmptyState(
     glyph: PutioEmptyGlyph,
@@ -592,7 +574,6 @@ internal fun MobileNewFolderButton(onClick: () -> Unit) {
     }
 }
 
-/** Finished downloads as Files rows, newest first, for the offline state. */
 internal fun DownloadsState.onDeviceItems(): List<FilesItem> =
     onDevice.filter { isAvailableOffline(it.fileId) }.sortedByDescending { it.createdAt }.map { entry ->
         FilesItem(
@@ -619,7 +600,6 @@ private const val SKELETON_DIM = 0.45f
 @Suppress("MagicNumber") // The control points are the CSS curve's definition.
 private val SkeletonEasing = CubicBezierEasing(0f, 0f, 0.58f, 1f)
 
-/** Rows pulse out of step: every third row runs 450ms ahead, every other even row 200ms. */
 private fun skeletonLead(index: Int): Int {
     val row = index + 1
     return when {

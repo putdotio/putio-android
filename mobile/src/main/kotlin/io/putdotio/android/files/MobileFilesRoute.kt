@@ -51,33 +51,24 @@ internal fun MobileFilesRoute(
     pinned: List<FilesItem> = emptyList(),
     onRefreshPinned: (() -> Unit)? = null,
     onNewFolder: (() -> Unit)? = null,
-    /** From 840dp, the Files bar; it then sits over the list pane, beside the selected file's detail. */
     listPaneTopBar: (@Composable () -> Unit)? = null,
-    /** Reaches files for the viewers and other apps; null leaves only media playable. */
     fileOpener: MobileFileOpener? = null,
     subtitleLanguages: FilesSubtitleLanguages? = null,
-    /** The account's confirmed resume setting, which the detail's Resume label follows. */
     resumePlayback: Boolean = true,
     itemActions: MobileFilesItemActions = MobileFilesItemActions(),
-    /** Lets the Move and Make a copy pickers create a folder; null hides their New folder. */
     folderCreator: FilesFolderCreator? = null,
-    /** The current folder's selection, shared with the shell's top bar; null leaves Select out. */
     selection: FilesSelection? = null,
     linkedFile: FilesItemId? = null,
     onLinkedFileLanded: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    // Opening a folder pushes along the shared axis and Back pops; the leaving folder keeps its own state.
     val folderKey = { browser: FilesBrowserState -> browser.stack.size to browser.current.folder.id.value }
     val currentKey = folderKey(state)
     val items = state.current.content.items()
     val showsDetail = listPaneTopBar != null
-    // While rows are being selected the detail pane shows no file: a tap checks a row, not opens it.
     val selecting = selection?.isActive(state) == true
-    // The file the detail pane shows; another folder starts with none.
     var detailId by rememberSaveable(currentKey.first, currentKey.second) { mutableStateOf<Long?>(null) }
     var viewerId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // Select from a viewer's actions closes the viewer, so the selection shows.
     LaunchedEffect(selecting) { if (selecting) viewerId = null }
     var pinToOpen by rememberSaveable { mutableStateOf<Long?>(null) }
     val openWithAnotherApp: (FilesItem) -> Unit = { item -> fileOpener?.openWithAnotherApp(context, item) }
@@ -121,7 +112,6 @@ internal fun MobileFilesRoute(
         }
     }
     val openActions = actionsFrom(false)
-    // Movable, so crossing 840dp keeps the folder's sheet, rename draft and pickers.
     val folders = remember { movableContentOf { args: MobileFilesFoldersArgs -> MobileFilesFolders(args) } }
     val foldersArgs =
         MobileFilesFoldersArgs(
@@ -224,7 +214,6 @@ private fun LandOnLinkedFile(
     LaunchedEffect(linkedItem?.id) { linkedItem?.let(currentLand) }
 }
 
-/** Media plays, images, PDFs and text open in the viewer, and anything else in another app. */
 private fun fileOpenAction(
     onPlayMedia: (FilesItem) -> Unit,
     onView: (FilesItem) -> Unit,
@@ -248,7 +237,6 @@ private fun MobileFilesItemActions.opening(
     else -> copy(onOpen = view, onOpenWith = openWith)
 }
 
-/** The viewer over the folder's files of the shown file's kind, while that file is still listed. */
 @Composable
 private fun MobileFilesViewerHost(
     state: FilesBrowserState,
@@ -280,12 +268,10 @@ private fun MobileFilesViewerHost(
             ),
         )
     } else if (viewerId != null && state.current.content !is FilesContent.Loading) {
-        // The file left the listing, or the listing changed folder: there is nothing left to view.
         SideEffect(onClose)
     }
 }
 
-/** Everything the folder listings take; one value, so the movable listing gets it as its parameter. */
 private data class MobileFilesFoldersArgs(
     val state: FilesBrowserState,
     val currentKey: Pair<Int, Long>,
@@ -318,8 +304,6 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
         contentKey = folderKey,
         forward = { initial, target -> target.stack.size >= initial.stack.size },
     ) { shown ->
-        // The reducer applies most events to the current folder, so the leaving one sends only an
-        // announced deletion, which the reducer matches anywhere in the stack, and starts nothing.
         val leaving = folderKey(shown) != currentKey
         MobileFilesFolder(
             state = shown,
@@ -343,7 +327,6 @@ private fun MobileFilesFolders(args: MobileFilesFoldersArgs) = with(args) {
             fileOpening = fileOpening?.takeUnless { leaving },
             itemActions = itemActions,
             folderCreator = folderCreator,
-            // The leaving folder's rows show no selection; the selection belongs to the folder on screen.
             selection = selection?.takeUnless { leaving },
         )
     }
@@ -385,7 +368,6 @@ private fun MobileFilesFolder(
     selection: FilesSelection?,
 ) {
     key(repository, state.current.folder.id.value) {
-        // One item from its sheet, or the selection from the toolbar; the picker moves them together.
         var movingItemIds by rememberSaveable { mutableStateOf(emptyList<Long>()) }
         val movingItems = state.listedAll(movingItemIds)
         val startMove = movePicker(repository, state) { items -> movingItemIds = items.map { it.id.value } }
@@ -415,8 +397,6 @@ private fun MobileFilesFolder(
             selection = selection,
             onMoveItems = startMove,
         )
-        // A folder made in the picker is new to every cached listing of its parent. Those listings
-        // read again once the picker closes: a reload now could drop the item it is moving or copying.
         val createdInPicker = remember { PickerCreatedFolders() }
         val pickerFolders = MobileMovePickerFolders(folderCreator, onAuthenticationRequired, createdInPicker::add)
         val closePicker = { createdInPicker.invalidate(onEvent) }
@@ -433,7 +413,6 @@ private fun MobileFilesFolder(
                     movingItemIds = emptyList()
                     closePicker()
                 },
-                // Moved items leave the folder, so their selection ends with the move.
                 onMoved = { selection?.end() },
                 folders = pickerFolders,
             )
@@ -470,23 +449,17 @@ private fun MobileFilesFolder(
     }
 }
 
-/** Opens the Move picker for one item or several, while this folder can start a move. */
 private fun movePicker(
     repository: FilesRepository?,
     state: FilesBrowserState,
     open: (List<FilesItem>) -> Unit,
 ): ((List<FilesItem>) -> Unit)? = open.takeIf { repository != null && state.canStartMove }
 
-/** Every item of [ids] in the current listing, or null: the picker never moves fewer than it says. */
 private fun FilesBrowserState.listedAll(ids: List<Long>): List<FilesItem>? {
     val listed = (current.content as? FilesContent.Ready)?.items.orEmpty().filter { it.id.value in ids }
     return listed.takeIf { it.isNotEmpty() && it.size == ids.size }
 }
 
-/**
- * The move picker without a source item, so every folder of the viewer's own, root included, is a
- * destination. Like Move, it opens at root unless "Remember target folder" is on.
- */
 @Composable
 private fun MobileFilesCopySession(
     item: FilesItem,
@@ -586,7 +559,6 @@ private fun MobileFilesMoveSession(
                 if (onEvent(FilesBrowserEvent.Move(sourceFolderId, itemIds, current.current.folder.id))) {
                     memory.choose(targetStore, current.path)
                     onMoved()
-                    // The session-owned browser retains the submitted operation after the picker closes.
                     onDismiss()
                 } else {
                     finished = false
@@ -603,7 +575,6 @@ private fun MobileFilesMoveSession(
 private val FilesMoveDestinationState.confirmable: Boolean
     get() = canMoveHere && current.content.authoritativeSessionFailure() == null
 
-/** Read once per picker, so a toggle changes where the next picker opens, as on web. */
 @Composable
 private fun rememberMoveTargetMemory(
     store: FilesMoveTargetStore?,
@@ -624,7 +595,6 @@ private fun MutableState<FilesMoveTargetMemory>.choose(store: FilesMoveTargetSto
     }
 }
 
-/** Folders made in an open picker; their parents' listings go stale once it closes. */
 private class PickerCreatedFolders {
     private val folders = mutableListOf<FilesItem>()
 

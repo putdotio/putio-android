@@ -21,24 +21,15 @@ public data class FilesItem(
     val sizeBytes: Long,
     val createdAt: String,
     val playback: FilesPlaybackProgress? = null,
-    /** A friend's file shown under Items shared with you; the viewer can read it but not change it. */
     val isShared: Boolean = false,
     val folderType: PutioFolderType = PutioFolderType.REGULAR,
-    /** put.io's still image of a video, as a token-free URL; null when put.io has none. */
     val screenshotUrl: String? = null,
-    /** The API's `updated_at`; absent when the response omits it. */
     val updatedAt: String? = null,
-    /** The API's `content_type`; null when omitted or blank. */
     val contentType: String? = null,
 ) {
     val isFolder: Boolean
         get() = type == PutioFileType.FOLDER
 
-    /**
-     * Rename, Move, Delete and the watched toggle need the viewer to own the item. The server
-     * rejects them for friends' files and for the virtual shared folders, so neither surface
-     * offers them there; reading actions such as Download stay.
-     */
     val acceptsOwnerActions: Boolean
         get() = !isShared && folderType != PutioFolderType.SHARED_ROOT && folderType != PutioFolderType.SHARED_FRIEND
 
@@ -46,11 +37,6 @@ public data class FilesItem(
         get() = type == PutioFileType.VIDEO || type == PutioFileType.AUDIO
 }
 
-/**
- * Server-side watch position for media rows. `start_from` is the account's saved
- * position in seconds; duration comes from video metadata and may be unknown.
- * Web treats any position above zero as watched, so this does too.
- */
 public data class FilesPlaybackProgress(
     val startFromSeconds: Double,
     val durationSeconds: Double?,
@@ -70,17 +56,13 @@ public data class FilesPage(
     val items: List<FilesItem>,
     val nextCursor: FilesCursor?,
     val sort: FilesSort? = null,
-    /** The listed item itself; for a media file, the only read that carries its duration. */
     val parent: FilesItem? = null,
-    /** How many items the whole folder holds; only a first page carries it. */
     val total: Int? = null,
 )
 
-/** What put.io reports about a folder with its first page: its item count, total size and ownership. */
 public data class FilesFolderSummary(
     val itemCount: Int,
     val sizeBytes: Long?,
-    /** False for shared folders, which take no new items from the viewer, and when the page names no parent. */
     val acceptsNewItems: Boolean = true,
 )
 
@@ -93,20 +75,16 @@ internal fun FilesPage.summary(): FilesFolderSummary? =
         )
     }
 
-/** Where an item opened from outside the Files browser came from; Back from its folder returns there. */
 public enum class FilesOpenOrigin {
     SEARCH,
     HISTORY,
     TRANSFERS,
 
-    /** A product link; its folder sits on top of the prior Files location and Back stays in Files. */
     LINK,
 
-    /** A TV Home card, or a pin on the mobile Files root. */
     HOME,
 }
 
-/** An item to open from outside the Files browser, with where the viewer chose it. */
 public data class FilesExternalOpen(
     val item: FilesItem,
     val origin: FilesOpenOrigin,

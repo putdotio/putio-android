@@ -53,10 +53,6 @@ import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/**
- * Drives the engine against a real Media3 manager and index; only the byte
- * transfer is scripted, so stop reasons, reconcile and progress go through Media3.
- */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35])
@@ -66,7 +62,6 @@ class MobileDownloadEngineTest {
     private val index = DefaultDownloadIndex(StandaloneDatabaseProvider(context), "EngineTest")
     private val downloaders = ScriptedDownloaders()
     private val preferences = context.getSharedPreferences("engine-test", Context.MODE_PRIVATE)
-    // Main.immediate plus an unconfined index read runs reconcile inside the constructor, as a test step.
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val managers = mutableListOf<DownloadManager>()
     private val engines = mutableListOf<MobileDownloadEngine>()
@@ -99,7 +94,6 @@ class MobileDownloadEngineTest {
 
         awaitMain { manager.stopReasonOf("$BOB:20") == PARKED && manager.stopReasonOf("$ALICE:11") == 0 }
         awaitMain { store.status(10L) == DownloadStatus.Completed(TOTAL) }
-        // Media3 never saw this request: it goes out again, skipping subtitles for a hide_subtitles account.
         val request = startedRequest()
         assertEquals("$ALICE:13", request.id)
         assertEquals("0", request.uri.getQueryParameter("max_subtitle_count"))
@@ -110,19 +104,15 @@ class MobileDownloadEngineTest {
     @Test
     fun everyRowRecoversToAStateTheViewerCanActOnAndOnlyConfirmedDeletesLeave() {
         index.putDownload(download("$ALICE:10", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
-        // Media3 still lists it, but its bytes are gone from the cache.
         index.putDownload(download("$ALICE:11", Download.STATE_COMPLETED, bytes = TOTAL))
         index.putDownload(download("$ALICE:15", Download.STATE_COMPLETED, bytes = TOTAL).also(::cacheBytes))
         val store = store(ALICE)
         runBlocking {
             store.upsert(entry(10L, accepted = true, status = DownloadStatus.Completed(TOTAL)))
             store.upsert(entry(11L, accepted = true, status = DownloadStatus.Completed(TOTAL)))
-            // Interrupted mid-transfer, and Media3 lost the request.
             store.upsert(entry(12L, accepted = true, status = DownloadStatus.Downloading(5L, 1f)))
             store.upsert(entry(13L, accepted = true, status = DownloadStatus.Failed(DownloadFailureReason.STORAGE, 9L)))
-            // Finished, then Media3's record went with the bytes.
             store.upsert(entry(14L, accepted = true, status = DownloadStatus.Completed(TOTAL)))
-            // Deletes confirmed before the process died: one Media3 finished, one it never heard of.
             store.upsert(entry(16L, accepted = true, status = DownloadStatus.Completed(TOTAL)).copy(removing = true))
             store.upsert(entry(15L, accepted = true, status = DownloadStatus.Completed(TOTAL)).copy(removing = true))
         }
@@ -184,7 +174,6 @@ class MobileDownloadEngineTest {
         assertEquals(PutioFileType.AUDIO to DownloadArtifact.ORIGINAL, audio.type to audio.artifact)
         assertTrue(audio.isActive)
         assertTrue(store.entries.value.none { it.fileId.value == 40L })
-        // Nothing is deleted on the way: bytes leave only through a confirmed delete.
         val removals = generateSequence { shadowOf(context).nextStartedService }
             .filter { it.action == DownloadService.ACTION_REMOVE_DOWNLOAD }.toList()
         assertTrue(removals.isEmpty())
@@ -195,7 +184,6 @@ class MobileDownloadEngineTest {
         awaitMain {
             shadowOf(context).nextStartedService?.getStringExtra(DownloadService.KEY_CONTENT_ID) == "$ALICE:30"
         }
-        // The service hands the remove to Media3; the row leaves once Media3 confirms.
         manager.removeDownload("$ALICE:30")
         awaitMain { store.find(FilesItemId(30L)) == null }
         controller.close()
@@ -205,7 +193,6 @@ class MobileDownloadEngineTest {
     fun queueOrderAndConcurrencySurviveProcessRecreation() {
         for (id in 10L..13L) index.putDownload(queued("$ALICE:$id", startTimeMs = id))
         val store = store(ALICE)
-        // Newest-first creation times: only Media3's start times can put these rows in order.
         runBlocking {
             for (id in 10L..13L) store.upsert(entry(id, accepted = true).copy(createdAt = 100L - id, queuedAt = 0L))
         }
@@ -217,7 +204,6 @@ class MobileDownloadEngineTest {
         awaitMain { first.running() == listOf("$ALICE:10", "$ALICE:11") }
         awaitMain { queueOf(store) == listOf(10L to null, 11L to null, 12L to 1, 13L to 2) }
 
-        // Process death: the manager and every in-memory row go; the index and preferences stay.
         engine.close()
         first.release()
         val restored = store(ALICE)
@@ -229,8 +215,6 @@ class MobileDownloadEngineTest {
         assertEquals(DownloadStatus.Queued, restored.status(12L))
     }
 
-    // Media3 resumes once storage recovers; Robolectric cannot withdraw a sticky broadcast, so the
-    // emulator lane proves that half.
     @Test
     fun lowStorageHoldsTransfersWithItsReason() {
         index.putDownload(download("$ALICE:10", Download.STATE_QUEUED))
@@ -264,14 +248,12 @@ class MobileDownloadEngineTest {
         val alice = engine(ALICE, aliceStore, manager)
         awaitMain { manager.stateOf("$ALICE:10") == Download.STATE_DOWNLOADING }
 
-        // The auth layer runs this hook before it clears the token.
         checkNotNull(downloads.onTokenClearing).invoke()
         alice.close()
         awaitMain { manager.stateOf("$ALICE:10") == Download.STATE_STOPPED }
         assertEquals(PARKED, manager.stopReasonOf("$ALICE:10"))
         assertNull(downloads.onTokenClearing)
 
-        // Another account signing in leaves the transfer parked and never sees the row.
         val bobStore = store(BOB)
         engine(BOB, bobStore, manager).close()
         awaitMain { manager.isIdle }
@@ -300,8 +282,6 @@ class MobileDownloadEngineTest {
         awaitMain { aliceStore.status(10L) == DownloadStatus.Paused(DownloadPauseReason.USER, 250L, 25f, TOTAL) }
         assertTrue(aliceStore.find(FilesItemId(10L))?.pauseRequested == true)
 
-        // Signing out parks running transfers; a paused one keeps its own reason, and the closed
-        // session can no longer release it.
         checkNotNull(downloads.onTokenClearing).invoke()
         alice.close()
         runBlocking { alice.setPaused(FilesItemId(10L), paused = false) }
@@ -311,23 +291,19 @@ class MobileDownloadEngineTest {
         awaitMain { manager.isIdle }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
 
-        // Process death: only Media3's index and the app's preferences remain.
         manager.release()
         val restarted = manager()
         val restored = store(ALICE)
         val again = engine(ALICE, restored, restarted)
         awaitMain { (restored.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
-        // The index read reaches the row before the new manager has loaded its downloads.
         awaitMain { restarted.isInitialized }
         assertEquals(Download.STATE_STOPPED, restarted.stateOf("$ALICE:10"))
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, restarted.stopReasonOf("$ALICE:10"))
 
         assertTrue(restored.find(FilesItemId(10L))?.pauseRequested == true)
-        // Media3's index keeps the number, so it may never change across releases.
         assertEquals(2, restarted.stopReasonOf("$ALICE:10"))
         runBlocking { again.setPaused(FilesItemId(10L), paused = false) }
         awaitMain { restarted.stateOf("$ALICE:10") == Download.STATE_DOWNLOADING }
-        // A resume brings up the foreground service, which may not be running in this process.
         val started = generateSequence { shadowOf(context).nextStartedService }.toList()
         assertTrue(started.any { it.component?.className == MobileDownloadService::class.java.name })
         awaitMain { restored.status(10L) is DownloadStatus.Downloading }
@@ -335,14 +311,12 @@ class MobileDownloadEngineTest {
 
     @Test
     fun theViewersPauseWinsOverParkingThatOverwroteItAndAnAddThatOutranIt() {
-        // Parking landed after the pause; an Add reached Media3 after the pause it should hold.
         index.putDownload(download("$ALICE:10", Download.STATE_STOPPED, stopReason = PARKED))
         index.putDownload(download("$ALICE:11", Download.STATE_QUEUED))
         runBlocking {
             store(ALICE).upsert(entry(10L, accepted = true).copy(pauseRequested = true))
             store(ALICE).upsert(entry(11L, accepted = true).copy(pauseRequested = true))
         }
-        // The intent survives the process, in the app's own index.
         val store = store(ALICE)
         assertTrue(store.find(FilesItemId(11L))?.pauseRequested == true)
         val manager = manager(concurrency = 2)
@@ -373,14 +347,11 @@ class MobileDownloadEngineTest {
         awaitMain { manager.running() == listOf("$ALICE:10", "$ALICE:11") }
         assertEquals(listOf(10L, 11L), manager.liveDownloadsOf(ALICE).map { it.value }.sorted())
 
-        // The engine holds Media3 to the index on every report, so a pause written only to Media3
-        // would be undone; the notification's pause goes through the same index first.
         runBlocking { pauseFromNotification(store, manager, ALICE, FilesItemId(10L)) }
         awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
         assertEquals(listOf(11L), manager.liveDownloadsOf(ALICE).map { it.value })
 
-        // Production sends the remove through the download service; here it reaches the manager directly.
         runBlocking { cancelFromNotification(store, ALICE, FilesItemId(11L), manager::removeDownload) }
         awaitMain { store.find(FilesItemId(11L)) == null && manager.stateOf("$ALICE:11") == null }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
@@ -389,13 +360,11 @@ class MobileDownloadEngineTest {
 
     @Test
     fun theNotificationsPauseHoldsARowThatStillReadsFailedAfterABackgroundRetry() {
-        // Try again from a notification hands the download to Media3 with no engine to update the row.
         index.putDownload(download("$ALICE:10", Download.STATE_QUEUED))
         val store = store(ALICE)
         val failed = DownloadStatus.Failed(DownloadFailureReason.NETWORK, 0L)
         runBlocking { store.upsert(entry(10L, accepted = true, status = failed)) }
         val manager = manager()
-        // The download service resumes the manager in a process without an engine.
         manager.resumeDownloads()
         awaitMain { manager.running() == listOf("$ALICE:10") }
 
@@ -403,7 +372,6 @@ class MobileDownloadEngineTest {
         awaitMain { manager.stopReasonOf("$ALICE:10") == MobileDownloadEngine.STOP_REASON_PAUSED }
         assertTrue(store.find(FilesItemId(10L))?.pauseRequested == true)
 
-        // The next engine reads the viewer's pause and keeps it.
         engine(ALICE, store, manager)
         awaitMain { (store.status(10L) as? DownloadStatus.Paused)?.reason == DownloadPauseReason.USER }
         assertEquals(MobileDownloadEngine.STOP_REASON_PAUSED, manager.stopReasonOf("$ALICE:10"))
@@ -431,7 +399,6 @@ class MobileDownloadEngineTest {
         val engine = engine(ALICE, store, manager)
         awaitMain { manager.isInitialized }
 
-        // Media3 has no record yet, so the stop reason lands nowhere; the index keeps the pause.
         runBlocking { engine.setPaused(FilesItemId(10L), paused = true) }
         val url = Uri.parse(DownloadArtifact.ORIGINAL.apiUrl(FilesItemId(10L), testDownloadFilesApi))
         manager.addDownload(DownloadRequest.Builder("$ALICE:10", url).build())
@@ -497,7 +464,6 @@ class MobileDownloadEngineTest {
         awaitMain { store.status(10L) == DownloadStatus.Downloading(0L, 0f, TOTAL) }
         val persisted = preferences.getString(storeKey(ALICE), null)
 
-        // Without a denominator the row has bytes and no percentage.
         transfer.report(bytes = 300L, percent = C.PERCENTAGE_UNSET.toFloat())
         awaitMain {
             engine.refreshProgress()
@@ -683,7 +649,6 @@ class MobileDownloadEngineTest {
         return MobileDownloadEngine(context, account, scope, manager, io).also { engines += it }
     }
 
-    /** Writes a few bytes under the request's own cache key, as a finished download leaves them. */
     private fun cacheBytes(download: Download) {
         val keys = UserScopedCacheKeys(checkNotNull(download.request.ownerUserId()))
         CacheWriter(
@@ -707,7 +672,6 @@ class MobileDownloadEngineTest {
     private fun DownloadManager.running(): List<String> =
         currentDownloads.filter { it.state == Download.STATE_DOWNLOADING }.map { it.request.id }.sorted()
 
-    /** Each row with its place in line, in the order the Downloads screen lists the queue. */
     private fun queueOf(store: MobileDownloadStore): List<Pair<Long, Int?>> {
         val state = DownloadsState().withEntries(store.entries.value)
         return state.queue.map { it.fileId.value to state.queuePosition(it.fileId) }
@@ -724,7 +688,6 @@ class MobileDownloadEngineTest {
 
     private fun DownloadManager.stateOf(id: String): Int? = currentDownloads.firstOrNull { it.request.id == id }?.state
 
-    /** Media3 answers on the main looper after its own thread works, so idle it until the condition holds. */
     private fun awaitMain(condition: () -> Boolean) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_SECONDS)
         while (true) {
@@ -782,7 +745,6 @@ class MobileDownloadEngineTest {
     }
 }
 
-/** One transfer per request id: it reports only the bytes the test feeds and blocks until cancelled or finished. */
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private class ScriptedDownloaders : DownloaderFactory {
     private val transfers = ConcurrentHashMap<String, LinkedBlockingQueue<ScriptedTransfer>>()

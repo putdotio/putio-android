@@ -81,7 +81,6 @@ class MobileItemDialogsTest {
             }
         }
         compose.onNodeWithText("Move 1 item").assertIsDisplayed()
-        // The confirm names the folder on screen.
         compose.onNodeWithText("Move to Files").assertIsDisplayed()
         compose.onNodeWithTag(MOBILE_FILES_MOVE_NEW_FOLDER_TAG).performClick()
         compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).performTextInput("Slow Horses")
@@ -110,7 +109,6 @@ class MobileItemDialogsTest {
             assertNull(MobileShareProgress.state.value)
         }
         compose.onNodeWithText("Preparing to share").assertDoesNotExist()
-        // Progress the export sends before the cancel reaches it doesn't reopen the dialog.
         MobileShareProgress.progress(
             MobileShareProgressState("Tears.of.Steel.2012.1080p.mkv", 500_000_000L, 1_200_000_000L),
         )

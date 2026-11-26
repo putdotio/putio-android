@@ -56,7 +56,6 @@ internal fun TrashMachine.submitAction(action: TrashAction): TrashMachine? {
         TrashRestoreSnapshot(
             itemIds = it.itemIds.toSet(),
             coversUnloadedItems = it.cursor != null,
-            // One unparseable row makes the bound unknown; a partial maximum would let snapshot rows pass as newer.
             newestDeletedAt = content.items.map { item -> item.deletedAt?.let(::parsePutioTimestamp) }
                 .takeIf { stamps -> stamps.none { it == null } }?.filterNotNull()?.maxOrNull(),
         )
@@ -77,7 +76,6 @@ private fun TrashMachine.isEligible(action: TrashDestructiveAction): Boolean = w
     TrashAction.Empty -> state.canActOnAll
 }
 
-// Verification is a fresh initial read; it never resubmits the action.
 internal fun TrashMachine.startActionCheck(): TrashMachine? {
     val outcome = state.actionOutcome?.takeIf {
         request == null && it.isPending && it.submission != TrashActionSubmission.SUBMITTING

@@ -47,7 +47,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 
-/** Links that shortcuts and notification actions open, routed by the real shell. */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [35], qualifiers = "en-rUS")
 class MobileShellLinkActionsTest {
@@ -99,7 +98,6 @@ class MobileShellLinkActionsTest {
 
         compose.waitForIdle()
         compose.runOnIdle {
-            // Dropped, not left pending for a later account, and nothing played or opened.
             assertNull(links.pending.value)
             assertTrue(resolved.isEmpty())
         }
