@@ -90,13 +90,26 @@ stateDiagram-v2
 ## Playback
 
 Media3 plays every stream with a media session for system controls. The app's
-playback method picks the stream: Standard (the default) plays HLS; Direct play
-plays the original file when the device check passes and a converted copy
-otherwise. Direct play can decode audio with bundled FFmpeg after MediaCodec,
-and devices with the memory for it draw ASS/SSA subtitles with libass. An
-original that fails before its first frame falls back to converted at the same
-position. Cast always plays Standard. Play positions sync to put.io, throttled
-and flushed on exit.
+playback method picks the stream, and Standard is the default.
+
+```mermaid
+flowchart TD
+  open[Open a video] --> method{Playback method}
+  method -- Standard --> hls[HLS]
+  method -- Direct play --> check{OriginalPlaybackDecision}
+  check -- device decodes it --> original[Original file]
+  check -- fallback reason --> converted[Converted copy]
+  original -- OriginalRejected --> converted
+  converted -- OriginalChosen --> original
+  original -- Cast starts --> hls
+  hls -- Cast ends --> check
+```
+
+`OriginalRejected` fires for tracks the device can't play, a failure before
+the first frame, or the viewer's switch; the converted copy starts at the same
+position. Direct play can decode audio with bundled FFmpeg after MediaCodec,
+and devices with the memory for it draw ASS/SSA subtitles with libass. Play
+positions sync to put.io, throttled and flushed on exit.
 
 Back always closes the topmost layer before it leaves playback.
 
