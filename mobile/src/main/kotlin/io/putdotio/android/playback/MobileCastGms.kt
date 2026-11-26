@@ -146,12 +146,25 @@ internal object MobileCast {
     }
 
     fun sessionLeft(context: Context, session: Any?) {
-        Handler(Looper.getMainLooper()).post {
-            controller(context)?.let {
-                it.end()
-                it.autoplay.forget(session)
+        val appContext = context.applicationContext
+        val leave = {
+            val cast = controller(appContext)
+            if (cast != null) {
+                cast.end()
+                cast.autoplay.forget(session)
+                if (cast.gateway !is GmsCastGateway) {
+                    CastReceiverStore.clearPutio(appContext)
+                }
+            } else {
+                CastReceiverStore.clearPutio(appContext)
             }
-            useReceiver(context, putio = false)
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            leave()
+        } else {
+            val livePutio = (controller?.gateway as? GmsCastGateway)?.hasLivePutioSession == true
+            CastReceiverStore.markSignOutPendingIfPutio(appContext, livePutioSession = livePutio)
+            Handler(Looper.getMainLooper()).post(leave)
         }
     }
 
@@ -291,7 +304,7 @@ private fun defaultCastPlayer(
 class MobileCastOptionsProvider : OptionsProvider {
     override fun getCastOptions(context: Context): CastOptions =
         CastOptions.Builder()
-            .setReceiverApplicationId(receiverApplicationId(CastReceiverStore.putio(context)))
+            .setReceiverApplicationId(receiverApplicationId(CastReceiverStore.bootWithPutio(context)))
             .setCastMediaOptions(
                 CastMediaOptions.Builder()
                     .setNotificationOptions(null)
@@ -413,20 +426,40 @@ internal class PutioCastMediaItemConverter(context: Context) : MediaItemConverte
 
 internal class CastSignOutEnd(private val end: () -> Unit) {
     private var pending = false
+    private var endInFlightStart = false
 
-    fun requested() {
+    val isPending: Boolean get() = pending
+
+    fun armPending() {
         pending = true
+    }
+
+    fun requested(connecting: Boolean = false) {
+        pending = true
+        if (connecting) endInFlightStart = true
         end()
     }
 
     fun resumed(attach: () -> Unit) = if (pending) end() else attach()
 
+    fun started(attach: () -> Unit) {
+        if (endInFlightStart) {
+            endInFlightStart = false
+            end()
+        } else {
+            pending = false
+            attach()
+        }
+    }
+
     fun sessionStarted() {
         pending = false
+        endInFlightStart = false
     }
 
     fun sessionEnded() {
         pending = false
+        endInFlightStart = false
     }
 }
 
@@ -473,19 +506,57 @@ private class GmsCastContextHandle(private val cast: CastContext) : CastContextH
     override fun endCurrentSession(stopCasting: Boolean) = cast.sessionManager.endCurrentSession(stopCasting)
 }
 
+internal interface CastSessionEvents {
+    fun onStarting()
+
+    fun onStarted(session: CastSession)
+
+    fun onStartFailed()
+
+    fun onEnding()
+
+    fun onEnded()
+
+    fun onResuming()
+
+    fun onResumed(session: CastSession)
+
+    fun onResumeFailed()
+
+    fun onSuspended()
+}
+
+private class PendingSignOutGrace(
+    private val schedule: (Runnable) -> Closeable,
+    private val onExpired: () -> Unit,
+) {
+    private var pending: Closeable? = null
+
+    fun arm() {
+        cancel()
+        pending = schedule(
+            Runnable {
+                pending = null
+                onExpired()
+            },
+        )
+    }
+
+    fun cancel() {
+        pending?.closeQuietly()
+        pending = null
+    }
+}
+
 internal class GmsCastGateway @VisibleForTesting internal constructor(
     private val context: Context,
     private val routes: GmsCastRoutes,
     private val remote: GmsCastRemote,
     private val localNetworkDenied: () -> Boolean = { context.localNetworkNotGranted() },
+    private val schedulePendingSignOutTimeout: (Runnable) -> Closeable = ::defaultPendingSignOutTimeout,
     private val loadCast: (Context) -> Task<CastContext>,
 ) : CastGateway, CastRoutes by routes, CastRemote by remote {
     constructor(context: Context) : this(context, GmsCastRoutes(context), GmsCastRemote(), loadCast = ::loadCastContext)
-
-    init {
-        remote.onAttachedChanged = { updateAvailability() }
-        routes.onDevicesChanged = { updateAvailability() }
-    }
 
     private val mutableAvailability = MutableStateFlow<CastAvailability>(CastAvailability.Unsupported)
     override val availability: StateFlow<CastAvailability> = mutableAvailability
@@ -496,6 +567,25 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     private val startedOwners: MutableSet<LifecycleOwner> = Collections.newSetFromMap(IdentityHashMap())
     val receivers = CastReceiverSwitch(context, routes::reselect)
     private val messages = PutioReceiverMessages(remote::receiverReported)
+    private var sessionStarting = false
+    @Volatile
+    internal var hasLivePutioSession: Boolean = false
+        private set
+    private val pendingSignOutGrace = PendingSignOutGrace(schedulePendingSignOutTimeout) {
+        if (castContext?.isSessionLive() != true) {
+            receivers.sessionGone()
+        }
+    }
+
+    init {
+        remote.onAttachedChanged = { updateAvailability() }
+        routes.onDevicesChanged = { updateAvailability() }
+        if (CastReceiverStore.pendingSignOutEnd(context)) {
+            remote.discardHandback = true
+            signOut.armPending()
+            receivers.drainPendingSignOut()
+        }
+    }
 
     /**
      * Loads Cast off the main thread and binds it once it answers. Play services runs Cast in its own
@@ -523,12 +613,26 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     internal fun bind(cast: CastContextHandle) {
         castContext = cast
         routes.selector = cast.mergedSelector
+        if (signOut.isPending && cast.isSessionLive() && cast.isPutioSession()) {
+            receivers.markLivePutioSignOutPending()
+        }
         receivers.bind(cast)
-        cast.addCastStateListener { updateAvailability() }
+        cast.addCastStateListener {
+            receivers.retryIfIdle()
+            updateAvailability()
+        }
         cast.addSessionManagerListener(sessions)
         cast.addSessionTransferCallback(transfers)
-        cast.currentCastSession?.let { current ->
+        val current = cast.currentCastSession
+        if (current != null) {
             signOut.resumed { if (current.isConnected) attach(current) }
+        } else if (cast.castState == CastState.CONNECTED) {
+            signOut.resumed {}
+        } else if (signOut.isPending && cast.castState == CastState.CONNECTING) {
+            signOut.requested(connecting = true)
+        }
+        if (signOut.isPending && !cast.isSessionLive() && CastReceiverStore.pendingSignOutEnd(context)) {
+            pendingSignOutGrace.arm()
         }
         if (startedOwners.isNotEmpty()) routes.watch()
         updateAvailability()
@@ -536,6 +640,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
 
     private fun updateAvailability() {
         val cast = castContext ?: return
+        hasLivePutioSession = cast.isSessionLive() && cast.isPutioSession()
         val device = cast.currentCastSession?.castDevice?.friendlyName
         mutableAvailability.value = when {
             remote.attached -> CastAvailability.Connected(device.orEmpty())
@@ -560,47 +665,83 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         }
     }
 
-    private val sessions = object : SessionManagerListener<CastSession> {
-        override fun onSessionStarting(session: CastSession) {
+    @VisibleForTesting
+    internal val sessionEvents: CastSessionEvents = object : CastSessionEvents {
+        override fun onStarting() {
+            sessionStarting = true
+            pendingSignOutGrace.cancel()
             mutableMovesHere.value = false
             updateAvailability()
         }
 
-        override fun onSessionStarted(session: CastSession, sessionId: String) {
-            signOut.sessionStarted()
-            remote.discardHandback = false
-            attach(session)
+        override fun onStarted(session: CastSession) {
+            sessionStarting = false
+            pendingSignOutGrace.cancel()
+            signOut.started {
+                receivers.sessionStarted()
+                remote.discardHandback = false
+                attach(session)
+            }
         }
 
-        override fun onSessionStartFailed(session: CastSession, error: Int) {
+        override fun onStartFailed() {
+            sessionStarting = false
+            pendingSignOutGrace.cancel()
+            signOut.sessionEnded()
             updateAvailability()
             receivers.sessionGone()
         }
 
-        override fun onSessionEnding(session: CastSession) = remote.publish()
+        override fun onEnding() = remote.publish()
 
-        override fun onSessionEnded(session: CastSession, error: Int) {
+        override fun onEnded() {
+            sessionStarting = false
+            pendingSignOutGrace.cancel()
             signOut.sessionEnded()
             detach()
             receivers.sessionGone()
         }
 
-        override fun onSessionResuming(session: CastSession, sessionId: String) {
+        override fun onResuming() {
+            pendingSignOutGrace.cancel()
             mutableMovesHere.value = false
             signOut.resumed {}
             updateAvailability()
         }
 
-        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) =
+        override fun onResumed(session: CastSession) {
+            pendingSignOutGrace.cancel()
             signOut.resumed { attach(session) }
+        }
 
-        override fun onSessionResumeFailed(session: CastSession, error: Int) {
+        override fun onResumeFailed() {
+            pendingSignOutGrace.cancel()
             signOut.sessionEnded()
             detach()
             receivers.sessionGone()
         }
 
-        override fun onSessionSuspended(session: CastSession, reason: Int) = remote.publish()
+        override fun onSuspended() = remote.publish()
+    }
+
+    private val sessions = object : SessionManagerListener<CastSession> {
+        override fun onSessionStarting(session: CastSession) = sessionEvents.onStarting()
+
+        override fun onSessionStarted(session: CastSession, sessionId: String) = sessionEvents.onStarted(session)
+
+        override fun onSessionStartFailed(session: CastSession, error: Int) = sessionEvents.onStartFailed()
+
+        override fun onSessionEnding(session: CastSession) = sessionEvents.onEnding()
+
+        override fun onSessionEnded(session: CastSession, error: Int) = sessionEvents.onEnded()
+
+        override fun onSessionResuming(session: CastSession, sessionId: String) = sessionEvents.onResuming()
+
+        override fun onSessionResumed(session: CastSession, wasSuspended: Boolean) = sessionEvents.onResumed(session)
+
+        override fun onSessionResumeFailed(session: CastSession, error: Int) = sessionEvents.onResumeFailed()
+
+        override fun onSessionSuspended(session: CastSession, reason: Int) = sessionEvents.onSuspended()
     }
 
     private fun attach(session: CastSession) {
@@ -617,8 +758,11 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     }
 
     override fun endForSignOut() {
+        val connecting = sessionStarting || castContext?.castState == CastState.CONNECTING
+        pendingSignOutGrace.cancel()
         remote.discardHandback = true
-        signOut.requested()
+        receivers.signOut()
+        signOut.requested(connecting = connecting)
     }
 
     override fun stopCasting() {
@@ -647,6 +791,14 @@ private fun Context.localNetworkNotGranted(): Boolean =
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.CINNAMON_BUN &&
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_LOCAL_NETWORK) !=
         PackageManager.PERMISSION_GRANTED
+
+private fun defaultPendingSignOutTimeout(task: Runnable): Closeable {
+    val handler = Handler(Looper.getMainLooper())
+    handler.postDelayed(task, PENDING_SIGN_OUT_TIMEOUT_MILLIS)
+    return Closeable { handler.removeCallbacks(task) }
+}
+
+private const val PENDING_SIGN_OUT_TIMEOUT_MILLIS = 3_000L
 
 @androidx.annotation.OptIn(markerClass = [UnstableApi::class])
 private fun loadCastContext(context: Context): Task<CastContext> =
