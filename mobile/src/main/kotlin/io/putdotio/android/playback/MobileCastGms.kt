@@ -624,12 +624,12 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         cast.addSessionManagerListener(sessions)
         cast.addSessionTransferCallback(transfers)
         val current = cast.currentCastSession
-        if (current != null) {
+        if (signOut.isPending && (cast.castState == CastState.CONNECTING || current?.isConnecting == true)) {
+            signOut.requested(connecting = true)
+        } else if (current != null) {
             signOut.resumed { if (current.isConnected) attach(current) }
         } else if (cast.castState == CastState.CONNECTED) {
             signOut.resumed {}
-        } else if (signOut.isPending && cast.castState == CastState.CONNECTING) {
-            signOut.requested(connecting = true)
         }
         if (signOut.isPending && !cast.isSessionLive() && CastReceiverStore.pendingSignOutEnd(context)) {
             pendingSignOutGrace.arm()

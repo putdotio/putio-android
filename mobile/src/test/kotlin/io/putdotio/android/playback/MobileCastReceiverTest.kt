@@ -488,6 +488,8 @@ class MobileCastReceiverTest {
         freshGateway.bind(freshCast)
 
         assertEquals(1, freshCast.endedSessions)
+        freshGateway.sessionEvents.onResuming()
+        assertEquals(2, freshCast.endedSessions)
     }
 
     @Test
