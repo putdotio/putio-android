@@ -1,16 +1,15 @@
 # Architecture
 
 How the code is split and how its main flows run.
-[DESIGN.md](../DESIGN.md) owns the visual contract.
 
 ## Apps
 
 One Gradle build ships two apps on one Play identity:
 
-| App      | Form factors           | Input            | Shell                 |
-| -------- | ---------------------- | ---------------- | --------------------- |
-| `mobile` | Phones, tablets        | Touch, keyboard  | Material 3 Expressive |
-| `tv`     | Android TV and Fire TV | D-pad and remote | Compose for TV        |
+| App      | Form factors    | Input            | Shell                 |
+| -------- | --------------- | ---------------- | --------------------- |
+| `mobile` | Phones, tablets | Touch, keyboard  | Material 3 Expressive |
+| `tv`     | Android TV      | D-pad and remote | Compose for TV        |
 
 Both apps share data, domain, theme and component foundations. Their shells
 diverge where input differs.
@@ -68,9 +67,8 @@ flowchart LR
 
 ## Session
 
-The shared shape of a session. TV has no signed-out resting state, since it
-always shows a device code, and mobile opens a restored session offline on
-the last confirmed account.
+The shared shape of a session. While signed out, TV always shows a device
+code. Mobile opens a restored session offline on the last confirmed account.
 
 ```mermaid
 stateDiagram-v2
@@ -92,13 +90,26 @@ stateDiagram-v2
 ## Playback
 
 Media3 plays every stream with a media session for system controls. The app's
-playback method picks the stream: Standard (the default) plays HLS; Direct play
-plays the original file when the device check passes and a converted copy
-otherwise. Direct play can decode audio with bundled FFmpeg after MediaCodec,
-and devices with the memory for it draw ASS/SSA subtitles with libass. An
-original that fails before its first frame falls back to converted at the same
-position. Cast always plays Standard. Play positions sync to put.io, throttled
-and flushed on exit.
+playback method picks the stream, and Standard is the default.
+
+```mermaid
+flowchart TD
+  open[Open a video] --> method{Playback method}
+  method -- Standard --> hls[HLS]
+  method -- Direct play --> check{Device decodes it?}
+  check -- yes --> original[Original file]
+  check -- no --> converted[Converted copy]
+  original -- rejected --> converted
+  converted -- viewer picks original --> original
+  original -- Cast starts --> hls
+  hls -- Cast ends --> check
+```
+
+The player rejects an original for tracks the device can't play, a failure
+before the first frame, or the viewer's switch; the converted copy starts at
+the same position. Direct play can decode audio with bundled FFmpeg after MediaCodec,
+and devices with the memory for it draw ASS/SSA subtitles with libass. Play
+positions sync to put.io, throttled and flushed on exit.
 
 Back always closes the topmost layer before it leaves playback.
 
@@ -121,4 +132,4 @@ flowchart LR
   only events on the allowlist in `core:telemetry`.
 - Neither sends filenames, titles, URLs, search text or tokens.
 - Tokened stream and download URLs go only to the player, VLC or the open-with
-  chooser, never to a browser, whose history would keep the token.
+  chooser; a browser's history would keep the token.

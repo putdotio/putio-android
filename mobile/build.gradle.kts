@@ -30,7 +30,7 @@ plugins {
 android {
     defaultConfig {
         // Shared with the TV app: one Google Play listing serves both, phones get this bundle and
-        // TVs the TV one (AGENTS.md#google-play-delivery).
+        // TVs the TV one.
         applicationId = "io.put.putio"
         // Dedicated public Android mobile OAuth client from #47.
         buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")

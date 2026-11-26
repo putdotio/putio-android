@@ -6,7 +6,7 @@
   <h1>putio-android</h1>
 
   <p>
-    Native Android app for put.io on phones, tablets, Android TV, and Fire TV
+    Native Android app for put.io on phones, tablets, and Android TV
   </p>
 
   <p>
@@ -15,21 +15,35 @@
   </p>
 </div>
 
-> [!NOTE]
-> Work in progress and not on Google Play yet. The current put.io TV app stays
-> until this one replaces it; [#14](https://github.com/putdotio/putio-android/issues/14)
-> tracks the rollout. Open an issue before sending a pull request.
+<p align="center">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/1.png" width="32%" alt="Files on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/3.png" width="32%" alt="Search on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/4.png" width="32%" alt="Downloads on a phone">
+</p>
+
+<p align="center">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/2.png" width="49%" alt="Video playback on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/tv-screenshots/1.png" width="49%" alt="Files on Android TV">
+</p>
+
+<p align="center">
+  <sub>Sintel © copyright Blender Foundation | durian.blender.org</sub>
+</p>
+
+## Install
+
+Get the app from [Google Play](https://play.google.com/store/apps/details?id=io.put.putio).
 
 ## Use
 
 Sign in with your put.io account to browse, search, and stream your files.
 
 - **Mobile:** Files, Search, History, Transfers, Trash, and Account; offline
-  Downloads; video and audio playback with Cast, original files where the
-  device decodes them; a widget, shortcuts, and the system file picker.
+  Downloads; video and audio playback, Cast, and original-file playback where
+  the device decodes the file; a widget, shortcuts, and the system file picker.
 - **TV:** device-code sign-in, Home, Files, Search, History, Trash, and
-  Account; full-screen playback, original files where the device decodes
-  them; the launcher's Play Next row and system search.
+  Account; full-screen playback, with original files where the device
+  decodes them; the launcher's Play Next row and system search.
 
 Crash reports stay on unless Diagnostics is off. Product analytics run only
 once the account turns them on.

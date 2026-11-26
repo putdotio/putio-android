@@ -253,17 +253,16 @@ colour, type and icons; draw a custom one only where this file says so. Dark
 only, no dynamic colour. The platform owns pressed, disabled, selected and
 focused states, except TV focus below.
 
-The app reads as a quiet file manager and player: neutral surfaces, dense rows,
-mono numbers, and yellow only where it marks content or the one action that
-matters.
+The app is a file manager and player: neutral surfaces, dense rows, mono
+numbers, and yellow only where it marks content or the screen's primary
+action.
 
 ## Colors
 
 The app generates its colour scheme at build time from the vendored token
 graph in `design/`. `./gradlew updateDesignMdColors` writes the block below
 from the same graph and role map, and `verify` fails when it is stale. Colours
-with no Material role come from the generated tokens, never from hand-written
-values.
+with no Material role come from the generated tokens.
 
 ```yaml
 colors:
@@ -295,8 +294,8 @@ colors:
   solid: "#707070" # --solid
 ```
 
-- **Neutral** does the work: surfaces, switches, transport buttons, status
-  glyphs and every button but one.
+- **Neutral** colours surfaces, switches, transport buttons, status glyphs and
+  every button but one.
 - **Content yellow** marks content: file-type glyphs, progress, the on-device
   marker, state dots, the selected tab, checkboxes and radios.
 - **Action yellow** is the one primary action of a screen or dialog.
@@ -314,7 +313,7 @@ colors:
 GT America for UI; Berkeley Mono with tabular figures for sizes, times,
 speeds, counts, percentages and versions. A unit sets in mono with its figures
 (`30.7 MB`, `1.4 MB/s`, `42%`). Dates read as words and stay in GT America, as
-do filenames and words in a value slot. Nothing goes below 12sp.
+do filenames and words in a value slot. The smallest text is 12sp.
 
 The front matter's roles map onto Material's slots on the phone; the `tv-*`
 roles are the TV's scale. `mono` takes the size of the text it sits in.
@@ -330,14 +329,14 @@ roles are the TV's scale. `mono` takes the size of the text it sits in.
   focused item's detail sits beside the list.
 - Each tab keeps its own back stack. Back pops within the tab, then returns to
   the first tab, then leaves the app. On TV, Back focuses the tab bar before it
-  changes tab. Never intercept Back at the root.
+  changes tab.
 - Every target is at least 48dp.
 
 ## Elevation & Depth
 
 Depth is tonal: surfaces step up through the `surface-container` tiers. Sheets
-and dialogs dim what is under them with a scrim. Menus and snackbars keep
-Material's shadow; nothing else draws one.
+and dialogs dim what is under them with a scrim. Only menus and snackbars
+draw a shadow, Material's own.
 
 ## Shapes
 
@@ -354,9 +353,9 @@ tabs and the nav indicator.
   showing only what the item allows. The delete action comes last, in red.
 - **Irreversible actions** confirm with a red button: permanent delete, Empty
   trash, Clear history, revoking a link, removing a download and Sign out.
-  Move to trash never confirms; a snackbar offers Undo.
-- **Switch:** neutral and compact, a deliberate step off stock Material: an
-  outlined off track, an `on-surface` on track. The whole row toggles.
+  Move to trash acts at once, and a snackbar offers Undo.
+- **Switch:** neutral and compact, custom-drawn: an outlined off track, an
+  `on-surface` on track. The whole row toggles.
 - **Empty and error states:** the
   [put.io empty-state voice](https://github.com/putdotio/putio-design/blob/main/system/preview/12-empty-state.html):
   a mono kaomoji, a one-line headline, one sentence, at most one action. No
@@ -364,8 +363,8 @@ tabs and the nav indicator.
   state may show one centred spinner.
 - **Consent:** the product analytics prompt gives Allow and Don't allow equal
   tonal buttons; neither is the screen's yellow action or the default.
-- **Notices:** an inactive account shows a notice card, never a dialog, and it
-  never takes focus.
+- **Notices:** an inactive account shows a notice card that never takes
+  focus.
 
 ## Do's and Don'ts
 
@@ -389,7 +388,8 @@ transitions into fades and holds animations still.
 ## Accessibility
 
 - Text follows the system font size up to a 1.3 font scale on mobile, as the
-  iOS app caps it, and 1.15 on TV, where type is already sized for the room.
+  iOS app caps it, and 1.15 on TV, where type is already sized for viewing
+  distance.
 - Icon-only controls carry a name that says what they change; a cut name keeps
   the full name as its description.
 
@@ -410,7 +410,7 @@ tokens, type, glyphs, rows, switch, empty-state voice and copy.
 - **Seeking:** rewind, fast-forward, and left or right on the seek bar or with
   the controls hidden seek at once and keep the play state; holding one speeds
   up.
-- **Now Playing:** audio's controls never hide, so Back leaves it once no
-  sheet is open.
+- **Now Playing:** audio's controls stay visible, so Back leaves it once
+  every sheet is closed.
 - **Phone-only:** Transfers, Downloads, Cast, selection, share and exclusive
   links.
