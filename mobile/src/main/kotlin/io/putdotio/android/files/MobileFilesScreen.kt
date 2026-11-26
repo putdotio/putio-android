@@ -111,18 +111,45 @@ internal const val MOBILE_FILES_SNACKBAR_TAG = "mobile-files-snackbar"
 internal class MobileFilesCreatedFolder {
     var pending: FilesItem? by mutableStateOf(null)
         private set
+    private var revealRequestedId: FilesItemId? = null
 
     fun created(item: FilesItem) {
         pending = item
+        revealRequestedId = null
+    }
+
+    fun revealMissing(
+        folderId: FilesItemId,
+        createdId: FilesItemId,
+        paging: FilesPaging,
+        operation: FilesFolderOperation,
+        onEvent: (FilesBrowserEvent) -> Unit,
+    ) {
+        if (operation is FilesFolderOperation.Loading) {
+            if (revealRequestedId == createdId) revealRequestedId = null
+            return
+        }
+        if (operation != FilesFolderOperation.Idle) return
+        if (paging is FilesPaging.Available && revealRequestedId != createdId) {
+            revealRequestedId = createdId
+            onEvent(FilesBrowserEvent.RevealItem(folderId, createdId))
+        } else if (paging !is FilesPaging.Loading && revealRequestedId == createdId) {
+            consume(createdId)
+        }
     }
 
     fun consume(itemId: FilesItemId) {
-        if (pending?.id == itemId) pending = null
+        if (pending?.id == itemId) clear()
     }
 
     fun clearIfOutside(folderId: FilesItemId) {
         val target = pending?.parentId ?: return
-        if (target != folderId) pending = null
+        if (target != folderId) clear()
+    }
+
+    private fun clear() {
+        pending = null
+        revealRequestedId = null
     }
 }
 
@@ -1063,7 +1090,15 @@ private fun MobileFilesList(
         initialFirstVisibleItemScrollOffset = viewport.firstVisibleItemScrollOffset,
     )
     RevealAsyncHeadersAtTopEffect(listState, headerCount, revealItemId)
-    RevealCreatedFolderEffect(listState, folderId, content.items, headerCount, LocalMobileFilesCreatedFolder.current)
+    RevealCreatedFolderEffect(
+        listState = listState,
+        folderId = folderId,
+        content = content,
+        operation = operation,
+        headerCount = headerCount,
+        createdFolder = LocalMobileFilesCreatedFolder.current,
+        onEvent = onEvent,
+    )
     val currentHeaderCount by rememberUpdatedState(headerCount)
     val keyboardFocus = rememberFilesKeyboardFocus(content.items, viewport.firstVisibleItemIndex)
     val currentOnEvent by rememberUpdatedState(onEvent)
@@ -1192,16 +1227,22 @@ private class AsyncHeaderTopState(var previousHeaderCount: Int) {
 private fun RevealCreatedFolderEffect(
     listState: LazyListState,
     folderId: FilesItemId,
-    items: List<FilesItem>,
+    content: FilesContent.Ready,
+    operation: FilesFolderOperation,
     headerCount: Int,
     createdFolder: MobileFilesCreatedFolder?,
+    onEvent: (FilesBrowserEvent) -> Unit,
 ) {
     val pending = createdFolder?.pending
-    LaunchedEffect(listState, folderId, items, headerCount, pending) {
+    val currentOnEvent by rememberUpdatedState(onEvent)
+    LaunchedEffect(listState, folderId, content.items, content.paging, operation, headerCount, pending) {
         val created = pending ?: return@LaunchedEffect
         if (created.parentId != null && created.parentId != folderId) return@LaunchedEffect
-        val itemIndex = items.indexOfFirst { it.id == created.id }
-        if (itemIndex < 0) return@LaunchedEffect
+        val itemIndex = content.items.indexOfFirst { it.id == created.id }
+        if (itemIndex < 0) {
+            createdFolder.revealMissing(folderId, created.id, content.paging, operation, currentOnEvent)
+            return@LaunchedEffect
+        }
         withFrameNanos {}
         val targetIndex = itemIndex + headerCount
         val visible = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == targetIndex }

@@ -20,9 +20,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import io.putdotio.android.auth.MobileAccount
 import io.putdotio.android.auth.MobileAuthSessionId
 import io.putdotio.android.design.PutioTheme
+import io.putdotio.android.files.FilesBrowserEffect
 import io.putdotio.android.files.FilesBrowserEvent
 import io.putdotio.android.files.FilesBrowserReducer
 import io.putdotio.android.files.FilesBrowserState
+import io.putdotio.android.files.FilesCursor
 import io.putdotio.android.files.FilesFolder
 import io.putdotio.android.files.FilesFolderCreator
 import io.putdotio.android.files.FilesFolderOperationIntent
@@ -188,11 +190,71 @@ class MobileFilesMoveBannerAndNewFolderTest {
         compose.onNodeWithText("Brand New Folder").assertIsDisplayed()
     }
 
-    private fun loadedState(items: List<FilesItem>): FilesBrowserState {
+    @Test
+    fun newFolderBeyondFirstPageLoadsLaterPageAndRevealsIt() {
+        val pageOne = (1L..50L).map { item(it, "Existing $it", PutioFileType.FOLDER) }
+        val cursor = FilesCursor("page-2")
+        var state by mutableStateOf(loadedState(pageOne, cursor))
+        var createdItem: FilesItem? = null
+        val creator = object : FilesFolderCreator {
+            override suspend fun createFolder(parentId: FilesItemId, name: String): PutioResult<FilesItem> {
+                val created = item(501L, name, PutioFileType.FOLDER, parentId = parentId)
+                createdItem = created
+                return PutioResult.Success(created)
+            }
+        }
+
+        compose.setBuiltContent {
+            PutioTheme {
+                MobileShell(
+                    filesStates = rememberUpdatedState(state),
+                    accountSettingsState = readyAccountSettingsState(),
+                    appConfigState = readyAndroidAppConfigState(),
+                    account = MobileAccount(userId = 42L, username = "user", email = "user@example.com"),
+                    playbackRepository = NoPlayback,
+                    playbackPlayerFactory = NoAudioSessionFactory,
+                    sessionId = MobileAuthSessionId(1L),
+                    onFilesEvent = { event ->
+                        val next = FilesBrowserReducer.reduce(state, event)
+                        state = next.state
+                        when (val effect = next.effect) {
+                            is FilesBrowserEffect.LoadFolder -> state = FilesBrowserReducer.reduce(
+                                state,
+                                FilesBrowserEvent.LoadSucceeded(effect.requestId, FilesPage(pageOne, cursor)),
+                            ).state
+                            is FilesBrowserEffect.LoadNextPage -> state = FilesBrowserReducer.reduce(
+                                state,
+                                FilesBrowserEvent.LoadSucceeded(
+                                    effect.requestId,
+                                    FilesPage(listOfNotNull(createdItem), null),
+                                ),
+                            ).state
+                            else -> Unit
+                        }
+                        next.consumed
+                    },
+                    onAccountSettingsEvent = {},
+                    onPlaybackAuthenticationRequired = {},
+                    onSignOut = {},
+                    folderCreator = creator,
+                )
+            }
+        }
+
+        compose.onNodeWithText("Existing 1").assertIsDisplayed()
+        compose.onNodeWithContentDescription("New folder").performClick()
+        compose.onNodeWithTag(MOBILE_NEW_FOLDER_FIELD_TAG).performTextInput("Page Two Folder")
+        compose.onNodeWithTag(MOBILE_NEW_FOLDER_CREATE_TAG).performClick()
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Page Two Folder").assertIsDisplayed()
+    }
+
+    private fun loadedState(items: List<FilesItem>, nextCursor: FilesCursor? = null): FilesBrowserState {
         val started = FilesBrowserReducer.start()
         return FilesBrowserReducer.reduce(
             started.state,
-            FilesBrowserEvent.LoadSucceeded(checkNotNull(started.effect).requestId, FilesPage(items, null)),
+            FilesBrowserEvent.LoadSucceeded(checkNotNull(started.effect).requestId, FilesPage(items, nextCursor)),
         ).state
     }
 
