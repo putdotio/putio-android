@@ -94,6 +94,49 @@ class MobileFilesMoveBannerAndNewFolderTest {
     }
 
     @Test
+    fun moveSuccessIsNotReannouncedAfterOpeningChildFolderAndNavigatingBack() {
+        val moved = item(1L, "Moved.mkv", PutioFileType.VIDEO)
+        val childFolder = item(2L, "Child", PutioFileType.FOLDER)
+        val outcome = FilesMoveOutcome(
+            requestId = FilesRequestId(9L),
+            intent = FilesFolderOperationIntent.Move(moved.id, FilesItemId(99L)),
+            itemName = moved.name,
+            status = FilesMoveStatus.MOVED,
+        )
+        val rootLoaded = loadedState(listOf(childFolder))
+        val rootWithOutcome = rootLoaded.copyForTest(stack = listOf(rootLoaded.current.copy(moveOutcome = outcome)))
+        var state by mutableStateOf(rootWithOutcome)
+        val message = "“${moved.name}” is in the selected folder."
+
+        compose.setBuiltContent {
+            PutioTheme {
+                MobileFilesScreen(
+                    state = state,
+                    onEvent = {},
+                    onPlayMedia = {},
+                    confirmedTrashEnabled = true,
+                )
+            }
+        }
+
+        compose.onNode(hasText(message) and hasAnyAncestor(hasTestTag(MOBILE_FILES_SNACKBAR_TAG)))
+            .assertIsDisplayed()
+
+        val opened = FilesBrowserReducer.reduce(state, FilesBrowserEvent.OpenFolder(childFolder.id))
+        val childLoaded = FilesBrowserReducer.reduce(
+            opened.state,
+            FilesBrowserEvent.LoadSucceeded(checkNotNull(opened.effect).requestId, FilesPage(emptyList(), null)),
+        ).state
+        state = childLoaded
+        compose.waitForIdle()
+
+        state = FilesBrowserReducer.reduce(state, FilesBrowserEvent.NavigateBack).state
+        compose.waitForIdle()
+
+        compose.onNodeWithText(message).assertDoesNotExist()
+    }
+
+    @Test
     fun newFolderCreatedAtTopOfNewestFirstListIsImmediatelyVisible() {
         val existing = (1L..20L).map { item(it, "Existing $it", PutioFileType.FOLDER) }
         var state by mutableStateOf(loadedState(existing))

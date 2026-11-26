@@ -40,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
@@ -151,6 +152,7 @@ internal fun MobileFilesScreen(
 ) {
     val current = state.current
     val atRoot = current.folder.id == FilesFolder.Root.id
+    val announcedMoveRequests = rememberSaveable(saver = LongSetSaver) { mutableSetOf() }
     var offline by remember(state.stack.size, current.folder.id.value) { mutableStateOf(false) }
     val content = current.content
     LaunchedEffect(content) {
@@ -209,6 +211,7 @@ internal fun MobileFilesScreen(
                 itemActions = itemActions,
                 selection = selection,
                 onMoveItems = onMoveItems,
+                announcedMoveRequests = announcedMoveRequests,
             )
         }
     }
@@ -303,6 +306,7 @@ private fun MobileRefreshableFilesContent(
     itemActions: MobileFilesItemActions,
     selection: FilesSelection?,
     onMoveItems: ((List<FilesItem>) -> Unit)?,
+    announcedMoveRequests: MutableSet<Long>,
 ) {
     val operation = state.current.operation
     val currentOperation by rememberUpdatedState(operation)
@@ -397,7 +401,9 @@ private fun MobileRefreshableFilesContent(
     val snackbarHostState = remember { SnackbarHostState() }
     var showingMoveSnackbar by remember { mutableStateOf(false) }
     MobileFilesTrashedAnnouncement(state.current, snackbarHostState, onEvent, itemActions.onUndoTrash)
-    MobileFilesMoveAnnouncement(state.current, snackbarHostState, selecting) { showingMoveSnackbar = it }
+    MobileFilesMoveAnnouncement(state.current, snackbarHostState, selecting, announcedMoveRequests) {
+        showingMoveSnackbar = it
+    }
     MobileFilesNotices(itemActions.notices, snackbarHostState)
     MobileFilesMissingFolderAnnouncement(state, snackbarHostState, onEvent)
     MobileFilesNotices(itemActions.pinNotices, snackbarHostState)
@@ -681,9 +687,9 @@ private fun MobileFilesMoveAnnouncement(
     current: FilesFolderState,
     snackbarHostState: SnackbarHostState,
     selecting: Boolean,
+    announcedRequestIds: MutableSet<Long>,
     onShowingChange: (Boolean) -> Unit,
 ) {
-    var announcedRequestId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showing by remember { mutableStateOf(false) }
     val moved = current.moveOutcome?.takeIf {
         current.operation == FilesFolderOperation.Idle && it.status == FilesMoveStatus.MOVED
@@ -695,9 +701,8 @@ private fun MobileFilesMoveAnnouncement(
     }
     LaunchedEffect(moved?.requestId) {
         val outcome = moved ?: return@LaunchedEffect
-        if (outcome.requestId.value == announcedRequestId) return@LaunchedEffect
+        if (!announcedRequestIds.add(outcome.requestId.value)) return@LaunchedEffect
         val text = message ?: return@LaunchedEffect
-        announcedRequestId = outcome.requestId.value
         snackbarHostState.currentSnackbarData?.dismiss()
         showing = true
         currentOnShowingChange(true)
@@ -712,6 +717,11 @@ private fun MobileFilesMoveAnnouncement(
         }
     }
 }
+
+private val LongSetSaver: Saver<MutableSet<Long>, LongArray> = Saver(
+    save = { it.toLongArray() },
+    restore = { it.toMutableSet() },
+)
 
 @Composable
 private fun MobileFilesMissingFolderAnnouncement(
