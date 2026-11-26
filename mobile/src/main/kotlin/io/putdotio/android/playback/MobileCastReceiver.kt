@@ -75,7 +75,6 @@ internal class CastReceiverSwitch(
 
     /** Uses the put.io receiver for the next session, or Google's when [putio] is false. */
     fun use(putio: Boolean) {
-        CastReceiverStore.save(context, putio)
         want(receiverApplicationId(putio))
     }
 
@@ -94,6 +93,8 @@ internal class CastReceiverSwitch(
         val cast = cast ?: return
         runCatching {
             cast.setReceiverApplicationId(applicationId)
+            // Stored once applied, so a fresh process resumes the session with the receiver it runs.
+            CastReceiverStore.save(context, applicationId == PUTIO_RECEIVER_APPLICATION_ID)
             reselect(cast.mergedSelector)
         }
     }
@@ -148,13 +149,6 @@ internal sealed interface PutioReceiverState {
 
     data class Failed(val fileId: Long?, val reason: String) : PutioReceiverState
 }
-
-/**
- * Whether this report fails the load of [fileId]: a failure for that file, or one the receiver could
- * not tie to a file while that load is still [inFlight].
- */
-internal fun PutioReceiverState.failsLoad(fileId: Long, inFlight: Boolean): Boolean =
-    this is PutioReceiverState.Failed && (this.fileId == fileId || (this.fileId == null && inFlight))
 
 /** A receiver STATUS message, or null for any other message. */
 internal fun parsePutioReceiverStatus(message: String): PutioReceiverState? {

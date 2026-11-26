@@ -201,6 +201,7 @@ class GmsCastRoutesTest {
 
             assertEquals(listOf(PUTIO_RECEIVER_APPLICATION_ID), cast.applied)
             assertEquals(PUTIO_SELECTOR, routes.selector)
+            assertTrue(CastReceiverStore.putio(app))
         } finally {
             gateway.receivers.use(putio = false)
         }
@@ -217,7 +218,7 @@ class GmsCastRoutesTest {
             gateway.receivers.use(putio = true)
 
             assertEquals(emptyList<String>(), cast.applied)
-            assertTrue(CastReceiverStore.putio(app))
+            assertFalse(CastReceiverStore.putio(app))
         } finally {
             gateway.receivers.use(putio = false)
         }

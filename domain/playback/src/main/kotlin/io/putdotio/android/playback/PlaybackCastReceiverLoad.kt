@@ -26,10 +26,10 @@ public data class PlaybackCastReceiverLoad(
     public val mediaInfo: PutioMediaInfo? = null,
 ) {
     /**
-     * The LOAD's `customData` from [positionMillis], within [maxBytes]: `media_info` keeps as many
-     * streams as fit, video and audio first, and goes when none does.
+     * The LOAD's `customData` from [positionMillis], within [maxBytes] where it can be: `media_info`
+     * keeps as many streams as fit, video and audio first, and goes when none does.
      */
-    public fun customData(positionMillis: Long, maxBytes: Int = CUSTOM_DATA_MAX_BYTES): String {
+    public fun customData(positionMillis: Long, maxBytes: Int): String {
         val load = buildJsonObject {
             put("fileId", fileId)
             put("method", HLS_METHOD)
@@ -116,6 +116,3 @@ private const val MILLIS_PER_SECOND = 1_000.0
 private const val ORIGINAL_QUERY = "original"
 private const val MAX_SUBTITLE_COUNT_QUERY = "max_subtitle_count"
 private const val SUBTITLE_LANGUAGES_QUERY = "subtitle_languages"
-
-/** A Cast message is at most 64 KB; the rest is the media's own description and the envelope. */
-public const val CUSTOM_DATA_MAX_BYTES: Int = 48 * 1024

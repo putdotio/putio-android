@@ -89,18 +89,6 @@ class MobileCastReceiverTest {
         assertNull(parsePutioReceiverStatus("not json"))
     }
 
-    @Test
-    fun aFailureFailsTheLoadOfItsFileOrTheOneInFlight() {
-        val invalidToken = PutioReceiverState.Failed(42L, "invalid_token")
-        val rejected = PutioReceiverState.Failed(null, "missing_token")
-
-        assertTrue(invalidToken.failsLoad(42L, inFlight = false))
-        assertFalse(invalidToken.failsLoad(7L, inFlight = true))
-        assertTrue(rejected.failsLoad(42L, inFlight = true))
-        assertFalse(rejected.failsLoad(42L, inFlight = false))
-        assertFalse(PutioReceiverState.Loaded(42L).failsLoad(42L, inFlight = true))
-    }
-
     private companion object {
         const val DEFAULT = CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
         const val TOKEN = "download-token"

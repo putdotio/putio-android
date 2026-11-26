@@ -102,7 +102,7 @@ class PlaybackCastReceiverLoadTest {
     }
 
     private fun PlaybackCastReceiverLoad.json(positionMillis: Long): JsonObject =
-        Json.parseToJsonElement(customData(positionMillis)).jsonObject
+        Json.parseToJsonElement(customData(positionMillis, maxBytes = 64 * 1024)).jsonObject
 
     private fun hls(query: String, target: PlaybackTarget = Video) =
         source(PlaybackSourceKind.HLS, "https://api.put.io/v2/files/42/hls/media.m3u8?$query")

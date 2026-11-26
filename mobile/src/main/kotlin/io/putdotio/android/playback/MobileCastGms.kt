@@ -929,6 +929,9 @@ internal class GmsCastRemote : CastRemote {
         val previous = mutableStatus.value?.takeIf { info == null && it.fileId == fileId }
         val state = media.castRemoteState()
         noteReport(fileId, state)
+        // Media another sender loaded since is no longer the file that failed.
+        receiverFailure = receiverFailure?.takeIf { info == null || it.fileId == fileId }
+        val tracks = info?.mediaTracks.orEmpty()
         mutableStatus.value = latestLoad.failure ?: receiverFailure ?: CastRemoteStatus(
             fileId = fileId,
             state = state,
@@ -941,6 +944,9 @@ internal class GmsCastRemote : CastRemote {
             playIntent = playIntent,
             title = info?.metadata?.getString(MediaMetadata.KEY_TITLE) ?: previous?.title,
             audio = previous?.audio ?: (info?.metadata?.mediaType == MediaMetadata.MEDIA_TYPE_MUSIC_TRACK),
+            audioTracks = tracks.castTracks(MediaTrack.TYPE_AUDIO),
+            textTracks = tracks.castTracks(MediaTrack.TYPE_TEXT),
+            activeTrackIds = media.activeTrackIds?.toSet().orEmpty(),
         )
     }
 
@@ -983,11 +989,35 @@ internal class GmsCastRemote : CastRemote {
      * could not tie to a file while that load is in flight, stands until the next load.
      */
     fun receiverReported(state: PutioReceiverState) {
-        val (media, startMillis) = lastLoad ?: return
-        if (!state.failsLoad(media.fileId, latestLoad.inFlight)) return
-        receiverFailure = media.failedAt(startMillis)
+        when (state) {
+            is PutioReceiverState.Failed -> state.fileId?.let(::receiverFailed)
+            is PutioReceiverState.Loading -> if (state.fileId != receiverFailure?.fileId) clearReceiverFailure()
+            is PutioReceiverState.Loaded -> if (state.fileId != receiverFailure?.fileId) clearReceiverFailure()
+            PutioReceiverState.Idle -> Unit
+        }
+    }
+
+    /** The receiver's stream for [fileId] failed: it shows failed where it stood, until the next load. */
+    private fun receiverFailed(fileId: Long) {
+        val now = SystemClock.elapsedRealtime()
+        val shown = mutableStatus.value?.takeIf { it.fileId == fileId }
+        val loaded = lastLoad?.takeIf { (media, _) -> media.fileId == fileId }
+        val failure = shown?.copy(state = CastRemoteState.Failed, positionMillis = shown.positionAt(now), sampledAtMillis = now)
+            ?: loaded?.let { (media, start) -> media.failedAt(start) }
+            ?: return
+        receiverFailure = failure
         pendingSubtitle = null
-        mutableStatus.value = latestLoad.failure ?: receiverFailure
+        mutableStatus.value = latestLoad.failure ?: failure
+    }
+
+    private fun clearReceiverFailure() {
+        if (receiverFailure == null) return
+        receiverFailure = null
+        publish()
+    }
+
+    override fun setActiveTracks(trackIds: Set<Long>) {
+        client?.setActiveMediaTracks(trackIds.toLongArray())
     }
 
     override fun play() {
@@ -1074,8 +1104,10 @@ private fun RemoteMediaClient.showPlaylistSubtitle(
     val tracks = mediaInfo?.takeIf { it.putioFileId(putioReceiver) == fileId }
         ?.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
     if (tracks.isEmpty()) return pending
+    // The audio track playing stays; only the text track changes.
+    val kept = mediaStatus?.activeTrackIds?.toSet().orEmpty() - tracks.map { it.id }.toSet()
     playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)
-        ?.let { setActiveMediaTracks(longArrayOf(it)) }
+        ?.let { setActiveMediaTracks((kept + it).toLongArray()) }
     return null
 }
 

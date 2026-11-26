@@ -35,13 +35,16 @@ internal fun PlaybackCastMedia.loadRequest(
     putioReceiver: Boolean,
 ): MediaLoadRequestData {
     val receiverLoad = receiverLoad?.takeIf { putioReceiver }
+    val mediaInfo = toMediaInfo(sendsUrl = receiverLoad == null)
+    // The custom data fills what the media's own description leaves of one Cast message.
+    val budget = CAST_MESSAGE_MAX_BYTES - CAST_ENVELOPE_BYTES - mediaInfo.toJson().toString().toByteArray().size
     return MediaLoadRequestData.Builder()
-        .setMediaInfo(toMediaInfo(sendsUrl = receiverLoad == null))
+        .setMediaInfo(mediaInfo)
         .setAutoplay(autoplay)
         .setCurrentTime(startMillis)
         .setPlaybackRate(speed.castRate())
         .setActiveTrackIds(activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
-        .apply { receiverLoad?.let { setCustomData(JSONObject(it.customData(startMillis))) } }
+        .apply { receiverLoad?.let { setCustomData(JSONObject(it.customData(startMillis, budget))) } }
         .build()
 }
 
@@ -88,3 +91,9 @@ internal fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean = true): MediaInfo 
 /** Ties the receiver's media to the put.io file; another sender's media carries none. */
 internal const val FILE_ID_KEY = "putioFileId"
 private const val WEBVTT_CONTENT_TYPE = "text/vtt"
+private const val CAST_MESSAGE_MAX_BYTES = 64 * 1024
+private const val CAST_ENVELOPE_BYTES = 1024
+
+/** The tracks of [type] among these, as the receiver lists them. */
+internal fun List<MediaTrack>.castTracks(type: Int): List<CastTrack> =
+    filter { it.type == type }.map { CastTrack(it.id, it.name?.takeIf(String::isNotBlank), it.language) }

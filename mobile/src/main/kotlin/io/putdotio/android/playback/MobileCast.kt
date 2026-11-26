@@ -80,6 +80,10 @@ internal data class CastRemoteStatus(
     val audio: Boolean = false,
     /** When the session ended, for a last status: the position moves on no further than this. */
     val endedAtMillis: Long? = null,
+    /** The tracks the receiver lists for the media, and the ones it plays. */
+    val audioTracks: List<CastTrack> = emptyList(),
+    val textTracks: List<CastTrack> = emptyList(),
+    val activeTrackIds: Set<Long> = emptySet(),
 ) {
     val playing: Boolean
         get() = state == CastRemoteState.Playing || (state == CastRemoteState.Buffering && playIntent != false)
@@ -91,6 +95,9 @@ internal data class CastRemoteStatus(
         return durationMillis?.let(position::coerceAtMost) ?: position
     }
 }
+
+/** One of the receiver's audio or text tracks; [name] and [language] are what the stream says. */
+internal data class CastTrack(val id: Long, val name: String?, val language: String?)
 
 internal enum class CastDeviceKind { Tv, Speaker, Other }
 
@@ -162,6 +169,9 @@ internal interface CastRemote {
     fun seekTo(positionMillis: Long)
 
     fun setSpeed(speed: Float)
+
+    /** Plays exactly [trackIds] among the media's tracks: one audio, and a text track or none. */
+    fun setActiveTracks(trackIds: Set<Long>)
 }
 
 internal interface CastAccount {
@@ -689,6 +699,11 @@ internal class CastRemotePlayer(
             }
         }
     }
+
+    /** What the receiver last said, its tracks included. */
+    val receiverStatus: StateFlow<CastRemoteStatus?> get() = gateway.status
+
+    fun setActiveTracks(trackIds: Set<Long>) = gateway.setActiveTracks(trackIds)
 
     /** Keeps an item that reports positions over a bare one for the same file. */
     fun adopt(item: MediaItem) {
