@@ -2,10 +2,9 @@ package io.putdotio.android
 
 import android.content.Context
 import android.content.res.Configuration
-import android.graphics.Color
+import android.os.Build
 import androidx.activity.ComponentActivity
-import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
+import androidx.core.view.WindowCompat
 
 public abstract class BasePutioActivity : ComponentActivity() {
     /** The largest font scale this app's text follows; larger system sizes render at it. */
@@ -23,12 +22,12 @@ public abstract class BasePutioActivity : ComponentActivity() {
     }
 
     protected fun configureEdgeToEdge() {
-        // The binding is dark only; the automatic style would draw dark
-        // status icons over the shell when the device theme is light.
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            window.decorView
+            window.isNavigationBarContrastEnforced = false
+        } else {
+            WindowCompat.enableEdgeToEdge(window)
+        }
     }
 
     public companion object {

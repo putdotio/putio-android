@@ -1,5 +1,7 @@
 package io.putdotio.android.tv
 
+import androidx.compose.foundation.layout.recalculateWindowInsets
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Constraints
@@ -21,7 +23,10 @@ internal val TV_VERTICAL_MARGIN = 24.dp
  */
 internal fun Modifier.tvOverscanPadding(): Modifier = tvInset(minimumX = 0.dp, minimumY = 0.dp)
 
-internal fun Modifier.tvSafeAreaPadding(): Modifier = tvInset(minimumX = TV_SIDE_MARGIN, minimumY = TV_VERTICAL_MARGIN)
+internal fun Modifier.tvSafeAreaPadding(): Modifier =
+    tvInset(minimumX = TV_SIDE_MARGIN, minimumY = TV_VERTICAL_MARGIN)
+        .recalculateWindowInsets()
+        .safeDrawingPadding()
 
 internal data class TvSafeAreaMargins(val side: Dp, val vertical: Dp)
 
