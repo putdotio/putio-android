@@ -1007,7 +1007,8 @@ internal class GmsCastRemote : CastRemote {
      */
     fun receiverReported(state: PutioReceiverState) {
         when (state) {
-            is PutioReceiverState.Failed -> state.fileId?.let(::receiverFailed)
+            is PutioReceiverState.Failed ->
+                (state.fileId ?: lastLoad?.first?.fileId?.takeIf { latestLoad.inFlight })?.let(::receiverFailed)
             is PutioReceiverState.Loading, is PutioReceiverState.Loaded -> clearReceiverFailure()
             PutioReceiverState.Idle -> Unit
         }
