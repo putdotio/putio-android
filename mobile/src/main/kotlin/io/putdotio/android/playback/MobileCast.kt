@@ -823,7 +823,3 @@ internal class CastRemotePlayer(
         const val MICROS_PER_MILLI = 1_000L
     }
 }
-
-/** This status when it is of [item]'s file; null for other media. */
-private fun CastRemoteStatus?.adoptedBy(item: MediaItem?): CastRemoteStatus? =
-    this?.takeIf { it.fileId != null && item?.mediaId == it.fileId.toString() }

@@ -937,7 +937,7 @@ internal class GmsCastRemote : CastRemote {
         receiverFailure = receiverFailure?.takeIf {
             info == null || it.fileId == fileId || it.fileId == lastLoad?.first?.fileId
         }
-        // Only the put.io receiver's tracks are switched from here; Google's receiver keeps main's controls.
+        // Only the put.io receiver's tracks are switched from here; Google's receiver keeps speed alone.
         val tracks = info?.mediaTracks.orEmpty().takeIf { putioReceiver }.orEmpty()
         val status = CastRemoteStatus(
             fileId = fileId,
@@ -955,11 +955,15 @@ internal class GmsCastRemote : CastRemote {
             textTracks = tracks.castTracks(MediaTrack.TYPE_TEXT),
             activeTrackIds = media.activeTrackIds?.toSet().orEmpty(),
         )
-        if (fileId != null && unplacedFailure == fileId) {
-            unplacedFailure = null
-            receiverFailure = status.copy(state = CastRemoteState.Failed)
-        }
+        placeUnplacedFailure(status)
         mutableStatus.value = latestLoad.failure ?: receiverFailure ?: status
+    }
+
+    /** A failure the receiver named before any status placed its file fails where [status] stands. */
+    private fun placeUnplacedFailure(status: CastRemoteStatus) {
+        if (status.fileId == null || unplacedFailure != status.fileId) return
+        unplacedFailure = null
+        receiverFailure = status.copy(state = CastRemoteState.Failed)
     }
 
     /**

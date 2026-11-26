@@ -6,6 +6,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.media3.common.MediaItem
 import io.putdotio.android.R
 
 /** What each of these tracks shows as: its name, else its language, numbered where two match. */
@@ -23,6 +24,10 @@ internal fun castTrackLabels(tracks: List<CastTrack>, fallback: String): List<St
         }
     }
 }
+
+/** This status when it is of [item]'s file, whose tracks the Cast controls switch; null for other media. */
+internal fun CastRemoteStatus?.adoptedBy(item: MediaItem?): CastRemoteStatus? =
+    this?.takeIf { it.fileId != null && item?.mediaId == it.fileId.toString() }
 
 /** The active tracks with [audioId] as the one audio track. */
 internal fun CastRemoteStatus.withAudio(audioId: Long): Set<Long> =

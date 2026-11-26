@@ -48,8 +48,10 @@ internal fun PlaybackCastMedia.loadRequest(
     val first = withCustomData(budget)
     // Android's JSON escapes what Kotlin's leaves bare, so the sent LOAD can outgrow the first guess.
     val over = first.jsonSize() - room
-    if (over <= 0) return first
-    return withCustomData(budget - over).takeIf { it.jsonSize() <= room } ?: withCustomData(0)
+    return when {
+        over <= 0 -> first
+        else -> withCustomData(budget - over).takeIf { it.jsonSize() <= room } ?: withCustomData(0)
+    }
 }
 
 private fun MediaLoadRequestData.jsonSize(): Int = toJson().toString().toByteArray().size
