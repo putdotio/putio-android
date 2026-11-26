@@ -98,7 +98,6 @@ class DesignTokenCodegenTest {
         assertTrue(xml.contains("<color name=\"putio_yellow_solid\">#FFFDCE45</color>"))
         // Dark mode wins here too.
         assertTrue(xml.contains("<color name=\"putio_app_bg\">#FF161616</color>"))
-        // hsl(2, 100%, 77%) and hsl(151, 55%, 41.5%): the light red and green DESIGN.md names.
         assertTrue(xml.contains("<color name=\"putio_red_text_secondary\">#FFFF8E8A</color>"))
         assertTrue(xml.contains("<color name=\"putio_green_solid\">#FF30A46C</color>"))
         assertEquals(DesignTokenCodegen.RESOURCE_TOKENS.size, Regex("<color ").findAll(xml).count())

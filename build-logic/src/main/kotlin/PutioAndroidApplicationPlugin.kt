@@ -59,8 +59,6 @@ class PutioAndroidApplicationPlugin : Plugin<Project> {
             defaultConfig.buildConfigField("String", "PUTIO_SENTRY_DSN", "\"\"")
             defaultConfig.buildConfigField("String", "PUTIO_POSTHOG_TOKEN", "\"\"")
 
-            // Delivery signs with the Play upload key (.github/workflows/play-internal.yml); without it,
-            // release builds stay unsigned and Google Play rejects them.
             providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull?.let { keystore ->
                 val upload = signingConfigs.create("upload") {
                     storeFile = file(keystore)

@@ -32,7 +32,6 @@ android {
         // Shared with the TV app: one Google Play listing serves both, phones get this bundle and
         // TVs the TV one (AGENTS.md#google-play-delivery).
         applicationId = "io.put.putio"
-        // Dedicated public Android mobile OAuth client from #47.
         buildConfigField("String", "PUTIO_MOBILE_OAUTH_CLIENT_ID", "\"9677\"")
         // Local harness proof only: an ignored local.properties may point debug
         // builds at another client. The field exists in every variant; the debug
@@ -115,8 +114,6 @@ androidComponents {
     }
 }
 
-// Google Play delivery runs from this module for both apps: each upload is one release carrying
-// the mobile and TV production bundles (.github/workflows/play-internal.yml).
 val tvPlayBundle = configurations.dependencyScope("tvPlayBundle")
 val tvPlayBundleFiles = configurations.resolvable("tvPlayBundleFiles") {
     extendsFrom(tvPlayBundle.get())
