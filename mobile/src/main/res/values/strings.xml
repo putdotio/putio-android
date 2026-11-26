@@ -732,7 +732,7 @@
     <string name="mobile_playback_audio_control">Audio</string>
     <string name="mobile_playback_no_captions">No captions available</string>
     <string name="mobile_playback_picture_in_picture">Picture in picture</string>
-    <string name="mobile_playback_subtitle_caption_settings">Font and colours follow Android’s caption settings.</string>
+    <string name="mobile_playback_subtitle_caption_settings">Font and colors follow Android’s caption settings.</string>
     <string name="mobile_playback_cant_play_title">Can’t play this here</string>
     <string name="mobile_playback_cant_play_message">This format needs another player.</string>
     <string name="mobile_cast">Cast</string>
@@ -756,14 +756,14 @@
         features/public-shares/errors.ts and packages/translations/src/languages/en.json.
     -->
     <!-- en.json files_menu_public_share_label, verbatim. -->
-    <string name="mobile_public_links_action">Exclusive access</string>
+    <string name="mobile_public_links_action">Exclusive link</string>
     <!-- en.json files_public_share_abuse_message_title and files_public_share_abuse_message_details, verbatim. -->
     <string name="mobile_public_links_create">Create link</string>
     <string name="mobile_public_links_creating">Creating link…</string>
     <string name="mobile_public_links_created">Link created. Copy or share it below.</string>
     <string name="mobile_public_links_loading">Loading links…</string>
     <string name="mobile_public_links_empty_title">No exclusive links</string>
-    <string name="mobile_public_links_empty">Links you make with Exclusive access show up here.</string>
+    <string name="mobile_public_links_empty">Links you make with Exclusive link show up here.</string>
     <!-- en.json sharing_public_links_expires_in. -->
     <string name="mobile_public_links_expiry_unknown">Expires within 72 hours</string>
     <string name="mobile_public_links_copy">Copy link</string>
@@ -786,7 +786,7 @@
     <!-- en.json files_public_share_error_unsupported_file_type. -->
     <string name="mobile_public_links_refused_file_type">This file type can’t be shared.</string>
     <!-- en.json files_public_share_error_limit_exceeded, with Account in place of web's link. -->
-    <string name="mobile_public_links_refused_limit">You have reached the limit of your public links. You’ll have to revoke some under Account, Exclusive access, if you want to make more.</string>
+    <string name="mobile_public_links_refused_limit">You have reached the limit of your public links. You’ll have to revoke some under Account, Exclusive links, if you want to make more.</string>
     <!-- en.json files_public_share_error_max_size_limit_exceeded; put.io's numbers are not read. -->
     <string name="mobile_public_links_refused_folder_size">This folder is too big to share.</string>
     <!-- en.json files_public_share_error_max_children_limit_exceeded. -->

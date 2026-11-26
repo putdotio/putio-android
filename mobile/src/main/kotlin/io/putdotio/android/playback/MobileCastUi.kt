@@ -217,14 +217,16 @@ private fun MobileCastPickerRows(
 
 @Composable
 private fun MobileCastDeviceRow(device: CastDevice, onClick: () -> Unit) {
+    val title = castReceiverName(device.name)
+    val model = device.model?.trim()?.takeIf { it.isNotEmpty() && !it.equals(title.trim(), ignoreCase = true) }
     MobileCastActionRow(
         icon = when (device.kind) {
             CastDeviceKind.Tv -> R.drawable.ic_ph_television
             CastDeviceKind.Speaker -> R.drawable.ic_ph_speaker_hifi
             CastDeviceKind.Other -> R.drawable.ic_ph_television_simple
         },
-        title = castReceiverName(device.name),
-        supporting = if (device.audioOnly) stringResource(R.string.mobile_cast_audio_only) else device.model,
+        title = title,
+        supporting = if (device.audioOnly) stringResource(R.string.mobile_cast_audio_only) else model,
         selected = device.selected,
         onClick = onClick,
     )

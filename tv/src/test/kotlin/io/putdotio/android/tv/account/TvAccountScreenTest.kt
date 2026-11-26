@@ -232,7 +232,7 @@ class TvAccountScreenTest {
 
         openPlaybackRow("Proxy", downs = 3)
         compose.onNodeWithText("Choose your proxy").assertIsDisplayed()
-        compose.onNodeWithText("Straight from put.io's servers in Amsterdam.").assertIsDisplayed()
+        compose.onNodeWithText("Straight from put.io’s servers in Amsterdam.").assertIsDisplayed()
         compose.onAllNodes(hasText("Save") and hasAnyAncestor(isDialog())).assertCountEquals(0)
         compose.onNode(inSheet("cdn77")).assertIsSelected().performKeyInput { pressCenter() }
         compose.onAllNodes(isDialog()).assertCountEquals(0)

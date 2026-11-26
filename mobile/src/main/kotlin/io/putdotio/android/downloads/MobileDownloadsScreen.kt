@@ -74,6 +74,7 @@ import io.putdotio.android.monoValue
 import io.putdotio.android.design.FileTypeIcon
 import io.putdotio.android.design.PutioDesignTokens
 import io.putdotio.android.design.PutioDestructiveButton
+import io.putdotio.android.design.PutioEmptyGlyph
 import io.putdotio.android.design.putioMono
 import io.putdotio.android.files.FilesItem
 import io.putdotio.android.files.FilesItemId
@@ -144,8 +145,9 @@ internal fun MobileDownloadsScreen(
             if (state.entries.isEmpty()) {
                 item(key = "empty") {
                     MobileEmptyState(
-                        stringResource(R.string.mobile_downloads_empty_title),
-                        stringResource(R.string.mobile_downloads_empty_message),
+                        title = stringResource(R.string.mobile_downloads_empty_title),
+                        message = stringResource(R.string.mobile_downloads_empty_message),
+                        glyph = PutioEmptyGlyph.NothingYet,
                     )
                 }
             }
