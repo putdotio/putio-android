@@ -23,6 +23,7 @@ public abstract class BasePutioActivity : ComponentActivity() {
 
     protected fun configureEdgeToEdge() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            window.decorView
             window.isNavigationBarContrastEnforced = false
         } else {
             WindowCompat.enableEdgeToEdge(window)
