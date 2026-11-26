@@ -229,7 +229,8 @@ class GmsCastRoutesTest {
         private val putioSelector: MediaRouteSelector? = defaultSelector,
     ) : CastContextHandle {
         override val currentCastSession: CastSession? = null
-        override var receiverApplicationId: String = CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+        private var current = CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+        override val receiverApplicationId: String get() = current
         val applied = mutableListOf<String>()
 
         override val mergedSelector: MediaRouteSelector?
@@ -237,7 +238,7 @@ class GmsCastRoutesTest {
 
         override fun setReceiverApplicationId(applicationId: String) {
             applied += applicationId
-            receiverApplicationId = applicationId
+            current = applicationId
         }
 
         override fun addCastStateListener(listener: () -> Unit) = Unit
