@@ -74,6 +74,11 @@ internal fun AppConfig.toAndroidPreferences(): AndroidAppConfigPreferences =
                 ?.takeUnless(JsonPrimitive::isString)
                 ?.booleanOrNull
                 ?: true,
+        putioCastReceiver =
+            (this[PUTIO_CAST_RECEIVER_KEY] as? JsonPrimitive)
+                ?.takeUnless(JsonPrimitive::isString)
+                ?.booleanOrNull
+                ?: false,
         // Only a readable "not answered" asks, so a value this app can't read never asks again.
         productAnalyticsPromptAnswered =
             this[PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY]?.let { value ->
@@ -98,6 +103,11 @@ public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
                 key = ROTATE_TO_LANDSCAPE_KEY,
                 value = JsonPrimitive(enabled),
             )
+        is AndroidAppConfigChange.PutioCastReceiver ->
+            AppConfigUpdate(
+                key = PUTIO_CAST_RECEIVER_KEY,
+                value = JsonPrimitive(enabled),
+            )
         AndroidAppConfigChange.ProductAnalyticsPromptAnswered ->
             AppConfigUpdate(
                 key = PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY,
@@ -108,6 +118,7 @@ public fun AndroidAppConfigChange.toUpdate(): AppConfigUpdate =
 internal const val STREAMING_METHOD_KEY = "streaming_method"
 internal const val AUTOPLAY_NEXT_VIDEO_KEY = "autoplay_next_video"
 internal const val ROTATE_TO_LANDSCAPE_KEY = "auto_rotate_video"
+internal const val PUTIO_CAST_RECEIVER_KEY = "beta.putio_cast_receiver"
 
 // One flat key, dot included. put.io keeps config per OAuth app, so the web's answer doesn't reach this app.
 internal const val PRODUCT_ANALYTICS_PROMPT_ANSWERED_KEY = "dismissed.product_analytics_prompt"

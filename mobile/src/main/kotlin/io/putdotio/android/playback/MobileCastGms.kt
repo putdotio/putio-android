@@ -31,7 +31,6 @@ import androidx.mediarouter.media.MediaControlIntent
 import androidx.mediarouter.media.MediaRouteSelector
 import androidx.mediarouter.media.MediaRouter
 import com.google.android.gms.cast.CastDevice as GmsCastDevice
-import com.google.android.gms.cast.CastMediaControlIntent
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaLoadRequestData
 import com.google.android.gms.cast.MediaMetadata
@@ -153,6 +152,11 @@ internal object MobileCast {
         )
     }
 
+    /** The signed-in account's receiver choice; the next Cast session launches it. */
+    fun useReceiver(context: Context, putio: Boolean) {
+        (controller(context)?.gateway as? GmsCastGateway)?.useReceiver(putio)
+    }
+
     /**
      * The signed-in [session] left: the receiver plays with the account's download token, so the
      * Cast session ends with it, a session the Cast SDK resumes for a fresh process included.
@@ -163,6 +167,7 @@ internal object MobileCast {
                 it.end()
                 it.autoplay.forget(session)
             }
+            useReceiver(context, putio = false)
         }
     }
 
@@ -304,15 +309,15 @@ private fun defaultCastPlayer(
 }
 
 /**
- * Google's Default Media Receiver, as putio-web and putio-ios use it: put.io has no receiver of its
- * own. The audio session's CastPlayer carries the remote controls, so the Cast SDK shows neither a
- * notification nor a media session of its own. The system's output switcher can move a session back
- * to this device.
+ * Google's Default Media Receiver, or the put.io receiver once the account opts in; the gateway
+ * switches between them as the account's choice changes. The audio session's CastPlayer carries the
+ * remote controls, so the Cast SDK shows neither a notification nor a media session of its own. The
+ * system's output switcher can move a session back to this device.
  */
 class MobileCastOptionsProvider : OptionsProvider {
     override fun getCastOptions(context: Context): CastOptions =
         CastOptions.Builder()
-            .setReceiverApplicationId(CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID)
+            .setReceiverApplicationId(receiverApplicationId(CastReceiverStore.putio(context)))
             .setCastMediaOptions(
                 CastMediaOptions.Builder()
                     .setNotificationOptions(null)
@@ -455,6 +460,9 @@ internal interface CastContextHandle {
     val mergedSelector: MediaRouteSelector?
     val castState: Int
     val currentCastSession: CastSession?
+    val receiverApplicationId: String
+
+    fun setReceiverApplicationId(applicationId: String)
 
     fun addCastStateListener(listener: () -> Unit)
 
@@ -474,6 +482,11 @@ private class GmsCastContextHandle(private val cast: CastContext) : CastContextH
 
     override val currentCastSession: CastSession?
         get() = cast.sessionManager.currentCastSession
+
+    override val receiverApplicationId: String
+        get() = cast.castOptions.receiverApplicationId
+
+    override fun setReceiverApplicationId(applicationId: String) = cast.setReceiverApplicationId(applicationId)
 
     override fun addCastStateListener(listener: () -> Unit) = cast.addCastStateListener { listener() }
 
@@ -511,6 +524,9 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     private var castContext: CastContextHandle? = null
     private val signOut = CastSignOutEnd { castContext?.endCurrentSession(true) }
     private val startedOwners: MutableSet<LifecycleOwner> = Collections.newSetFromMap(IdentityHashMap())
+    private var receiver: CastReceiverSelection? = null
+    private var wantedReceiver: String? = null
+    private var messagingSession: CastSession? = null
 
     /**
      * Loads Cast off the main thread and binds it once it answers. Play services runs Cast in its own
@@ -537,7 +553,9 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
     @VisibleForTesting
     internal fun bind(cast: CastContextHandle) {
         castContext = cast
+        receiver = CastReceiverSelection(cast.receiverApplicationId)
         routes.selector = cast.mergedSelector
+        wantedReceiver?.let(::want)
         cast.addCastStateListener { updateAvailability() }
         cast.addSessionManagerListener(sessions)
         cast.addSessionTransferCallback(transfers)
@@ -591,7 +609,10 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
             attach(session)
         }
 
-        override fun onSessionStartFailed(session: CastSession, error: Int) = updateAvailability()
+        override fun onSessionStartFailed(session: CastSession, error: Int) {
+            updateAvailability()
+            applyWaitingReceiver()
+        }
 
         // The receiver's last position, read while the session still answers.
         override fun onSessionEnding(session: CastSession) = remote.publish()
@@ -599,6 +620,7 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         override fun onSessionEnded(session: CastSession, error: Int) {
             signOut.sessionEnded()
             detach()
+            applyWaitingReceiver()
         }
 
         override fun onSessionResuming(session: CastSession, sessionId: String) {
@@ -613,19 +635,72 @@ internal class GmsCastGateway @VisibleForTesting internal constructor(
         override fun onSessionResumeFailed(session: CastSession, error: Int) {
             signOut.sessionEnded()
             detach()
+            applyWaitingReceiver()
         }
 
         override fun onSessionSuspended(session: CastSession, reason: Int) = remote.publish()
     }
 
     private fun attach(session: CastSession) {
-        remote.attach(session.remoteMediaClient)
+        val putio = session.applicationMetadata?.applicationId == PUTIO_RECEIVER_APPLICATION_ID
+        remote.attach(session.remoteMediaClient, putio)
+        listen(session.takeIf { putio })
         updateAvailability()
     }
 
     private fun detach() {
+        listen(null)
         remote.detach()
         updateAvailability()
+    }
+
+    /**
+     * Uses the put.io receiver for the next session, or Google's when [putio] is false. A session
+     * live now keeps its receiver; the choice applies once it ends.
+     */
+    fun useReceiver(putio: Boolean) {
+        CastReceiverStore.save(context, putio)
+        want(receiverApplicationId(putio))
+    }
+
+    private fun want(applicationId: String) {
+        wantedReceiver = applicationId
+        val cast = castContext ?: return
+        val live = cast.castState == CastState.CONNECTING || cast.castState == CastState.CONNECTED
+        receiver?.want(applicationId, live)?.let(::applyReceiver)
+    }
+
+    private fun applyWaitingReceiver() {
+        receiver?.sessionGone()?.let(::applyReceiver)
+    }
+
+    // A Cast context that refuses the switch keeps the receiver it has.
+    @Suppress("SwallowedException")
+    private fun applyReceiver(applicationId: String) {
+        val cast = castContext ?: return
+        try {
+            cast.setReceiverApplicationId(applicationId)
+            routes.reselect(cast.mergedSelector)
+        } catch (_: RuntimeException) {
+            updateAvailability()
+        }
+    }
+
+    /**
+     * Hears the put.io receiver's own word on its load, from the session that carries it. A session
+     * that went away mid-call has nothing more to say, so a failed call is dropped.
+     */
+    private fun listen(session: CastSession?) {
+        messagingSession?.let { previous -> runCatching { previous.removeMessageReceivedCallbacks(PUTIO_CAST_NAMESPACE) } }
+        messagingSession = null
+        session ?: return
+        runCatching {
+            session.setMessageReceivedCallbacks(PUTIO_CAST_NAMESPACE) { _, _, message ->
+                if (messagingSession === session) parsePutioReceiverStatus(message)?.let(remote::receiverReported)
+            }
+            messagingSession = session
+            session.sendMessage(PUTIO_CAST_NAMESPACE, PUTIO_GET_STATUS_MESSAGE)
+        }
     }
 
     /** Ends the session, or, before Cast has resumed one, the session it resumes next. */
@@ -756,6 +831,13 @@ internal class GmsCastRoutes(private val context: Context) : CastRoutes {
         onDevicesChanged()
     }
 
+    /** The Cast framework's selector after the receiver changed: the search starts over with it. */
+    fun reselect(selector: MediaRouteSelector?) {
+        if (selector == null || selector == this.selector) return
+        this.selector = selector
+        if (discovering || watching) updateCallback() else refresh()
+    }
+
     private fun MediaRouteSelector.republishingReceivers(): MediaRouteSelector =
         MediaRouteSelector.Builder(this).addControlCategory(MediaControlIntent.CATEGORY_REMOTE_PLAYBACK).build()
 
@@ -778,6 +860,15 @@ internal class GmsCastRemote : CastRemote {
 
     /** The latest load's playlist subtitle, until the receiver lists the stream's text tracks. */
     private var pendingSubtitle: Pair<Long, PlaybackCastPlaylistSubtitle>? = null
+
+    /** Whether the session runs the put.io receiver, which takes [PlaybackCastMedia.receiverLoad]. */
+    private var putioReceiver = false
+
+    /** The latest load and where it started, for a failure the put.io receiver reports later. */
+    private var lastLoad: Pair<PlaybackCastMedia, Long>? = null
+
+    /** The put.io receiver's word that the latest load's stream failed, which a resolved load can hide. */
+    private var receiverFailure: CastRemoteStatus? = null
 
     /** Whether play was last asked for, which a loading receiver's status does not say. */
     private var playIntent: Boolean? = null
@@ -815,7 +906,9 @@ internal class GmsCastRemote : CastRemote {
      */
     private val showPendingSubtitle = {
         val remote = client
-        if (!latestLoad.inFlight && remote != null) pendingSubtitle = pendingSubtitle?.let(remote::showPlaylistSubtitle)
+        if (!latestLoad.inFlight && remote != null) {
+            pendingSubtitle = pendingSubtitle?.let { remote.showPlaylistSubtitle(it, putioReceiver) }
+        }
     }
 
     private val callback = object : RemoteMediaClient.Callback() {
@@ -831,9 +924,12 @@ internal class GmsCastRemote : CastRemote {
 
     private val progress = RemoteMediaClient.ProgressListener { _, _ -> publish() }
 
-    fun attach(remote: RemoteMediaClient?) {
+    fun attach(remote: RemoteMediaClient?, putio: Boolean = false) {
         release()
         latestLoad.reset()
+        putioReceiver = putio
+        lastLoad = null
+        receiverFailure = null
         client = remote?.also {
             it.registerCallback(callback)
             it.addProgressListener(progress, PROGRESS_INTERVAL_MILLIS)
@@ -856,6 +952,9 @@ internal class GmsCastRemote : CastRemote {
         release()
         lastFileId = null
         latestLoad.reset()
+        putioReceiver = false
+        lastLoad = null
+        receiverFailure = null
         pendingSubtitle = null
         playIntent = null
         endedStatus = mutableStatus.value?.takeUnless { discardHandback }
@@ -879,12 +978,12 @@ internal class GmsCastRemote : CastRemote {
         // A finished file's status drops its media; it still belongs to the file it finished, with the
         // title and kind it was sent with. Media another sender sent, untagged, belongs to no file.
         val info = remote.mediaInfo
-        val fileId = info?.customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
+        val fileId = info?.putioFileId(putioReceiver)
             ?: lastFileId.takeIf { info == null && media.playerState == MediaStatus.PLAYER_STATE_IDLE }
         val previous = mutableStatus.value?.takeIf { info == null && it.fileId == fileId }
         val state = media.castRemoteState()
         noteReport(fileId, state)
-        mutableStatus.value = latestLoad.failure ?: CastRemoteStatus(
+        mutableStatus.value = latestLoad.failure ?: receiverFailure ?: CastRemoteStatus(
             fileId = fileId,
             state = state,
             positionMillis = remote.approximateStreamPosition.coerceAtLeast(0L),
@@ -917,25 +1016,11 @@ internal class GmsCastRemote : CastRemote {
         val request = latestLoad.start()
         pendingSubtitle = media.playlistSubtitle?.let { media.fileId to it }
         playIntent = autoplay
-        remote.load(
-            MediaLoadRequestData.Builder()
-                .setMediaInfo(media.toMediaInfo())
-                .setAutoplay(autoplay)
-                .setCurrentTime(startMillis)
-                .setPlaybackRate(speed.castRate())
-                .setActiveTrackIds(media.activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
-                .build(),
-        ).setResultCallback { result ->
+        lastLoad = media to startMillis
+        receiverFailure = null
+        remote.load(media.loadRequest(startMillis, autoplay, speed, putioReceiver)).setResultCallback { result ->
             // A refused or timed-out load says so for its file, unless another load followed it.
-            val failure = CastRemoteStatus(
-                fileId = media.fileId,
-                state = CastRemoteState.Failed,
-                positionMillis = startMillis,
-                durationMillis = media.durationMillis,
-                sampledAtMillis = SystemClock.elapsedRealtime(),
-                title = media.title,
-                audio = media.mediaType == PlaybackMediaType.AUDIO,
-            ).takeUnless { result.status.isSuccess }
+            val failure = media.failedAt(startMillis).takeUnless { result.status.isSuccess }
             if (client === remote && latestLoad.settle(request, failure)) {
                 if (failure == null) {
                     showPendingSubtitle()
@@ -945,6 +1030,18 @@ internal class GmsCastRemote : CastRemote {
                 }
             }
         }
+    }
+
+    /**
+     * The put.io receiver said how its load went. A failure for the latest load's file, or one it
+     * could not tie to a file while that load is in flight, stands until the next load.
+     */
+    fun receiverReported(state: PutioReceiverState) {
+        val (media, startMillis) = lastLoad ?: return
+        if (!state.failsLoad(media.fileId, latestLoad.inFlight)) return
+        receiverFailure = media.failedAt(startMillis)
+        pendingSubtitle = null
+        mutableStatus.value = latestLoad.failure ?: receiverFailure
     }
 
     override fun play() {
@@ -1023,8 +1120,49 @@ private fun MediaStatus.castRemoteState(): CastRemoteState =
         else -> CastRemoteState.Idle
     }
 
+private fun PlaybackCastMedia.failedAt(startMillis: Long): CastRemoteStatus =
+    CastRemoteStatus(
+        fileId = fileId,
+        state = CastRemoteState.Failed,
+        positionMillis = startMillis,
+        durationMillis = durationMillis,
+        sampledAtMillis = SystemClock.elapsedRealtime(),
+        title = title,
+        audio = mediaType == PlaybackMediaType.AUDIO,
+    )
+
+/**
+ * The LOAD for this media. The put.io receiver gets [PlaybackCastMedia.receiverLoad] and picks the
+ * stream itself, so the token-bearing URL stays here; any other receiver plays [PlaybackCastMedia.url].
+ */
+@VisibleForTesting
+internal fun PlaybackCastMedia.loadRequest(
+    startMillis: Long,
+    autoplay: Boolean,
+    speed: Float,
+    putioReceiver: Boolean,
+): MediaLoadRequestData {
+    val receiverLoad = receiverLoad?.takeIf { putioReceiver }
+    return MediaLoadRequestData.Builder()
+        .setMediaInfo(toMediaInfo(sendsUrl = receiverLoad == null))
+        .setAutoplay(autoplay)
+        .setCurrentTime(startMillis)
+        .setPlaybackRate(speed.castRate())
+        .setActiveTrackIds(activeSubtitleId?.let { longArrayOf(it) } ?: longArrayOf())
+        .apply { receiverLoad?.let { setCustomData(JSONObject(it.customData(startMillis))) } }
+        .build()
+}
+
+/**
+ * The put.io file this media belongs to; null for media another sender sent. The put.io receiver
+ * names it in the content id as well.
+ */
+private fun MediaInfo.putioFileId(putioReceiver: Boolean): Long? =
+    customData?.optLong(FILE_ID_KEY)?.takeIf { it > 0L }
+        ?: contentId?.toLongOrNull()?.takeIf { putioReceiver && it > 0L }
+
 /** The Cast form of [PlaybackCastMedia], tagged with its file id. */
-private fun PlaybackCastMedia.toMediaInfo(): MediaInfo {
+private fun PlaybackCastMedia.toMediaInfo(sendsUrl: Boolean): MediaInfo {
     val kind = if (mediaType == PlaybackMediaType.AUDIO) {
         MediaMetadata.MEDIA_TYPE_MUSIC_TRACK
     } else {
@@ -1035,7 +1173,7 @@ private fun PlaybackCastMedia.toMediaInfo(): MediaInfo {
         posterUrl?.let { addImage(WebImage(it.toUri())) }
     }
     return MediaInfo.Builder(fileId.toString())
-        .setContentUrl(url)
+        .apply { if (sendsUrl) setContentUrl(url) }
         .setContentType(contentType)
         .setStreamType(if (buffered) MediaInfo.STREAM_TYPE_BUFFERED else MediaInfo.STREAM_TYPE_NONE)
         .setMetadata(metadata)
@@ -1061,9 +1199,10 @@ private fun PlaybackCastMedia.toMediaInfo(): MediaInfo {
  */
 private fun RemoteMediaClient.showPlaylistSubtitle(
     pending: Pair<Long, PlaybackCastPlaylistSubtitle>,
+    putioReceiver: Boolean,
 ): Pair<Long, PlaybackCastPlaylistSubtitle>? {
     val (fileId, wanted) = pending
-    val tracks = mediaInfo?.takeIf { it.customData?.optLong(FILE_ID_KEY) == fileId }
+    val tracks = mediaInfo?.takeIf { it.putioFileId(putioReceiver) == fileId }
         ?.mediaTracks.orEmpty().filter { it.type == MediaTrack.TYPE_TEXT }
     if (tracks.isEmpty()) return pending
     playlistSubtitleTrack(tracks.map { CastTextTrack(it.id, it.language) }, wanted)

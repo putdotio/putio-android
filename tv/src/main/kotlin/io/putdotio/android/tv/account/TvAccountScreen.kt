@@ -1057,6 +1057,7 @@ private class TvAccountRowsScope(
             is AndroidAppConfigChange.PlaybackMethod -> RowKey.PLAYBACK_METHOD
             is AndroidAppConfigChange.AutoplayNextVideo -> RowKey.AUTOPLAY
             is AndroidAppConfigChange.RotateToLandscape,
+            is AndroidAppConfigChange.PutioCastReceiver,
             AndroidAppConfigChange.ProductAnalyticsPromptAnswered,
             -> return
         }

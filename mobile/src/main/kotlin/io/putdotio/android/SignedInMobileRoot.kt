@@ -130,6 +130,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.NonCancellable
@@ -401,6 +402,12 @@ private fun SignedInMobileSession(
     ProductAnalyticsAnswerEffect(sessionId, accountSettingsController, appConfigController)
     val reportingPlayerFactory = remember(runtime, sessionId, accountSettingsController, playbackPlayerFactory) {
         runtime.playbackReporting.factoryFor(sessionId, accountSettingsController.state, playbackPlayerFactory)
+    }
+    LaunchedEffect(appContext, appConfigController) {
+        appConfigController.state
+            .mapNotNull { it.confirmedPreferences?.putioCastReceiver }
+            .distinctUntilChanged()
+            .collect { MobileCast.useReceiver(appContext, it) }
     }
     LaunchedEffect(appContext, sessionId, playbackRepository, reportingPlayerFactory) {
         MobileCast.controller(appContext)?.autoplay?.follow(
