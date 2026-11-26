@@ -1099,7 +1099,7 @@ private fun MobileChrome(
             },
         ) { padding ->
             // Playback draws edge to edge and handles its own insets.
-            content(if (visible) Modifier.padding(padding) else Modifier.fillMaxSize())
+            content(if (visible) Modifier.padding(padding).consumeWindowInsets(padding) else Modifier.fillMaxSize())
         }
     }
 }
