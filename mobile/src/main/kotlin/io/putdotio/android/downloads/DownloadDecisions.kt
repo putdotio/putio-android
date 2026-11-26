@@ -91,8 +91,12 @@ internal fun validatedNetwork(context: Context): Flow<Boolean> {
             }
         }
         trySend(false)
-        connectivity.registerNetworkCallback(request, callback)
-        awaitClose { connectivity.unregisterNetworkCallback(callback) }
+        val registered = connectivity.runCatching { registerNetworkCallback(request, callback) }.isSuccess
+        if (!registered) {
+            close()
+            return@callbackFlow
+        }
+        awaitClose { connectivity.runCatching { unregisterNetworkCallback(callback) } }
     }.distinctUntilChanged()
 }
 
