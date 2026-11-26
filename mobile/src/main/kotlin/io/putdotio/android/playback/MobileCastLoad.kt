@@ -1,7 +1,6 @@
 package io.putdotio.android.playback
 
 import android.os.SystemClock
-import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
 import com.google.android.gms.cast.MediaInfo
 import com.google.android.gms.cast.MediaLoadRequestData
@@ -29,7 +28,6 @@ internal fun PlaybackCastMedia.failedAt(startMillis: Long): CastRemoteStatus =
  * The LOAD for this media. The put.io receiver gets [PlaybackCastMedia.receiverLoad] and picks the
  * stream itself, so the token-bearing URL stays here; any other receiver plays [PlaybackCastMedia.url].
  */
-@VisibleForTesting
 internal fun PlaybackCastMedia.loadRequest(
     startMillis: Long,
     autoplay: Boolean,
