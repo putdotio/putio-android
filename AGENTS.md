@@ -32,8 +32,10 @@ script headers and `--help` own the harness.
 - Derive every `OkHttpClient` from `PutioHttpClient.newBuilder()` outside
   `core/common`, and use `PutioHttpClient.shared` for multipart uploads
   because a custom SDK client drops the SDK's upload-timeout exemption.
-- A change to TV startup, sign-in or Home regenerates the TV baseline profile
-  with `scripts/generate-baseline-profile.sh` on an emulator you booted.
+- A change to mobile or TV startup, sign-in, or primary screens regenerates the
+  matching baseline profile with
+  `scripts/generate-baseline-profile.sh [mobile|tv] <serial>` on an emulator you
+  booted.
 - Design values and icons are generated: change the locks in `design/`, then
   run `./gradlew syncDesignAssets` or `./gradlew generateIcons`.
 - To take a design release:

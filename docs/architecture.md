@@ -40,11 +40,12 @@ flowchart TD
 - `mobile` and `tv`: navigation, screens, view models, the players, and the
   controllers of areas only one app has, such as sign-in and Downloads. Each
   app builds the SDK client and hands it to the repositories.
-- `baselineprofile:mobile`: the signed-out cold start that writes the mobile
-  app's baseline profile;
-  `ANDROID_SERIAL=<serial> ./gradlew :mobile:generateBaselineProfile` runs it.
+- `baselineprofile:mobile`: the macrobenchmark journeys that write the mobile
+  app's baseline profile; `scripts/generate-baseline-profile.sh mobile <serial>`
+  runs them.
 - `baselineprofile:tv`: the macrobenchmark journeys that write the TV app's
-  baseline profile; `scripts/generate-baseline-profile.sh` runs them.
+  baseline profile; `scripts/generate-baseline-profile.sh tv <serial>` runs
+  them.
 
 The [Kotlin SDK](https://github.com/putdotio/putio-sdk-kotlin) is the only API
 boundary.
