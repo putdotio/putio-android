@@ -1,7 +1,8 @@
 package io.putdotio.android.playback
 
+import android.annotation.SuppressLint
 import android.content.Context
-import androidx.core.content.edit
+import android.os.Looper
 import androidx.mediarouter.media.MediaRouteSelector
 import com.google.android.gms.cast.CastMediaControlIntent
 import com.google.android.gms.cast.framework.CastSession
@@ -57,24 +58,96 @@ internal class CastReceiverSwitch(
     private var cast: CastContextHandle? = null
     private var selection: CastReceiverSelection? = null
     private var wanted: String? = null
+    private var drainingPendingSignOut = false
+
+    fun drainPendingSignOut() {
+        drainingPendingSignOut = true
+        wanted = CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+    }
 
     fun bind(cast: CastContextHandle) {
         this.cast = cast
         selection = CastReceiverSelection(cast.receiverApplicationId)
-        wanted?.let(::want)
+        if (drainingPendingSignOut) {
+            selection?.want(wanted ?: CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID, sessionLive = true)
+        } else {
+            wanted?.let(::want)
+        }
     }
 
     fun use(putio: Boolean) {
         want(receiverApplicationId(putio))
     }
 
-    fun sessionGone() {
+    fun signOut() {
+        val defaultId = CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+        wanted = defaultId
+        val handle = cast
+        if (handle == null) {
+            if (drainingPendingSignOut || CastReceiverStore.pendingSignOutEnd(context)) {
+                drainingPendingSignOut = true
+            } else {
+                CastReceiverStore.save(context, CastReceiverStoredState.Default)
+            }
+            return
+        }
+        if (handle.isSessionLive()) {
+            selection?.want(defaultId, sessionLive = true)
+            val pending = handle.isPutioSession()
+            drainingPendingSignOut = pending
+            CastReceiverStore.save(
+                context,
+                if (pending) CastReceiverStoredState.PendingSignOutEnd else CastReceiverStoredState.Default,
+            )
+            return
+        }
+        drainingPendingSignOut = false
+        selection?.want(defaultId, sessionLive = false)?.let(::apply)
+        CastReceiverStore.save(context, CastReceiverStoredState.Default)
+    }
+
+    fun markLivePutioSignOutPending() {
+        val target = wanted ?: CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID
+        drainingPendingSignOut = true
+        wanted = target
+        selection?.want(target, sessionLive = true)
+        CastReceiverStore.save(context, CastReceiverStoredState.PendingSignOutEnd)
+    }
+
+    fun retryIfIdle() {
+        val handle = cast ?: return
+        if (drainingPendingSignOut || handle.isSessionLive()) return
         selection?.sessionGone()?.let(::apply)
+    }
+
+    fun sessionStarted() {
+        if (!drainingPendingSignOut) return
+        drainingPendingSignOut = false
+        val wantPutio = wanted == PUTIO_RECEIVER_APPLICATION_ID
+        val appliedPutio = cast?.receiverApplicationId == PUTIO_RECEIVER_APPLICATION_ID
+        CastReceiverStore.save(
+            context,
+            if (wantPutio && appliedPutio) CastReceiverStoredState.Putio else CastReceiverStoredState.Default,
+        )
+    }
+
+    fun sessionGone() {
+        val wasDraining = drainingPendingSignOut
+        drainingPendingSignOut = false
+        selection?.sessionGone()?.let(::apply)
+        if (wasDraining) {
+            val wantPutio = wanted == PUTIO_RECEIVER_APPLICATION_ID
+            val appliedPutio = cast?.receiverApplicationId == PUTIO_RECEIVER_APPLICATION_ID
+            CastReceiverStore.save(
+                context,
+                if (wantPutio && appliedPutio) CastReceiverStoredState.Putio else CastReceiverStoredState.Default,
+            )
+        }
     }
 
     private fun want(applicationId: String) {
         wanted = applicationId
-        val live = cast?.castState.let { it == CastState.CONNECTING || it == CastState.CONNECTED }
+        val live = drainingPendingSignOut || cast?.isSessionLive() == true
         selection?.want(applicationId, live)?.let(::apply)
     }
 
@@ -93,6 +166,13 @@ internal class CastReceiverSwitch(
     }
 }
 
+internal fun CastContextHandle.isSessionLive(): Boolean =
+    castState == CastState.CONNECTING || castState == CastState.CONNECTED || currentCastSession != null
+
+internal fun CastContextHandle.isPutioSession(): Boolean =
+    receiverApplicationId == PUTIO_RECEIVER_APPLICATION_ID ||
+        currentCastSession?.applicationMetadata?.applicationId == PUTIO_RECEIVER_APPLICATION_ID
+
 internal class PutioReceiverMessages(private val heard: (PutioReceiverState) -> Unit) {
     private var session: CastSession? = null
 
@@ -110,11 +190,63 @@ internal class PutioReceiverMessages(private val heard: (PutioReceiverState) -> 
     }
 }
 
-internal object CastReceiverStore {
-    fun putio(context: Context): Boolean = preferences(context).getBoolean(PUTIO_KEY, false)
+internal enum class CastReceiverStoredState {
+    Default,
+    Putio,
+    PendingSignOutEnd,
+}
 
-    fun save(context: Context, putio: Boolean) {
-        preferences(context).edit { putBoolean(PUTIO_KEY, putio) }
+internal object CastReceiverStore {
+    fun state(context: Context): CastReceiverStoredState {
+        val prefs = preferences(context)
+        return when {
+            prefs.getBoolean(PUTIO_KEY, false) -> CastReceiverStoredState.Putio
+            prefs.getBoolean(PENDING_SIGN_OUT_END_KEY, false) -> CastReceiverStoredState.PendingSignOutEnd
+            else -> CastReceiverStoredState.Default
+        }
+    }
+
+    fun putio(context: Context): Boolean = state(context) == CastReceiverStoredState.Putio
+
+    fun bootWithPutio(context: Context): Boolean = state(context) != CastReceiverStoredState.Default
+
+    fun pendingSignOutEnd(context: Context): Boolean = state(context) == CastReceiverStoredState.PendingSignOutEnd
+
+    fun save(context: Context, putio: Boolean) =
+        save(context, if (putio) CastReceiverStoredState.Putio else CastReceiverStoredState.Default)
+
+    // Off the main thread, commit() persists sign-out state synchronously before process exit.
+    @SuppressLint("ApplySharedPref")
+    fun save(
+        context: Context,
+        state: CastReceiverStoredState,
+        commit: Boolean = Looper.myLooper() != Looper.getMainLooper(),
+    ) {
+        val editor = preferences(context).edit()
+            .putBoolean(PUTIO_KEY, state == CastReceiverStoredState.Putio)
+            .putBoolean(PENDING_SIGN_OUT_END_KEY, state == CastReceiverStoredState.PendingSignOutEnd)
+        if (commit) {
+            editor.commit()
+        } else {
+            editor.apply()
+        }
+    }
+
+    fun clearPutio(context: Context) {
+        if (state(context) == CastReceiverStoredState.Putio) {
+            save(context, CastReceiverStoredState.Default)
+        }
+    }
+
+    fun markSignOutPendingIfPutio(context: Context, livePutioSession: Boolean) {
+        if (state(context) == CastReceiverStoredState.Putio) {
+            val next = if (livePutioSession) {
+                CastReceiverStoredState.PendingSignOutEnd
+            } else {
+                CastReceiverStoredState.Default
+            }
+            save(context, next)
+        }
     }
 
     private fun preferences(context: Context) =
@@ -122,6 +254,7 @@ internal object CastReceiverStore {
 
     private const val PREFERENCES_NAME = "cast_receiver"
     private const val PUTIO_KEY = "putio"
+    private const val PENDING_SIGN_OUT_END_KEY = "pending_sign_out_end"
 }
 
 internal sealed interface PutioReceiverState {
