@@ -6,7 +6,7 @@
   <h1>putio-android</h1>
 
   <p>
-    Native Android app for put.io on phones, tablets, Android TV, and Fire TV
+    Native Android app for put.io on phones, tablets, and Android TV
   </p>
 
   <p>
@@ -16,14 +16,14 @@
 </div>
 
 <p align="center">
-  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/1.png" width="24%" alt="Files on a phone">
-  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/2.png" width="24%" alt="Video playback on a phone">
-  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/3.png" width="24%" alt="Search on a phone">
-  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/4.png" width="24%" alt="Downloads on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/1.png" width="32%" alt="Files on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/3.png" width="32%" alt="Search on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/4.png" width="32%" alt="Downloads on a phone">
 </p>
 
 <p align="center">
-  <img src="./mobile/src/main/play/listings/en-US/graphics/tv-screenshots/1.png" width="98%" alt="Files on Android TV">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/phone-screenshots/2.png" width="49%" alt="Video playback on a phone">
+  <img src="./mobile/src/main/play/listings/en-US/graphics/tv-screenshots/1.png" width="49%" alt="Files on Android TV">
 </p>
 
 <p align="center">

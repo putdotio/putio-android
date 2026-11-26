@@ -7,10 +7,10 @@ How the code is split and how its main flows run.
 
 One Gradle build ships two apps on one Play identity:
 
-| App      | Form factors           | Input            | Shell                 |
-| -------- | ---------------------- | ---------------- | --------------------- |
-| `mobile` | Phones, tablets        | Touch, keyboard  | Material 3 Expressive |
-| `tv`     | Android TV and Fire TV | D-pad and remote | Compose for TV        |
+| App      | Form factors    | Input            | Shell                 |
+| -------- | --------------- | ---------------- | --------------------- |
+| `mobile` | Phones, tablets | Touch, keyboard  | Material 3 Expressive |
+| `tv`     | Android TV      | D-pad and remote | Compose for TV        |
 
 Both apps share data, domain, theme and component foundations. Their shells
 diverge where input differs.
