@@ -315,8 +315,8 @@ class TvAccountProofTest {
         const val VERSION = "Version"
         const val FFMPEG = "FFmpeg 7.1.5"
         const val FFMPEG_SOURCE =
-            "https://repo1.maven.org/maven2/io/put/media3-ffmpeg-decoder/1.11.1+1/" +
-                "media3-ffmpeg-decoder-1.11.1+1-ffmpeg-source.tar.xz"
+            "https://repo1.maven.org/maven2/io/put/media3-ffmpeg-decoder/1.11.1+2/" +
+                "media3-ffmpeg-decoder-1.11.1+2-ffmpeg-source.tar.xz"
         const val MAX_ABOUT_ROWS = 20
         const val PROXY = "Proxy"
         const val CDN77 = "cdn77"

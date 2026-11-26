@@ -99,7 +99,7 @@ public val playbackNotices: List<OpenSourceNotice> = listOf(
 )
 
 private const val FFMPEG_VERSION = "7.1.5"
-private const val FFMPEG_DECODER_VERSION = "1.11.1+1"
+private const val FFMPEG_DECODER_VERSION = "1.11.1+2"
 private const val FFMPEG_DECODER_TAG = "v$FFMPEG_DECODER_VERSION"
 private const val FFMPEG_DECODER = "https://github.com/putdotio/media3-ffmpeg-decoder"
 private const val FFMPEG_DECODER_NOTICE = "$FFMPEG_DECODER/blob/$FFMPEG_DECODER_TAG/NOTICE"
