@@ -10,8 +10,7 @@ script headers and `--help` own the harness.
 ## Conventions
 
 - A domain failure with cases of its own wraps a `PutioFailure`
-  (`AccountSettingsFailure`, `PlaybackFailure`) instead of cloning the shared
-  cases.
+  (`AccountSettingsFailure`, `PlaybackFailure`).
 - Kotlin packages stay `io.putdotio.android.*` whatever the module.
 - A declaration stays `internal` unless another module uses it; a new public
   one needs an explicit `public`.
@@ -25,8 +24,8 @@ script headers and `--help` own the harness.
   its `ffmpeg` submodule pins; an ass-media bump updates them to the
   libraries its `libass-cmake` submodule pins; a Sentry bump updates
   `telemetryNotices` to the sentry-native its NDK module depends on.
-- TV should feel like Android TV: Compose for TV, D-pad focus, system media
-  sessions, and platform search.
+- TV uses Compose for TV, D-pad focus, system media sessions, and platform
+  search.
 - [`putio-sdk-kotlin`](https://github.com/putdotio/putio-sdk-kotlin) is the
   API boundary. Close an SDK gap there.
 - Derive every `OkHttpClient` from `PutioHttpClient.newBuilder()` outside
@@ -62,13 +61,13 @@ script headers and `--help` own the harness.
   IP, so the script caches the app's token per host and reuses it on fresh
   devices. Signing out in the app revokes that token for every run on the host.
 - **Shared emulators.** The machine may be running other emulators. The scripts
-  reuse running ones and stop only the serial they booted; never kill
-  emulators by name or delete AVDs the harness did not create. A lane that
+  reuse running ones and stop only the serial they booted. Stop an emulator by
+  the serial you booted, and delete only AVDs the harness created. A lane that
   drives Home, the launcher, or system settings acts on the whole device: run
   it only on an emulator you booted, and restore every setting it changes.
 - **Authenticated installs.** `connectedAndroidTest` and `scripts/prove.sh`
-  uninstall the tested app and its session; run them before or after
-  authenticated proof, never between its steps.
+  uninstall the tested app and its session; run them before authenticated
+  proof starts or after it ends.
 - **Licensed fonts.** GT America and Berkeley Mono land in ignored
   `core/design/brand-fonts/`. Never commit them or attach them anywhere; only
   the apps embed them.
@@ -147,7 +146,7 @@ feature list, and a token or design-rule change updates DESIGN.md.
 ## Delivery and CI
 
 Open pull requests against `main`. A merge runs only
-[CI](.github/workflows/ci.yml); nothing ships without a Google Play dispatch.
+[CI](.github/workflows/ci.yml); a Google Play dispatch ships a build.
 
 ### Google Play delivery
 
