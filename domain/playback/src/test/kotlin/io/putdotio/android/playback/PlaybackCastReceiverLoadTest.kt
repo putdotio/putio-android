@@ -96,13 +96,109 @@ class PlaybackCastReceiverLoadTest {
 
     @Test
     fun incompleteMediaInfoStaysOut() {
-        val load = PlaybackCastReceiverLoad(42L, DOWNLOAD, mediaInfo = PutioMediaInfo(streams = emptyList()))
+        val emptyStreams = PlaybackCastReceiverLoad(42L, DOWNLOAD, mediaInfo = PutioMediaInfo(streams = emptyList()))
+        assertFalse("media_info" in emptyStreams.json(0L))
 
-        assertFalse("media_info" in load.json(0L))
+        val blankFormatName = PlaybackCastReceiverLoad(
+            42L,
+            DOWNLOAD,
+            mediaInfo = PutioMediaInfo(
+                format = PutioMediaFormat(name = ""),
+                streams = listOf(PutioMediaStream(codecType = "video", codecName = "h264")),
+            ),
+        )
+        assertFalse("media_info" in blankFormatName.json(0L))
     }
 
+    @Test
+    fun customDataMatchesSharedGoldenFixtures() {
+        val cases = listOf(
+            "minimal.json" to
+                PlaybackCastReceiverLoad(fileId = 42L, token = DOWNLOAD).customData(0L, MAX_BYTES),
+            "hls-with-position.json" to
+                PlaybackCastReceiverLoad(fileId = 42L, token = DOWNLOAD).customData(90_000L, MAX_BYTES),
+            "file-method.json" to PlaybackCastReceiverLoad(
+                fileId = 42L,
+                token = DOWNLOAD,
+                method = PlaybackCastMethod.FILE,
+            ).customData(0L, MAX_BYTES),
+            "subtitle-languages.json" to PlaybackCastReceiverLoad(
+                fileId = 42L,
+                token = DOWNLOAD,
+                subtitleLanguages = listOf("eng", "tur"),
+            ).customData(0L, MAX_BYTES),
+            "subtitle-max-count-zero.json" to PlaybackCastReceiverLoad(
+                fileId = 42L,
+                token = DOWNLOAD,
+                maxSubtitleCount = 0,
+            ).customData(0L, MAX_BYTES),
+            "public-share-token.json" to
+                PlaybackCastReceiverLoad(fileId = 42L, token = "public-share-token")
+                    .customData(0L, MAX_BYTES),
+        )
+        for ((name, actual) in cases) {
+            assertEquals(name, Json.parseToJsonElement(fixture(name)), Json.parseToJsonElement(actual))
+        }
+    }
+
+    @Test
+    fun mediaInfoTrimLimitMatchesSharedGoldenFixture() {
+        val trimFixtureText = fixture("media-info-trim-limit.json")
+        val trimFixture = Json.parseToJsonElement(trimFixtureText).jsonObject
+        val trimBudget = trimFixture.toString().toByteArray(Charsets.UTF_8).size
+        val extraSubtitles = List(50) {
+            PutioMediaStream(codecType = "subtitle", codecName = "hdmv_pgs_subtitle")
+        }
+        val trimFixtureInfo = trimFixture["media_info"]!!.jsonObject
+        val fixtureStreams = trimFixtureInfo["streams"]!!.jsonArray
+        val videoStream = PutioMediaStream(
+            codecType = "video",
+            codecName = "h264",
+            rfc6381Codec = "avc1.640029",
+            width = 1920,
+            height = 1080,
+            profile = "High",
+            level = 41,
+            bitDepth = 8,
+            isHdr = false,
+            isDefault = true,
+        )
+        val audioStream = PutioMediaStream(
+            codecType = "audio",
+            codecName = "aac",
+            rfc6381Codec = "mp4a.40.2",
+            channels = 2,
+            isDefault = true,
+        )
+        val subtitleStreams = List(fixtureStreams.size - 2) {
+            PutioMediaStream(codecType = "subtitle", codecName = "hdmv_pgs_subtitle")
+        }
+        val trimLoad = PlaybackCastReceiverLoad(
+            fileId = 42L,
+            token = DOWNLOAD,
+            mediaInfo = PutioMediaInfo(
+                mimeType = "video/x-matroska",
+                format = PutioMediaFormat(name = "matroska,webm", duration = 100.5, bitRate = 4_000_000L),
+                streams = extraSubtitles + subtitleStreams + audioStream + videoStream,
+                playbackIssues = emptyList(),
+            ),
+        )
+        assertEquals(trimFixture, Json.parseToJsonElement(trimLoad.customData(0L, maxBytes = trimBudget)))
+        val trimmedSmaller =
+            Json.parseToJsonElement(trimLoad.customData(0L, maxBytes = trimBudget - 1)).jsonObject
+        assertEquals(
+            fixtureStreams.size - 1,
+            trimmedSmaller["media_info"]!!.jsonObject["streams"]!!.jsonArray.size,
+        )
+    }
+
+    private fun fixture(name: String): String =
+        checkNotNull(javaClass.getResourceAsStream("/cast-load/$name")) { "Missing fixture $name" }
+            .bufferedReader()
+            .use { it.readText() }
+
     private fun PlaybackCastReceiverLoad.json(positionMillis: Long): JsonObject =
-        Json.parseToJsonElement(customData(positionMillis, maxBytes = 64 * 1024)).jsonObject
+        Json.parseToJsonElement(customData(positionMillis, maxBytes = MAX_BYTES)).jsonObject
 
     private fun hls(query: String, target: PlaybackTarget = Video) =
         source(PlaybackSourceKind.HLS, "https://api.put.io/v2/files/42/hls/media.m3u8?$query")
@@ -118,6 +214,7 @@ class PlaybackCastReceiverLoadTest {
         )
 
     private companion object {
+        const val MAX_BYTES = 64 * 1024
         const val DOWNLOAD = "download-token"
         val Video = PlaybackTarget(FilesItemId(42L), "episode.mkv")
     }

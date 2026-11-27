@@ -14,18 +14,29 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
+public enum class PlaybackCastMethod(public val wireValue: String) {
+    HLS("hls"),
+    FILE("file"),
+}
+
 public data class PlaybackCastReceiverLoad(
     public val fileId: Long,
     public val token: String,
     public val maxSubtitleCount: Int? = null,
     public val subtitleLanguages: List<String>? = null,
     public val mediaInfo: PutioMediaInfo? = null,
+    public val method: PlaybackCastMethod = PlaybackCastMethod.HLS,
 ) {
     public fun customData(positionMillis: Long, maxBytes: Int): String {
+        val clampedMillis = positionMillis.coerceAtLeast(0L)
         val load = buildJsonObject {
             put("fileId", fileId)
-            put("method", HLS_METHOD)
-            put("position", positionMillis.coerceAtLeast(0L) / MILLIS_PER_SECOND)
+            put("method", method.wireValue)
+            if (clampedMillis % MILLIS_PER_SECOND_LONG == 0L) {
+                put("position", clampedMillis / MILLIS_PER_SECOND_LONG)
+            } else {
+                put("position", clampedMillis / MILLIS_PER_SECOND)
+            }
             put("token", token)
             maxSubtitleCount?.let { put("maxSubtitleCount", it) }
             subtitleLanguages?.let { languages -> put("subtitleLanguages", JsonArray(languages.map(::JsonPrimitive))) }
@@ -66,15 +77,20 @@ internal fun PlaybackSource.toReceiverLoad(target: PlaybackTarget, downloadToken
 }
 
 private fun PutioMediaInfo.trimmed(): PutioMediaInfo? {
-    val all = streams
-    val known = format
-    if (all == null || known == null) return null
-    return PutioMediaInfo(
-        mimeType = mimeType,
-        format = known,
-        streams = all.sortedBy { STREAM_PRIORITY[it.codecType] ?: STREAM_PRIORITY.size },
-        playbackIssues = playbackIssues.orEmpty(),
-    )
+    val known = format?.takeIf { !it.name.isNullOrBlank() }
+    val validStreams = streams.orEmpty()
+        .filter { !it.codecType.isNullOrBlank() && !it.codecName.isNullOrBlank() }
+        .sortedBy { STREAM_PRIORITY[it.codecType] ?: STREAM_PRIORITY.size }
+    return if (known == null || validStreams.isEmpty()) {
+        null
+    } else {
+        PutioMediaInfo(
+            mimeType = mimeType?.takeIf(String::isNotEmpty),
+            format = known,
+            streams = validStreams,
+            playbackIssues = playbackIssues.orEmpty().filter { it.raw.isNotEmpty() },
+        )
+    }
 }
 
 private fun String.queryValues(): Map<String, String>? =
@@ -98,8 +114,8 @@ private fun String.utf8Size(): Int = toByteArray(Charsets.UTF_8).size
 private val CAST_JSON = Json { explicitNulls = false }
 private val LANGUAGE_CODE = Regex("^[a-z]{3}$")
 private val STREAM_PRIORITY = mapOf("video" to 0, "audio" to 1)
-private const val HLS_METHOD = "hls"
 private const val MILLIS_PER_SECOND = 1_000.0
+private const val MILLIS_PER_SECOND_LONG = 1_000L
 private const val ORIGINAL_QUERY = "original"
 private const val MAX_SUBTITLE_COUNT_QUERY = "max_subtitle_count"
 private const val SUBTITLE_LANGUAGES_QUERY = "subtitle_languages"
