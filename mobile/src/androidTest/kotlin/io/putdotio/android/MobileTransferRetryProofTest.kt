@@ -146,12 +146,15 @@ private const val REJECTED_MESSAGE = "Couldn’t retry transfer. It has no error
 
 private val TRANSFERS = listOf(
     Transfer(
-        id = ACCEPTED_ID, name = ACCEPTED_NAME, status = TransferStatus.ERROR,
+        id = ACCEPTED_ID, name = ACCEPTED_NAME, status = TransferStatus.ERROR, saveParentId = 0L,
         errorMessage = SERVER_REASON, createdAt = "2026-09-30T08:00:00",
     ),
-    Transfer(id = REJECTED_ID, name = REJECTED_NAME, status = TransferStatus.ERROR, createdAt = "2026-09-30T07:00:00"),
     Transfer(
-        id = 23L, name = "Archive été 東京", status = TransferStatus.DOWNLOADING, size = 734_003_200.0,
-        percentDone = 42.0, downSpeed = 1_572_864.0, createdAt = "2026-09-30T06:00:00",
+        id = REJECTED_ID, name = REJECTED_NAME, status = TransferStatus.ERROR, saveParentId = 0L,
+        createdAt = "2026-09-30T07:00:00",
+    ),
+    Transfer(
+        id = 23L, name = "Archive été 東京", status = TransferStatus.DOWNLOADING, saveParentId = 0L,
+        size = 734_003_200.0, percentDone = 42.0, downSpeed = 1_572_864.0, createdAt = "2026-09-30T06:00:00",
     ),
 )

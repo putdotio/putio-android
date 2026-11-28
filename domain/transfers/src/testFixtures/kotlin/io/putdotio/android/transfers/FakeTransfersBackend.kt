@@ -111,6 +111,7 @@ internal fun historicalTransfer(id: Long, active: Boolean): Transfer =
                 "&tr=udp%3A%2F%2Ftracker.example.invalid%3A1337%2Fannounce",
         type = TransferType.TORRENT,
         status = if (active) TransferStatus.DOWNLOADING else TransferStatus.COMPLETED,
+        saveParentId = 0L,
         fileId = if (active) null else id + FILE_ID_OFFSET,
         downloadId = id + DOWNLOAD_ID_OFFSET,
         size = 4.7e9,

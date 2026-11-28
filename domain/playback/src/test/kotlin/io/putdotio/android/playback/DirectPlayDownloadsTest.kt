@@ -221,6 +221,7 @@ class DirectPlayDownloadsTest {
         files[id] = PutioFile(
             id = id,
             name = "file-$id",
+            size = 0L,
             createdAt = "2026-11-06T00:00:00",
             fileType = type,
             needConvert = true,
