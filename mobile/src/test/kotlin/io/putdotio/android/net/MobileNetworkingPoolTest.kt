@@ -336,7 +336,10 @@ private class KeepAliveLoopbackServer(
         const val SCRATCH_SIZE = 4_096
         const val INITIAL_LINE_CAPACITY = 64
         val VALIDATE_JSON = """{"result":true,"user_id":1}""".encodeToByteArray()
-        val UPLOAD_JSON = """{"status":"OK","transfer":{"id":7,"name":"sample.torrent"}}""".encodeToByteArray()
+        val UPLOAD_JSON = (
+            """{"status":"OK","transfer":{"id":7,"name":"sample.torrent",""" +
+                """"status":"WAITING","save_parent_id":0,"created_at":"2026-09-30T08:00:00"}}"""
+            ).encodeToByteArray()
         val OK_JSON = """{"status":"OK"}""".encodeToByteArray()
         val PNG_1X1 = byteArrayOf(
             0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,

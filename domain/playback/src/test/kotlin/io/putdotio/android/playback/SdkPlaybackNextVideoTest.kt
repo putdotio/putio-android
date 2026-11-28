@@ -21,6 +21,7 @@ class SdkPlaybackNextVideoTest {
                         id = 42L,
                         name = "video-42.mp4",
                         parentId = null,
+                        size = 0L,
                         createdAt = "2026-09-05",
                         fileType = PutioFileType.VIDEO,
                     )

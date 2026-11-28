@@ -296,7 +296,7 @@ class SdkTransfersRepositoryTest {
         val repository = repository(mutations = MutationOperations().apply {
             upload = {
                 FileUploadResult.File(
-                    PutioFile(id = 3L, name = "a.torrent", createdAt = "", fileType = PutioFileType.FILE),
+                    PutioFile(id = 3L, name = "a.torrent", size = 0L, createdAt = "", fileType = PutioFileType.FILE),
                 )
             }
         })
@@ -383,10 +383,12 @@ class SdkTransfersRepositoryTest {
         name = "transfer-$id",
         source = source,
         status = status,
+        saveParentId = 0L,
         fileId = if (status == TransferStatus.COMPLETED) id + 100L else null,
         percentDone = percentDone,
         completionPercent = completionPercent,
         errorMessage = null,
+        createdAt = "2026-09-30T08:00:00",
         callbackUrl = "https://callback.invalid/secret",
         links = listOf(TransferLink("private", "https://example.invalid/secret")),
     )

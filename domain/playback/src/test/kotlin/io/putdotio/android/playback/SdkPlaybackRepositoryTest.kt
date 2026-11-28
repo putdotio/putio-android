@@ -632,6 +632,7 @@ class SdkPlaybackRepositoryTest {
             id = id,
             name = "video-$id.mp4",
             parentId = parentId,
+            size = 0L,
             createdAt = "2026-09-05",
             fileType = PutioFileType.VIDEO,
         )
